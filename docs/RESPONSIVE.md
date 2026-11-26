@@ -775,17 +775,29 @@ touch screen. From `sm` the window is as it was (three figures across, six from 
 scope line, toolbar and sorted pair at 393, 375, 360 and 320px, 200% text on a 320px phone, the bar
 and its legend against the filters' games, and the groups with the 76rem grid's headings, arrows and
 figures at 1536 and 1680px. All Champions' preview (S5, 19 Nov 2026; docs/MATCHUPS.md) replaces the
-champion window. Since Release 16 it is the compact panel docked at the window's right edge from
-768px wide (the overlay kit's Peek, docs/DESIGN_SYSTEM.md §7): the list never moves (Champion, Games
-and Win rate keep their x, every row its place and height, the page does not scroll), the panel is
-within the screen, its content fits it with an opponent open and stays clear of the selected row's
-name; under 768px (the phone's frame, with a mouse as with touch) and on short windows it is the same
-Peek's sheet. (Until 22 Nov 2026 a wide list showed it over the columns after Win rate; from 23 Nov
-2026 until Release 16 it unfolded under its row and pushed the list down.) The wide (76rem) tier drops the Kills column (it sorts like Games; per-game kills are in KDA;
-CM AC-11, reversible: OD20). `e2e/champion-preview.spec.ts` checks the geometry at 1280, 1440, 1920
-and 2560 (the sidebar open and collapsed), ↑/↓, ‹ ›, Back, Escape, Close and a click outside, the
-content and old addresses on all three projects, the docked panel on the tablet and the sheet on the
-phone.
+champion window. Since 25 Nov 2026 (the owner's request: the docked panel of Release 16 lay over
+half the table) it is a pane **beside** the list wherever the section has 46rem, from 768px wide in a
+window taller than 480px (a 1024px window with the sidebar folded, 1280px with it open; tablets held
+sideways): the list narrows to `minmax(20rem, min(32%, 24rem))`, its rows in the narrow layout
+(the name over the position icons and "In pool", the win rate over the games) under a heading row
+of the table's height (Champion, Games, Win rate), so every row keeps its place and height and every
+name its x; the pane takes the rest, pinned under the section tabs, at most the window's height, its
+body the one scroll region. Its position choice wraps; its figures go five across from a 34rem pane,
+the win rate over four from 22rem, two by two below; the opponents' detail sits beside their table
+from a 38rem pane and is one step in place of it below (with "All opponents"). Narrower sections (an
+upright tablet, a large text size), windows under 768px (touch or mouse) and short windows get the
+phone window shell's sheet with the same content. Each row shows the position icon of every position
+the champion was played in: 24px controls with a tooltip with a mouse, 14px marks on a touch screen
+(the row the one 44px target; the preview's position choice, 44px segments, switches); a champion
+of four or five positions in the table's narrowest column lets "In pool" take the next line. (Until
+22 Nov 2026 a wide list showed it over the columns after Win rate; from 23 Nov 2026 until Release 16
+it unfolded under its row and pushed the list down; from Release 16 until 25 Nov 2026 a panel docked
+at the window's right edge, over the table.) The wide (76rem) tier drops the Kills column (it sorts like Games; per-game kills are in KDA;
+CM AC-11, reversible: OD20). `e2e/champion-preview.spec.ts` checks the pane at 1280, 1366, 1920 and
+2560 (the sidebar open and collapsed: beside the list, within the screen, nothing wider than it, no
+row or name moved), ↑/↓, ‹ ›, Back, Escape and Close, the positions of a champion played in one, two,
+three and five positions, the opponents' table and its detail, and old addresses on all three
+projects, the sheet on the phone and the upright tablet and the pane on the tablet held sideways.
 
 The player Peek's pool list (Team, Players, Leaderboards; `PoolChampionTile`) takes its columns
 (Win rate, Games, KDA, CS/min or Vision) from its own width, 28rem or more (`@container/pool`), and

@@ -3,7 +3,7 @@ import { recentForm, type RecentForm } from "@/domain/recent-form";
 import type { Role } from "@/domain/roles";
 import { legalRolesFor, poolFor } from "@/domain/roster";
 import type { GameRecord } from "@/domain/player-stats";
-import { championsByGames, combineMastery, modeBreakdown, dedupeGames, filterGames, gameRole, gamesFor, isGameRole, otherSeasonChampions, performanceOfGames, recordOf, seasonChampionStats, seasonsInGames, type CombinedMastery, type GameRole, type MasteryEntry, type PerformanceSummary, type SeasonChampionStats, type SeasonMode, type StatsFilter, type StatsScope } from "@/domain/season-stats";
+import { championsByGames, combineMastery, modeBreakdown, dedupeGames, filterGames, gameRole, gamesFor, isGameRole, otherSeasonChampions, performanceOfGames, positionsPlayed, recordOf, seasonChampionStats, seasonsInGames, type CombinedMastery, type GameRole, type MasteryEntry, type PerformanceSummary, type SeasonChampionStats, type SeasonMode, type StatsFilter, type StatsScope } from "@/domain/season-stats";
 import { chooseSeason, offeredSeasons, seasonLabel } from "@/domain/season";
 import { multikillsOfGames, type MultikillSummary } from "@/domain/multikills";
 import { loadCountingReading } from "@/server/accounts/multikill-counting";
@@ -63,6 +63,38 @@ export interface OverviewCard extends SeasonChampionStats {
   multikills?: MultikillSummary;
 }
 
+/**
+ * One position a champion was played in, within the page's filters (All Champions' role icons and
+ * the preview's role selector): Riot's recorded position only, never a configured one.
+ */
+export interface ChampionRole {
+  role: Role;
+  /** Decided games and wins in this position (the icon's tooltip, the role selector's count). */
+  games: number;
+  wins: number;
+  /**
+   * The position's own figures (the preview's headline). Absent where they are the champion's own:
+   * one position and no game without a recorded one, so the row's figures are sent once.
+   */
+  figures?: { selected: GameRecord; performance: PerformanceSummary; multikills: MultikillSummary };
+}
+
+/**
+ * All Champions' row: one per champion, its figures over every game it was played in within the
+ * filters (all its positions, and games with no recorded position), with each position it was
+ * played in beside them.
+ */
+export interface ChampionRow extends Omit<OverviewCard, "role" | "allRoles"> {
+  /** The most played recorded position in these filters (what opening the champion shows first); null when no game records one. */
+  role: Role | null;
+  /** Every position the champion was played in within the filters, most played first (domain/season-stats positionsPlayed). */
+  roles: ChampionRole[];
+  /** Games in these filters with no recorded position: in the champion's figures, in no position's. */
+  noRole: number;
+  /** The positions on the row whose pool holds the champion ("In pool"), in the row's order. */
+  poolRoles: Role[];
+}
+
 export interface SeasonCompleteness {
   complete: boolean;
   /** "Complete season" · "Partial Data" · "No games yet" */
@@ -79,8 +111,8 @@ export interface PlayerOverviewData {
   summary: { record: GameRecord; performance: PerformanceSummary; unknownRole: number; multikills: MultikillSummary };
   /** The same figures in each role asked for with `roleSummaries` (everything else in the filter unchanged). */
   roleSummaries: Partial<Record<Role, { record: GameRecord; performance: PerformanceSummary }>>;
-  /** Champions within the filter, most played first, with their figures. */
-  topChampions: OverviewCard[];
+  /** Champions within the filter, most played first, with their figures: one row per champion, its positions beside them. */
+  topChampions: ChampionRow[];
   /** Choices for the champion filter: champions played this season/mode, then pool champions. */
   championOptions: Array<{ id: string; games: number }>;
   accountOptions: Array<{ id: string; riotId: string; label: string }>;
@@ -219,11 +251,12 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
   const masteryByChampion = new Map<string, MasteryEntry[]>();
   for (const m of masteryRows) masteryByChampion.set(m.championId, [...(masteryByChampion.get(m.championId) ?? []), { accountId: m.accountId, account: accountName.get(m.accountId) ?? "Linked account", points: m.points, level: m.level, lastPlayedAt: m.lastPlayedAt }]);
 
-  const card = (c: SeasonChampionStats, role: Role, inPool: OverviewCard["inPool"]): OverviewCard => {
-    const est = lookup(player.id, c.championId, role);
+  const estimate = (c: SeasonChampionStats, role: Role | null) => {
+    const est = role ? lookup(player.id, c.championId, role) : null;
     const tier: ProficiencyTier = est?.tier ?? "unknown";
-    return { ...c, role, inPool, tier, tierLabel: TIER_LABELS[tier], tierWhy: tierExplanation(est), evidence: est ? confidenceWord(est.confidence) : "none", mastery: combineMastery(masteryByChampion.get(c.championId) ?? []) };
+    return { tier, tierLabel: TIER_LABELS[tier], tierWhy: tierExplanation(est), evidence: est ? confidenceWord(est.confidence) : ("none" as const), mastery: combineMastery(masteryByChampion.get(c.championId) ?? []) };
   };
+  const card = (c: SeasonChampionStats, role: Role, inPool: OverviewCard["inPool"]): OverviewCard => ({ ...c, role, inPool, ...estimate(c, role) });
   const roles = legalRolesFor(player);
   const poolOf = (r: GameRole) => (roles.includes(r) ? poolFor(player, r) : []);
   const fitOf = (role: Role): OverviewCard["inPool"] => (role === player.primaryRole ? "primary" : role === player.secondaryRole ? "secondary" : roles.includes(role) ? "additional" : null);
@@ -245,20 +278,29 @@ export async function getPlayerOverview(db: Db, player: PlayerRecord, options: P
   const accountId = options.accountId && accounts.some((a) => a.id === options.accountId) ? options.accountId : null;
   const filter: StatsFilter = { season, mode: options.mode, role: isGameRole(options.role) ? options.role : null, scope: scope === "champion" && !options.championId ? "all" : scope, championId: scope === "champion" ? (options.championId ?? null) : null, accountId };
   const filtered = filterGames(rawGames, filter, poolOf);
-  // A champion's row needs a role: the role it was played in most, else the primary role. A member
-  // without a chosen role whose games carry no role has no row for it (never an invented role);
-  // those games still count in the summary.
-  const topChampions = championsByGames(filtered.games).flatMap(({ championId }) => {
-    const mine = filtered.games.filter((g) => g.championId === championId);
-    const roleCounts = new Map<GameRole, number>();
-    for (const g of mine) {
-      const r = gameRole(g);
-      if (r) roleCounts.set(r, (roleCounts.get(r) ?? 0) + 1);
-    }
-    const role = filter.role ?? [...roleCounts.entries()].sort((a, b) => b[1] - a[1])[0]?.[0] ?? player.primaryRole;
-    if (!role) return [];
+  // One row per champion: its figures over every game it was played in within the filters, and each
+  // position Riot recorded for those games, most played first, with that position's own figures.
+  // Games without a recorded position count in the champion's figures and in no position (never
+  // given the configured role); a champion played only in such games still has its row, with no
+  // position. A role filter leaves only that position's games, so its rows show that position alone.
+  const byChampion = new Map<string, typeof filtered.games>();
+  for (const g of filtered.games) {
+    const list = byChampion.get(g.championId);
+    if (list) list.push(g);
+    else byChampion.set(g.championId, [g]);
+  }
+  const topChampions = championsByGames(filtered.games).map(({ championId }): ChampionRow => {
+    const mine = byChampion.get(championId) ?? [];
     const [stats] = seasonChampionStats(mine, [championId], { season, mode: options.mode });
-    return [{ ...card(stats!, role, poolFor(player, role).includes(championId) ? fitOf(role) : null), multikills: multikillsOfGames(mine, rule) }];
+    const { positions, unrecorded } = positionsPlayed(mine);
+    const whole = positions.length === 1 && unrecorded === 0;
+    const roles: ChampionRole[] = positions.map(({ role, games: inRole }) => {
+      const selected = recordOf(inRole);
+      return { role, games: selected.games, wins: selected.wins, ...(whole ? {} : { figures: { selected, performance: performanceOfGames(inRole), multikills: multikillsOfGames(inRole, rule) } }) };
+    });
+    const role = roles[0]?.role ?? null;
+    const poolRoles = roles.filter((r) => poolFor(player, r.role).includes(championId)).map((r) => r.role);
+    return { ...stats!, role, roles, noRole: unrecorded, poolRoles, inPool: poolRoles[0] ? fitOf(poolRoles[0]) : null, ...estimate(stats!, role), multikills: multikillsOfGames(mine, rule) };
   });
   const selectedGames = gamesFor(games, { season, mode: options.mode });
   const poolGames = filterGames(rawGames, { season, mode: options.mode, role: null, scope: "pool", championId: null, accountId: null }, poolOf).games;

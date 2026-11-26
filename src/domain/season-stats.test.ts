@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { combineMastery, dedupeGames, gamesFor, otherSeasonChampions, performanceOfGames, recordOf, seasonChampionStats, seasonsInGames, type SeasonGame } from "./season-stats";
+import { combineMastery, dedupeGames, gamesFor, otherSeasonChampions, performanceOfGames, positionsPlayed, recordOf, seasonChampionStats, seasonsInGames, type SeasonGame } from "./season-stats";
 
 let n = 0;
 const g = (championId: string, queueId: number, win: boolean, patch = "16.18", accountId = "acc-a", matchId?: string): SeasonGame => ({ matchId: matchId ?? `M${++n}`, accountId, queueId, championId, role: "TOP", win, patch, gameCreation: 1_780_000_000_000 + n });
@@ -104,5 +104,36 @@ describe("performanceOfGames and games whose record Riot no longer serves", () =
     const game = (matchId: string, kills: number | null): SeasonGame => ({ matchId, accountId: "a", queueId: 420, championId: "Ahri", role: "MID", win: true, patch: "16.20", gameCreation: 1, kills, deaths: kills === null ? null : kills < 0 ? null : 2, assists: kills === null ? null : kills < 0 ? null : 3, cs: null, damage: null, visionScore: null, gameDuration: 1800, multikills: null });
     const p = performanceOfGames([game("a", 4), game("b", null), game("c", -1)]);
     expect(p).toMatchObject({ games: 3, detailedGames: 1, unavailableGames: 1, kills: 4, totalKills: 4 });
+  });
+});
+
+describe("positionsPlayed: the positions a champion was actually played in (All Champions' role icons)", () => {
+  // A fixed clock: each game a minute after the last.
+  let t = 1_780_000_000_000;
+  const g = (role: string | null): Pick<SeasonGame, "role" | "gameCreation"> => ({ role, gameCreation: (t += 60_000) });
+  const roles = (games: ReturnType<typeof g>[]) => {
+    const p = positionsPlayed(games);
+    return { order: p.positions.map((x) => `${x.role} ${x.games.length}`), unrecorded: p.unrecorded };
+  };
+
+  it("one position: that position alone, however few the games", () => {
+    expect(roles([g("MID")])).toEqual({ order: ["MID 1"], unrecorded: 0 });
+  });
+
+  it("two and three positions, most played first, no minimum (a single game counts)", () => {
+    expect(roles([g("TOP"), g("JUNGLE"), g("TOP")])).toEqual({ order: ["TOP 2", "JUNGLE 1"], unrecorded: 0 });
+    expect(roles([g("SUPPORT"), g("ADC"), g("ADC"), g("MID"), g("ADC"), g("SUPPORT")])).toEqual({ order: ["ADC 3", "SUPPORT 2", "MID 1"], unrecorded: 0 });
+  });
+
+  it("all five positions; equal games go to the position played most recently, then to the positions' order", () => {
+    expect(roles([g("TOP"), g("TOP"), g("JUNGLE"), g("SUPPORT"), g("MID"), g("ADC")])).toEqual({ order: ["TOP 2", "ADC 1", "MID 1", "SUPPORT 1", "JUNGLE 1"], unrecorded: 0 });
+    const same = { role: "ADC", gameCreation: 5 };
+    expect(positionsPlayed([{ ...same, role: "MID" }, same]).positions.map((x) => x.role)).toEqual(["MID", "ADC"]);
+  });
+
+  it("never gives a game without a recorded position to one: it is counted apart, and a champion with only such games has none", () => {
+    expect(roles([g(null), g("TOP"), g(""), g("UTILITY"), g("TOP")])).toEqual({ order: ["TOP 2"], unrecorded: 3 });
+    expect(roles([g(null), g(null)])).toEqual({ order: [], unrecorded: 2 });
+    expect(roles([])).toEqual({ order: [], unrecorded: 0 });
   });
 });

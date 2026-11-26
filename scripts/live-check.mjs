@@ -115,9 +115,9 @@
     first three cards' CS totals and damage shares end before the next column (the build or the
     teams), and a copy of a card with the widest K/D/A and the longest champion names stays level
     with it and keeps the names whole; on the phone (390x844) the first game card is complete above
-    the tab bar; its Encounters view still opens. All Champions' preview: on the desktop and the
-    tablet unfolded under its row (Champion, Games and Win rate in place, the page not scrolled,
-    nothing scrolling inside), Escape and Back close it; on the phone a sheet, which Back closes;
+    the tab bar; its Encounters view still opens. All Champions' preview: on the desktop a pane beside
+    the list (every champion's name at its x, every row's top, the page not scrolled, the pane clear
+    of the list), Escape and Back close it; on the tablet and the phone a sheet, which Back closes;
     phone rows at most 64px. The open game's post-game view has no notes, no gold curve, no comparison and no written why; Build
     Path, Skill Order and Runes stand above its lane, each of its ten players has a performance score
     (one MVP, one ACE), and a press on another player's row shows that player ("Back to …" returns).
@@ -1317,7 +1317,7 @@ async function allChampions(page, log, kind, playerId) {
     else pass("all-champions", `${kind}: rows are compact (at most 64 px: the name over the role, the win rate over the games)`, facts.heights.length > 0 && Math.max(...facts.heights) <= 64, facts.heights);
     if (kind !== "phone") {
       const roles = await everyRoleRow(page);
-      pass("all-champions", `${kind}: rows stay compact for every role beside "In pool" (at most 56 px)`, !!roles && Math.max(...Object.values(roles.heights)) <= 56, roles ?? "no row with a role line to measure");
+      pass("all-champions", `${kind}: rows stay compact with one to five position icons beside "In pool" (at most 56 px)`, !!roles && Math.max(...Object.values(roles.heights)) <= 56, roles ?? "no row with position icons to measure");
     }
     pass("all-champions", `${kind}: sorted by games by default`, /games/i.test(facts.sortedBy ?? ""), facts.sortedBy);
     // Release 10 (PLAN S2b): on a phone Filters is in the list's search and sort row, on the search's
@@ -1336,40 +1336,40 @@ async function allChampions(page, log, kind, playerId) {
   }
   pass("all-champions", `${kind}: no heading cut short`, facts.cut.length === 0, facts.cut);
   await axe(page, kind, "all-champions");
-  // All Champions' preview: on the desktop and the tablet the compact panel docked at the window's
-  // right edge (the overlay kit's Peek, since Release 16; it unfolded under its row from 23 Nov 2026),
-  // the list where it was (Champion, Games and Win rate in place, ±1px, every row's top, the page not
-  // scrolled), the panel within the screen with its content fitting it and clear of the row's name,
-  // no window; Escape and Back close it. On the phone it is a sheet, and Back closes it.
+  // All Champions' preview (25 Nov 2026, the owner's request: no panel over the table): on the
+  // desktop a pane beside the list, the list narrowing to its champions (each name where it was,
+  // ±1px, every row's top, the page not scrolled), the pane within the screen and clear of the list,
+  // no window; Escape and Back close it. On the tablet (an upright one: no room for both side by
+  // side) and the phone it is a sheet, and Back closes it.
   const open = page.getByTestId("open-champion").first();
   if (await open.count()) {
-    const columns = () => page.evaluate(() => ["champion", "games", "win"].map((k) => Math.round(document.querySelector(`[data-testid=sort-${k}]`)?.getBoundingClientRect().x ?? -1)));
+    const names = () => page.evaluate(() => [...document.querySelectorAll("[data-testid=top-champion] [data-open-champion]")].map((b) => Math.round(b.getBoundingClientRect().x)));
     const rowTops = () => page.evaluate(() => [...document.querySelectorAll("[data-testid=top-champion]")].map((r) => Math.round(r.getBoundingClientRect().top)));
-    const before = { x: await columns(), y: await page.evaluate(() => scrollY), rows: await rowTops() };
+    const before = { x: await names(), y: await page.evaluate(() => scrollY), rows: await rowTops() };
     await open.click();
     const content = page.getByTestId("champion-preview-content");
     const opened = await content.waitFor({ timeout: 15_000 }).then(() => true, () => false);
-    // Docked: the Peek's panel (an aside at the window's right edge, not a window), within the screen, its body not scrolling, clear of the selected row's name.
-    const dockedPanel = () =>
+    // The pane: an aside in the page beside the list (not a window), within the screen's width, the list's card and the selected row's name clear of it.
+    const paneFacts = () =>
       page.evaluate(() => {
         const li = document.querySelector("[data-testid=top-champion][data-selected=true]");
-        const panel = document.querySelector("aside[data-peek-panel][data-testid=champion-preview]");
-        if (!li || !panel) return { found: false };
-        const p = panel.getBoundingClientRect();
-        const body = panel.querySelector("[data-testid=champion-preview-body]");
+        const pane = document.querySelector("aside[data-preview-pane][data-testid=champion-preview]");
+        if (!li || !pane) return { found: false };
+        const p = pane.getBoundingClientRect();
+        const card = document.querySelector("[data-testid=all-champions-table]")?.getBoundingClientRect();
         const name = li.querySelector("[data-open-champion]")?.getBoundingClientRect();
-        return { found: true, window: !!document.querySelector("dialog[open]"), within: p.top >= -0.5 && p.left >= -0.5 && p.bottom <= innerHeight + 0.5 && p.right <= innerWidth + 0.5, fits: !!body && body.scrollHeight <= body.clientHeight + 1, nameClear: !!name && name.right <= p.left };
+        return { found: true, window: !!document.querySelector("dialog[open]"), within: p.left >= -0.5 && p.right <= innerWidth + 0.5 && p.top < innerHeight, besideList: !!card && card.right <= p.left + 0.5, nameClear: !!name && name.right <= p.left, sideways: document.documentElement.scrollWidth - innerWidth > 1 };
       });
-    if (kind !== "phone") {
-      const after = { x: await columns(), y: await page.evaluate(() => scrollY), rows: await rowTops() };
-      let docked = { found: false };
+    if (kind === "desktop") {
+      const after = { x: await names(), y: await page.evaluate(() => scrollY), rows: await rowTops() };
+      let pane = { found: false };
       if (opened) {
         await page.getByTestId("champion-preview-foot").waitFor({ timeout: 15_000 }).catch(() => {});
         await page.waitForTimeout(300);
-        docked = await dockedPanel();
+        pane = await paneFacts();
         await shot(page, `${kind}-champion-preview`);
         await axe(page, kind, "champion-preview", "[data-testid=champion-preview]");
-        pass("all-champions", `${kind}: the preview is the compact panel docked beside the list (no window, within the screen, its content fitting it, clear of the row's name)`, docked.found && !docked.window && docked.within && docked.fits && docked.nameClear, docked);
+        pass("all-champions", `${kind}: the preview opens in a pane beside the list (no window, within the screen, the list and the row's name clear of it, nothing wider than the screen)`, pane.found && !pane.window && pane.within && pane.besideList && pane.nameClear && !pane.sideways, pane);
         await page.keyboard.press("Escape");
       }
       const escaped = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
@@ -1377,11 +1377,11 @@ async function allChampions(page, log, kind, playerId) {
       const again = await content.waitFor({ timeout: 15_000 }).then(() => true, () => false);
       await page.goBack();
       const backed = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
-      const still = after.x.every((x, i) => Math.abs(x - before.x[i]) <= 1) && after.y === before.y && after.rows.length === before.rows.length && after.rows.every((t, i) => Math.abs(t - before.rows[i]) <= 1);
-      pass("games", `${kind}: the champion preview opens beside the list, which stays where it was (Champion, Games and Win rate in place, every row's top, the page not scrolled); Escape and Back close it`, opened && still && escaped && again && backed, { opened, before: { x: before.x, y: before.y }, after: { x: after.x, y: after.y }, rowsKept: still, escaped, backed });
-      if (kind === "desktop") await guarded("all-champions", `${kind}: the preview's content`, () => championPreviewFacts(page, kind));
+      const still = after.x.length === before.x.length && after.x.every((x, i) => Math.abs(x - before.x[i]) <= 1) && after.y === before.y && after.rows.length === before.rows.length && after.rows.every((t, i) => Math.abs(t - before.rows[i]) <= 1);
+      pass("games", `${kind}: the champion preview opens beside the list, which stays where it was (every champion's name at the same x, every row's top, the page not scrolled); Escape and Back close it`, opened && still && escaped && again && backed, { opened, before: { y: before.y }, after: { y: after.y }, rowsKept: still, escaped, backed });
+      await guarded("all-champions", `${kind}: the preview's content`, () => championPreviewFacts(page, kind));
     } else {
-      // The shared Peek's sheet.
+      // The sheet (the phone window shell).
       const sheet = await page.locator("dialog[open][data-testid=champion-preview]").count();
       if (opened) {
         await page.waitForTimeout(500);
@@ -1460,13 +1460,13 @@ async function championPreviewFacts(page, kind) {
       .waitForFunction((n) => {
         const row = document.querySelectorAll("[data-testid=top-champion]")[n];
         const c = document.querySelector("[data-testid=champion-preview-content]");
-        return !!row && !!c && c.getAttribute("data-champion") === row.getAttribute("data-champion") && c.getAttribute("data-role") === row.getAttribute("data-role");
+        return !!row && !!c && c.getAttribute("data-champion") === row.getAttribute("data-champion") && (c.getAttribute("data-role") ?? "") === (row.getAttribute("data-role") ?? "");
       }, next, { timeout: 10_000 })
       .then(() => true, () => false);
     const after = await page.evaluate((n) => {
       const row = document.querySelectorAll("[data-testid=top-champion]")[n];
       const q = new URLSearchParams(location.search);
-      return { url: location.href, length: history.length, address: q.get("champion") === row?.getAttribute("data-champion") && q.get("crole") === row?.getAttribute("data-role") };
+      return { url: location.href, length: history.length, address: q.get("champion") === row?.getAttribute("data-champion") && (q.get("crole") ?? "") === (row?.getAttribute("data-role") ?? "") };
     }, next);
     step = { next: moved, address: after.address && after.url !== before.url, replaced: after.length === before.length };
   }
@@ -1477,34 +1477,38 @@ async function championPreviewFacts(page, kind) {
 }
 
 /**
- * A row's longest line is under the champion's name: the role with "In pool" beside it ("Support"
- * and "Bottom" are the widest of ROLE_LABELS, src/domain/roles.ts). The lineup's first player is
- * usually the Top laner, whose own rows carry only short roles, and opening another teammate's
- * pages would refresh that teammate's Riot data when it is due (the profile's layout does), so the
- * first row is copied instead: once per role, with that role's name and an "In pool" tag (a copy
- * of one from the list, or drawn with the tag's classes from src/components/players/all-champions.tsx
- * when no row has one). Each copy goes into the list beside the row, so it takes the rows' columns,
- * and is removed in the same step, before anything is drawn. The copy's height for each role, or
- * null without a row and its role line.
+ * A row's longest line is under the champion's name: its position icons (since 25 Nov 2026, one per
+ * position the player played it in, up to five) with "In pool" beside them. The lineup's first player
+ * often plays each champion in one position, and opening another teammate's pages would refresh that
+ * teammate's Riot data when it is due (the profile's layout does), so the first row is copied
+ * instead, its line holding one to five position icons (copies of its own, as the screen draws them:
+ * 24px controls with a mouse, 14px marks on a touch screen) and an "In pool" tag (a
+ * copy of one from the list, or drawn with the tag's classes from
+ * src/components/players/all-champions.tsx when no row has one). Each copy goes into the list beside
+ * the row, so it takes the rows' columns, and is removed in the same step, before anything is drawn.
+ * The copy's height for each number of icons, or null without a row and its position icons.
  */
 async function everyRoleRow(page) {
   return page.evaluate(async () => {
     await document.fonts.ready;
     const row = document.querySelector("[data-testid=top-champion]");
-    if (!row?.querySelector("[data-testid=champion-role-line] > :first-child")) return null;
+    // The icons as this screen draws them: controls with a mouse, marks on a touch screen.
+    const which = [...(row?.querySelectorAll("[data-role-buttons], [data-role-marks]") ?? [])].findIndex((el) => el.getBoundingClientRect().width > 0);
+    if (!row || which < 0) return null;
+    const icon = row.querySelectorAll("[data-role-buttons], [data-role-marks]")[which].firstElementChild;
+    if (!icon) return null;
     const tag = document.querySelector("[data-testid=top-champion] [data-testid=in-pool]");
     const heights = {};
-    for (const role of ["Top", "Jungle", "Mid", "Bottom", "Support"]) {
+    for (const count of [1, 2, 3, 4, 5]) {
       const copy = row.cloneNode(true);
       const line = copy.querySelector("[data-testid=champion-role-line]");
-      // The role's name: the role tag's last part (its icon comes first).
-      const name = [...line.firstElementChild.childNodes].reverse().find((n) => (n.nodeType === Node.TEXT_NODE ? !!n.data.trim() : n.nodeType === Node.ELEMENT_NODE && !n.matches("[data-role-icon]")));
-      if (!name) return null;
-      name.textContent = role;
+      const icons = copy.querySelectorAll("[data-role-buttons], [data-role-marks]")[which];
+      if (!line || !icons) return null;
+      icons.replaceChildren(...Array.from({ length: count }, () => icon.cloneNode(true)));
       if (!line.querySelector("[data-testid=in-pool]")) line.append(tag ? tag.cloneNode(true) : Object.assign(document.createElement("span"), { className: "shrink-0 whitespace-nowrap rounded-full border border-border-strong px-1.5 text-2xs font-medium leading-4 text-fg-muted", textContent: "In pool" }));
       row.after(copy);
       try {
-        heights[role] = Math.round(copy.getBoundingClientRect().height);
+        heights[count] = Math.round(copy.getBoundingClientRect().height);
       } finally {
         copy.remove();
       }

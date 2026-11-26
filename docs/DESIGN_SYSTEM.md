@@ -460,7 +460,7 @@ One set of containers, chosen by what the content is, never by page. Each is one
 
 | Container | For | Component | Opens | Closes | Address and history |
 |---|---|---|---|---|---|
-| **Peek** | a quick look at one item from a list or a board (a team player; a Players row or a Leaderboards member, `player-peek.tsx` since 20 Nov 2026, the row's name still the profile's link; a game from a board; a champion of All Champions, since Release 16) | `peek.tsx`: `usePeek`, `Peek` | a row (click, tap, Enter); ↑/↓ or J/K and ‹ › switch | ✕, Escape, Back, the selected row again; not an outside click, except where the panel is its row's contextual detail (`closeOnOutsidePress`: All Champions) | `?player=` (and so on) on the current page: the one history rule |
+| **Peek** | a quick look at one item from a list or a board (a team player; a Players row or a Leaderboards member, `player-peek.tsx` since 20 Nov 2026, the row's name still the profile's link; a game from a board; a champion of All Champions from Release 16 until 25 Nov 2026, now a pane beside its list: below, "All Champions' champion") | `peek.tsx`: `usePeek`, `Peek` | a row (click, tap, Enter); ↑/↓ or J/K and ‹ › switch | ✕, Escape, Back, the selected row again; not an outside click, except where a consumer asks for it (`closeOnOutsidePress`; none since 25 Nov 2026) | `?player=` (and so on) on the current page: the one history rule |
 | **Unfold** | an item opened under its card, for items compared down a list (games) | `unfold.tsx`: `useUnfold`, `UnfoldRegion`, `UnfoldHeader` | the card | the card again, Escape, the pinned header's Close, Back | the one history rule |
 | **Task dialog** | work that needs full attention (editors, confirmations, pickers, Card Studio, Install) | `dialog.tsx`: `Dialog` with its `size` (every one states it, `TASK_DIALOG_REM`): `form` 30rem for forms and confirmations (`ConfirmDialog`, the account and job confirmations, Change Riot ID, Position your picture), `picker` 42rem for a choice among many or an editor with a table (Access, an access level); Card Studio alone `min(100% − 3rem, 100rem)` by `min(100% − 3rem, 64rem)` (`DetailModal size="full"`, Release 17: its live preview 45% of it, docs/PLAYER_CARD_STUDIO.md); Install and sign-in 30rem (`compact`, `form`); the champion picker 42rem (`standard`). Phones and short windows: docked to the bottom edge, or the whole screen | its button | Close, Escape, the backdrop | none |
 | **Phone window shell** | the window an item opens in on a touch phone or in a short window (a Peek's, a game's) | `preview-window.tsx`: `PreviewWindow` on `DetailModal` | the item | ✕, Escape, Back, a pull down on its header (or its bar) | the item's own (`?player=`, `?match=`) |
@@ -615,23 +615,25 @@ const peek = usePeek({ param: "player", ids, initial: searchParams.get("player")
   scrolling inside. `windowSize` and `windowHeader` give the phone's window its size and header.
 - **First consumer:** the Team player (`?player=`), its ↑/↓ moving along the starters; a turned
   card opens its substitute.
-- **All Champions' champion** (`?champion=&crole=[&vs=]`, `all-champions.tsx`, `champion-preview.tsx`;
-  Release 16, the owner's request of 23 Nov 2026): a champion's detail is a compact panel docked
-  beside its table, so the table never moves (until then it unfolded under its row and pushed the
-  list down, with a tall list of opponents). Its content, the same in the panel and the phone's sheet:
-  the portrait, role and record, four tiles of averages, a line of kills and the four multikills
-  (the columns the panel lies over on a wide table), and the lane opponents as a dense table
-  (Opponent, Games, Record, Win; Most games, Best, Worst; the first five with 3+ games, the rest one
-  click away) whose opened opponent shows its games under its row in the same panel, never a second
-  panel. Its tallest content (five opponents with 3+ games, both "more" toggles, an opponent open
-  with its three newest games) fits without scrolling at 1440 × 900 and at 1920 × 950 (the owner's
-  window, the sidebar folded); in a shorter window, such as 1280 × 800, its body is the panel's one
-  scroll region, its header with ✕ and ‹ › staying in place.
-  It also closes on a click outside it (`closeOnOutsidePress`: not on a row, which switches it, a
-  link, a window or a popover; a click, so a touch that scrolls never closes it). ↑/↓ and J/K move it
-  from the list (its own keys inside the panel stay its own); its address keeps the page's two-key
-  hook with the one history rule, so Back closes it. Nothing is drawn until hydration has decided
-  between the panel and the sheet.
+- **All Champions' champion** (`?champion=&crole=[&vs=]`, `all-champions.tsx`, `champion-preview.tsx`,
+  `champion-matchups.tsx`, `champion-roles.tsx`; the owner's request of 25 Nov 2026): no longer a
+  Peek. From Release 16 it was the Peek's panel docked at the window's right edge, which lay over
+  half the table; it is now a **master-detail pane beside the list**, in the page: the list narrows
+  to `minmax(20rem, min(32%, 24rem))` (each champion's name, position icons and "In pool", its win
+  rate over its games, under a heading row of the table's height, so no row or name moves) and the
+  pane takes the rest of the section, pinned under the section tabs, as tall as the window leaves,
+  its body the one region that scrolls when needed, its header (portrait, name, ‹ ›, a labelled
+  Close) in place. It opens where the section has 46rem (from 768px wide, in a window taller than
+  480px); narrower, a short window and the phone's frame get the phone window shell's sheet with
+  the same content. ✕/Close, Escape, Back and the selected row again close it (an outside click does
+  not: it is part of the page); ↑/↓ and J/K from the list and ‹ › move it; the address keeps the
+  one history rule. Its content (docs/MATCHUPS.md): identity with mastery marked as all positions'; a
+  segmented position choice that switches every figure and the opponents; the position's figures as
+  labels over numbers, no tiles; one table of every lane opponent (search, Most games / Highest /
+  Lowest win rate, small samples quiet and ranked last); an opponent's detail beside the table from a
+  38rem preview, one step in place of it below that. The list's position icons are 24px controls
+  with a tooltip (hover after `HOVER_OPEN_MS`, keyboard focus; Escape closes it alone) with a mouse,
+  and marks on a touch screen, where the row is the one 44px target.
 - **Matchup Intel's abilities** (`?ability=Mordekaiser.Q`, `ability-peek.tsx`, 23 Nov 2026) were a
   consumer until Matchup Intel was retired the same day (Release 16).
 
@@ -682,7 +684,8 @@ const unfold = useUnfold({ param: "match", initial, valid: (id) => ids.includes(
   inline.
 - **Not a table's row.** All Champions' champion unfolded under its row from 23 Nov 2026 until
   Release 16, across the whole list; it pushed the rows below it down, so the owner asked for a
-  compact detail beside the table instead: the Peek's docked panel (above, "Peek").
+  compact detail beside the table instead: the Peek's docked panel, then (25 Nov 2026) a pane beside
+  the narrowed list ("Peek", above, "All Champions' champion").
 
 ### Admin's pages, drawn as the benchmarks (the design review, 20 Nov 2026)
 
@@ -898,7 +901,7 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     never zooms into the field; 14px with a mouse). Select compares the popover's button on the
     desktop with the browser's own select on the phone (§7, Select). Each later stage adds the components it creates.
     Since Release 11 (20 Nov 2026) a second test compares the components S5–S9 created, each opened
-    as a member opens it: All Champions' preview (its panel, figures, an opponent, the foot line), the
+    as a member opens it: All Champions' preview (its pane, figures, an opponent, the foot line), the
     post-game view (an item and the loadout's name, a scoreboard K/D/A
     and name), Champion Intel (the champion's name, an ability's name, its Q's base cooldown and its
     cooldown at the haste; Matchup Intel's slots and tiles until 23 Nov 2026) and Admin's person view (the window, a section

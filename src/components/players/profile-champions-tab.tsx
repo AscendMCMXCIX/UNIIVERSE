@@ -42,10 +42,13 @@ async function ProfileChampionsTabBody({ db, header, session, basePath, search }
     redirect(`${basePath}/champions?${q.toString()}`);
   }
   // A linked preview (?champion=&crole=[&vs=]) is in the first HTML: its tally, and the opponent's
-  // games when one is open, in the list's scope (all linked accounts unless one is chosen).
-  const role = isGameRole(search.crole) ? search.crole : null;
-  const card = search.champion ? (overview.topChampions.filter((c) => c.championId === search.champion).sort((a, b) => (role ? Number(b.role === role) - Number(a.role === role) : 0) || b.selected.games - a.selected.games)[0] ?? null) : null;
-  const scope = card ? { season: overview.season, mode: overview.mode, account: overview.filter.accountId ?? "all", champion: card.championId, role: card.role } : null;
+  // games when one is open, in the list's scope (all linked accounts unless one is chosen), in the
+  // position the address names where the champion was played in it, else its most played one. A
+  // champion with no recorded position has no lane opponents to read.
+  const asked = isGameRole(search.crole) ? search.crole : null;
+  const card = search.champion ? (overview.topChampions.find((c) => c.championId === search.champion) ?? null) : null;
+  const role = card ? (card.roles.find((r) => r.role === asked)?.role ?? card.role) : null;
+  const scope = card && role ? { season: overview.season, mode: overview.mode, account: overview.filter.accountId ?? "all", champion: card.championId, role } : null;
   const [initialPreview, initialPairing] = scope ? await Promise.all([getChampionPreview(db, player.id, scope), search.vs ? getPairingGames(db, player.id, scope, search.vs) : null]) : [null, null];
   const m = overview.summary.multikills;
   const perf = overview.summary.performance;
