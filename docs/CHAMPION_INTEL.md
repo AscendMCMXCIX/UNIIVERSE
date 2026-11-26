@@ -500,10 +500,12 @@ holds each; screenshots before and after in the lane's notes, never in the repos
 - **Centred** in the room beside the sidebar, open or folded, within 2px.
 - **With the builds** (26 Nov 2026, `e2e/champion-builds.spec.ts`): one champion's whole board,
   builds included, ends within the screen at 1366 × 768, 1440 × 900, 1920 × 1080 and 2560 × 1440,
-  the sidebar open and folded: Thresh's board ends near 748px at 1366 × 768 and 1440 × 900 (the
-  band about 210px), 827px at 1920 × 1080; a champion with too few games adds one line (about 45px).
-  At 1280 × 720 the band runs past the screen (about 770px), the five rows still on it. In Compare
-  the builds row comes after R, below the first screen at 1440 × 900, as the brief allows.
+  the sidebar open and folded: Thresh's board ends near 715px at 1366 × 768 and 1440 × 900 (the
+  band 205px; Leona's 725px with the role switch), 791px at 1920 × 1080, 918px at 2560 × 1440; a
+  champion with too few games adds one line (45px). At 1280 × 720 with the sidebar open the band
+  ends near 768px, past the screen (folded, 715px), the five rows still on it. In Compare the builds
+  row comes after R, below the first screen at 1440 × 900 (the board near 1,050px), as the brief
+  allows.
 
 ## Data
 
