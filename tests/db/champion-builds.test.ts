@@ -98,7 +98,8 @@ beforeAll(async () => {
   const itemInfo = Object.fromEntries(Object.entries(fixture.items).map(([id, v]) => [id, { gold: { base: 0, total: v.gold.total, sell: 0, purchasable: v.gold.purchasable }, tags: v.tags, from: v.from, into: v.into, depth: v.depth, haste: null }]));
   await db.insert(appSettings).values({ key: "riot_build_data", value: { version: "16.22.1", format: 4, itemInfo, spellCooldowns: {}, runeSlots: {} } });
   await db.insert(appSettings).values({ key: "riot_assets", value: { version: "16.22.1", format: 4, items: Object.fromEntries(Object.entries(fixture.items).map(([id, v]) => [id, v.name])), spells: { "4": { id: "SummonerFlash", name: "Flash" }, "14": { id: "SummonerDot", name: "Ignite" } }, runes: { "8229": { name: "Arcane Comet", icon: "perk-images/Styles/Sorcery/ArcaneComet/ArcaneComet.png" } } } });
-  invalidateCache("riot_");
+  invalidateCache("riot_assets");
+  invalidateCache("riot_build_data");
   invalidateCache("patch");
   const teamId = (await getOrCreateTeam(db)).id;
   const account = async (name: string, puuid: string, over: Partial<typeof players.$inferInsert> = {}) => {

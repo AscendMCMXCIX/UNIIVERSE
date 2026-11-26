@@ -7,6 +7,9 @@ import {
   RANK_TIP,
   SOURCE_TIP,
   UNAVAILABLE_WORDS,
+  FULL_EMPTY_WORDS,
+  NO_BOOTS,
+  DIFFERS_WORDS,
   choiceFigures,
   choiceTip,
   fewTip,
@@ -85,7 +88,7 @@ describe("the builds' words", () => {
       expect(words(tip), tip).toBeLessThanOrEqual(25);
       expect(tip, tip).not.toMatch(REFUSED);
     }
-    for (const label of Object.values(PART_LABELS)) expect(label).not.toMatch(REFUSED);
+    for (const label of [...Object.values(PART_LABELS), FULL_EMPTY_WORDS, NO_BOOTS, DIFFERS_WORDS]) expect(label).not.toMatch(REFUSED);
     expect(SOURCE_TIP).toContain("Not a global sample");
     expect(RANK_TIP).toContain("not filtered by rank");
   });

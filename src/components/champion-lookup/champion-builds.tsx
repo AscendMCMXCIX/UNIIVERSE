@@ -6,10 +6,13 @@ import type { BuildChoice, BuildIcon, BuildPart, ChampionBuildsView, RoleBuilds,
 import { hasPerformer, shownRole } from "@/domain/champion-builds";
 import {
   BUILDS_TITLE,
+  DIFFERS_WORDS,
+  FULL_EMPTY_WORDS,
   HIGHEST_TIP,
   HIGHEST_WIN_RATE,
   MOST_COMMON,
   MOST_COMMON_TIP,
+  NO_BOOTS,
   PART_LABELS,
   QUEUE_TIP,
   RANK_TIP,
@@ -159,7 +162,7 @@ function ChoiceIcons({ part, value }: { part: BuildPartKey; value: unknown }) {
     case "start":
       return <StartIcons v={value as StartValue} />;
     case "boots":
-      return value === "none" ? <span className="text-sm text-fg-muted">No boots</span> : <Icon icon={value as BuildIcon} size={22} />;
+      return value === "none" ? <span className="text-sm text-fg-muted">{NO_BOOTS}</span> : <Icon icon={value as BuildIcon} size={22} />;
     case "core":
       return <ItemPath items={value as BuildIcon[]} />;
   }
@@ -182,6 +185,16 @@ const CHOICE = "col-span-full min-w-0 @min-[15rem]/group:col-span-1";
 const FIGURE = "text-sm tabular-nums @min-[15rem]/group:text-right";
 const HEAD_FIGURE = "label-text @min-[15rem]/group:text-right";
 
+/** The mark of a row whose highest-win-rate choice is not its most common one: a dot, and words for a screen reader. */
+function Differs() {
+  return (
+    <>
+      <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
+      <span className="sr-only">{DIFFERS_WORDS}</span>
+    </>
+  );
+}
+
 function PartRow({ part, built, mode }: { part: BuildPartKey; built: BuildPart<unknown>; mode: Mode }) {
   const label = PART_LABELS[part];
   if (built.state !== "shown")
@@ -202,12 +215,7 @@ function PartRow({ part, built, mode }: { part: BuildPartKey; built: BuildPart<u
     <div role="row" className={ROW} data-testid="lookup-build-part" data-part={part} data-state="shown" data-choice={highest ? "highest" : "common"} data-games={c.games}>
       <span role="rowheader" className={LABEL}>
         {label}
-        {highest ? (
-          <>
-            <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-            <span className="sr-only">(not the most common)</span>
-          </>
-        ) : null}
+        {highest ? <Differs /> : null}
       </span>
       <span role="cell" className={CHOICE} data-testid="lookup-build-choice">
         <ChoiceIcons part={part} value={c.value} />
@@ -232,15 +240,10 @@ function FullRow({ b, mode }: { b: RoleBuilds; mode: Mode }) {
     <div role="row" className={ROW} data-testid="lookup-build-part" data-part="full" data-state={full ? "shown" : "varied"} data-choice={highest ? "highest" : "common"}>
       <span role="rowheader" className={LABEL}>
         {full ? <InfoTip text={fullTip(full)}>{PART_LABELS.full}</InfoTip> : PART_LABELS.full}
-        {highest ? (
-          <>
-            <span aria-hidden className="h-1.5 w-1.5 shrink-0 rounded-full bg-accent" />
-            <span className="sr-only">(not the most common)</span>
-          </>
-        ) : null}
+        {highest ? <Differs /> : null}
       </span>
       <span role="cell" className={full ? CHOICE : SPAN} data-testid="lookup-build-choice">
-        {full ? <ItemPath items={full.items} /> : "No common fourth item yet"}
+        {full ? <ItemPath items={full.items} /> : FULL_EMPTY_WORDS}
       </span>
       {full ? (
         <>
@@ -334,13 +337,13 @@ export function ChampionBuilds({ view }: { view: ChampionBuildsView }) {
         {view.roles.length > 1 ? (
           <RoleSegmented label={roleSwitchLabel(view.championName)} roles={view.roles.map((r) => r.role)} value={role} onChange={(r) => r && setRole(r === view.defaultRole ? null : r)} testId="lookup-build-role" className="-my-1" />
         ) : (
-          <span className="inline-flex min-h-9 items-center gap-1.5 text-xs font-medium text-fg-muted pointer-coarse:min-h-11" data-testid="lookup-build-one-role">
+          <span className="-my-1 inline-flex min-h-9 items-center gap-1.5 text-xs font-medium text-fg-muted pointer-coarse:min-h-11" data-testid="lookup-build-one-role">
             <RoleIcon role={role} className="h-3.5 w-3.5" decorative />
             {ROLE_LABELS[role]}
           </span>
         )}
-        {/* Beside the title where the section is wide (one champion on a desktop), on a line of its own narrower. */}
-        <p className="min-w-0 basis-full text-xs text-fg-muted @min-[52rem]/builds:basis-auto" data-testid="lookup-build-source" data-line={sourceWords(b)} data-games={b.games} data-patches={b.patches.join(",")}>
+        {/* Beside the title where the section is wide (one champion on a desktop); narrower, on a line of its own under the title, the role and the view switch. */}
+        <p className="order-last min-w-0 basis-full text-xs text-fg-muted @min-[52rem]/builds:order-none @min-[52rem]/builds:basis-auto" data-testid="lookup-build-source" data-line={sourceWords(b)} data-games={b.games} data-patches={b.patches.join(",")}>
           <InfoTip text={gamesTip(b)} testId="lookup-build-games">
             {gamesWords(b)}
           </InfoTip>{" "}

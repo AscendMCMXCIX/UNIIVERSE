@@ -119,6 +119,12 @@ export function fewTip(games: number, role: Role | null): string {
 }
 
 export const UNAVAILABLE_WORDS = "Builds can't be loaded right now.";
+/** The full build where no fourth item after the core is common enough to name. */
+export const FULL_EMPTY_WORDS = "No common fourth item yet";
+/** The boots part's choice where games completed three items without boots. */
+export const NO_BOOTS = "No boots";
+/** For a screen reader, beside a row the "Highest win rate" view changed. */
+export const DIFFERS_WORDS = "(not the most common)";
 
 /** The role switch's name. */
 export function roleSwitchLabel(championName: string): string {

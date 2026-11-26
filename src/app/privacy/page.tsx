@@ -43,8 +43,8 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
   },
   {
     what: "Match records: for each stored game, the record Riot publishes (all ten players' in-game names, PUUIDs, champions, positions, items, runes, per-game figures and results) and its timeline (what each player bought, sold and used up, their skill order and when they reached each level, their gold, experience, CS, level, ability haste and place on the map minute by minute, when they took part in a kill, and the objectives and turret plates each team took), kept once per game",
-    why: "Match details, Matchups, Played Together and Encounters; and, counted together, Champion Intel's totals of the runes, summoner spells, items and skill orders players chose on each champion",
-    who: "Team members, for games in a profile's history. Champion Intel's totals, counted over the stored games a current team member played, are shown to members who may see teammates' statistics, as counts only: no player is named",
+    why: "Match details, Matchups, Played Together and Encounters; Champion Intel's build totals per champion",
+    who: "Team members, for games in a profile's history; the build totals, naming no one, to members who may see teammates' statistics",
     kept: "Not deleted automatically: a game stays stored after the profiles that played it are deleted, but is no longer shown. Permanent removal takes the person out of every stored game (below)",
   },
   {
