@@ -174,7 +174,7 @@ export function ChampionPanel({
               <AbilityList abilities={abilities} haste={haste} ranks={ranks} mode="single" />
             </div>
             {builds || haveStats ? (
-              <aside aria-label={`${shown.name}: builds and base stats`} className="min-w-0 space-y-4 border-t border-border px-3 py-3 sm:px-4 @min-[64rem]/panel:border-l @min-[64rem]/panel:border-t-0" data-testid="lookup-aside">
+              <aside aria-label={`${shown.name}: ${builds ? "builds and base stats" : "base stats"}`} className="min-w-0 space-y-4 border-t border-border px-3 py-3 sm:px-4 @min-[64rem]/panel:border-l @min-[64rem]/panel:border-t-0" data-testid="lookup-aside">
                 {builds ? <div data-testid="lookup-builds">{builds}</div> : null}
                 {haveStats ? (
                   <>

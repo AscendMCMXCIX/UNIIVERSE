@@ -49,7 +49,8 @@ export type BoardMode = "single" | "compare";
  * (a float, so a long name or many chips use the row's whole width under the grid); 4rem rank
  * columns once 11rem of name fits beside them. A narrow Compare column (a phone) leaves the icon
  * out: the slot's key in the board's own column says which ability it is; one champion's row under
- * 14rem (a small phone at a large text size) puts the name and values under the key and the icon. Written out whole, so the
+ * 14rem (a small phone at a large text size), and Compare's stacked columns under a 17rem board, put
+ * the name and values under the key and the icon. Written out whole, so the
  * stylesheet has every class.
  */
 const FORMS = {
@@ -98,7 +99,7 @@ const FORMS = {
     wideCols: "@min-[46.25rem]/cell:grid-cols-[3.5rem_repeat(var(--lookup-ranks),4rem)]",
   },
   compare5: {
-    narrow: "",
+    narrow: "@max-[17rem]/board:col-start-1 @max-[17rem]/board:col-end-[-1] @max-[17rem]/board:row-start-2 @max-[17rem]/board:mt-2",
     primary: "@max-[15rem]/cell:text-sm",
     cell: "px-3",
     icon: "h-7 w-7 @min-[23.75rem]/cell:h-9 @min-[23.75rem]/cell:w-9",
@@ -120,7 +121,7 @@ const FORMS = {
     wideCols: "@min-[40rem]/cell:grid-cols-[3.5rem_repeat(var(--lookup-ranks),4rem)]",
   },
   compare6: {
-    narrow: "",
+    narrow: "@max-[17rem]/board:col-start-1 @max-[17rem]/board:col-end-[-1] @max-[17rem]/board:row-start-2 @max-[17rem]/board:mt-2",
     primary: "@max-[15rem]/cell:text-sm",
     cell: "px-3",
     icon: "h-7 w-7 @min-[27rem]/cell:h-9 @min-[27rem]/cell:w-9",
