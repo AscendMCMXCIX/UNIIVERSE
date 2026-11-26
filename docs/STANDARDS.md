@@ -41,11 +41,17 @@ from each section; this page does not repeat them.
   side by side, each with its word, not told apart by colour alone (`src/domain/encounters.ts`).
 - Explanations sit next to the figure (`InfoTip`, `Metric` labels from `src/domain/metrics.ts`),
   in plain language. **Tooltips** (one behaviour, DESIGN_SYSTEM §7, "Explain"):
-  - one plain sentence for an ordinary League player, at most about 25 words, never more than 40
+  - one concept in plain words for an ordinary League player, one or two short sentences: at most
+    about 25 words, never more than 40, and no needless maths or thresholds (25 Nov 2026: "Arrows
+    show only when the difference is clear", not the four gaps it takes)
     (`src/components/ui/tip-length.test.ts` counts every literal InfoTip text, `title` and `hint`,
-    the tip constants, the metric tips and each state of the LP tip; its allowlist is empty since
-    S8b, and an entry needs its reason). Longer is visible text under the heading, or a window of
-    its own, never a bubble that scrolls;
+    a state's `means`, the tip constants, the metric tips and each state of the LP tip; tips composed
+    in JSX are counted by their component's own test, as the rank's in `ranked-progress.test.ts`; its
+    allowlist is empty since S8b, and an entry needs its reason; `player-data-panel.test.ts` holds
+    every tip the Riot data panel renders to 25 words). Essential information stays visible without
+    the tip. A detailed breakdown is the shared breakdown popover
+    (`src/components/ui/breakdown-popover.tsx`: Leaderboards' Score, the data status, the experience
+    label's why), never a giant bubble or one that scrolls;
   - in the page's words, never the code's: no "PUUID", "Riot's API", "frame" for a minute of the
     timeline, "sync window", "Population:", "Source:" or "SELECT" in member-facing help (the same
     test). A source reads "from …"; a stored reading of a rank is a "rank check";
@@ -61,8 +67,9 @@ from each section; this page does not repeat them.
     (neutral words, or `lib/tip-words.ts`, tested).
 - How current a page's Riot data is goes in the same two places on every page, in the fixed words
   of `src/domain/data-status.ts`, never a banner: the status in a few quiet words ("Synced 5 min
-  ago", or the state when it is short of up to date) with one ⓘ holding the details, beside the
-  line that says what is counted (`DataStatusNote`); and Refresh at the end of the section's
+  ago", or the state when it is short of up to date) with one ⓘ that opens the details in the
+  shared breakdown (a press, not a hover: several parts are too much for a tip), beside the line
+  that says what is counted (`DataStatusNote`); and Refresh at the end of the section's
   toolbar, after the filters, never on a row of its own (`RefreshButton`). `SectionHeader` places
   both; a panel puts Refresh in its header's actions. Figures and cards carry no status marks of
   their own. A Refresh does something real (it asks Riot now, then reads the page again from what
@@ -79,7 +86,8 @@ Tailwind classes they generate. `src/app/design-tokens.test.ts` refuses font siz
 arbitrary values that equal a token (`text-[0.6875rem]` is `text-2xs`), Tailwind's names for the
 panel and card radii, colours written as hex in a class, easing curves that are not tokens,
 uppercase labels spaced other than `tracking-label`, a size, weight, case or letter spacing beside
-`label-caps` (which sets all four; Tailwind would drop the size silently), the standing-alone
+`label-text` (the sentence-case label, which sets its size and weight; Tailwind would drop the size
+silently), the standing-alone
 measure written as a number (`max-w-[72rem]`, `max-w-6xl`) instead of `max-w-[var(--measure)]`, a
 safe-area padding (`pb-safe`, `pt-safe` and their `-N` forms) beside another padding for the same
 edge, an arbitrary `max(…, env(safe-area-inset-…))` top or bottom padding that `pt-safe-N` or
@@ -109,7 +117,8 @@ list fades out before the figures (a pool row's left half).
 | `chrome` | the app's frame: sidebar, top bar and tab bar. The page's own ink, half a step up, so navigation recedes; colour in it marks only the current page (a neutral lift, the brand gradient as a thin bar, the icon in `accent`). The frame's zones, rows and states: [DESIGN_SYSTEM.md](DESIGN_SYSTEM.md) |
 | `surface`, `surface-2`, `surface-3` | panels and cards; raised rows and tiles inside them; selected or hovered |
 | `border`, `border-strong`, `border-control` | structure (dividers, panel and card edges); emphasis (a menu's or dialog's edge, a hovered row); the edge of a field, toolbar button, chip or switch (a segmented group has none since Release 17), 3:1 against the page, the panels and popovers (WCAG 1.4.11; Branding derives it from custom colours) |
-| `fg`, `fg-muted`, `fg-subtle` | text: main, secondary, captions and metadata; all three 4.5:1 or more on every surface, `surface-3` included |
+| `fg`, `fg-muted`, `fg-subtle` | text in three tiers (25 Nov 2026): primary, secondary, tertiary (the mapping is under Type); 12.8:1, 9.2:1 and 6.2:1 or more on every surface, `surface-3` included, and Branding keeps `fg` and `fg-subtle` at 4.5:1 on a team's own colours |
+| `fg-disabled` | the words and icons of a disabled control only (`disabled:` or `aria-disabled:` variants, or behind the code's disabled condition): 3.2:1, which WCAG 1.4.3 allows for inactive controls and axe skips; on anything else it fails AA (`src/app/type-hierarchy.test.ts`) |
 | `accent`, `accent-strong`, `accent-2`, `highlight` | the brand: blue (`accent`) for controls and selected states, violet (`accent-2`) for light, emphasis and the second stop of the brand gradient (Branding can change them); selected states pair colour with a ring, weight or bar, never colour alone |
 | `good`, `warn`, `bad`, `info` | states and outcomes; never the only signal (pair with text or an icon) |
 | `blue`, `red` | the two sides of a match, and its result (Victory blue, Defeat red), always with the word |
@@ -127,10 +136,33 @@ a page's title, a section's title (`text-xl`), a panel's title (`text-base` semi
 figure, then a supporting figure a step smaller; a label in `fg-muted`, its metadata and
 timestamps in `fg-subtle` at `text-xs`. Statistics a reader compares (a scoreboard's KDA, damage,
 gold, CS and vision) are `text-xs` or larger. Sizes are rem, so they follow the reader's browser text size; the root size grows gently above
-1536px wide (globals.css). Uppercase labels, eyebrows and section headings use `tracking-label`; a
-small pill badge (`rounded-full`, such as "You") may stay at `tracking-wide`. Column headings and
-small labels are `label-caps` (globals.css: the 11px semibold uppercase label in `tracking-label`
-and fg-subtle; a colour may replace the grey, nothing else). The team's name as a
+1536px wide (globals.css).
+
+The text colour follows one rule (the owner's readability request, 25 Nov 2026), so the page is not
+grey and not blindly white:
+
+| Tier | Token | For | Never for |
+| --- | --- | --- | --- |
+| Primary | `text-fg` | names (players, champions, items, runes), headings and titles, every figure a reader reads or compares (KDA, win rate, CS, damage, games, scores, LP, ranks, cooldowns), every value in a table (the sorted column is marked by its arrow and semibold, not by greying the others), the selected or current item, field values | |
+| Secondary | `text-fg-muted` | labels of figures and fields, column headings (`label-text`), a section's description and scope line, a figure that qualifies a primary one ("13W 7L" under a win rate), units, idle tabs, segments and navigation words, empty-state words | a figure on its own |
+| Tertiary | `text-fg-subtle` | timestamps and "3h ago", queue and duration meta, separators, counts beside a tab or role (a zero too: it is not disabled), footnotes and coverage lines, placeholders, idle icons and chevrons, the ⓘ mark, `kbd` hints, "—" and "None yet", small-sample figures (with the words "small sample"), Riot's notice | a label over a figure; a figure that is not a small sample |
+| Disabled | `text-fg-disabled` | a control that is disabled or `aria-disabled`, and its label: `disabled:text-fg-disabled disabled:cursor-not-allowed`, no hover; a filled button keeps a fill (the neutral `surface-2`), never half-transparent | anything that is not disabled (axe fails it); what explains a disabled control or reads its value (a switch's description, often why it is off; a slider's readout): `fg-subtle` while it is off |
+
+Semantic colours stay as they are: good, warn, bad, info, the blue and red sides, accent, gold,
+violet, bronze and the tier colours. `opacity` dims only a picture (a portrait out of the pool, an
+avatar button, a native range input) and a busy part while a choice loads; never a control's
+words, and never an alpha on a text colour (`text-fg-subtle/60` measured 3:1).
+
+Labels and column headings are sentence case: `label-text` (globals.css: `text-2xs`, medium weight,
+`fg-muted`; a colour may replace the grey, nothing else beside it), a part's heading inside a panel
+`SectionLabel` (a small `fg` heading), a list's group heading `text-xs` medium `fg-muted` (as
+`MenuLabel` and Select's groups). Capitals remain only where an approved design keeps them, each
+listed with its reason in `src/app/type-hierarchy.test.ts`: Team Overview's card and player window
+labels, the Admin mode marker and the admin pages' eyebrow (`PageHeader`), a member's own "wide"
+name style, and a round pill badge (`rounded-full`, such as "You", which may stay at
+`tracking-wide`). Capitals use `tracking-label`. `label-caps` (the 11px uppercase label in
+`tracking-label`) is retired: its utility left globals.css on 26 Nov 2026, once no page used it,
+and `type-hierarchy.test.ts` refuses the class. The team's name as a
 wordmark uses `tracking-wordmark`, and the Team page's backdrop name `tracking-tagline`. Numbers
 that line up use `tabular-nums`.
 
@@ -196,8 +228,10 @@ many more behind its Show all, never hiding a row silently.
   the grids that gain from more columns (Team Overview's lineup, Leaderboards). The pages of one tab set share one width at every window size, so its
   tabs, centred as the pages are, line up with each and never move between them (`SECTION_HUBS`'
   `width`, `PAGE_WIDTH` and `ROW_WIDTH` in `src/lib/nav.ts`): Team's four sections take
-  `--content-wide` (Players and Matches since 23 Nov 2026; under a 1600px window they were 80rem). Team Matches' list stays at `--content-max` under that wider header, left-aligned, as Recent
-  form stops at `--measure`: more room never makes a game's row longer. A board or table
+  `--content-wide` (Players and Matches since 23 Nov 2026; under a 1600px window they were 80rem). Team Matches' filters and list take that whole column too (since the owner's review of
+  25 Nov 2026: at `--content-max`, left-aligned, the list ended about 200px left of centre at 1920
+  folded, 2560 and 3440), so they start under the first tab and end under the team's name, centred
+  with the sidebar open and folded (e2e/played-together.spec.ts). A board or table
   that stands alone on such a page (Recent form) stops at `--measure` (`max-w-[var(--measure)]`,
   72rem), left-aligned: one left edge with the header, never centred in the space. The page's
   padding comes from the app shell; a page adds none of its own.
@@ -232,9 +266,10 @@ many more behind its Show all, never hiding a row silently.
   - a dashboard's cards are as large as their content.
 
 **Tables and rankings.** Columns of figures are right-aligned in `tabular-nums` under headings
-that never wrap (`label-caps`, `whitespace-nowrap`; the sort arrow sits outside the heading's
-text, so a heading keeps its place when it is sorted). The sorted column is marked by its arrow and
-by its figures in the main text weight; no gradient, glow or bar behind a figure unless the bar is
+that never wrap (`label-text`, `whitespace-nowrap`; the sort arrow sits outside the heading's
+text, so a heading keeps its place when it is sorted). Every figure is primary text; the sorted
+column is marked by its arrow and its heading and figures in semibold (25 Nov 2026: the unsorted
+columns were grey before, which read as less important, not as unsorted); no gradient, glow or bar behind a figure unless the bar is
 the figure itself: Recent form's record as 20 neutral segments, wins first (`QuietBar`), in the
 text's own grey, never a state colour, and All Champions' share of the games, one continuous
 `QuietBar` under each champion's games (its games over every game in the filters, said by a key
@@ -302,7 +337,7 @@ Use the shared component before writing a new one (`src/components/ui`):
 | A ranked list or board of rows (Leaderboards' Recent form, season records, multikills and milestones) | `DataList` (`ui/data-list.tsx`): one surface (`surface="lead"` for the card a page leads with), the column template per tier as `--dl-cols`, a title row when the board names itself (`title`: every Leaderboards board, `BoardTitle`: its heading, an ⓘ and a note saying what it counts), headings (`DataHead`, aria-hidden) and groups (`DataGroup`, with a caption) split by one hairline each. The board's own width picks each row's layout (`@container/list`: under 36rem, from 36rem, from 58rem, and any width a board needs, such as the multikills' 21rem), so a fact is one element placed per tier, never a phone copy and a column copy. A board of cells that each measure themselves (Leaderboards' season records, a grid of one or two columns) gives each cell its own `@container/list` and column template, its row `DataRow as="div"` inside the cell's li, in `BOARD_PANEL` |
 | One row of a `DataList` | `DataRow`: its cells in reading order (place, link, member, figures), its height per tier (`density`: 36, 40, 48, 52 or 64px; slim and compact are 44px on a touch screen), your own row's wash and bar, and the hover and pressed states only when it links. One `RowLink` per row covers it (a whole-row target at every width, named by the member's name); a control that must keep its own press sits above it with `ROW_CONTROL`. The row's explanations go in its RowLink's `hint`, an aria-hidden layer over the link that carries the title: a title on the li becomes the list item's accessible name, and one on the link its description |
 | A long page's own sections, on a phone | `SectionIndex` (`ui/section-index.tsx`): a line of in-page links under the page's scope (Leaderboards': "Season records · Multikills · Milestones", the sections below Recent form); each jump brings its section under the bars and focuses it, an entry the phone's Back steps past (`jumpToAnchor`). Quiet text, never a view switch (`SubTabs`) or a filter. Settings keeps its index in its account card, drawn as chips on a phone and in a window 480px tall or less (`chipClass`: the approved plan's look there, in-page links all the same) and as a list from md in a taller window, the section being read marked: the optional `spy`, `listClassName`, `linkClassName` and `separatorClassName` |
-| A place in a ranking | `Place`: "4=" said and titled "Tied for 4th", with a bracket segment per row (`tieRuns` from the ranking's places); the crown on first place; "–" said "Provisional" without a place |
+| A place in a ranking | `Place`: "4=" said and titled "Tied for 4th", with a bracket segment per row (`tieRuns` from the ranking's places); first place in gold (`leader`; no crown since 25 Nov 2026); "–" said "Provisional" without a place |
 | A figure in a row, and a member in a row | `FigureCell` (tabular, never cut, its own words for screen readers: "13 wins, 7 losses"); `MemberCell` (`CardAvatar` and `CardName` in the member's colours, "You"; the name hidden from screen readers when the row's link says it) |
 | A bar that is the figure itself (Recent form's record, All Champions' share of the games) | `QuietBar` (`ui/quiet-bar.tsx`): a count in segments (wins first; a window's missing games outlined) or a continuous share, in neutral `fg` overlays; the inset 2px line at a row's foot on narrow boards; no motion on first paint |
 | Both teams of a game | `TeamComposition` (`match-history/team-composition.tsx`); `keepNames` where the line-ups are what the card is for (Team → Matches), so phones keep the names too |

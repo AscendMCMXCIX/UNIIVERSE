@@ -66,8 +66,11 @@ Compact, in Profile Overview (`ranked-progress.tsx`): at the top of the right-ha
   lost, no LP figure (LP restarts after a promotion). Never across a reset.
 - **Highest recorded** rank and LP, with the day it was first read (the first time, if read again
   later): behind the ⓘ beside the current rank, with the account, the season and the first check
-  ("Name#TAG · 2026 Season 3 · rank recorded since 14 Oct 2026") and the 30-day change's path ("From
-  Gold III 47 LP to Gold IV 97 LP"). The card itself leads with the two figures it is for, the current
+  ("Name#TAG · 2026 Season 3 · rank recorded since 14 Oct 2026"): two short sentences, about 20
+  words. Until 25 Nov 2026 the tip also held the 30-day change's path ("From Gold III 47 LP to Gold IV
+  97 LP") and "The record is Riot's count for the ranked year"; the owner's readability request (one
+  concept a tip) left them to the change beside the rank and the record line's "· 2026 (Riot)" (the year at
+  every width; "(Riot)" from a 21rem card, read out on a phone's narrower one). The card itself leads with the two figures it is for, the current
   rank and the 30-day change, on one row (the UX review of Release 13, owner item B3: the card had
   kept every figure in view and read as busy); on a touch phone both stay above its Fold, with the
   win-loss record and win rate under the rank.

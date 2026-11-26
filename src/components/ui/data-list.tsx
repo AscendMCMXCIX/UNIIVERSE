@@ -1,7 +1,6 @@
 import * as React from "react";
 import Link from "next/link";
 import { IntentLink } from "@/components/ui/intent-link";
-import { Crown } from "lucide-react";
 import { CardAvatar, CardName, cardColourVars } from "@/components/players/card-look";
 import { Badge } from "@/components/ui/badge";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -27,7 +26,7 @@ import { formatOrdinal } from "@/lib/format";
                  and named by the member's name, its `hint` the row's tooltip; a control that must
                  stay pressable sits above it (ROW_CONTROL);
     Place        the place: "4=" for a shared place, said "Tied for 4th", with the bracket joining
-                 the tied rows; the crown on first place; "–" (Provisional) without one;
+                 the tied rows; first place in gold; "–" (Provisional) without one;
     FigureCell   a figure, right-aligned, tabular, never cut, with its own words for screen readers;
     MemberCell   a member as their card shows them (CardAvatar, CardName in their colours, "You").
 
@@ -78,7 +77,7 @@ export function DataList({ columns, title, heads, headsTestId, headsClassName, s
       <div className={cn("divide-y divide-border/70", columns)}>
         {title}
         {heads ? (
-          <div aria-hidden data-testid={headsTestId} className={cn("grid grid-cols-(--dl-cols) items-end py-1.5 label-caps", ROW_GAP_X, ROW_PAD_X, headsClassName)}>
+          <div aria-hidden data-testid={headsTestId} className={cn("grid grid-cols-(--dl-cols) items-end py-1.5 label-text", ROW_GAP_X, ROW_PAD_X, headsClassName)}>
             {heads}
           </div>
         ) : null}
@@ -203,16 +202,14 @@ const PLACE = "flex min-w-0 items-center justify-end gap-0.5 text-sm font-bold t
 /**
  * A row's place, as two direct children of the row (the bracket is positioned on the row's first
  * column, so it cannot sit inside the label): "7"; "4=" for a shared place, said and titled "Tied
- * for 4th", with its bracket segment; the gold crown on first place (every 1= row has one; on a
- * narrow board a shared first place stacks the crown under "1=", which with the crown is wider than
- * the column); "–" said `unplaced` for a row without a place. The bracket needs a column gap of at
- * least 10px; it takes 4px of it. A tied place's "=" ends 6px from the column's edge (4px from the
- * bracket's arm, not 2px, so it never reads "4=–"); a shared 1= keeps 4px, since there the crown,
- * not the "=", meets the bracket, and more would push "1=" and the crown out of a 2.5rem column.
- * `bracketClassName` is the bracket's own (Recent form's rows hide it where their text runs under
- * the place, at large text sizes: the "=" still says the tie).
+ * for 4th", with its bracket segment; first place (`leader`, every 1= row) in gold, a plain number
+ * like every other (25 Nov 2026: restrained placements, no crown); "–" said `unplaced` for a row
+ * without a place. The bracket needs a column gap of at least 10px; it takes 4px of it. A tied
+ * place's "=" ends 6px from the column's edge (4px from the bracket's arm, not 2px, so it never
+ * reads "4=–"). `bracketClassName` is the bracket's own (Recent form's rows hide it where their text
+ * runs under the place, at large text sizes: the "=" still says the tie).
  */
-export function Place({ place, tie = null, crown = false, unplaced = "Provisional", className, bracketClassName, testId }: { place: number | null; tie?: TiePosition | null; crown?: boolean; unplaced?: string; className?: string; bracketClassName?: string; testId?: string }) {
+export function Place({ place, tie = null, leader = false, unplaced = "Provisional", className, bracketClassName, testId }: { place: number | null; tie?: TiePosition | null; /** First place: in gold. */ leader?: boolean; unplaced?: string; className?: string; bracketClassName?: string; testId?: string }) {
   if (place === null) {
     return (
       <span className={cn(PLACE, "pr-1 text-fg-subtle", className)} data-testid={testId} title={unplaced}>
@@ -224,7 +221,7 @@ export function Place({ place, tie = null, crown = false, unplaced = "Provisiona
   const words = tie ? `Tied for ${formatOrdinal(place)}` : null;
   return (
     <>
-      <span className={cn(PLACE, tie && !crown ? "pr-1.5" : "pr-1", "text-fg", tie && crown && "@max-[36rem]/list:flex-col @max-[36rem]/list:items-end @max-[36rem]/list:justify-center @max-[36rem]/list:gap-0", className)} data-testid={testId} data-tie={tie ?? undefined} title={words ?? undefined}>
+      <span className={cn(PLACE, tie ? "pr-1.5" : "pr-1", leader ? "text-gold" : "text-fg", className)} data-testid={testId} data-tie={tie ?? undefined} data-leader={leader || undefined} title={words ?? undefined}>
         {tie ? (
           <>
             <span aria-hidden>{place}=</span>
@@ -233,7 +230,6 @@ export function Place({ place, tie = null, crown = false, unplaced = "Provisiona
         ) : (
           place
         )}
-        {crown ? <Crown className="h-4 w-4 shrink-0 text-gold" aria-label="First place" role="img" /> : null}
       </span>
       {tie ? <span aria-hidden className={cn("pointer-events-none absolute col-[1/2] -right-1 w-1.5 border-fg-subtle/55", BRACKET[tie], bracketClassName)} /> : null}
     </>
@@ -337,7 +333,7 @@ export function DataListSkeleton({ rows = 7, heads = true, title = false, surfac
         headsClassName="hidden @min-[36rem]/list:grid"
         heads={
           heads ? (
-            // Each block takes the whole line of the label-caps headings it stands for (1lh), so the headings row is the board's height.
+            // Each block takes the whole line of the label-text headings it stands for (1lh), so the headings row is the board's height.
             <>
               <Skeleton className="my-[calc((1lh_-_0.625rem)/2)] h-2.5 w-3 justify-self-end" />
               <Skeleton className="col-span-2 my-[calc((1lh_-_0.625rem)/2)] h-2.5 w-14" />

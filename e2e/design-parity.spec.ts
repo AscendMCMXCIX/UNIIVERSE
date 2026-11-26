@@ -29,7 +29,9 @@ async function toTheEnd(page: Page) {
 }
 
 const TARGETS: Target[] = [
-  { name: "stat label", path: (m) => m, selector: "main [class*=tracking-label]" },
+  // The sentence-case label (label-text) since 25 Nov 2026, the uppercase tracked label it replaced having left the
+  // profile: the pool's column names, drawn on the phone and on the desktop alike.
+  { name: "stat label", path: (m) => m, selector: "main .label-text[data-testid$='-columns']" },
   { name: "Panel", path: (m) => `${m}/champions`, selector: "[data-testid=all-champions-table]" },
   { name: "DataRow", path: () => "/players", selector: "[data-testid=player-card]" },
   { name: "badge (chip)", path: () => "/team", selector: "[data-testid=main-role-badge]" },
@@ -50,13 +52,14 @@ const TARGETS: Target[] = [
 /** Differences DESIGN_SYSTEM.md lists, by component and property, each with its reason. */
 const LISTED: Record<string, Partial<Record<string, string>>> = {
   "badge (chip)": { sizeRem: "the 12px floor: text-2xs is 12px on desktops, 11px on phones (globals.css)" },
+  "stat label": { sizeRem: "the 12px floor: label-text is text-2xs, 12px on desktops and 11px on phones (globals.css); the uppercase label it replaced stayed 11px everywhere" },
   Select: { sizeRem: "a field's text is 16px on a touch screen, so iOS does not zoom into it (STANDARDS: fields); 14px with a mouse" },
   Peek: { border: "the docked panel's edge is its left border alone (border-l), over the page; the phone's window has the window's border all round" },
   // S5–S9's components (the second test below).
   "champion preview": {
-    background: "both on the raised surface (bg-elevated): the docked panel's and the phone's window's (DESIGN_SYSTEM §7: Peek)",
-    radius: "the docked panel runs from the window's top to its bottom at its right edge, square; the phone's sheet has the sheet's 1.25rem top corners",
-    border: "the docked panel's edge is its left border alone (border-l), over the page, as every Peek's; the phone's sheet has the window's border all round",
+    background: "the pane beside the list is part of the page, on the list card's surface (bg-surface); the phone's sheet is a window, on the raised surface (bg-elevated) (DESIGN_SYSTEM §7: All Champions' champion)",
+    radius: "the pane is a card beside the list's card (the card radius); the phone's sheet has the sheet's 1.25rem top corners",
+    border: "the pane has the list card's border; the phone's sheet the window's",
   },
   "post-game: a scoreboard name": { sizeRem: "the compact scoreboard's names are text-xs where the scoreboard is under 30rem wide (a phone's window), so each of the ten names keeps one line; text-sm from 30rem (scoreboard.tsx)" },
   "Admin: person view": { radius: "the person view is DetailModal: a phone's window fills the screen and has no corners; a desktop's is a centred window with the panel's radius" },
@@ -116,7 +119,7 @@ test("the shared components look the same on a phone and on a desktop", async ({
 
 /*
   The components S5–S9 created, each opened as a member opens it, and its parts compared the same way:
-  All Champions' preview (S5: the Peek's docked panel on a desktop since Release 16, a window on a phone), the
+  All Champions' preview (S5: a pane beside the list on a desktop since 25 Nov 2026, a window on a phone), the
   post-game view's loadout and its scoreboard (S6: under the card on a desktop, in
   the game's window on a phone), Champion Intel's champion and abilities (Release 16, in
   Matchup Intel's place), and Admin's person view with its Riot accounts (S9). One page visit per component and size.

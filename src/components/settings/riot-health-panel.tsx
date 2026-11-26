@@ -24,12 +24,17 @@ export interface RiotHealthView {
   pendingAccounts: number;
 }
 
-const STATE: Record<CredentialState, { label: string; tone: BadgeTone; plain: string }> = {
-  accepted: { label: "Accepted", tone: "good", plain: "Riot data is available." },
-  rejected: { label: "Rejected", tone: "bad", plain: "Riot data is temporarily unavailable; linked accounts sync automatically once it returns." },
-  unavailable: { label: "Riot unavailable", tone: "warn", plain: "Riot did not answer the last request; it is retried automatically." },
-  unknown: { label: "Not checked yet", tone: "neutral", plain: "Riot data has not been requested yet." },
-  "not-configured": { label: "Not configured", tone: "neutral", plain: "Riot data is not available on this server yet." },
+/**
+ * Each state: its badge, its tone, the plain sentence a member reads, and `means`, what the badge's
+ * word means for the key, the administrator's ⓘ beside it (25 Nov 2026: the one state shown, not a
+ * legend of all three).
+ */
+const STATE: Record<CredentialState, { label: string; tone: BadgeTone; plain: string; means: string }> = {
+  accepted: { label: "Accepted", tone: "good", plain: "Riot data is available.", means: "Riot accepts the key and answers requests." },
+  rejected: { label: "Rejected", tone: "bad", plain: "Riot data is temporarily unavailable; linked accounts sync automatically once it returns.", means: "Riot refused the key: it is wrong or has expired. Development keys last 24 hours." },
+  unavailable: { label: "Riot unavailable", tone: "warn", plain: "Riot did not answer the last request; it is retried automatically.", means: "Riot is busy or down. Requests are retried automatically." },
+  unknown: { label: "Not checked yet", tone: "neutral", plain: "Riot data has not been requested yet.", means: "No request has used the key yet." },
+  "not-configured": { label: "Not configured", tone: "neutral", plain: "Riot data is not available on this server yet.", means: "The server has no Riot key." },
 };
 
 /**
@@ -50,7 +55,8 @@ export function RiotHealthPanel({ riot, credentialDetails }: { riot: RiotHealthV
         actions={
           <span className="inline-flex items-center gap-1">
             <Badge tone={s.tone}>{credentialDetails ? `Credential: ${s.label}` : riot.state === "accepted" ? "Available" : riot.state === "not-configured" ? "Not configured" : "Temporarily unavailable"}</Badge>
-            <Info text="Accepted: Riot is answering. Rejected: the API key is wrong or expired (development keys last 24 hours). Unavailable: Riot is busy or down." label="About these states" />
+            {/* A member reads the state's plain sentence in the panel; an administrator, what the credential's word means. */}
+            {credentialDetails ? <Info text={s.means} label={`About ${s.label}`} /> : null}
           </span>
         }
       />
@@ -59,7 +65,7 @@ export function RiotHealthPanel({ riot, credentialDetails }: { riot: RiotHealthV
           <p className="text-fg-muted">{s.plain}</p>
         ) : (
           <>
-            <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-4">
+            <div className="grid grid-cols-1 gap-x-6 gap-y-3 sm:grid-cols-2 lg:grid-cols-4">
               <Fact label="Configured" value={riot.configured ? `Yes${riot.keyFingerprint ? ` (key ends ${riot.keyFingerprint})` : ""}` : "No"} />
               <Fact label="Last successful Riot request" value={riot.lastOkAt ? <RelativeTime date={riot.lastOkAt} /> : "none recorded"} />
               <Fact label="Last error" value={riot.lastErrorAt ? <><RelativeTime date={riot.lastErrorAt} />{riot.lastStatusCode ? ` · HTTP ${riot.lastStatusCode}` : ""}</> : "none recorded"} />
@@ -82,10 +88,11 @@ export function RiotHealthPanel({ riot, credentialDetails }: { riot: RiotHealthV
   );
 }
 
+/** A fact of the credential: its label (secondary, sentence case) over its value, with no box of its own inside the panel. */
 function Fact({ label, value }: { label: string; value: React.ReactNode }) {
   return (
-    <div className="min-w-0 rounded-md border border-border bg-surface-2 px-2.5 py-1.5 [overflow-wrap:anywhere]">
-      <div className="text-xs font-semibold uppercase tracking-label text-fg-subtle">{label}</div>
+    <div className="min-w-0 [overflow-wrap:anywhere]">
+      <div className="text-xs font-medium text-fg-muted">{label}</div>
       <div className="text-sm font-semibold text-fg">{value}</div>
     </div>
   );

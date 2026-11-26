@@ -25,8 +25,14 @@ const ROOT = join(__dirname, "..", "..", "..");
 const HARD = 40;
 const ABOUT = 25;
 
-/** Constants whose text an InfoTip shows, by name. */
-const TIP_CONSTANTS = ["MULTIKILL_HELP", "ENCOUNTERS_CAVEAT", "EDITING_HELP", "TOGETHER_CAVEAT", "RECENT_FORM_HELP", "GENERAL_RULE_TIP"];
+/**
+ * Constants whose text an InfoTip shows, by name; and SOCIAL_LINKS_HELP, a section's visible help held
+ * to the same length since 25 Nov 2026 (it was a 44-word paragraph).
+ */
+const TIP_CONSTANTS = ["MULTIKILL_HELP", "ENCOUNTERS_CAVEAT", "EDITING_HELP", "TOGETHER_CAVEAT", "RECENT_FORM_HELP", "GENERAL_RULE_TIP", "SOCIAL_LINKS_HELP", "SCORE_METHOD", "SCORE_METHOD_NEUTRAL", "HASTE_RULE_WORDS", "DATA_LIMIT_WORDS"];
+
+/** Object properties whose text a tip shows: a hint, a title, and a state's meaning (`means`, the Riot credential's ⓘ in Settings). */
+const TIP_PROPS = ["hint", "title", "means"];
 
 /** Texts allowed past the limits, by a fragment of their source, with the reason. */
 const ALLOWLIST: Array<{ id: string; fragment: string; reason: string }> = [
@@ -58,7 +64,7 @@ const LITERAL = String.raw`"((?:[^"\\\n]|\\.)*)"|\`((?:[^\`\\]|\\.)*)\``;
 function tipTexts(): Array<{ file: string; text: string }> {
   const out: Array<{ file: string; text: string }> = [];
   const attr = new RegExp(String.raw`\b(?:text|title|hint)=\{?\s*(?:${LITERAL})`, "g");
-  const prop = new RegExp(String.raw`\b(?:hint|title):\s*(?:${LITERAL})`, "g");
+  const prop = new RegExp(String.raw`\b(?:${TIP_PROPS.join("|")}):\s*(?:${LITERAL})`, "g");
   const constant = new RegExp(String.raw`\b(?:${TIP_CONSTANTS.join("|")})\s*=\s*(?:${LITERAL})`, "g");
   for (const path of sources(join(ROOT, "src"))) {
     const code = readFileSync(path, "utf8");
@@ -89,6 +95,9 @@ describe("tooltips are short", () => {
 
   it("finds the tips it counts", () => {
     expect(tips.length).toBeGreaterThan(100);
+    // The composed and visible texts added on 25 Nov 2026 are counted too: a state's meaning and a section's help.
+    expect(tips.some((t) => t.file.endsWith("riot-health-panel.tsx") && t.text.startsWith("Riot refused the key"))).toBe(true);
+    expect(tips.some((t) => t.file.endsWith("social-links-editor.tsx") && t.text.startsWith("Optional. Each link"))).toBe(true);
     expect(words("Kills plus assists for each death, across all ${n} games.")).toBe(10);
   });
 

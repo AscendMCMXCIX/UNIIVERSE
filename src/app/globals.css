@@ -3,8 +3,10 @@
 /*
   UNIIVERSE design tokens.
   A deep ink with a faint indigo undertone, in clear steps: the page, the panels and cards on it,
-  raised rows and controls, the selected or hovered. Text in three greys (off-white, a readable grey,
-  a quieter grey that still meets 4.5:1 on every surface). The identity is a pair: the brand blue
+  raised rows and controls, the selected or hovered. Text in four tiers (25 Nov 2026, the owner's
+  readability request): primary off-white for names, headings and every figure; a secondary grey for
+  labels and supporting context; a tertiary grey, still 6:1 or more on every surface, for metadata
+  only; and a disabled tone for inactive controls alone. The identity is a pair: the brand blue
   (accent) marks what can be pressed and what is chosen; violet (accent-2) carries the light, in the
   page's ambient glow and the brand gradient (accent to accent-2) on selected indicators and
   headline cards. Blue and red stay the two sides of a match and its result, good/warn/bad states.
@@ -20,9 +22,10 @@
   --color-border: #262939;
   --color-border-strong: #3a3e53;
   --color-border-control: #646a8c; /* the edge of a field or toolbar control: 3:1 against the page, panels and popovers (WCAG 1.4.11) */
-  --color-fg: #eef0f6;
-  --color-fg-muted: #b4b8c9;
-  --color-fg-subtle: #8f95aa; /* 4.5:1 on every surface, surface-3 included (WCAG AA for small text) */
+  --color-fg: #eef0f6; /* primary: names, headings, figures and data: 12.8:1 or more on every surface */
+  --color-fg-muted: #c9cddb; /* secondary: labels, column headings, supporting context, idle navigation: 9.2:1 or more (surface-3) */
+  --color-fg-subtle: #a2a8bc; /* tertiary: timestamps, separators, footnotes, small samples: 6.2:1 or more (surface-3) */
+  --color-fg-disabled: #70758c; /* disabled controls only (disabled / aria-disabled): 3.2:1 or more, which WCAG 1.4.3 allows for inactive controls; never on active text */
   --color-accent: #1fc3ff; /* brand blue */
   --color-accent-strong: #7fdcff;
   /* Branding can change these (Admin → Branding); the defaults are the blue and violet pair. */
@@ -147,15 +150,15 @@ html {
   cards of Match History and Team Matches took it after a measured pass. The utility stays for a
   place a later stage must defer, listed in design-tokens.test.ts with its reason.
 */
-/* Uppercase labels (column headings, eyebrows, label-caps) keep 11px at every width: the floor is for
-   running text and names, and a label's tracked capitals read at 11px (they set the width of a
-   table's headings, measured at 1024px). */
-.uppercase,
-.label-caps {
+/* Uppercase labels (the approved capitals: Team Overview's, the Admin mode marker, eyebrows) keep 11px
+   at every width: the floor is for running text and names, and a label's tracked capitals read at
+   11px. (The label-caps utility, uppercase column headings, was retired on 26 Nov 2026: labels are
+   label-text, in sentence case, and take the floor.) */
+.uppercase {
   --text-2xs: 0.6875rem;
 }
 /* What sits inside a label in normal case ("6 champions" beside "TOP POOL") is running text again. */
-:is(.uppercase, .label-caps) :where(:not(.uppercase, .label-caps)) {
+.uppercase :where(:not(.uppercase)) {
   --text-2xs: var(--text-2xs-floor, 0.6875rem);
 }
 
@@ -540,23 +543,23 @@ p a.text-accent {
 */
 @utility select-chevron {
   appearance: none;
-  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%238f95aa' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='%23a2a8bc' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='m6 9 6 6 6-6'/%3E%3C/svg%3E");
   background-repeat: no-repeat;
   background-position: right 8px center;
   background-size: 16px 16px;
 }
 
 /*
-  Column headings and small labels, written one way: the size, weight, case and letter spacing come
-  from here (design-tokens.test.ts refuses them beside it; a colour may replace fg-subtle). No line
-  height: the label keeps the line it sits in, as text-2xs does.
+  Column headings and small labels, written one way, in sentence case (25 Nov 2026): the secondary
+  grey, text-2xs (11px on phones, 12px from 1024px), medium weight, no letter spacing. It replaced the
+  uppercase label-caps everywhere (retired 26 Nov 2026; the approved designs that keep capitals write
+  them with uppercase and tracking-label). design-tokens.test.ts refuses a size or weight beside it (a
+  colour may replace fg-muted). No line height: the label keeps the line it sits in, as text-2xs does.
 */
-@utility label-caps {
+@utility label-text {
   font-size: var(--text-2xs);
-  font-weight: var(--font-weight-semibold, 600);
-  letter-spacing: var(--tracking-label);
-  text-transform: uppercase;
-  color: var(--color-fg-subtle);
+  font-weight: var(--font-weight-medium, 500);
+  color: var(--color-fg-muted);
 }
 
 /*

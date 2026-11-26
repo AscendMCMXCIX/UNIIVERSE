@@ -1,11 +1,11 @@
 import { describe, expect, it } from "vitest";
-import type { OverviewCard } from "@/server/players/overview";
+import type { ChampionRow } from "@/server/players/overview";
 import { gamesShare, shareWords, sortChampions, summaryPairs } from "./all-champions";
 
-const card = (championId: string, games: number, winRate: number | null, mastery: number | null, kda: number | null = null): OverviewCard =>
-  ({ championId, role: "MID", selected: { games, winRate }, performance: { kdaRatio: kda, csPerMinute: null }, mastery: mastery === null ? null : { points: mastery } }) as unknown as OverviewCard;
+const card = (championId: string, games: number, winRate: number | null, mastery: number | null, kda: number | null = null): ChampionRow =>
+  ({ championId, role: "MID", selected: { games, winRate }, performance: { kdaRatio: kda, csPerMinute: null }, mastery: mastery === null ? null : { points: mastery } }) as unknown as ChampionRow;
 const rows = [card("Ahri", 10, 0.6, 50_000, 3), card("Zed", 0, null, null), card("Azir", 4, 0.25, 900_000, 2.5), card("Lux", 10, 0.5, 120_000, null)];
-const names = (r: OverviewCard[]) => r.map((c) => c.championId);
+const names = (r: ChampionRow[]) => r.map((c) => c.championId);
 const nameOf = (id: string) => id;
 
 describe("All Champions sorting", () => {
@@ -22,7 +22,7 @@ describe("All Champions sorting", () => {
     expect(names(sortChampions(rows, "kda", "asc", nameOf)).slice(-2).sort()).toEqual(["Lux", "Zed"]);
   });
   it("sorts total kills both ways, a champion without counts last either way", () => {
-    const kills = (championId: string, totalKills: number | null) => ({ championId, role: "MID", selected: { games: 3, winRate: 0.5 }, performance: { kdaRatio: 2, csPerMinute: null, totalKills, detailedGames: totalKills === null ? 0 : 3 }, mastery: null }) as unknown as OverviewCard;
+    const kills = (championId: string, totalKills: number | null) => ({ championId, role: "MID", selected: { games: 3, winRate: 0.5 }, performance: { kdaRatio: 2, csPerMinute: null, totalKills, detailedGames: totalKills === null ? 0 : 3 }, mastery: null }) as unknown as ChampionRow;
     const list = [kills("Ahri", 21), kills("Zed", null), kills("Azir", 40), kills("Lux", 0)];
     expect(names(sortChampions(list, "kills", "desc", nameOf))).toEqual(["Azir", "Ahri", "Lux", "Zed"]);
     expect(names(sortChampions(list, "kills", "asc", nameOf))).toEqual(["Lux", "Ahri", "Azir", "Zed"]);
@@ -38,7 +38,7 @@ describe("All Champions sorting", () => {
   they were before the sorted pair moved first (the expected strings below are the old output); sorted
   by one of them, that pair leads, unchanged, and the rest keep their order.
 */
-const full = (over: Partial<{ kda: number | null; perfect: boolean; cs: number | null; kills: number | null; detailed: number; games: number; multikills: Partial<OverviewCard["multikills"]> | null; mastery: number | null }> = {}): OverviewCard => {
+const full = (over: Partial<{ kda: number | null; perfect: boolean; cs: number | null; kills: number | null; detailed: number; games: number; multikills: Partial<ChampionRow["multikills"]> | null; mastery: number | null }> = {}): ChampionRow => {
   const o = { kda: 2.744, perfect: false, cs: 7.94, kills: 70, detailed: 14, games: 14, mastery: 427_500, ...over };
   return {
     championId: "Gwen",
@@ -47,7 +47,7 @@ const full = (over: Partial<{ kda: number | null; perfect: boolean; cs: number |
     performance: { kdaRatio: o.kda, perfectKda: o.perfect, csPerMinute: o.cs, totalKills: o.kills, detailedGames: o.detailed },
     multikills: over.multikills === null ? undefined : { games: o.games, counted: o.games, unavailable: 0, double: 14, triple: 1, quadra: 0, penta: 0, ...over.multikills },
     mastery: o.mastery === null ? null : { points: o.mastery },
-  } as unknown as OverviewCard;
+  } as unknown as ChampionRow;
 };
 const text = (pairs: ReturnType<typeof summaryPairs>) => pairs.map((p) => `${p.label} ${p.value}${p.sorted ? " (sorted)" : ""}`);
 

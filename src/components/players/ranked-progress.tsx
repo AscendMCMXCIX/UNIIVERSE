@@ -29,8 +29,8 @@ export type RankedProgressHref = (change: { rq?: RankQueue; ra?: string | null }
  * and their calculations are unchanged, docs/RANKED_PROGRESS.md).
  *
  * Simpler, after the UX review of Release 13 (owner item B3): the rank and the 30-day change lead;
- * the account, season and first check, the highest recorded rank and the change's path are behind
- * the ⓘ beside the rank (RankDetails). The chart is 7.5rem tall, 6rem in a narrow card (a phone):
+ * the account, season and first check and the highest recorded rank are behind the ⓘ beside the
+ * rank (RankDetails). The chart is 7.5rem tall, 6rem in a narrow card (a phone):
  * never stretched to the card's height, where a few LP looked like a swing. It needs two changes of
  * rank or LP (CHART_MIN_CHANGES); with fewer, one line says what was recorded (fewReadings), "no
  * change recorded" for a rank that never moved, never a flat line in a frame.
@@ -112,7 +112,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
                   <span className="whitespace-nowrap">
                     {" "}
                     <span className="inline-flex align-middle text-sm font-normal">
-                      <InfoTip label="About this rank" text={<RankDetails tracking={tracking} peak={timeline.peak} movement={movement} />} testId="ranked-rank-tip" />
+                      <InfoTip label="About this rank" text={<RankDetails tracking={tracking} peak={timeline.peak} />} testId="ranked-rank-tip" />
                     </span>
                   </span>
                 </p>
@@ -120,15 +120,18 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
                 {cur.wins !== null && cur.losses !== null ? (
                   <p className="text-xs tabular-nums text-fg-muted" data-testid="ranked-record">
                     {cur.wins}W {cur.losses}L{cur.wins + cur.losses > 0 ? ` · ${Math.round((cur.wins / (cur.wins + cur.losses)) * 100)}%` : ""}
-                    {/* Its scope, shown from a 21rem card; read out on a narrower one (a phone), and in the ⓘ. */}
-                    <span className="@max-[21rem]/rank:sr-only"> · {RANKED_YEAR} (Riot)</span>
+                    {/* Its scope: the ranked year at every width (Riot's count covers the whole year, not this
+                        season alone), its source too from a 21rem card; read out on a narrower one (a phone),
+                        where "· 2026 (Riot)" would take the record to a second line beside the 30-day change. */}
+                    <span data-testid="ranked-record-year"> · {RANKED_YEAR}</span>
+                    <span className="@max-[21rem]/rank:sr-only"> (Riot)</span>
                   </p>
                 ) : null}
               </div>
             ) : (
               <p className="min-w-0 flex-1 text-sm text-fg-muted" data-testid="ranked-empty">
                 No {QUEUE_LABEL[queue]} rank recorded for this account yet.{" "}
-                <InfoTip label="About this account's ranks" text={<RankDetails tracking={tracking} peak={timeline.peak} movement={null} />} testId="ranked-rank-tip" />
+                <InfoTip label="About this account's ranks" text={<RankDetails tracking={tracking} peak={timeline.peak} />} testId="ranked-rank-tip" />
               </p>
             )}
           </div>
@@ -175,23 +178,19 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
 const OPENS = "max-md:group-data-[fold=open]/fold:fade-in short:group-data-[fold=open]/fold:fade-in";
 
 /**
- * What the ⓘ beside the rank holds (about 20 words): which account, season and first check the card
- * reads, the highest rank recorded, and the 30-day change's path. Facts a reader may want, never
- * what the card is for at a glance.
+ * What the ⓘ beside the rank holds (about 20 words, two sentences): which account, season and first
+ * check the card reads, and the highest rank recorded. Facts a reader may want, never what the card
+ * is for at a glance. 25 Nov 2026 (the owner's readability request, one concept a tip): the 30-day
+ * change's path left it (the change beside the rank says it), and so did "the record is Riot's count
+ * for the ranked year" (the record line names its year: "· 2026 (Riot)").
  */
-function RankDetails({ tracking, peak, movement }: { tracking: string; peak: RankTimeline["peak"]; movement: RankMovement | null }) {
+function RankDetails({ tracking, peak }: { tracking: string; peak: RankTimeline["peak"] }) {
   return (
     <>
-      <span data-testid="ranked-tracking">{tracking}</span>. The record is Riot&apos;s count for the ranked year.{" "}
+      <span data-testid="ranked-tracking">{tracking}</span>.{" "}
       <span data-testid="ranked-peak-stat">{peak ? `Highest recorded: ${peak.label} · ${peak.lp} LP, first checked ${formatDayMonth(peak.at)}.` : "Highest recorded: not recorded."}</span>
-      {movement ? <span data-testid="ranked-change-path">{` ${movementPath(movement)}`}</span> : null}
     </>
   );
-}
-
-/** The 30-day change's path in words: "From Gold III 47 LP to Gold IV 97 LP." or "Gold II 40 LP since 1 Oct." */
-function movementPath(m: RankMovement): string {
-  return m.from === m.to ? `${m.to.label} ${m.to.lp ?? 0} LP since ${formatDayMonth(m.to.from)}.` : `From ${m.from.label} ${m.from.lp ?? 0} LP to ${m.to.label} ${m.to.lp ?? 0} LP.`;
 }
 
 /** The fewest changes of rank or LP drawn as a chart. One change is a single step, none a flat line. */
@@ -241,7 +240,7 @@ function Movement({ m, unranked }: { m: RankMovement | null; unranked: boolean }
   if (!m)
     return (
       <div className={MOVEMENT_LINE}>
-        <dt className="text-2xs text-fg-subtle">Last 30 days</dt>
+        <dt className="text-xs text-fg-muted">Last 30 days</dt>
         <dd className="text-sm text-fg-muted" data-testid="ranked-change-none">
           {unranked ? "Unranked now: nothing to compare" : "Not enough readings in 30 days"}
         </dd>
@@ -251,8 +250,8 @@ function Movement({ m, unranked }: { m: RankMovement | null; unranked: boolean }
   const dir = m.kind === "tiers" ? (m.to.score! > m.from.score! ? 1 : -1) : Math.sign(m.amount);
   return (
     <div className={MOVEMENT_LINE}>
-      <dt className="text-2xs text-fg-subtle">{m.windowed ? "Last 30 days" : `Since ${formatDayMonth(m.from.from)}`}</dt>
-      <dd className={cn("text-lg font-bold leading-tight tabular-nums", dir > 0 ? "text-good" : dir < 0 ? "text-bad" : "text-fg-muted")} data-testid="ranked-change" data-kind={m.kind}>
+      <dt className="text-xs text-fg-muted">{m.windowed ? "Last 30 days" : `Since ${formatDayMonth(m.from.from)}`}</dt>
+      <dd className={cn("text-lg font-bold leading-tight tabular-nums", dir > 0 ? "text-good" : dir < 0 ? "text-bad" : "text-fg")} data-testid="ranked-change" data-kind={m.kind}>
         {value}
       </dd>
     </div>

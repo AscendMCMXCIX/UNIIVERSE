@@ -1,4 +1,5 @@
 import { expect, test } from "./test";
+import { openDataStatus } from "./data-status";
 import { optionsOf, pick, valueOf } from "./select";
 
 /*
@@ -54,8 +55,7 @@ test("Match History: freshness sits behind one ⓘ under the title, and a demo p
   // No banner: the status is one ⓘ, in the same words as every page.
   await expect(page.getByTestId("data-status")).toHaveCount(0);
   await expect(page.getByTestId("data-refresh")).toHaveCount(1);
-  await page.getByTestId("data-refresh-info").hover();
-  const bubble = page.getByTestId("data-refresh-info-bubble");
+  const bubble = await openDataStatus(page);
   await expect(bubble).toContainText(/Up to date|Syncing|Partial data|Delayed|Needs attention/);
   // Only the times there are, never a placeholder: demo accounts are never read from Riot, so
   // there is no "Last checked", only the newest game.

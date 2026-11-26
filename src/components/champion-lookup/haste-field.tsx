@@ -2,19 +2,23 @@
 
 import * as React from "react";
 import { HASTE_MAX, hasteReduction, readHasteField } from "@/domain/champion-lookup/haste";
+import { HASTE_RULE_WORDS } from "@/domain/champion-lookup/words";
 import { formatSeconds } from "@/lib/format";
+import { InfoTip } from "@/components/ui/info-tip";
 import { cn } from "@/lib/cn";
 
 /*
   Champion Intel's ability haste for one champion (docs/CHAMPION_INTEL.md, "Haste"; the owner's
-  request of 24 Nov 2026): one compact field, 0 by default, that changes the cooldowns as it is
-  typed in. It takes a whole number from 0 to HASTE_MAX in digits (readHasteField); the text stays
-  as typed. More than HASTE_MAX is held to it; anything else that is not digits ("-20", "+5", "1e3",
-  "12.5", a pasted sentence) is not taken: the cooldowns keep the haste in use. Whenever the text is
-  held or not taken, a short line beside the field says so and the field is marked invalid
-  (aria-invalid) until the next edit. On leaving the field it shows the haste in use; an empty
-  field is 0. 44px on touch screens and phones, 16px text there (no zoom on iOS), a numeric keypad
-  (inputmode), and a label read out with the champion's name.
+  requests of 24 and 25 Nov 2026): "Ability haste", one compact field, 0 by default, that changes the
+  cooldowns as it is typed in, the rule in the ⓘ beside it (said once per champion, never as a line
+  under the board), and at a haste above 0 how much shorter every cooldown is. It takes a whole
+  number from 0 to HASTE_MAX in digits (readHasteField); the text stays as typed. More than HASTE_MAX
+  is held to it; anything else that is not digits ("-20", "+5", "1e3", "12.5", a pasted sentence) is
+  not taken: the cooldowns keep the haste in use. Whenever the text is held or not taken, a short
+  line beside the field says so and the field is marked invalid (aria-invalid) until the next edit.
+  On leaving the field it shows the haste in use; an empty field is 0. 44px on touch screens and
+  phones, 16px text there (no zoom on iOS), a numeric keypad (inputmode), and a label read out with
+  the champion's name.
 */
 
 const NOTE_WORDS = {
@@ -23,12 +27,12 @@ const NOTE_WORDS = {
   digits: "Digits only",
 } as const;
 
-export function HasteField({ haste, onChange, champion, testId = "lookup-haste" }: { haste: number; onChange: (haste: number) => void; champion: string; testId?: string }) {
+export function HasteField({ haste, onChange, champion, testId = "lookup-haste", className, cut = true }: { haste: number; onChange: (haste: number) => void; champion: string; testId?: string; className?: string; /** False: "16.7% shorter" for screen readers only (a Compare column, whose base line under each value says it). */ cut?: boolean }) {
   const id = React.useId();
   const [text, setText] = React.useState(String(haste));
   const [note, setNote] = React.useState<keyof typeof NOTE_WORDS | null>(null);
   const [focused, setFocused] = React.useState(false);
-  // A haste set from elsewhere (the address, Back) shows as it is when the field is not being edited.
+  // A haste set from elsewhere (the address, Back, a swap) shows as it is when the field is not being edited.
   const [seen, setSeen] = React.useState(haste);
   if (seen !== haste) {
     setSeen(haste);
@@ -37,13 +41,13 @@ export function HasteField({ haste, onChange, champion, testId = "lookup-haste" 
       setNote(null);
     }
   }
-  const cut = haste > 0 ? `${formatSeconds(hasteReduction(haste))}% shorter` : "Base";
+  const described = [haste > 0 ? `${id}-cut` : null, note ? `${id}-note` : null].filter(Boolean).join(" ") || undefined;
   return (
-    <div className="flex min-w-0 flex-col items-end gap-0.5" data-testid={testId} data-haste={haste}>
-      <div className="flex items-center gap-2">
-        <label htmlFor={`${id}-field`} className="label-caps whitespace-nowrap">
-          Haste<span className="sr-only">: ability haste for {champion}, a whole number from 0 to {HASTE_MAX}</span>
-        </label>
+    <div className={cn("flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1", className)} data-testid={testId} data-haste={haste}>
+      <label htmlFor={`${id}-field`} className="whitespace-nowrap text-sm text-fg-muted">
+        Ability haste<span className="sr-only">: ability haste for {champion}, a whole number from 0 to {HASTE_MAX}</span>
+      </label>
+      <span className="inline-flex items-center gap-2">
         <input
           id={`${id}-field`}
           type="text"
@@ -53,7 +57,7 @@ export function HasteField({ haste, onChange, champion, testId = "lookup-haste" 
           enterKeyHint="done"
           spellCheck={false}
           value={text}
-          aria-describedby={`${id}-cut${note ? ` ${id}-note` : ""}`}
+          aria-describedby={described}
           onFocus={(e) => {
             setFocused(true);
             e.currentTarget.select();
@@ -80,18 +84,24 @@ export function HasteField({ haste, onChange, champion, testId = "lookup-haste" 
           )}
           data-testid={`${testId}-input`}
         />
-      </div>
-      <p className="text-right text-2xs leading-tight text-fg-subtle" aria-live="polite">
-        <span id={`${id}-cut`} data-testid={`${testId}-cut`}>
-          {cut}
+        <span className="inline-flex" data-testid="lookup-rule">
+          <InfoTip label="How ability haste changes cooldowns" text={HASTE_RULE_WORDS} testId="lookup-rule-tip" />
         </span>
+      </span>
+      {/* How much shorter every cooldown is, and why the text typed was held or not taken: said as it changes. */}
+      <span className="text-xs text-fg-muted" aria-live="polite">
+        {haste > 0 ? (
+          <span id={`${id}-cut`} className={cut ? undefined : "sr-only"} data-testid={`${testId}-cut`}>
+            {formatSeconds(hasteReduction(haste))}% shorter
+          </span>
+        ) : null}
         {note ? (
           <span id={`${id}-note`} className="text-warn" data-testid={`${testId}-note`}>
-            {" · "}
+            {haste > 0 && cut ? " · " : ""}
             {NOTE_WORDS[note]}
           </span>
         ) : null}
-      </p>
+      </span>
     </div>
   );
 }

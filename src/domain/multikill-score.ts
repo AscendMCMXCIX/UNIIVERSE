@@ -7,9 +7,10 @@ import type { MultikillCounts } from "./multikills";
   champions make in the same stored games. Pure functions; the page's data (server/leaderboards)
   reads the comparison players' counts in one aggregate query.
 
-  In plain words: 100 is the usual for a member's roles and champions; 130 is 30% more than usual.
-  Every multikill counts once, at its largest, worth its kills (a double kill 2, a pentakill 5), so
-  a rarer kind counts for more; with few games a score stays near 100.
+  In plain words: 100 is typical for a member's champions and roles; above 100 is above typical,
+  below 100 below it. It is not a percentage improvement: the +40 cushion keeps every score nearer
+  100 than the raw ratio. Every multikill counts once, at its largest, worth its kills (a double kill
+  2, a pentakill 5), so a rarer kind counts for more; with few games a score stays near 100.
 
   1. Each multikill once, at its largest (`multikillEvents`). Riot keeps four counters per player
      and game. Whether a pentakill also adds to the double, triple and quadra counters ("nested") or
@@ -45,7 +46,7 @@ import type { MultikillCounts } from "./multikills";
      Why kills as weights: a rarer kind counts for more by what it is (a pentakill is five kills in
      one fight, 2.5 doubles), not by a constant chosen for it, and the common kinds, which carry
      most of the information, keep most of the weight; so over many games a score is mostly doubles
-     and triples, and "Most pentas" keeps pentakills recognised on their own.
+     and triples, and the table's Pentas column keeps pentakills recognised on their own.
      Why 40 (round 3, chosen by simulation against 20, 30 and 60): with equal skill, four 20-game and
      four 300-game members, a 20-game member takes first place 66% of the time (20: 77%, 30: 71%;
      no bias would be 50%: a short record is noisier, so some excess stays); on 9-member boards about
@@ -57,9 +58,18 @@ import type { MultikillCounts } from "./multikills";
      at exactly the usual rates): 100 × √(Σ_k w_k² · X_k) ÷ (expected + CUSHION).
 
   4. Places (`rankMultikillScores`): 20 or more games with counts are ranked; 10–19 are provisional,
-     listed after every ranked member; fewer, the board's last group with no score. Equal scores as
-     shown share a place. The board shows each multikill once, at its largest (the score's own events);
-     Riot's raw counters stay on the profiles.
+     fewer have no score. The board (25 Nov 2026) lists ranked members only, and only those active in
+     the last 30 days (domain/leaderboards, isActivePlayer), ranked again among themselves so no
+     place is skipped; the thresholds stay. Equal scores as shown share a place. The board shows each
+     multikill once, at its largest (the score's own events); Riot's raw counters stay on the profiles.
+
+  5. What a score is made of (`MemberScore`: points, expectedPoints, played, champions, comparison):
+     the parts the page's Score breakdown shows, so its arithmetic is the score's own and the page
+     never works anything out again. `comparisonBasis` names, per game, how the comparison was made:
+     by champion and role (the role's players with 200+ games of their own and the champion with
+     CHAMPION_PRIOR_GAMES (50)+ games on that role, so its tendency carries at least half the weight),
+     by role (the champion seen less), every position together (no role, or a role with fewer than
+     200 games), or the team's own games (too few other players stored); it never changes the rates.
 */
 
 export const MULTIKILL_KEYS = ["double", "triple", "quadra", "penta"] as const;
@@ -237,6 +247,30 @@ export function expectedRates(baseline: MultikillBaseline, role: GameRole | null
   return { level: group.games >= ROLE_PRIOR_GAMES ? "role" : "all", rates };
 }
 
+/**
+ * How a game is compared, in words a reader can check (the Score breakdown's fallbacks), from the
+ * same groups `expectedRates` uses, without changing its rates or its `level`:
+ *  - "champion-role": compared within the role (its level "role") and the champion has
+ *    CHAMPION_PRIOR_GAMES or more baseline games on that role, so its own tendency carries at least
+ *    half the weight;
+ *  - "role": within the role, the champion seen in fewer games (it barely moves the rates);
+ *  - "all": every position together (no role recorded, or a role with fewer than ROLE_PRIOR_GAMES);
+ *  - "team": the team's own games, every position together, no role or champion adjustment;
+ *  - "none": no comparison (fewer than BASELINE_MIN_GAMES other players' games).
+ * `roleGames` and `championGames` are the baseline's games for the game's role and champion on it.
+ */
+export type ComparisonBasis = "champion-role" | "role" | "all" | "team" | "none";
+export function comparisonBasis(baseline: MultikillBaseline, role: GameRole | null, championId: string | null): { basis: ComparisonBasis; roleGames: number; championGames: number } {
+  const { all } = baseline;
+  if (all.games <= 0 || (baseline.source === "same-games" && all.games < BASELINE_MIN_GAMES)) return { basis: "none", roleGames: 0, championGames: 0 };
+  if (baseline.source === "team") return { basis: "team", roleGames: 0, championGames: 0 };
+  if (!role) return { basis: "all", roleGames: 0, championGames: 0 };
+  const roleGames = baseline.roles[role]?.games ?? 0;
+  const championGames = championId ? (baseline.champions[`${role}|${championId}`]?.games ?? 0) : 0;
+  if (roleGames < ROLE_PRIOR_GAMES) return { basis: "all", roleGames, championGames };
+  return { basis: championGames >= CHAMPION_PRIOR_GAMES ? "champion-role" : "role", roleGames, championGames };
+}
+
 /** One game of a member: its role and champion, and Riot's counters (null when its record has none: left out, never zero). */
 export interface ScoreGame {
   role: GameRole | null;
@@ -264,6 +298,16 @@ export interface MemberScore {
   kinds: Record<MultikillKey, KindScore>;
   /** Counted games compared within their role (the rest with every position's players, or the team's games). */
   roleGames: number;
+  /** The member's multikill points: Σ weight × multikills of each kind (each once, at its largest). The score's E. */
+  points: number;
+  /** The points expected of these games for their champions and roles (unrounded). The score's X. */
+  expectedPoints: number;
+  /** The counted games by the position Riot recorded in each (the games behind the score; `unknown`: none recorded). */
+  played: { roles: Partial<Record<GameRole, number>>; unknown: number };
+  /** The counted games by champion and the position played on it, most games first (then by champion, then role). */
+  champions: Array<{ championId: string; role: GameRole | null; games: number }>;
+  /** The counted games by how each was compared (comparisonBasis). */
+  comparison: Record<ComparisonBasis, number>;
   /** 100 × (points + CUSHION) ÷ (expected points + CUSHION), unrounded; null with no counted game or no comparison. */
   score: number | null;
   /** The score's spread by chance alone at these games (one standard deviation at exactly the usual rates); null without a score. */
@@ -285,11 +329,22 @@ export function scoreMember(playerId: string, games: readonly ScoreGame[], basel
   let counted = 0;
   let roleGames = 0;
   let compared = 0;
+  const played: MemberScore["played"] = { roles: {}, unknown: 0 };
+  const champions = new Map<string, { championId: string; role: GameRole | null; games: number }>();
+  const comparison: Record<ComparisonBasis, number> = { "champion-role": 0, role: 0, all: 0, team: 0, none: 0 };
   for (const g of games) {
     if (!g.counts) continue;
     counted += 1;
     add(counts, g.counts);
     add(events, multikillEvents(g.counts, baseline.reading.rule));
+    // What the score is made of (the page's breakdown): the position and champion of each counted game, and how it was compared.
+    if (g.role) played.roles[g.role] = (played.roles[g.role] ?? 0) + 1;
+    else played.unknown += 1;
+    const key = `${g.championId}|${g.role ?? ""}`;
+    const champ = champions.get(key) ?? { championId: g.championId, role: g.role, games: 0 };
+    champ.games += 1;
+    champions.set(key, champ);
+    comparison[comparisonBasis(baseline, g.role, g.championId).basis] += 1;
     const { level, rates } = expectedRates(baseline, g.role, g.championId);
     if (level === "none") continue;
     compared += 1;
@@ -304,7 +359,8 @@ export function scoreMember(playerId: string, games: readonly ScoreGame[], basel
   const score = scored ? (100 * (points + MULTIKILL_CUSHION)) / (expectedPoints + MULTIKILL_CUSHION) : null;
   const chance = scored ? scoreChance(expected) : null;
   const status = score === null || counted < MULTIKILL_PROVISIONAL_GAMES ? "not-enough" : counted < MULTIKILL_RANKED_GAMES ? "provisional" : "ranked";
-  return { playerId, games: games.length, counted, counts, events, kinds, roleGames, score, chance, status };
+  const byGames = [...champions.values()].sort((a, b) => b.games - a.games || a.championId.localeCompare(b.championId) || (a.role ?? "").localeCompare(b.role ?? ""));
+  return { playerId, games: games.length, counted, counts, events, kinds, roleGames, points, expectedPoints, played, champions: byGames, comparison, score, chance, status };
 }
 
 /**
@@ -340,12 +396,14 @@ export interface RankedScore extends MemberScore {
  * provisional members after them in the same order; then the members with too few games, most
  * counted games first. Equal shown scores share a place.
  */
-export function rankMultikillScores(scores: readonly MemberScore[], nameOf: (id: string) => string): RankedScore[] {
-  const byScore = (a: MemberScore, b: MemberScore) => shownScore(b.score ?? 0) - shownScore(a.score ?? 0) || b.counted - a.counted || nameOf(a.playerId).localeCompare(nameOf(b.playerId));
+/** What a ranking reads of a score (the rest of it is carried along as it is). */
+type RankInput = Pick<MemberScore, "playerId" | "games" | "counted" | "score" | "status">;
+export function rankMultikillScores<T extends RankInput = MemberScore>(scores: readonly T[], nameOf: (id: string) => string): Array<T & { place: number | null; tied: boolean }> {
+  const byScore = (a: RankInput, b: RankInput) => shownScore(b.score ?? 0) - shownScore(a.score ?? 0) || b.counted - a.counted || nameOf(a.playerId).localeCompare(nameOf(b.playerId));
   const ranked = scores.filter((s) => s.status === "ranked").sort(byScore);
   const provisional = scores.filter((s) => s.status === "provisional").sort(byScore);
   const rest = scores.filter((s) => s.status === "not-enough").sort((a, b) => b.counted - a.counted || b.games - a.games || nameOf(a.playerId).localeCompare(nameOf(b.playerId)));
-  const placed: RankedScore[] = ranked.map((s) => {
+  const placed = ranked.map((s) => {
     const shown = shownScore(s.score!);
     const first = ranked.findIndex((r) => shownScore(r.score!) === shown);
     const shared = ranked.filter((r) => shownScore(r.score!) === shown).length > 1;
@@ -384,4 +442,32 @@ export function mostOfKind(scores: readonly Pick<MemberScore, "playerId" | "even
   const best = scores.reduce((m, s) => Math.max(m, s.events[kind]), 0);
   if (best <= 0) return null;
   return { count: best, holders: scores.filter((s) => s.events[kind] === best).map((s) => s.playerId) };
+}
+
+/**
+ * The position a member mostly played in the games behind their score (counted games' own Riot
+ * positions: never the role they chose, their lineup slot, their pool or their latest game). Context
+ * only: the score compares every game with its own champion and role.
+ *  - "role": one position has the most games;
+ *  - "split": two or more positions share the most games (no position is picked for them: the page
+ *    shows each and says "Split");
+ *  - "unknown": no counted game has a position recorded.
+ * `rows`: every position played, most games first (Top-to-Support order on a tie), then the games
+ * without one (`role: null`); `total`: the counted games.
+ */
+export type MostPlayedRole =
+  | { kind: "role"; role: GameRole; games: number; total: number; rows: Array<{ role: GameRole | null; games: number }> }
+  | { kind: "split"; roles: GameRole[]; games: number; total: number; rows: Array<{ role: GameRole | null; games: number }> }
+  | { kind: "unknown"; games: 0; total: number; rows: Array<{ role: GameRole | null; games: number }> };
+const ROLE_ORDER: readonly GameRole[] = ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"];
+export function mostPlayedRole(played: MemberScore["played"]): MostPlayedRole {
+  const known = ROLE_ORDER.filter((r) => (played.roles[r] ?? 0) > 0).map((role) => ({ role, games: played.roles[role]! }));
+  known.sort((a, b) => b.games - a.games || ROLE_ORDER.indexOf(a.role) - ROLE_ORDER.indexOf(b.role));
+  const total = known.reduce((n, r) => n + r.games, 0) + played.unknown;
+  const rows: Array<{ role: GameRole | null; games: number }> = [...known, ...(played.unknown > 0 ? [{ role: null, games: played.unknown }] : [])];
+  const top = known[0];
+  if (!top) return { kind: "unknown", games: 0, total, rows };
+  const tied = known.filter((r) => r.games === top.games).map((r) => r.role);
+  if (tied.length > 1) return { kind: "split", roles: tied, games: top.games, total, rows };
+  return { kind: "role", role: top.role, games: top.games, total, rows };
 }

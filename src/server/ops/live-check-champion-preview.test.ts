@@ -3,9 +3,10 @@ import { championPreviewVerdicts, firstWithGames, targetRow, type ChampionPrevie
 
 /*
   The Production check's All Champions preview facts (scripts/champion-preview-facts.mjs): the
-  reading below is the demo's first champion with 3+ games as the live check's own reader saw it
-  (20 Nov 2026; where it is, the docked panel, since Release 16). The facts pass on it, fail the regressions they exist for, and only warn when a
-  member's data has no such item.
+  reading below is the demo's first champion with 3+ games as the live check's own reader sees it
+  (25 Nov 2026: a pane beside the list, the position it shows one of the row's position icons, every
+  lane opponent in one table, and the page the one thing that scrolls). The facts pass on it, fail the regressions they exist for, and only
+  warn when a member's data has no such item.
 */
 
 const DEMO: ChampionPreviewRead = {
@@ -14,18 +15,27 @@ const DEMO: ChampionPreviewRead = {
   rowGames: 14,
   portrait: true,
   named: true,
-  role: "Top · In pool",
+  role: "TOP",
+  position: { chosen: true, icon: true, first: true, icons: 1 },
+  roleGames: 14,
   record: "14 games · 4W 10L",
   winRate: "29%",
-  docked: { panel: true, window: false, within: true, fits: true },
+  pane: { pane: true, window: false, within: true, besideList: true, nameClear: true },
+  scrolling: { scrollBox: false, scrollers: 0, head: true },
   loading: false,
   noOpponents: false,
   answered: true,
-  opponents: [{ games: 7, says: true }, { games: 4, says: true }],
+  opponents: [
+    { games: 7, says: true, rate: true, small: false },
+    { games: 4, says: true, rate: true, small: false },
+    { games: 2, says: true, rate: true, small: true },
+    { games: 1, says: true, rate: true, small: true },
+  ],
+  folded: 0,
   lookup: 1,
   lookupPage: true,
   lookupChampion: true,
-  address: { champion: true },
+  address: { champion: true, role: true },
 };
 const STEP = { next: true, address: true, replaced: true };
 const ESC = { closed: true, address: true };
@@ -35,16 +45,31 @@ const failed = (at: ChampionPreviewRead, step: typeof STEP | null = STEP, escape
 
 describe("All Champions' preview facts", () => {
   it("pass on the demo's preview", () => {
-    expect(run(DEMO).map((v) => v.status)).toEqual(Array(9).fill("PASS"));
+    expect(run(DEMO).map((v) => v.status)).toEqual(Array(11).fill("PASS"));
+    // A champion played in several positions: the row's games are all of them, the record its most played position's.
+    expect(run({ ...DEMO, rowGames: 29, roleGames: 22, record: "22 games · 11W 11L", winRate: "50%", position: { chosen: true, icon: true, first: true, icons: 5 } }).map((v) => v.status)).toEqual(Array(11).fill("PASS"));
   });
   it("choose the first row with 3 or more games, or none", () => {
     expect(firstWithGames([{ games: 2, open: false }, { games: 3, open: false }])).toBe(1);
     expect(firstWithGames([{ games: 1, open: false }])).toBe(-1);
   });
-  it("fail a record that disagrees with the row or does not add up", () => {
+  it("fail a record that disagrees with the position's icon or the row, or does not add up", () => {
+    expect(failed({ ...DEMO, roleGames: 13 })).toHaveLength(1);
     expect(failed({ ...DEMO, rowGames: 13 })).toHaveLength(1);
     expect(failed({ ...DEMO, record: "14 games · 4W 9L" })).toHaveLength(1);
     expect(failed({ ...DEMO, record: "14 games" })).toHaveLength(2);
+  });
+  it("fail a preview on a position the row does not lead with, or none chosen", () => {
+    expect(failed({ ...DEMO, position: { chosen: true, icon: true, first: false, icons: 2 } })).toHaveLength(1);
+    expect(failed({ ...DEMO, position: { chosen: false, icon: true, first: true, icons: 1 } })).toHaveLength(1);
+    expect(failed({ ...DEMO, role: "" })).toHaveLength(1);
+  });
+  it("fail opponents folded away, out of order, or a small sample unmarked", () => {
+    const one = "desktop: every lane opponent is in one table, most games first, the small samples (1–2 games) marked, none folded away";
+    expect(failed({ ...DEMO, folded: 1 })).toEqual([one]);
+    expect(failed({ ...DEMO, opponents: [...DEMO.opponents!].reverse() })).toEqual([one]);
+    expect(failed({ ...DEMO, opponents: DEMO.opponents!.map((o) => ({ ...o, small: false })) })).toEqual([one]);
+    expect(failed({ ...DEMO, opponents: DEMO.opponents!.map((o, i) => (i === 0 ? { ...o, rate: false } : o)) })).toHaveLength(1);
   });
   it("fail a win rate that is not the wins over the games", () => {
     expect(failed({ ...DEMO, winRate: "40%" })).toEqual(["desktop: the preview shows the win rate, the wins over the games"]);
@@ -52,17 +77,27 @@ describe("All Champions' preview facts", () => {
   });
   it("fail a missing identity, an opponent row without its games and more than one Champion Intel link", () => {
     expect(failed({ ...DEMO, portrait: false })).toHaveLength(1);
-    expect(failed({ ...DEMO, role: "" })).toHaveLength(1);
-    expect(failed({ ...DEMO, opponents: [{ games: 7, says: false }] })).toHaveLength(1);
+    expect(failed({ ...DEMO, opponents: [{ games: 7, says: false, rate: true, small: false }] })).toHaveLength(1);
     expect(failed({ ...DEMO, lookup: 2 })).toHaveLength(1);
     expect(failed({ ...DEMO, lookupChampion: false })).toHaveLength(1);
   });
-  it("fail a preview that is not the compact docked panel: a window, past the screen's edge, or scrolling inside", () => {
-    const where = "desktop: the preview is the compact panel docked beside the list (no window), within the screen, its content fitting it without scrolling";
-    expect(failed({ ...DEMO, docked: { panel: false, window: false, within: false, fits: false } })).toEqual([where]);
-    expect(failed({ ...DEMO, docked: { panel: true, window: true, within: true, fits: true } })).toEqual([where]);
-    expect(failed({ ...DEMO, docked: { panel: true, window: false, within: false, fits: true } })).toEqual([where]);
-    expect(failed({ ...DEMO, docked: { panel: true, window: false, within: true, fits: false } })).toEqual([where]);
+  it("fail a preview that is not a pane beside the list: a window, past the screen's edge, or laid over the list or the row's name", () => {
+    const where = "desktop: the preview opens in a pane beside the list (no window), within the screen, the list and the row's name clear of it";
+    const at = (pane: Partial<NonNullable<ChampionPreviewRead["pane"]>>) => failed({ ...DEMO, pane: { ...DEMO.pane!, ...pane } });
+    expect(at({ pane: false })).toEqual([where]);
+    expect(at({ window: true })).toEqual([where]);
+    expect(at({ within: false })).toEqual([where]);
+    expect(at({ besideList: false })).toEqual([where]);
+    expect(at({ nameClear: false })).toEqual([where]);
+  });
+  it("fail a pane that scrolls on its own, anything else scrolling inside the page, or a header off the screen (the 25 Nov 2026 review: one scrolling surface)", () => {
+    const one = "desktop: the page is the one thing that scrolls: the pane has no scroll box of its own, nothing inside the page's main area scrolls, and the pane's header (the champion, ‹ › and Close) is on screen";
+    const at = (scrolling: Partial<NonNullable<ChampionPreviewRead["scrolling"]>>) => failed({ ...DEMO, scrolling: { ...DEMO.scrolling!, ...scrolling } });
+    expect(at({ scrollBox: true })).toEqual([one]);
+    expect(at({ scrollers: 1 })).toEqual([one]);
+    expect(at({ head: false })).toEqual([one]);
+    // A sheet (no pane) is not asked.
+    expect(run({ ...DEMO, pane: undefined, scrolling: null }).filter((v) => v.name === one)).toEqual([]);
   });
   it("fail ↓ pushing a history entry, and Escape leaving it open", () => {
     expect(failed(DEMO, { ...STEP, replaced: false })).toHaveLength(1);

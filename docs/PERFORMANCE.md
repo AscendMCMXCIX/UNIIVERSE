@@ -494,6 +494,24 @@ inertness and focus containment). `content-visibility` on the list barely helped
 modal is kept for its accessibility; opening a match window on that page still shows one long frame
 (367 ms on the phone profile at 4×, 200 ms on a 1440×900 desktop with the CPU slowed 2×; medians of 3).
 
+## Stored game records: the champions' index (26 Nov 2026)
+
+Champion Intel's builds (docs/CHAMPION_INTEL.md, "Builds and runes") count, per champion, the
+stored records it appears in. Without an index that is the scan of every record the players' index
+(below) was made to avoid: production unpacks each from TOAST storage (0.9–2.4 s for comparable
+scans).
+
+- **What changed** (migration `0069_match_details_champions`): a GIN index on the records'
+  champions alone (`jsonb_path_query_array(participants, '$[*].championId')`), `fastupdate` off as
+  for the players' index. The builds' statement (`src/server/champion-builds/query.ts`) finds the
+  records with the same expression and the champion bound (`?| ARRAY[$1]::text[]`), so only that
+  champion's records are opened (a popular champion is in a few percent of them).
+- **Size**: the champions repeat across records (about 170 distinct values against the players'
+  thousands), so it is expected under the players' 8 MB; `db-usage` gives the figure once deployed.
+- `tests/db/champion-builds.test.ts` checks that the condition uses the index (table scans off), so
+  the statement and the index cannot drift apart unnoticed.
+- The answer is cached six hours in Next's data cache (docs/HOSTING_USAGE.md, "26 Nov 2026").
+
 ## Stored game records: the players' index (26 Oct 2026)
 
 Production's query statistics (`db-usage`, 26 Oct) showed two statements unpacking every stored game

@@ -22,7 +22,8 @@ end, and the scoreboard with every player, their ranks and the possible groups
 
 **Release 16 (23 Nov 2026):** at the owner's request the build and the skill order came back, not as
 the fold, but as two of three segmented headings above the lane (**Build Path | Skill Order |
-Runes**, `src/components/match-history/participant-panels.tsx`), for whichever player is inspected,
+Runes**, `src/components/match-history/participant-panels.tsx`; on a desktop's two columns the lane
+moved under the scoreboard on 26 Nov 2026, the panels taking the height beside it), for whichever player is inspected,
 with sales and completed items marked where the timeline and Data Dragon support them. The notes and
 the gold curve stay removed.
 
@@ -30,8 +31,10 @@ the gold curve stay removed.
 screen with nothing in it scrolling (docs/DESIGN_SYSTEM.md §1, "The post-game view"), and the
 remaining automated commentary left the default view: the written why under the player's name
 ("Stood out: …", "Held back by …") and the trend word with its sentence ("Steady: Held much the same
-level throughout."). Their rules stay in `src/domain/performance-score.ts` (`reasonText`, `trendOf`,
-tested), unused by the interface, should the owner ask for them again. The comparison of two players
+level throughout."). The why's rules stay in `src/domain/performance-score.ts` (`reasonText`,
+tested), unused by the interface, should the owner ask for it again; the trend words (`trendOf`) went
+with the score through the game at the owner's request of 25 Nov 2026 (docs/PERFORMANCE_SCORE.md,
+"The score through the game (removed)"). The comparison of two players
 (the select, the table and the chart's second line), the team averages and the ten score tiles, the
 build path's legend and the grey notes under the scoreboard went with them; the figures that served
 supports and tanks moved from a sentence into a grid of three groups. After the release's UX review,

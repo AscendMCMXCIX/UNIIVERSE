@@ -1,55 +1,60 @@
 import { Fragment, type ReactNode } from "react";
 import { ChevronRight, Flame, Sparkles, TrendingUp, Trophy } from "lucide-react";
 import { ChampionPortrait, type PortraitChampion } from "@/components/champion-portrait";
-import { CardAvatar } from "@/components/players/card-look";
-import { BOARD_PANEL, DataGroup, DataList, DataRow, FigureCell, MemberCell, Place, ROW_PAD_X, RowLink, tieRuns, type TiePosition } from "@/components/ui/data-list";
+import { CardName, cardColourVars } from "@/components/players/card-look";
+import { BOARD_PANEL, DataGroup, DataHead, DataList, DataRow, FigureCell, MemberCell, Place, ROW_PAD_X, ROW_STATES, RowLink, tieRuns, type TiePosition } from "@/components/ui/data-list";
+import { BreakdownPopover } from "@/components/ui/breakdown-popover";
 import { EmptyState } from "@/components/ui/empty-state";
 import { InfoTip } from "@/components/ui/info-tip";
+import { LEADERBOARD_ACTIVE_DAYS } from "@/domain/leaderboards";
+import { KDA_RECORD_MIN_TAKEDOWNS, RECORD_MIN_GAME_S } from "@/domain/leaderboard-records";
+import { MULTIKILL_KEYS, type MultikillKey } from "@/domain/multikill-score";
 import { ROLE_LABELS } from "@/domain/roles";
 import { cn } from "@/lib/cn";
 import { formatCount } from "@/lib/format";
-import type { BoardPlayer, MilestoneGroup, MultikillRow, MultikillsView, RecordHolder, RecordsView, RecordView } from "@/server/leaderboards/recent-view";
+import type { BoardPlayer, MilestoneItem, MultikillRow, MultikillsView, RecordHolder, RecordsView, RecordView } from "@/server/leaderboards/recent-view";
 import { BoardTitle } from "./board-title";
+import { FILL_GRID, FILL_LIST, FILL_ROW, fillRows } from "./board-fill";
+import { MultikillBreakdownBody, RoleMark } from "./multikill-breakdown";
 import { RECORD_YOURS, RECORD_YOURS_VALUE } from "./record-yours";
-import { SeasonChoice } from "./season-choice";
 import { SECTIONS } from "./sections";
 import { PeekRowLink } from "./leaderboards-peek";
 import { RecordGameLink } from "./record-game";
-import { BoardFoldSection, BoardShowAll } from "./board-fold";
-import { MILESTONE_OVERVIEW, MULTIKILL_OVERVIEW, foldClass, groupFolds, groupRanks, moreOf } from "./overview";
 
 /*
   THE SEASON'S RECORDS AND ACHIEVEMENTS (docs/TEAM_LEADERBOARDS.md), the Leaderboards page's
-  sections after Recent form: single games, multikills and milestones, which reward playing more,
-  and say so (in the records' ⓘ). Three boards, each a section the page places by its own width
-  (leaderboards-dashboard.tsx), each laid out by its own width, not the window's:
-    Season records   seven cells in one panel: one column, then two from a 40rem panel under
-                     Recent form, never in the column beside it from 86rem (the last, the
-                     streak, across both); each cell measures itself (@container/list), so a
-                     record reads the same wherever it is placed (RecordRow);
-    Multikills       the multikill score's ranking, a row per member, then the most of each kind;
-    Milestones       games on one champion this season, and all-time mastery: a row per member,
-                     the champions as chips.
-  Neutral, as Recent form: no colour marks a figure; the milestones' chips carry their rarities
-  (violet, gold), as everywhere.
+  boards beside and under Recent form: single games, multikills and milestones, which reward
+  playing more. Three boards, each a section the page places (leaderboards-dashboard.tsx), each laid
+  out by its own width, not the window's, each the active players' own (the 30-day rule, 25 Nov 2026):
+    Season records   seven cells in one panel: one column, two from a 34rem panel (the desktop
+                     board's, under Recent form; a tablet's), the last, the streak, across both; each
+                     cell measures itself (@container/list), so a record reads the same wherever it
+                     is placed (RecordRow);
+    Multikills       the multikill score's table: a row per ranked player, the counts per kind and the
+                     Score, a button that opens how it was worked out (the shared breakdown popover);
+    Milestones       the most meaningful champion milestones of the active players, at most eight,
+                     two columns of cells like the records', the rest on the profiles.
+  Neutral, as Recent form: no colour marks a figure but first place's gold; the milestones carry their
+  rarities (violet, gold), as everywhere. Nothing folds: every row and cell is on the page. Where a
+  board is the shorter of its grid row, its rows share the spare room (board-fill.ts), not one band.
 */
 
 // ── Season records ─────────────────────────────────────────────────────────────────────────────
 
 /*
-  The records' cells, by the panel's width and the page's: a column of cells, two columns from a
-  40rem panel (cells of at least 19.25rem, a phone's room for the three-line layout) while the page is
-  one column (under 59rem: a tablet either way round, a phone held sideways); from 59rem the panel
-  heads the column beside Recent form (21–38.5rem, under 40rem, so one column of cells), the
-  multikills under it, so a taller panel (a member's own bests) lengthens that column alone. The
-  seventh (the streak) goes across both columns, so no cell stands empty. A hairline between
-  neighbours: above every cell but the first row's, and right of each left-hand cell. Each cell (an
-  li) is its own @container/list and holds its column template (BOOK_COLS), so its row picks its
-  layout by the cell's width, or by the page's from 59rem (the record-two variant, globals.css).
+  The records' cells, by the panel's width: a column of cells, two columns from a 34rem panel (the
+  desktop board's, under Recent form, 36–55rem: cells of 18–27rem, each in its two-line layout; a
+  tablet's or a sideways phone's, cells of 19rem or more in the three-line layout). The seventh (the
+  streak) goes across both columns, so no cell stands empty. A hairline between neighbours: above
+  every cell but the first row's, and right of each left-hand cell. Each cell (an li) is its own
+  @container/list and holds its column template (BOOK_COLS), so its row picks its layout by the
+  cell's width, or by the page's from 59rem (the record-two variant, globals.css).
 */
-const RECORD_CELLS = "grid grid-cols-[minmax(0,1fr)] border-t border-border/70 @min-[40rem]/list:@max-[59rem]/dash:grid-cols-2";
+const RECORD_CELLS = "grid grid-cols-[minmax(0,1fr)] border-t border-border/70 @min-[34rem]/list:grid-cols-2";
 const RECORD_CELL =
-  "@container/list min-w-0 border-border/60 [&:not(:first-child)]:border-t @min-[40rem]/list:@max-[59rem]/dash:[&:nth-child(2)]:border-t-0 @min-[40rem]/list:@max-[59rem]/dash:[&:nth-child(odd):not(:last-child)]:border-r @min-[40rem]/list:@max-[59rem]/dash:[&:last-child:nth-child(odd)]:col-span-2";
+  "@container/list min-w-0 border-border/60 [&:not(:first-child)]:border-t @min-[34rem]/list:[&:nth-child(2)]:border-t-0 @min-[34rem]/list:[&:nth-child(odd):not(:last-child)]:border-r @min-[34rem]/list:[&:last-child:nth-child(odd)]:col-span-2";
+/** What the records count beyond their names, and whose they are: the records' ⓘ (the qualifiers stay on wider cells, and are read out). */
+const RECORDS_TIP = `Records among players active in the last ${LEADERBOARD_ACTIVE_DAYS} days. Per-minute records need ${RECORD_MIN_GAME_S / 60}+ minute games; the KDA record ${KDA_RECORD_MIN_TAKEDOWNS} takedowns.`;
 
 /*
   A cell's columns:
@@ -66,12 +71,12 @@ const RECORD_CELL =
             the phone and no word is squeezed beside the picture.
     two     (record-two: a 36rem cell, or any cell from a 59rem page, the desktop's one-screen board,
             Release 16) picture · text · figure · chevron, two lines beside a 36px picture, 44px: the
-            record and its qualifier; the holder and the champion, with your best after them ("Your
-            best 9"); the value over its unit at the right, across both lines. The game's role, K/D/A
-            and date (and your best's date) are read out but not drawn: the cell opens the game, which
-            shows them, so a record keeps two lines in a 27rem column (three lines and 77px each before:
-            the records ran 424px at 1440 × 900, 680px at 1920 × 1080). A qualifier that does not fit
-            beside its record takes the next line (the damage record's in a 27rem cell).
+            record in a few words (RECORD_SHORT, "Damage/min": the full label is its name; the units' own short form since 26 Nov 2026, as "Damage per min" filled a 1366 × 768 cell with nothing to spare and a browser that sets text a hair wider wrapped it, the page 11px past the window) and,
+            in a cell of 24rem or more, its qualifier (read out in a narrower one: the records' ⓘ says
+            what they count); the holder and the champion, with your best after them ("Your best 9");
+            the value over its unit at the right, across both lines. The game's role, K/D/A and date
+            (and your best's date) are read out but not drawn: the cell opens the game, which shows
+            them, so a record keeps two lines in an 18rem cell (two cells a row under Recent form).
   A qualifier that does not fit beside its record takes the next line whole, and its "·" stays
   behind (the title's clipped edge), so no line starts or ends with one.
 */
@@ -79,24 +84,24 @@ const BOOK_COLS = "[--dl-cols:3rem_minmax(5rem,1fr)_auto_1rem] @max-[16rem]/list
 
 /**
  * Season records: the season's seven records in one panel, its title saying what it counts (the
- * season, its games) and, where there are two seasons to choose from, the season. `className` places
- * it on the page.
+ * games, the ties) and whose they are (its ⓘ). The season is the page header's (the season's choice
+ * there, where there are two). `className` places it on the page.
  */
 export function SeasonRecords({ records, player, champ, viewer, className }: { records: RecordsView; player: (id: string) => BoardPlayer; champ: (id: string | null) => PortraitChampion | null; /** The viewer's player, when they are on the board. */ viewer: string | null; className?: string }) {
   return (
-    <section id={SECTIONS.records} aria-labelledby="season-records-title" className={cn("min-w-0", className)} data-testid="records">
-      <div className={BOARD_PANEL} data-testid="records-book">
+    <section id={SECTIONS.records} aria-labelledby="season-records-title" className={cn("flex min-w-0 flex-col", className)} data-testid="records">
+      <div className={cn(BOARD_PANEL, "flex flex-auto flex-col")} data-testid="records-book">
         <BoardTitle
           id="season-records-title"
           icon={<Trophy className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />}
-          // The season, only where there are two to choose from.
-          end={records.seasons.length > 1 ? <SeasonChoice seasons={records.seasons} current={records.season} /> : null}
-          note={`${records.seasonLabel} · All supported games · ${formatCount(records.games)} games · ties: first to set it`}
+          aside={<InfoTip label="Whose records, and what counts" text={RECORDS_TIP} testId="records-tip" />}
+          note={`${formatCount(records.games)} games · ties: first to set it`}
           noteTestId="records-scope"
         >
           Season records
         </BoardTitle>
-        <ul aria-label="Season records" className={RECORD_CELLS} data-testid="season-records">
+        {/* The rows of cells share the panel's spare room where it is the shorter of its grid row (board-fill.ts): seven cells, four rows from 34rem. */}
+        <ul aria-label="Season records" className={cn(RECORD_CELLS, FILL_GRID, "@min-[34rem]/list:max-h-[calc(var(--fill-rows-wide)*3.5rem)]")} style={fillRows(records.records.length, Math.ceil(records.records.length / 2))} data-testid="season-records">
           {records.records.map((r) => (
             <li key={r.id} className={RECORD_CELL}>
               <RecordRow record={r} player={player} champ={champ} viewer={viewer} />
@@ -195,10 +200,15 @@ export function RecordRow({ record, player, champ, viewer }: { record: RecordVie
         <span className="col-[2/4] row-[1/2] min-w-0 overflow-hidden text-sm @min-[20rem]/list:col-[2/3] @max-[16rem]/list:col-[1/-1] @max-[16rem]/list:row-[2/3] record-two:col-[2/3] record-two:self-end" data-testid="record-title">
           <span className="-ml-3 flex min-w-0 flex-wrap items-baseline">
             <span aria-hidden={href ? true : undefined} className="min-w-0 pl-3 font-semibold text-fg [overflow-wrap:anywhere]" data-testid="record-label">
-              {record.label}
+              {/* The record in a few words in a two-line cell (the full label stays its name: the link's words, or read out here). */}
+              <span className="record-two:hidden">{record.label}</span>
+              <span className="hidden record-two:inline" aria-hidden>
+                {record.short}
+              </span>
+              <span className="sr-only hidden record-two:inline">{record.label}</span>
             </span>
             {record.qualifier ? (
-              <span className="relative min-w-0 pl-3 text-xs text-fg-muted [overflow-wrap:anywhere]" data-testid="record-qualifier">
+              <span className="relative min-w-0 pl-3 text-xs text-fg-muted [overflow-wrap:anywhere] record-two:@max-[24rem]/list:sr-only" data-testid="record-qualifier">
                 <span aria-hidden className="absolute left-1">
                   ·
                 </span>
@@ -213,13 +223,14 @@ export function RecordRow({ record, player, champ, viewer }: { record: RecordVie
           // best across the row), one line in a two-line cell (the game's role, K/D/A and date read out there, not drawn).
           <span data-testid="record-game" className="contents record-two:col-[2/3] record-two:row-[2/3] record-two:flex record-two:min-w-0 record-two:flex-wrap record-two:items-baseline record-two:gap-x-1.5 record-two:self-start">
             <MemberCell look={p.look} name={p.name} avatar={false} nameTestId="record-holder" nameClassName="record-two:text-xs record-two:font-semibold" className="col-[2/3] row-[2/3] @max-[16rem]/list:col-[1/-1] @max-[16rem]/list:row-[3/4] record-two:text-xs" />
-            {/* In a two-line cell the champion follows the holder (the streak, set over several games, has none: no "·" then). */}
+            {/* In a two-line cell the champion follows the holder (the streak, set over several games, has none: no "·" then); in one
+                under 22rem (two cells a row under Recent form at 1366 and 1440) its portrait says which, and its name is read out. */}
             {c?.name ? (
-              <span aria-hidden className="hidden text-xs text-fg-subtle record-two:inline">
+              <span aria-hidden className="hidden text-xs text-fg-subtle record-two:inline record-two:@max-[22rem]/list:hidden">
                 ·
               </span>
             ) : null}
-            <span data-testid="record-context" className={cn("col-[2/4] row-[3/4] min-w-0 text-xs text-fg-muted @max-[16rem]/list:col-[1/-1] @max-[16rem]/list:row-[4/5]", !c?.name && "record-two:sr-only")}>
+            <span data-testid="record-context" className={cn("col-[2/4] row-[3/4] min-w-0 text-xs text-fg-muted @max-[16rem]/list:col-[1/-1] @max-[16rem]/list:row-[4/5]", c?.name ? "record-two:@max-[22rem]/list:sr-only" : "record-two:sr-only")}>
               {c?.name ?? null}
               {[role, holder.kda, holder.when].filter(Boolean).map((part, i) => (
                 <span key={i} className="record-two:sr-only">
@@ -273,334 +284,305 @@ function RecordPicture({ record, holder, champion }: { record: RecordView; holde
 // ── Multikills ─────────────────────────────────────────────────────────────────────────────────
 
 /*
-  The multikill board (docs/TEAM_LEADERBOARDS.md, "The multikill score"): one panel, by its own
-  width, the same at every width but for the tiles' columns:
-    the ranking   a row per member: the place (the crown on first), the picture, the name over the
-                  kinds they made in words, rarest first ("1 quadra 6 triples 21 doubles", each
-                  multikill once, at its largest: the score's own events), the score at the row's end
-                  over the games behind it. The player Peek the row opens shows each kind made
-                  against the usual (MultikillPeekDetail), on every device. Two short lines
-                  (44–48px; a member with all four kinds wraps a third on a phone), no column
-                  headings, nothing to decode; the score's sentence (each kind against what was
-                  expected) is the row's tooltip and is read out.
-    not placed    one group after the ranking: 10–19 games with counts, a provisional score (muted,
-                  place "–"), then under 10, "No score yet"; the counts in words on every row;
-    most of each  four compact tiles (two by two under 26rem, one row of four from it): the most
-                  double, triple, quadra and pentakills, each count with its holder (every holder of a
-                  shared one, by name), so the kinds stay records of their own.
-  The board's one ⓘ says how the score works in a few plain sentences; its line, what it is. On the
-  desktop's one-screen board (from a 59rem page) the ranking shows its first rows by the window's
-  height (MULTIKILL_OVERVIEW: four at 1440 × 900, five at 1920 × 1080), the rest, the members not
-  placed yet included, behind "Show all 9 · 6 more" at its title row's end (overview.ts); the tiles
-  always show.
+  The multikill table (docs/TEAM_LEADERBOARDS.md, "The multikill score"): one panel, a row per
+  active player with a place (20 or more games with counts), nobody else (25 Nov 2026: no "not
+  placed yet" group, no "most of each" tiles: the kinds' columns show them). Its title says what the
+  score is ranked by, its ⓘ what earns points, and its foot how to read a score (below 100, 100,
+  above 100). By the board's own width:
+    table   (from 26rem: the desktop board's column, a tablet) place · player and the most-played
+            role's icon · games with counts · doubles · triples · quadras · pentas · Score; the kinds'
+            headings "2×"–"5×" in 1.5rem columns, 8px apart (a long one-word name keeps its word whole),
+            their words ("Doubles"…) from a 40rem board; 40px rows (44 on touch);
+    narrow  (a phone) place · player and icon · Score on the first line; the games and the kinds made
+            in words across the line under it ("46 games · 32 doubles · 7 triples · 5 quadras · 2 pentas",
+            a kind with none left out), so nothing is wider than the phone and no figure is microscopic;
+            under 15rem (a phone at a large text size) the place and the Score on the first line, the
+            name the row's whole width under them, then the words, so no name is squeezed to a letter.
+  The Score is a button (the shared breakdown popover): how the score was worked out, from its own
+  parts (multikill-breakdown.tsx). The role icon's ⓘ (hover, focus, tap) gives every position's
+  share of the score's games. The row itself opens the player Peek; the name, the role and the Score
+  keep their own presses above it (ROW_CONTROL). Places are plain numbers, first in gold, a shared
+  place "4=" with its bracket, as on Recent form.
 */
-
+const MK_COLS =
+  "flex h-full flex-col [--dl-cols:1.75rem_minmax(0,1fr)_auto] " +
+  "@min-[26rem]/list:[--dl-cols:1.75rem_minmax(0,1fr)_2.25rem_repeat(4,1.5rem)_3.25rem] " +
+  "@min-[40rem]/list:[--dl-cols:2rem_minmax(0,1fr)_3rem_repeat(4,3.25rem)_4rem]";
 /**
- * Place · picture · name over kinds · score over games. Under 20rem (a phone at a large text size)
- * the place, the picture and the score with its games take the first line, and the name and the
- * kinds each the row's whole width under them, so no name is squeezed to a letter a line; under
- * 14rem (a 320px phone at 175–200% text) the score and its games take a line of their own under the
- * name, the place and the picture alone on the first.
+ * The table's column gap: 8px from 26rem (the rows' and the headings' alike, over DataList's 10–12px), so a long one-word name keeps
+ * its word whole in 1366's and 1440's 28–31rem column ("THUNDERSTRUC|K KAISER" broke there with 1.75rem kind columns and 10px gaps).
  */
-const MULTI_COLS = "[--dl-cols:1.75rem_2rem_minmax(0,1fr)_auto] @max-[20rem]/list:[--dl-cols:1.75rem_2rem_minmax(0,1fr)]";
-const NARROW = {
-  lead: "row-[1/span_2] @max-[20rem]/list:row-[1/2]",
-  score: "col-[4/5] row-[1/span_2] flex-col items-end text-right @max-[20rem]/list:col-[3/4] @max-[20rem]/list:row-[1/2] @max-[20rem]/list:flex-row @max-[20rem]/list:flex-wrap @max-[20rem]/list:items-baseline @max-[20rem]/list:gap-x-1.5 @max-[20rem]/list:text-left @max-[14rem]/list:col-[1/-1] @max-[14rem]/list:row-[3/4]",
-  name: "col-[3/4] @max-[20rem]/list:col-[1/-1] @max-[20rem]/list:row-[2/3]",
-  kinds: "col-[3/4] row-[2/3] @max-[20rem]/list:col-[1/-1] @max-[20rem]/list:row-[3/4] @max-[14rem]/list:row-[4/5]",
+const TABLE_GAP = "@min-[26rem]/list:gap-x-2!";
+/** A cell of the table's own columns (hidden on a narrow board, where the line of words says the same). */
+const TABLE_CELL = "hidden @min-[26rem]/list:block";
+const KIND_HEAD: Record<MultikillKey, { short: string; word: string; spoken: string }> = {
+  double: { short: "2×", word: "Doubles", spoken: "double kills" },
+  triple: { short: "3×", word: "Triples", spoken: "triple kills" },
+  quadra: { short: "4×", word: "Quadras", spoken: "quadra kills" },
+  penta: { short: "5×", word: "Pentas", spoken: "pentakills" },
 };
-/** The tiles: two by two, a row of four from a 26rem panel (the records' column at 1440 × 900), one column under 14rem (large text); a hairline between neighbours. */
-const MOST_GRID = "grid grid-cols-2 @max-[14rem]/list:grid-cols-1 @min-[26rem]/list:grid-cols-4";
-const MOST_CELL =
-  "min-w-0 border-border/60 px-3 py-1 [&:nth-child(odd)]:border-r [&:nth-child(n+3)]:border-t @max-[14rem]/list:border-r-0 @max-[14rem]/list:[&:not(:first-child)]:border-t @min-[26rem]/list:border-r @min-[26rem]/list:[&:nth-child(n+3)]:border-t-0 @min-[26rem]/list:last:border-r-0";
+/** The score legend's three parts: the score, then what it means. */
+const LEGEND: ReadonlyArray<readonly [string, string]> = [
+  ["Below 100", "below typical"],
+  ["100", "typical"],
+  ["Above 100", "above typical"],
+];
+const KIND_WORDS: Record<MultikillKey, [string, string]> = { double: ["double", "doubles"], triple: ["triple", "triples"], quadra: ["quadra", "quadras"], penta: ["penta", "pentas"] };
 
-/** The season's multikill board: the score's ranking, then the most of each kind; `className` places it on the page. */
-export function Multikills({ records, player, className }: { records: RecordsView; player: (id: string) => BoardPlayer; className?: string }) {
+const MK_HEADS = (
+  <>
+    <DataHead align="end" className="pr-1">
+      #
+    </DataHead>
+    <DataHead>Player</DataHead>
+    <DataHead align="end">Games</DataHead>
+    {MULTIKILL_KEYS.map((k) => (
+      <DataHead key={k} align="end">
+        <span className="@min-[40rem]/list:hidden">{KIND_HEAD[k].short}</span>
+        <span className="hidden @min-[40rem]/list:inline">{KIND_HEAD[k].word}</span>
+      </DataHead>
+    ))}
+    <DataHead align="end" className="pr-1.5">
+      Score
+    </DataHead>
+  </>
+);
+
+/** The season's multikill table; `className` places it on the page. */
+export function Multikills({ records, player, champions, className }: { records: RecordsView; player: (id: string) => BoardPlayer; /** The champions the breakdowns name, by id. */ champions: Readonly<Record<string, PortraitChampion>>; className?: string }) {
   const board = records.multikills;
-  const ranked = board.rows.filter((r) => r.status === "ranked");
-  const provisional = board.rows.filter((r) => r.status === "provisional");
-  const few = board.rows.filter((r) => r.status === "not-enough");
-  const ties = tieRuns(ranked.map((r) => r.place));
-  // One ⓘ: how the score works in three short points, then which games the counts come from when not all carry them.
-  const explain = <ExplainPoints points={records.multikillNote ? [...board.explain, records.multikillNote] : board.explain} />;
-  // The overview: the rows in reading order (the ranking, then those not placed yet), each folded past the window's count.
-  const unplaced = [...provisional, ...few];
-  const more = moreOf(board.rows.length, MULTIKILL_OVERVIEW);
+  const ties = tieRuns(board.rows.map((r) => r.place));
   return (
-    <BoardFoldSection foldKey="leaderboards-multikills" id={SECTIONS.multikills} aria-labelledby="multikills-title" className={cn("min-w-0", className)}>
+    <section id={SECTIONS.multikills} aria-labelledby="multikills-title" className={cn("flex min-w-0 flex-col", className)} style={fillRows(board.rows.length)} data-testid="multikills">
       <DataList
-        columns={MULTI_COLS}
+        columns={MK_COLS}
+        className="flex-auto"
         testId="records-multikills"
+        headsTestId="multikill-heads"
+        headsClassName={cn("hidden @min-[26rem]/list:grid", TABLE_GAP)}
+        heads={board.rows.length ? MK_HEADS : undefined}
         title={
-          <BoardTitle
-            id="multikills-title"
-            icon={<Flame className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />}
-            aside={<InfoTip label="How the multikill score works" text={explain} testId="multikill-explain" />}
-            end={board.rows.length ? <BoardShowAll total={board.rows.length} more={more} label="the multikill ranking" controls={SECTIONS.multikills} testId="multikill-show-all" /> : null}
-            note={
-              <>
-                <span data-testid="multikill-basis">{board.basis}</span>
-                {records.multikillShort ? (
-                  <>
-                    &nbsp;·{" "}
-                    <span className="@min-[20rem]/list:whitespace-nowrap" data-testid="multikill-short">
-                      {records.multikillShort}
-                    </span>
-                  </>
-                ) : null}
-              </>
-            }
-            noteTestId="multikill-note-line"
-          >
-            Multikills · {records.seasonLabel}
+          <BoardTitle id="multikills-title" icon={<Flame className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />} aside={<InfoTip label="How the multikill score works" text={board.explain} testId="multikill-explain" />} note={<span data-testid="multikill-basis">{board.basis}</span>} noteTestId="multikill-note-line">
+            Multikills
           </BoardTitle>
         }
       >
-        {board.rows.length === 0 ? <EmptyState variant="row" testId="multikills-empty" title="No games with multikill counts this season yet." /> : null}
-        {ranked.length ? (
-          <DataGroup label="Multikill score ranking" testId="multikill-rows">
-            {ranked.map((r, i) => (
-              <MultikillRowItem key={r.playerId} r={r} p={player(r.playerId)} tie={ties[i] ?? null} fold={foldClass(i, MULTIKILL_OVERVIEW)} rank={i + 1} />
+        {board.rows.length === 0 ? <EmptyState variant="row" testId="multikills-empty" title={`No active player has ${board.rankedFrom} games with multikill counts this season yet.`} /> : null}
+        {board.rows.length ? (
+          // A shorter table's rows share its spare room, up to 3.5rem each on average; the legend stays right under the last, the rest goes below it (board-fill.ts).
+          <DataGroup label="Multikill score ranking" testId="multikill-rows" className={FILL_LIST}>
+            {board.rows.map((r, i) => (
+              <MultikillRowItem key={r.playerId} r={r} p={player(r.playerId)} tie={ties[i] ?? null} board={board} champions={champions} />
             ))}
           </DataGroup>
         ) : null}
-        {unplaced.length ? (
-          // One group for the members not placed yet (a caption each cost a phone 33px): the provisional scores (10–19 games with
-          // counts, muted, place "–"), then those with too few games for one ("No score yet").
-          <DataGroup
-            label="Not placed yet"
-            testId="multikill-unplaced"
-            captionTestId="multikill-unplaced-head"
-            captionClassName={foldClass(ranked.length, MULTIKILL_OVERVIEW)}
-            captionData={{ "data-ov-caption": ranked.length + 1 }}
-            caption={
-              <>
-                <span className="font-semibold text-fg">Not placed yet</span>&nbsp;·&nbsp;under {board.rankedFrom} games with multikill counts
-              </>
-            }
-          >
-            {unplaced.map((r, i) => (
-              <MultikillRowItem key={r.playerId} r={r} p={player(r.playerId)} tie={null} fold={foldClass(ranked.length + i, MULTIKILL_OVERVIEW)} rank={ranked.length + i + 1} />
-            ))}
-          </DataGroup>
-        ) : null}
-        {board.rows.length ? <MostOfEach most={board.most} player={player} /> : null}
+        {/* How to read a score, always in view, right under the table: its three parts each whole. On the table (from 26rem) one
+            line, each part's words together and the parts wrapping as wholes; on a phone's board, where the three do not fit one
+            line, three columns spread across the row (the first at its start, the last at its end), each score over its meaning ("Below 100" over "below typical"), rather than two parts on a
+            line and the third alone under them (the owner's review of 25 Nov 2026). The games counted take their own line there. */}
+        <p className={cn("grid min-w-0 grid-cols-[repeat(3,auto)] items-start justify-between gap-x-3 gap-y-1 py-1.5 text-xs text-fg-muted @min-[26rem]/list:flex @min-[26rem]/list:flex-wrap @min-[26rem]/list:items-baseline @min-[26rem]/list:justify-start @min-[26rem]/list:gap-y-0.5", ROW_PAD_X)} data-testid="multikill-score-legend" data-counting-rule={board.rule} data-counting-shown={board.ruleShown}>
+          {LEGEND.map(([score, meaning]) => (
+            <span key={score} className="flex min-w-0 flex-col @min-[26rem]/list:block @min-[26rem]/list:whitespace-nowrap" data-testid="multikill-legend-part">
+              <span className="font-medium text-fg">{score}</span> {meaning}
+            </span>
+          ))}
+          {records.multikillShort ? (
+            <span className="col-span-full justify-self-end text-fg-subtle @min-[26rem]/list:ml-auto" data-testid="multikill-short">
+              {records.multikillShort}
+            </span>
+          ) : null}
+        </p>
       </DataList>
-    </BoardFoldSection>
+    </section>
+  );
+}
+
+/** The most-played role's icon with its ⓘ (hover, focus or tap: every position's share), named by what it says; "role unknown" read out when no game recorded one. */
+function RoleTip({ role }: { role: MultikillRow["role"] }) {
+  if (role.kind === "unknown")
+    return (
+      <span className="sr-only" data-testid="multikill-role" data-role-kind="unknown">
+        {role.label}
+      </span>
+    );
+  return (
+    <InfoTip
+      label={role.label}
+      testId="multikill-role"
+      className="relative z-[2] shrink-0 no-underline pointer-coarse:-m-3 pointer-coarse:min-h-11 pointer-coarse:min-w-11 pointer-coarse:justify-center"
+      text={
+        <>
+          {role.rows.map((r) => (
+            <span key={r.role ?? "unknown"} className="block tabular-nums">
+              {r.text}
+            </span>
+          ))}
+        </>
+      }
+    >
+      <RoleMark role={role} />
+    </InfoTip>
   );
 }
 
 /**
- * One member's row: the place, picture, name over the kinds made (each multikill once, at its largest), and the
- * score over the games behind it. The whole row opens the member's player Peek, its tooltip the
- * score's sentence; screen readers hear the place, name, score, kinds and the sentence.
+ * One ranked player's row (MK_COLS): the place, the name with the role's icon, the games and the
+ * kinds (each multikill once, at its largest), and the Score button. The whole row opens the
+ * player's Peek; screen readers hear the place, the name, the role, the games, each kind and the score.
  */
-function MultikillRowItem({ r, p, tie, fold, rank }: { r: MultikillRow; p: BoardPlayer; tie: TiePosition | null; /** Folded past the overview (overview.ts). */ fold?: string; /** Its place in the order rows are shown (fit-rows.tsx). */ rank?: number }) {
+function MultikillRowItem({ r, p, tie, board, champions }: { r: MultikillRow; p: BoardPlayer; tie: TiePosition | null; board: MultikillsView; champions: Readonly<Record<string, PortraitChampion>> }) {
   const linked = !!p.profileHref;
+  // A phone's line: the games, then each kind made (none of a kind is left out there; the table's columns and the words read out say every kind).
+  const words = [`${r.gamesText} ${r.counted === 1 ? "game" : "games"}`, ...MULTIKILL_KEYS.filter((k) => r.counts[k] > 0).map((k) => `${formatCount(r.counts[k])} ${KIND_WORDS[k][r.counts[k] === 1 ? 0 : 1]}`)];
   return (
     <DataRow
       testId="multikill-row"
       data-player-id={r.playerId}
-      data-place={r.place ?? undefined}
+      data-place={r.place}
       data-status={r.status}
-      data-score={r.score ?? undefined}
+      data-score={r.score}
       data-double={r.counts.double}
       data-triple={r.counts.triple}
       data-quadra={r.counts.quadra}
       data-penta={r.counts.penta}
       data-riot={`${r.riot.double},${r.riot.triple},${r.riot.quadra},${r.riot.penta}`}
       data-counted={r.counted}
-      data-ov-rank={rank}
+      data-games={r.games}
       data-you={r.you || undefined}
       own={r.you}
       density="compact"
-      // The name and its kinds as one block, no gap between them (40px rows, 44px on a touch screen).
-      className={cn("gap-y-0!", fold)}
-      lead={
-        <>
-          {r.status === "not-enough" ? <span aria-hidden className={cn("col-[1/2]", NARROW.lead)} /> : <Place place={r.place} tie={tie} crown={r.place === 1} testId="multikill-place" className={cn("col-[1/2] self-center", NARROW.lead)} bracketClassName="@max-[20rem]/list:hidden" />}
-          <CardAvatar look={p.look} name={p.name} src={p.avatarUrl} size="sm" className={cn("col-[2/3] self-center justify-self-start", NARROW.lead)} />
-        </>
-      }
-      link={linked ? <PeekRowLink playerId={p.id} name={p.name} profileHref={p.profileHref!} hint={r.breakdown} /> : null}
+      className={cn("gap-y-0!", TABLE_GAP, FILL_ROW)}
+      lead={<Place place={r.place} tie={tie} leader={r.place === 1} testId="multikill-place" className="col-[1/2] row-[1/2] self-center" />}
+      link={linked ? <PeekRowLink playerId={p.id} name={p.name} profileHref={p.profileHref!} /> : null}
       figures={
-        <span className={cn("flex self-center", NARROW.score)} data-testid="multikill-score-cell">
-          {r.score !== null ? (
-            <FigureCell testId="multikill-score" size={null} emphasis={r.status === "ranked" ? "strong" : "muted"} label={r.status === "provisional" ? " multikill score, provisional" : " multikill score"} className="text-lg leading-5">
-              {r.score}
-            </FigureCell>
-          ) : (
-            <span className="whitespace-nowrap text-xs text-fg-subtle" data-testid="multikill-no-score">
-              No score yet
-            </span>
-          )}
-          {/* One line: "46 games", or "21/43 games" when older games have no counts (said in words to screen readers). */}
-          <span className="whitespace-nowrap text-xs tabular-nums text-fg-muted" data-testid="multikill-games">
+        <>
+          <span className={cn(TABLE_CELL, "col-[3/4] row-[1/2] text-right text-sm tabular-nums text-fg")} data-testid="multikill-games">
             <span aria-hidden>{r.gamesText}</span>
             <span className="sr-only">{r.gamesSpoken}</span>
           </span>
-        </span>
+          {MULTIKILL_KEYS.map((k, i) => (
+            <span key={k} className={cn(TABLE_CELL, "row-[1/2] text-right text-sm tabular-nums", r.counts[k] ? "text-fg" : "text-fg-subtle", ["col-[4/5]", "col-[5/6]", "col-[6/7]", "col-[7/8]"][i])} data-testid="multikill-kind" data-kind={k}>
+              {formatCount(r.counts[k])}
+              <span className="sr-only"> {KIND_HEAD[k].spoken}</span>
+            </span>
+          ))}
+          <span className="col-[3/4] row-[1/2] flex justify-end self-center @min-[26rem]/list:col-[8/9]" data-testid="multikill-score-cell">
+            <BreakdownPopover
+              trigger={
+                <span className="text-lg font-semibold leading-6 text-fg" data-testid="multikill-score">
+                  {r.score}
+                </span>
+              }
+              triggerLabel={`Score ${r.score}: how it was worked out`}
+              title={`${p.name} · multikill score`}
+              testId="multikill-score-open"
+              panelTestId="multikill-breakdown"
+            >
+              <MultikillBreakdownBody breakdown={r.breakdown} board={board} champions={champions} />
+            </BreakdownPopover>
+          </span>
+        </>
       }
     >
-      <MemberCell look={p.look} name={p.name} avatar={false} you={r.you} readName={!linked} nameHref={p.profileHref ?? undefined} nameTestId="board-member-name" className={cn("min-w-0 row-[1/2]", NARROW.name)} />
-      {/* Riot's counts in words on every row, a member with too few games for a score included: the kinds are records of their own. */}
-      <span className={cn("flex min-w-0 flex-wrap gap-x-1.5 text-xs tabular-nums text-fg-muted", NARROW.kinds)} data-testid="multikill-kinds">
-        {r.kinds.length ? r.kinds.map((k) => <span key={k.key} data-kind={k.key} className="whitespace-nowrap">{k.text}</span>) : <span>No multikills yet</span>}
+      {/* The player as their card names them, and the role they mostly played in the score's games (its ⓘ: every position's share). */}
+      {/* The name's longest word sets its least width (its text breaks between words, wrap-break-word over CardName's "anywhere"); where
+          the name and the icon do not fit one line (a long one-word name in 1366's column), the icon wraps under the name rather than a
+          word breaking. */}
+      <span className="col-[2/3] row-[1/2] flex min-w-0 flex-wrap items-center gap-x-1.5 gap-y-0.5 self-center @max-[15rem]/list:col-[1/-1] @max-[15rem]/list:row-[2/3]" data-testid="multikill-player">
+        <MemberCell look={p.look} name={p.name} avatar={false} you={r.you} readName={!linked} nameHref={p.profileHref ?? undefined} nameTestId="board-member-name" nameClassName="*:wrap-break-word" className="min-w-0" />
+        <RoleTip role={r.role} />
       </span>
-      {/* The score in a sentence, for screen readers (the row's tooltip shows it on hover). */}
-      <span className="sr-only">{r.breakdown}</span>
+      {/* A phone's line of words under the name: the games and every kind (the table's columns say these from 26rem). It wraps
+          between items only, each whole, and each "·" ends the line of the item before it, never starting the next ("· 2 pentas"
+          started a line until the owner's review of 25 Nov 2026). */}
+      <span aria-hidden className="col-[2/4] row-[2/3] flex min-w-0 flex-wrap gap-x-1.5 self-start text-xs tabular-nums text-fg-muted @max-[15rem]/list:col-[1/-1] @max-[15rem]/list:row-[3/4] @min-[26rem]/list:hidden" data-testid="multikill-words">
+        {words.map((w, i) => (
+          <span key={i} className="whitespace-nowrap" data-word="">
+            {w}
+            {i < words.length - 1 ? <span className="text-fg-subtle"> ·</span> : null}
+          </span>
+        ))}
+      </span>
+      <span className="sr-only @min-[26rem]/list:hidden">{`${r.gamesSpoken}, ${MULTIKILL_KEYS.map((k) => `${formatCount(r.counts[k])} ${KIND_HEAD[k].spoken}`).join(", ")}`}</span>
     </DataRow>
-  );
-}
-
-/** The board's ⓘ as short points, each a line of its own (spans: the bubble and its screen-reader copy are phrasing content). */
-function ExplainPoints({ points }: { points: readonly string[] }) {
-  return (
-    <>
-      {points.map((point, i) => (
-        <span key={i} className="block pl-3 -indent-3 [&:not(:first-child)]:mt-1.5" data-testid="multikill-explain-point">
-          <span aria-hidden>• </span>
-          {point}{" "}
-        </span>
-      ))}
-    </>
-  );
-}
-
-/**
- * The most of each kind, double to penta: each tile its label ("Most pentas"), the count, and who
- * holds it, by name (every holder of a shared one, each named), or "None yet". Not links: each
- * holder's row above opens their Peek.
- */
-function MostOfEach({ most, player }: { most: MultikillsView["most"]; player: (id: string) => BoardPlayer }) {
-  return (
-    <div data-testid="multikill-most">
-      <h3 className="sr-only">Most of each kind</h3>
-      <ul aria-label="Most of each kind" className={MOST_GRID}>
-        {most.map((m) => {
-          const names = m.holders.map((id) => player(id).name);
-          return (
-            <li key={m.key} className={MOST_CELL} data-testid="multikill-most-kind" data-kind={m.key} data-count={m.count ?? undefined}>
-              <p className="text-xs text-fg-muted">{m.label}</p>
-              {m.count ? (
-                // One line a stat on the desktop's one-screen board (Release 16, M4: "Thunderstruc|k Kaiser" broke inside the word and
-                // ran the board past the window): the names cut short there, whole in the title, each holder's row above naming them
-                // too. Elsewhere (phones, tablets: no title to show them) the names wrap between words, never inside one.
-                <p className="flex min-w-0 flex-wrap items-baseline gap-x-1.5 @min-[59rem]/dash:flex-nowrap">
-                  <span className="shrink-0 text-base leading-5 font-semibold tabular-nums text-fg" data-testid="multikill-most-count">
-                    {m.count}
-                  </span>
-                  <span className="min-w-0 text-xs font-medium text-fg @min-[59rem]/dash:truncate" title={names.join(", ")} data-testid="multikill-most-holders">
-                    {names.join(", ")}
-                  </span>
-                </p>
-              ) : (
-                <p className="text-sm leading-5 text-fg-subtle">None yet</p>
-              )}
-            </li>
-          );
-        })}
-      </ul>
-    </div>
   );
 }
 
 // ── Milestones ─────────────────────────────────────────────────────────────────────────────────
 
-/** A milestone's tier, as the system marks rarities: plain, raised, violet, gold (never a state colour). */
-const TIER_CLASS = ["border-border bg-surface-2/60", "border-border-strong bg-surface-2", "border-violet/50 bg-violet/10", "border-gold/60 bg-gold/10"] as const;
-/** The member, then their top milestone and "+N", on one line; under the name in a list under 18rem (a phone at large text), so no name is squeezed. */
-const MILESTONE_COLS = "[--dl-cols:minmax(0,1fr)_auto] @max-[18rem]/list:[--dl-cols:minmax(0,1fr)]";
-
-/** The milestones: games on one champion this season, then all-time mastery; `className` places it on the page. */
-export function Milestones({ records, player, champ, className }: { records: RecordsView; player: (id: string) => BoardPlayer; champ: (id: string | null) => PortraitChampion | null; className?: string }) {
-  // The overview on the desktop's one-screen board: each kind its first rows (at least two of each), by the window's height (overview.ts).
-  const folds = groupFolds([records.championGames.length, records.mastery.length], MILESTONE_OVERVIEW);
-  const ranks = groupRanks([records.championGames.length, records.mastery.length]);
-  const total = records.championGames.length + records.mastery.length;
-  return (
-    <BoardFoldSection foldKey="leaderboards-milestones" id={SECTIONS.milestones} aria-labelledby="milestones-title" className={cn("min-w-0", className)}>
-      <DataList
-        columns={MILESTONE_COLS}
-        testId="records-milestones"
-        title={
-          <BoardTitle id="milestones-title" icon={<Sparkles className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />} end={<BoardShowAll total={total} more={folds.more} label="the milestones" controls={SECTIONS.milestones} testId="milestones-show-all" />}>
-            Milestones
-          </BoardTitle>
-        }
-      >
-        <MilestoneKind title={`Games on one champion · ${records.seasonLabel}`} hint="Champions with 25, 50 or 100 games this season." empty="Nobody has 25 games on one champion this season yet." groups={records.championGames} folds={folds.classes[0]} ranks={ranks[0]} player={player} champ={champ} testId="milestones-games" />
-        <MilestoneKind title="Mastery on one champion · all-time" hint="100K, 500K or 1M mastery points on one champion, added up over their Riot accounts. Each member's best is shown; the rest are on their profile." empty="Nobody has 100K mastery points on one champion yet." groups={records.mastery} folds={folds.classes[1]} ranks={ranks[1]} player={player} champ={champ} testId="milestones-mastery" />
-      </DataList>
-    </BoardFoldSection>
-  );
-}
-
-/** One kind of milestone: its caption (title, with what counts behind its ⓘ), then a row per member, the best first. */
-function MilestoneKind({ title, hint, empty, groups, folds, ranks, player, champ, testId }: { title: string; hint: string; empty: string; groups: MilestoneGroup[]; /** Each row's fold past the overview (overview.ts). */ folds?: ReadonlyArray<string | undefined>; /** Each row's place in the order rows are shown (fit-rows.tsx). */ ranks?: readonly number[]; player: (id: string) => BoardPlayer; champ: (id: string | null) => PortraitChampion | null; testId: string }) {
-  return (
-    <div className="divide-y divide-border/70" data-testid={testId}>
-      <div className={cn("flex min-w-0 flex-wrap items-center gap-x-1.5 bg-surface-2/40 py-1.5 text-xs", ROW_PAD_X)}>
-        <h3 className="min-w-0 font-semibold text-fg">{title}</h3>
-        <InfoTip label={`What counts: ${title}`} text={hint} testId={`${testId}-hint`} />
-      </div>
-      {groups.length ? (
-        <ul className="divide-y divide-border/60" data-testid={`${testId}-list`}>
-          {groups.map((g, i) => (
-            <MilestoneRow key={g.playerId} group={g} p={player(g.playerId)} champ={champ} fold={folds?.[i]} rank={ranks?.[i]} />
-          ))}
-        </ul>
-      ) : (
-        <EmptyState variant="row" title={empty} />
-      )}
-    </div>
-  );
-}
+/** A milestone's step, as the system marks rarities: plain, raised, violet, gold (never a state colour), on the champion's portrait. */
+const TIER_RING = ["ring-1 ring-border", "ring-1 ring-border-strong", "ring-2 ring-violet/70", "ring-2 ring-gold/80"] as const;
+/** What counts as a milestone (the board's ⓘ): the steps of both kinds, and where the rest are. */
+const MILESTONES_TIP = "25, 50 or 100 games on one champion this season, or 100K, 500K or 1M mastery points on one. The rest are on players' profiles.";
+/** The cells: one column, two from a 26rem panel (the desktop board's column beside the records); a hairline between neighbours, as the records'. */
+const MILESTONE_CELLS = "grid grid-cols-[minmax(0,1fr)] border-t border-border/70 @min-[26rem]/list:grid-cols-2";
+const MILESTONE_CELL = "relative isolate flex min-h-11 min-w-0 items-center gap-2.5 border-border/60 py-1 [&:not(:first-child)]:border-t @min-[26rem]/list:[&:nth-child(2)]:border-t-0 @min-[26rem]/list:[&:nth-child(odd)]:border-r";
 
 /**
- * A member's milestones: their picture and name, then their top milestone as a chip (the champion's
- * portrait, its name from 32rem, and the figure, "486K") and the rest counted, "+3", on their profile
- * (UM.L1: a row of three chips took a second line on a phone, and the board ran 1.3 screens). On a
- * phone the chip shows no champion's name (D6): the portrait says which, and screen readers hear it.
- * The whole row opens the member's profile; its tooltip names each chip's milestone, as the chips'
- * own titles do on the public boards, which link nowhere.
+ * The milestones: the active players' most meaningful champion milestones (the highest step first,
+ * each player's best before anyone's second, at most eight), as two-line cells like the records':
+ * the champion's portrait ringed in the step's rarity, the player over the champion and the figure;
+ * the rest counted, on the players' profiles. One presentation for both kinds (games on a champion
+ * this season, mastery all-time), no fold.
  */
-function MilestoneRow({ group, p, champ, fold, rank }: { group: MilestoneGroup; p: BoardPlayer; champ: (id: string | null) => PortraitChampion | null; fold?: string; rank?: number }) {
-  const linked = !!p.profileHref;
-  const items = group.items.map((m) => ({ ...m, name: champ(m.championId)?.name ?? m.championId }));
-  const said = (m: (typeof items)[number]) => `${m.name}: ${m.value} (${m.milestone} milestone)`;
-  const [top] = items;
-  const rest = items.length - 1 + group.more;
-  const more = formatCount(rest);
-  const hint = [...items.map(said), group.more ? `${formatCount(group.more)} more on the profile` : null].filter(Boolean).join(". ");
+export function Milestones({ records, player, champ, className }: { records: RecordsView; player: (id: string) => BoardPlayer; champ: (id: string | null) => PortraitChampion | null; className?: string }) {
+  const { items, more } = records.milestones;
   return (
-    <DataRow testId="milestone-member" data-player-id={group.playerId} data-ov-rank={rank} density="slim" className={fold} link={linked ? <PeekRowLink playerId={p.id} name={p.name} profileHref={p.profileHref!} hint={hint} /> : null}>
-      <MemberCell look={p.look} name={p.name} avatarUrl={p.avatarUrl} avatar="xs" readName={!linked} nameHref={p.profileHref ?? undefined} className="col-[1/2] row-[1/2]" />
-      <ul aria-label={`${p.name}'s milestones`} className="col-[2/3] row-[1/2] flex min-w-0 items-center justify-end gap-1 @max-[18rem]/list:col-[1/-1] @max-[18rem]/list:row-[2/3] @max-[18rem]/list:justify-start">
-        {(top ? [top] : []).map((m) => (
-          <li key={m.championId} className={cn("flex min-w-0 items-center gap-1.5 rounded-md border py-0.5 pl-0.5 pr-2 text-xs", TIER_CLASS[Math.min(m.tier, 3)])} title={linked ? undefined : said(m)} data-testid="milestone" data-tier={m.tier}>
-            <span aria-hidden className="flex shrink-0">
-              <ChampionPortrait champion={champ(m.championId)} size="xs" className="size-6!" />
-            </span>
-            <span className="min-w-0 truncate font-medium text-fg @max-[32rem]/list:sr-only" data-testid="milestone-champion">
-              {m.name}
-            </span>
-            <span aria-hidden className="shrink-0 tabular-nums text-fg-muted" data-testid="milestone-figure">
-              {m.short}
-            </span>
-            <span className="sr-only">
-              {" "}
-              {m.value}, {m.milestone} milestone
-            </span>
-          </li>
-        ))}
-        {rest ? (
-          <li className="px-1 text-xs tabular-nums text-fg-muted" data-testid="milestone-more">
-            <span aria-hidden>+{more}</span>
-            <span className="sr-only">and {more} more on their profile</span>
-          </li>
-        ) : null}
-      </ul>
-    </DataRow>
+    <section id={SECTIONS.milestones} aria-labelledby="milestones-title" className={cn("flex min-w-0 flex-col", className)} data-testid="milestones">
+      <div className={cn(BOARD_PANEL, "flex flex-auto flex-col")} data-testid="records-milestones">
+        <BoardTitle
+          id="milestones-title"
+          icon={<Sparkles className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />}
+          aside={<InfoTip label="What counts as a milestone" text={MILESTONES_TIP} testId="milestones-tip" />}
+          // The rest, counted at the title's end (on the players' profiles): a line of its own at the board's foot cost the desktop's one screen 28px.
+          end={
+            more ? (
+              <span className="text-xs text-fg-muted" data-testid="milestones-more">
+                {formatCount(more)} more on profiles
+              </span>
+            ) : null
+          }
+        >
+          Milestones
+        </BoardTitle>
+        {items.length ? (
+          // The rows of cells share the panel's spare room where it is the shorter of its grid row (board-fill.ts): two cells a row from 26rem.
+          <ul aria-label="Milestones" className={cn(MILESTONE_CELLS, FILL_GRID, "@min-[26rem]/list:max-h-[calc(var(--fill-rows-wide)*3.5rem)]")} style={fillRows(items.length, Math.ceil(items.length / 2))} data-testid="milestones-list">
+            {items.map((m) => (
+              <MilestoneCell key={`${m.kind}|${m.playerId}|${m.championId}`} m={m} p={player(m.playerId)} champion={champ(m.championId)} />
+            ))}
+          </ul>
+        ) : (
+          <div className="border-t border-border/70">
+            <EmptyState variant="row" testId="milestones-empty" title="No milestones among the active players yet." />
+          </div>
+        )}
+      </div>
+    </section>
+  );
+}
+
+/** One milestone: the champion's portrait in the step's ring, the player (in their colours) over the champion and the figure. The cell opens the player's Peek. */
+function MilestoneCell({ m, p, champion }: { m: MilestoneItem; p: BoardPlayer; champion: PortraitChampion | null }) {
+  const linked = !!p.profileHref;
+  const name = champion?.name ?? m.championId;
+  return (
+    <li className={cn(MILESTONE_CELL, ROW_PAD_X, linked && ROW_STATES)} data-testid="milestone" data-tier={m.tier} data-kind={m.kind} data-player-id={m.playerId}>
+      {linked ? <PeekRowLink playerId={p.id} name={p.name} profileHref={p.profileHref!} /> : null}
+      <span aria-hidden className={cn("flex shrink-0 rounded-md", TIER_RING[Math.min(m.tier, 3)])} data-testid="milestone-portrait">
+        <ChampionPortrait champion={champion} size="sm" className="size-8!" />
+      </span>
+      <span className="flex min-w-0 flex-1 flex-col" style={cardColourVars(p.look)}>
+        <span className="min-w-0 text-sm leading-5 text-fg" aria-hidden={linked || undefined} data-testid="milestone-player">
+          <CardName look={p.look} name={p.name} />
+        </span>
+        <span className="min-w-0 text-xs leading-4 text-fg-muted" data-testid="milestone-champion">
+          {name} · <span className="tabular-nums text-fg">{m.short}</span> {m.unit}
+          <span className="sr-only">
+            , {m.value}, {m.milestone} milestone
+          </span>
+        </span>
+      </span>
+    </li>
   );
 }

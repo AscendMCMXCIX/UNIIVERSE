@@ -73,27 +73,42 @@
     heights and true/false only: the rows carry names.
   - card scores (Release 17, scripts/card-score-facts.mjs): at every width, each card of Match
     History's first page shows its performance score (one mark, the card's own figures) or the quiet
-    fallback (nothing drawn, the card's label says why), and the first scored game, opened, shows
-    the same score and place on its scoreboard's row for the player. States, scores and places only.
-  - multikills (Release 15, scripts/multikill-facts.mjs): at every width, the multikill board says what
-    its score is compared with and explains it behind its ⓘ; ranked members in score order, a place
-    shared exactly on equal scores, the crown on first, provisional and too-few-games members after;
-    each row's shown counts each multikill once (its Riot counters read by the rule the ⓘ states);
-    each row's kinds in words its own counts, rarest first; the most of each kind the board's highest
-    counts; no row taller than 66px. Counts, scores and fixed words only.
-  - records (19 Nov 2026: Recent form and the season's records and achievements on one page): on
-    /leaderboards, at 1440, the season records head the column beside Recent form (their tops within
-    1px) with the multikills under them (Release 16), and every record cell, at its own height (not the
-    taller neighbour's its grid row stretches it to), is no taller than its layout allows: two lines
-    (the desktop's two-line cells) at most 52px (cells of more lines, a qualifier on a line of its own,
-    a long name, are counted, not failed; the verification account has no profile, so no cell carries
-    "Your best").
+    fallback (a dash in the score's place, the card's label says why), and the first scored game,
+    opened, shows the same score and place on its scoreboard's row for the player. Since 25 Nov 2026:
+    each card's place badge says its place in its colour (MVP gold on a won game, ACE violet on a lost
+    one, other places neutral), the score keeps one place from card to card (a wide card's column at
+    one x, else under the K/D/A), every badge is one width whatever it says (so a score beside it
+    starts at one x: the visual review of 25 Nov 2026), and on Team Matches every member row shows its score and badge (or
+    the dash), each place once in a game, MVP only on a won game and ACE only on a lost one. States,
+    scores, places, colours compared in the page and positions only.
+  - multikills (25 Nov 2026, scripts/multikill-facts.mjs): at every width, the multikill table says what
+    its score is ranked by, explains it behind its ⓘ and shows how to read a score (below 100, 100,
+    above 100); nothing on Leaderboards folds (no Show all) and nothing scrolls inside the page; its
+    columns (place, player, games, the four kinds, Score) where drawn; ranked players only, in score
+    order, a place shared exactly on equal scores and none skipped, first in gold with no crown; each
+    row's Score a button that opens its breakdown; each row's counts each multikill once (its Riot
+    counters read by the rule the board states as data) and its cells and games its own counts; each
+    role icon named by the most-played position (or split, or unknown); no row taller than 72px. On
+    the desktop and the tablet the first Score is opened: its breakdown's final line, 100 × (earned +
+    40) ÷ (typical + 40), gives the score shown, its points per kind add up, it names the role, the
+    comparison and its levels, it opens whole with no scrollbar of its own, and on the team-wide
+    fallback none of its words speak of champions and roles; opened by Enter, Tab past its end closes
+    it and goes on after the Score, Shift+Tab closes it back on the Score. Counts, scores and fixed
+    words only.
+  - records (25 Nov 2026: one dashboard, a 2 × 2 grid): on /leaderboards, at 1440, the multikills beside
+    Recent form (tops within 1px, one height), the season records under Recent form with the milestones
+    beside them (one height), and every record cell, at its own height (not the taller neighbour's its
+    grid row stretches it to), is no taller than its layout allows: two lines (the desktop's two-line
+    cells) at most 52px (cells of more lines, a qualifier on a line of its own, a long name, are counted,
+    not failed; the verification account has no profile, so no cell carries "Your best").
   - one screen (Release 16, scripts/one-screen-facts.mjs): on the desktop, at 1440 × 900, 1920 × 950
-    and 1920 × 1080 (the sidebar open), Leaderboards' four boards (Recent form, Season records, Multikills,
-    Milestones) and a profile's Overview (Season performance and the pools, with Ranked progress and
-    Recent form where drawn) end within the window; a board or pool showing fewer rows than it
-    has says so in its Show all, with the true numbers ("Show all 9 · 6 more"), and one showing every
-    row has none. Positions, counts and the Show all's words only. At every width,
+    and 1920 × 1080 (the sidebar open), Leaderboards' four boards (Recent form, Multikills, Season
+    records, Milestones) and a profile's Overview (Season performance and the pools, with Ranked
+    progress and Recent form where drawn) end within the window; Leaderboards' multikills and milestones
+    show every row with no Show all, and no board leaves a blank band (its last line within 24px of its
+    end unless its rows have grown to their cap, 3.5rem a row on average; the multikills' legend right
+    under their last row); a profile's pool showing fewer rows than it has says so in its Show all.
+    Positions, counts and the Show all's words only. At every width,
     Records & achievements' old address (/leaderboards?view=records) opens the same page, the view gone
     from its address, at the season records (in view, focused). Counts, heights and true/false only.
   - settings: the picture and display-name help name the public team page, and Settings never
@@ -115,9 +130,9 @@
     first three cards' CS totals and damage shares end before the next column (the build or the
     teams), and a copy of a card with the widest K/D/A and the longest champion names stays level
     with it and keeps the names whole; on the phone (390x844) the first game card is complete above
-    the tab bar; its Encounters view still opens. All Champions' preview: on the desktop and the
-    tablet unfolded under its row (Champion, Games and Win rate in place, the page not scrolled,
-    nothing scrolling inside), Escape and Back close it; on the phone a sheet, which Back closes;
+    the tab bar; its Encounters view still opens. All Champions' preview: on the desktop a pane beside
+    the list (every champion's name at its x, every row's top, the page not scrolled, the pane clear
+    of the list), Escape and Back close it; on the tablet and the phone a sheet, which Back closes;
     phone rows at most 64px. The open game's post-game view has no notes, no gold curve, no comparison and no written why; Build
     Path, Skill Order and Runes stand above its lane, each of its ten players has a performance score
     (one MVP, one ACE), and a press on another player's row shows that player ("Back to …" returns).
@@ -143,6 +158,13 @@
   - ranked (18 Nov 2026): on the teammate's profile at every width, Ranked progress ends with its
     chart: no History and coverage disclosure, year strip, rank changes or readings table (a profile
     without the card passes as not applicable). True or false only.
+  - type (25 Nov 2026, the owner's readability request; scripts/type-facts.mjs): at every width the
+    four text tiers are deployed with their values (primary, secondary, tertiary, disabled); on Team
+    Overview, the teammate's profile and Settings no live text is drawn in the disabled tone (only a
+    disabled control or its label); on the profile and Settings, whose labels are sentence case, no
+    text in capitals outside a round pill and a member's own name style; on All Champions' table (not
+    on narrow rows), every figure primary (a dash or zero tertiary), semibold only in the sorted
+    column, under the one semibold heading. Counts, values and tags only.
   - reach (PR 2b; S4a, 20 Nov 2026): from the end of Match History, on the desktop and the tablet the
     pinned row offers Filters and it opens the Filters popover (anchored, no modal window, "Support"
     whole and nothing in it scrolling sideways); on the phone the top bar's Filters opens the filter
@@ -158,9 +180,10 @@ import { rosterRowLines } from "./roster-lines.mjs";
 import { championLookupVerdicts, readChampionLookup, readChampionWindow } from "./champion-lookup-facts.mjs";
 import { fitVerdicts, postGameVerdicts, readFit, readInspection, readPostGame, switchVerdicts } from "./post-game-facts.mjs";
 import { championPreviewVerdicts, readChampionPreview, readChampionRows, targetRow } from "./champion-preview-facts.mjs";
-import { multikillVerdicts, readMultikillBoard } from "./multikill-facts.mjs";
-import { cardScoreVerdicts, firstScored, readCardScores, readOpenedScore } from "./card-score-facts.mjs";
+import { breakdownKeyboardVerdicts, breakdownVerdicts, MULTIKILL_ROLE_LABEL, multikillVerdicts, readBreakdownFocus, readMultikillBoard, readMultikillBreakdown } from "./multikill-facts.mjs";
+import { cardScoreVerdicts, firstScored, readCardScores, readOpenedScore, readTogetherScores, togetherScoreVerdicts } from "./card-score-facts.mjs";
 import { oneScreenInput, oneScreenVerdicts, readOneScreen } from "./one-screen-facts.mjs";
+import { TABLE_FIGURES, readTableFigures, readTypeFacts, tableFigureVerdicts, typeVerdicts } from "./type-facts.mjs";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
@@ -957,17 +980,17 @@ async function leaderboardsFacts(page, kind) {
 }
 
 /**
- * The season records (19 Nov 2026: on Leaderboards' one page, after Recent form), at 1440, as true/false,
- * counts and heights only (the cells carry names, which redact() keeps): the records level with Recent
- * form beside it, the multikills under them (Release 16), and every record cell no taller than its
+ * The season records (25 Nov 2026: on Leaderboards' one dashboard, under Recent form), at 1440, as
+ * true/false, counts and heights only (the cells carry names, which redact() keeps): the 2 × 2 grid
+ * (the multikills beside Recent form, their tops within 1px and the two one height; the records under
+ * Recent form with the milestones beside them, one height), and every record cell no taller than its
  * layout allows. On the desktop's board every cell is two lines beside its 36px picture (its record
  * over its holder and champion), at most 52px; elsewhere a narrower cell is three lines (the record,
- * the holder with the value, the game), at most 96px. A cell of more lines (a long name or champion wrapping, a qualifier on a line
- * of its own) is counted, not failed, as Recent form's rows are. Each cell is measured at its own
- * height: two cells side by side share a grid row, which each stretches to (its hairline runs the
- * row's height), so a cell's box is the taller one's; the stretch is lifted for the measure and put
- * back in the same step, before anything is drawn (else the CS cell beside a damage record of more
- * lines read as a three-line cell of its neighbour's 108px, and failed). The verification account
+ * the holder with the value, the game), at most 96px. A cell of more lines (a long name or champion
+ * wrapping, a qualifier on a line of its own) is counted, not failed, as Recent form's rows are. Each
+ * cell is measured at its own height: two cells side by side share a grid row, which each stretches
+ * to (its hairline runs the row's height), so a cell's box is the taller one's; the stretch is lifted
+ * for the measure and put back in the same step, before anything is drawn. The verification account
  * has no profile, so no cell carries "Your best".
  */
 async function recordsFacts(page, kind) {
@@ -977,7 +1000,9 @@ async function recordsFacts(page, kind) {
     if (!book) return null;
     const box = (el) => el.getBoundingClientRect();
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    const form = document.querySelector("[data-testid=form-board]");
     const multikills = document.querySelector("[data-testid=records-multikills]");
+    const milestones = document.querySelector("[data-testid=records-milestones]");
     const oneLine = (el) => !el || box(el).height <= (parseFloat(getComputedStyle(el).lineHeight) || 20) + 2;
     const rows = [...book.querySelectorAll("[data-testid=season-record]")];
     // Each cell at its own height: the cell (li) set to its content's height, its row and the row's wrapper no longer filling it.
@@ -999,33 +1024,85 @@ async function recordsFacts(page, kind) {
     lifted.forEach((el, i) => {
       [el.style.alignSelf, el.style.height] = kept[i];
     });
+    const apart = (a, b) => Math.round(Math.abs(a - b) * 10) / 10;
     return {
       cells: cells.length,
       twoLine: cells.filter((c) => c.two && c.fits).map((c) => c.h),
       threeLine: cells.filter((c) => !c.two && c.fits).map((c) => c.h),
       longer: cells.filter((c) => !c.fits).length,
-      // The records head the column beside Recent form, the multikills under them (Release 16).
-      topsApart: Math.round(Math.abs(box(book).top - box(document.querySelector("[data-testid=form-board]")).top) * 10) / 10,
-      multikillsUnder: multikills ? box(multikills).top >= box(book).bottom - 1 && Math.abs(box(multikills).left - box(book).left) <= 1 : false,
+      // The 2 × 2 grid: the rankings side by side, the achievements under them, each pair one height.
+      grid:
+        !!form && !!multikills && !!milestones
+          ? {
+              beside: box(multikills).left >= box(form).right - 1,
+              topsApart: apart(box(multikills).top, box(form).top),
+              heightsApart: apart(box(multikills).height, box(form).height),
+              underForm: box(book).top >= box(form).bottom - 1 && apart(box(book).left, box(form).left) <= 1,
+              achievementsApart: apart(box(milestones).top, box(book).top) + apart(box(milestones).bottom, box(book).bottom),
+            }
+          : null,
     };
   });
   if (!f) return pass("leaderboards", "1440: the season records are on the page", false, "no records-book");
-  pass("leaderboards", "1440: the season records beside Recent form (their tops within 1px), the multikills under them", f.multikillsUnder && f.topsApart <= 1, { under: f.multikillsUnder, topsApart: f.topsApart });
+  const g = f.grid;
+  pass("leaderboards", "1440: the 2 × 2 grid: the multikills beside Recent form (one height), the season records under Recent form with the milestones beside them (one height)", !!g && g.beside && g.topsApart <= 1 && g.heightsApart <= 1 && g.underForm && g.achievementsApart <= 2, g ?? { grid: null });
   const name = "1440: every record cell of two lines is at most 52px, of three lines at most 96px";
   if (!f.twoLine.length && !f.threeLine.length) check("leaderboards", name, "PASS", `not applicable: ${f.longer} cells of more lines`);
   else pass("leaderboards", name, Math.max(0, ...f.twoLine) <= 52 && Math.max(0, ...f.threeLine) <= 96, { cells: f.cells, twoLine: f.twoLine.length, tallestTwo: f.twoLine.length ? Math.max(...f.twoLine) : null, threeLine: f.threeLine.length, tallestThree: f.threeLine.length ? Math.max(...f.threeLine) : null, longerByDesign: f.longer });
 }
 
 /**
- * The multikill board (Release 15; scripts/multikill-facts.mjs), at every width, counts, scores and
- * the board's fixed words only (no name leaves the page): what the score is compared with, the
- * ranking by score with its places and crown, each row's kinds in words its own counts, the most of
- * each kind the board's highest counts, and compact rows. A team with no counts this season is a
- * warning, and so is a score compared with the team's own games (too few other players' games).
+ * The multikill table (25 Nov 2026; scripts/multikill-facts.mjs), at every width, counts, scores and
+ * the board's fixed words only (no name leaves the page): what the score is ranked by and how to read
+ * it, nothing folded or scrolling inside the page, the columns, the ranking of the active players
+ * with a place (none skipped, first in gold), each row's counts and its role icon's name, compact
+ * rows. On the desktop and the tablet (the beside form; a phone's sheet may scroll, as a sheet does)
+ * the first Score is opened and its breakdown read: the final line gives the score shown, the points
+ * add up, it opens whole, it claims no champion and role adjustment on the team-wide fallback; then
+ * closed with Escape, and opened by Enter to check the keyboard's way out (Tab past its end goes on
+ * after the Score, Shift+Tab back to it). A team with no ranked player is a warning, and so is a score
+ * compared with the team's own games (too few other players' games).
  */
 async function multikillFacts(page, kind) {
-  const read = await page.evaluate(readMultikillBoard);
+  const read = await page.evaluate(readMultikillBoard, MULTIKILL_ROLE_LABEL);
   for (const v of multikillVerdicts({ kind, read })) check("leaderboards", v.name, v.status, v.detail);
+  if (kind === "phone") return;
+  const first = page.locator("[data-testid=multikill-row] [data-testid=multikill-score-open]").first();
+  const rowScore = read?.rows?.[0]?.score ?? null;
+  let breakdown = { present: false };
+  let forward = null;
+  let back = null;
+  if (rowScore !== null && (await first.count())) {
+    await first.scrollIntoViewIfNeeded();
+    await first.click();
+    breakdown = await page
+      .waitForSelector("[data-testid=multikill-breakdown] [data-testid=breakdown-calculation]", { timeout: 10_000 })
+      .then(() => page.evaluate(readMultikillBreakdown), () => ({ present: false }));
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(200);
+    // The keyboard's way out (it is drawn at the page's end): opened by Enter, Tab until it closes (its ✕ is its one control), then
+    // opened again and left by Shift+Tab. Read as true or false only.
+    const panel = "[data-testid=multikill-breakdown]";
+    const openByKey = async () => {
+      await first.focus();
+      await page.keyboard.press("Enter");
+      return page.waitForFunction((s) => !!document.querySelector(s)?.contains(document.activeElement), panel, { timeout: 5_000 }).then(() => true, () => false);
+    };
+    if (breakdown.present && (await openByKey())) {
+      for (let i = 0; i < 12 && (await page.locator(panel).count()); i++) await page.keyboard.press("Tab");
+      await page.waitForTimeout(150);
+      forward = await page.evaluate(readBreakdownFocus);
+      if (await openByKey()) {
+        await page.keyboard.press("Shift+Tab");
+        await page.waitForTimeout(150);
+        back = await page.evaluate(readBreakdownFocus);
+      }
+    }
+    if (await page.locator(panel).count()) await page.keyboard.press("Escape");
+    await page.evaluate(() => window.scrollTo(0, 0));
+  }
+  for (const v of breakdownVerdicts({ kind, read: breakdown, rowScore })) check("leaderboards", v.name, v.status, v.detail);
+  if (breakdown.present) for (const v of breakdownKeyboardVerdicts({ kind, forward, back })) check("leaderboards", v.name, v.status, v.detail);
 }
 
 /**
@@ -1095,34 +1172,37 @@ async function recordsLandingFacts(page, kind) {
 }
 
 /**
- * Leaderboards at 2560 × 1440 (19 Nov 2026, the wide check): Recent form beside the season records, their
- * tops within 1px, every record on the first screen, and the milestones right under Recent form in its
- * column (the page's gap apart, within 1px, its edges level with Recent form's), whatever the records'
- * column beside them holds. Positions and true or false only.
+ * Leaderboards at 2560 × 1440 (25 Nov 2026, the wide check): the 2 × 2 grid, Recent form beside the
+ * multikills (their tops within 1px), every record cell shown on the first screen (seven cells: a record
+ * nobody active holds still has its cell, saying so), and the season records right under Recent form
+ * in its column (the page's gap apart, within 1px, its edges level with Recent form's), the milestones
+ * beside them. Positions, counts and true or false only.
  */
 async function dashboardFacts(page) {
   const f = await page.evaluate(() => {
     const form = document.querySelector("[data-testid=form-board]")?.getBoundingClientRect();
+    const multikills = document.querySelector("[data-testid=records-multikills]")?.getBoundingClientRect();
     const book = document.querySelector("[data-testid=records-book]")?.getBoundingClientRect();
     const milestones = document.querySelector("[data-testid=records-milestones]")?.getBoundingClientRect();
     const grid = document.querySelector("[data-testid=leaderboards-grid]");
-    if (!form || !book || !milestones || !grid) return null;
+    if (!form || !multikills || !book || !milestones || !grid) return null;
     const gap = parseFloat(getComputedStyle(grid).rowGap) || 0;
     const records = [...document.querySelectorAll("[data-testid=season-record]")].map((r) => Math.round(r.getBoundingClientRect().bottom + scrollY));
     return {
-      beside: book.left >= form.right,
-      topsApart: Math.round(Math.abs(form.top - book.top) * 10) / 10,
+      beside: multikills.left >= form.right,
+      topsApart: Math.round(Math.abs(form.top - multikills.top) * 10) / 10,
       records: records.length,
       lastRecord: Math.max(0, ...records),
       window: innerHeight,
-      underForm: Math.round((milestones.top - form.bottom - gap) * 10) / 10,
-      edges: Math.round((Math.abs(milestones.left - form.left) + Math.abs(milestones.right - form.right)) * 10) / 10,
+      underForm: Math.round((book.top - form.bottom - gap) * 10) / 10,
+      edges: Math.round((Math.abs(book.left - form.left) + Math.abs(book.right - form.right)) * 10) / 10,
+      milestonesBeside: milestones.left >= book.right && Math.abs(milestones.top - book.top) <= 1,
     };
   });
-  if (!f) return pass("wide", "2560: Leaderboards' Recent form, season records and milestones are on the page", false, "no form-board, records-book or records-milestones");
-  pass("wide", "2560: on Leaderboards, Recent form beside the season records, their tops within 1px", f.beside && f.topsApart <= 1, { beside: f.beside, topsApart: f.topsApart });
-  pass("wide", "2560: on Leaderboards, every record on the first screen", f.records === 7 && f.lastRecord <= f.window, { records: f.records, lastRecord: f.lastRecord, window: f.window });
-  pass("wide", "2560: on Leaderboards, the milestones right under Recent form, in its column", Math.abs(f.underForm) <= 1 && f.edges <= 1, { underForm: f.underForm, edges: f.edges });
+  if (!f) return pass("wide", "2560: Leaderboards' Recent form, multikills, season records and milestones are on the page", false, "no form-board, records-multikills, records-book or records-milestones");
+  pass("wide", "2560: on Leaderboards, Recent form beside the multikills, their tops within 1px", f.beside && f.topsApart <= 1, { beside: f.beside, topsApart: f.topsApart });
+  pass("wide", "2560: on Leaderboards, every record cell on the first screen", f.records === 7 && f.lastRecord <= f.window, { records: f.records, lastRecord: f.lastRecord, window: f.window });
+  pass("wide", "2560: on Leaderboards, the season records right under Recent form, in its column, the milestones beside them", Math.abs(f.underForm) <= 1 && f.edges <= 1 && f.milestonesBeside, { underForm: f.underForm, edges: f.edges, milestonesBeside: f.milestonesBeside });
 }
 
 /**
@@ -1202,17 +1282,19 @@ async function resourcesFacts(page, kind) {
 }
 
 /**
- * CHAMPION INTEL, one page load, one request for a second champion and one redirect
+ * CHAMPION INTEL, one page load, three requests (a second champion, the swap, the removal) and one redirect
  * (docs/LIVE_VALIDATION.md, "What it checks"; docs/CHAMPION_INTEL.md): an ordinary champion on the
  * desktop, read at the check's 1440 × 900 and again with the window made 1920 × 1080 (as the wide
  * checks do), then put back; then, in the page and with no request, 20 typed in the haste field and
  * the Q's row opened, and the window of every champion opened from the champion's name, read,
- * searched for "ahr" and closed with Escape; then Add champion with Jinx (the page builds her on the
- * server), read at 1440 × 900, and removed; then Matchup Intel's old address
+ * searched for "ahr" and closed with Escape; then Compare with Jinx (the page builds her on the
+ * server), read at 1440 × 900 on the aligned board, swapped (one request), read, and the first
+ * column's ✕ pressed (one request), which leaves the first champion alone; each read with the
+ * champion's builds and runes (streamed in after the abilities, waited for); then Matchup Intel's old address
  * (/resources/matchups?champion=Riven&vs=Mordekaiser), which must land on Champion Intel with
  * Mordekaiser. What is read and asserted is in scripts/champion-lookup-facts.mjs, beside its unit
  * test. It reads nothing beyond what the page itself reads (the session, the cached roster and
- * patch, the chosen champions' stored abilities).
+ * patch, the chosen champions' stored abilities and their cached build totals).
  */
 /** /api/health's current patch (null when it names none or does not answer): no page load. */
 function healthPatchNow() {
@@ -1226,6 +1308,8 @@ function healthPatchNow() {
 
 async function championLookupFacts(page, kind) {
   await page.getByTestId("lookup-view").and(page.locator("[data-ready=true]")).waitFor({ timeout: 20_000 });
+  // The builds arrive after the abilities (streamed): waited for, never a failure of their own here.
+  await page.locator('[data-panel="1"] [data-testid="lookup-builds-view"]').waitFor({ timeout: 20_000 }).catch(() => {});
   const at = await page.evaluate(readChampionLookup);
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -1245,17 +1329,38 @@ async function championLookupFacts(page, kind) {
   const search = await page.evaluate(readChampionWindow);
   await page.keyboard.press("Escape");
   await page.keyboard.press("Escape");
-  // A second champion: Add champion, Jinx, read beside the first, then removed.
+  // Compare: Jinx beside the first, read on the aligned board; Swap, read; then ✕ on the first column
+  // (Jinx, after the swap), which leaves the first champion alone again, read. A step that does not
+  // finish is read as itself (judged, and named as the one that stopped); the steps after it never
+  // ran and are not judged (a ✕ never pressed leaves the page as it was before Compare).
   let dual;
+  let swapped;
+  let removed;
+  let step = "compare";
+  let stopped;
   try {
     await page.getByTestId("lookup-add").click({ timeout: 5_000 });
     await page.getByTestId("lookup-picker-search").fill("jinx");
     await page.locator('[data-testid="lookup-picker-grid"] button[data-champion="Jinx"]').click({ timeout: 10_000 });
     await page.locator('[data-panel="2"][data-champion="Jinx"]:not([aria-busy])').waitFor({ timeout: 20_000 });
+    await page.locator('[data-panel="2"] [data-testid="lookup-builds-view"]').waitFor({ timeout: 20_000 }).catch(() => {});
     dual = await page.evaluate(readChampionLookup);
-    await page.getByTestId("lookup-remove").click({ timeout: 5_000 });
+    step = "swap";
+    await page.getByTestId("lookup-swap").click({ timeout: 5_000 });
+    await page.locator('[data-panel="1"][data-champion="Jinx"]').waitFor({ timeout: 20_000 });
+    await page.waitForFunction(() => new URLSearchParams(location.search).get("champion") === "Jinx", null, { timeout: 20_000 });
+    swapped = await page.evaluate(readChampionLookup);
+    step = "remove";
+    await page.locator('[data-panel="1"] [data-testid="lookup-remove"]').click({ timeout: 5_000 });
+    await page.waitForFunction(() => !new URLSearchParams(location.search).has("champion2"), null, { timeout: 20_000 });
+    await page.locator('[data-testid="lookup-panel"][data-panel="2"]').waitFor({ state: "detached", timeout: 20_000 });
+    removed = await page.evaluate(readChampionLookup);
   } catch {
-    dual = dual ?? (await page.evaluate(readChampionLookup));
+    stopped = step;
+    const read = await page.evaluate(readChampionLookup).catch(() => undefined);
+    if (read && step === "compare") dual = read;
+    else if (read && step === "swap") swapped = read;
+    else if (read) removed = read;
   }
   // Matchup Intel's old address: one redirect, to Champion Intel with its enemy.
   await page.goto(`${base}/resources/matchups?champion=Riven&vs=Mordekaiser`, { waitUntil: "domcontentloaded" });
@@ -1263,7 +1368,7 @@ async function championLookupFacts(page, kind) {
   const legacy = await page.evaluate(readChampionLookup);
   // The patch /api/health names (read at the start against production; a local run asks once here).
   const healthPatch = report.health ? report.health.patch : healthPatchNow();
-  for (const v of championLookupVerdicts({ kind, champion: "Ahri", at, wide, hastedRead, all, search, dual, legacy, healthPatch })) check("champion-lookup", v.name, v.status, v.detail);
+  for (const v of championLookupVerdicts({ kind, champion: "Ahri", at, wide, hastedRead, all, search, dual, swapped, removed, stopped, legacy, healthPatch })) check("champion-lookup", v.name, v.status, v.detail);
 }
 
 /**
@@ -1317,7 +1422,7 @@ async function allChampions(page, log, kind, playerId) {
     else pass("all-champions", `${kind}: rows are compact (at most 64 px: the name over the role, the win rate over the games)`, facts.heights.length > 0 && Math.max(...facts.heights) <= 64, facts.heights);
     if (kind !== "phone") {
       const roles = await everyRoleRow(page);
-      pass("all-champions", `${kind}: rows stay compact for every role beside "In pool" (at most 56 px)`, !!roles && Math.max(...Object.values(roles.heights)) <= 56, roles ?? "no row with a role line to measure");
+      pass("all-champions", `${kind}: rows stay compact with one to five position icons beside "In pool" (at most 56 px)`, !!roles && Math.max(...Object.values(roles.heights)) <= 56, roles ?? "no row with position icons to measure");
     }
     pass("all-champions", `${kind}: sorted by games by default`, /games/i.test(facts.sortedBy ?? ""), facts.sortedBy);
     // Release 10 (PLAN S2b): on a phone Filters is in the list's search and sort row, on the search's
@@ -1335,41 +1440,49 @@ async function allChampions(page, log, kind, playerId) {
     }
   }
   pass("all-champions", `${kind}: no heading cut short`, facts.cut.length === 0, facts.cut);
+  // The text hierarchy in the table (scripts/type-facts.mjs; counts only).
+  for (const v of tableFigureVerdicts({ kind, facts: await page.evaluate(readTableFigures, TABLE_FIGURES) })) check("type", v.name, v.status, v.detail);
   await axe(page, kind, "all-champions");
-  // All Champions' preview: on the desktop and the tablet the compact panel docked at the window's
-  // right edge (the overlay kit's Peek, since Release 16; it unfolded under its row from 23 Nov 2026),
-  // the list where it was (Champion, Games and Win rate in place, ±1px, every row's top, the page not
-  // scrolled), the panel within the screen with its content fitting it and clear of the row's name,
-  // no window; Escape and Back close it. On the phone it is a sheet, and Back closes it.
+  // All Champions' preview (25 Nov 2026, the owner's request: no panel over the table): on the
+  // desktop a pane beside the list, the list narrowing to its champions (each name where it was,
+  // ±1px, every row's top, the page not scrolled), the pane within the screen and clear of the list,
+  // no window, and the page the one thing that scrolls (the pane no scroll box; the review of 25 Nov
+  // 2026); Escape and Back close it. On the tablet (an upright one: no room for both side by
+  // side) and the phone it is a sheet, and Back closes it.
   const open = page.getByTestId("open-champion").first();
   if (await open.count()) {
-    const columns = () => page.evaluate(() => ["champion", "games", "win"].map((k) => Math.round(document.querySelector(`[data-testid=sort-${k}]`)?.getBoundingClientRect().x ?? -1)));
+    const names = () => page.evaluate(() => [...document.querySelectorAll("[data-testid=top-champion] [data-open-champion]")].map((b) => Math.round(b.getBoundingClientRect().x)));
     const rowTops = () => page.evaluate(() => [...document.querySelectorAll("[data-testid=top-champion]")].map((r) => Math.round(r.getBoundingClientRect().top)));
-    const before = { x: await columns(), y: await page.evaluate(() => scrollY), rows: await rowTops() };
+    const before = { x: await names(), y: await page.evaluate(() => scrollY), rows: await rowTops() };
     await open.click();
     const content = page.getByTestId("champion-preview-content");
     const opened = await content.waitFor({ timeout: 15_000 }).then(() => true, () => false);
-    // Docked: the Peek's panel (an aside at the window's right edge, not a window), within the screen, its body not scrolling, clear of the selected row's name.
-    const dockedPanel = () =>
+    // The pane: an aside in the page beside the list (not a window), within the screen's width, the list's card and the selected row's name clear of it.
+    const paneFacts = () =>
       page.evaluate(() => {
         const li = document.querySelector("[data-testid=top-champion][data-selected=true]");
-        const panel = document.querySelector("aside[data-peek-panel][data-testid=champion-preview]");
-        if (!li || !panel) return { found: false };
-        const p = panel.getBoundingClientRect();
-        const body = panel.querySelector("[data-testid=champion-preview-body]");
+        const pane = document.querySelector("aside[data-preview-pane][data-testid=champion-preview]");
+        if (!li || !pane) return { found: false };
+        const p = pane.getBoundingClientRect();
+        const card = document.querySelector("[data-testid=all-champions-table]")?.getBoundingClientRect();
         const name = li.querySelector("[data-open-champion]")?.getBoundingClientRect();
-        return { found: true, window: !!document.querySelector("dialog[open]"), within: p.top >= -0.5 && p.left >= -0.5 && p.bottom <= innerHeight + 0.5 && p.right <= innerWidth + 0.5, fits: !!body && body.scrollHeight <= body.clientHeight + 1, nameClear: !!name && name.right <= p.left };
+        // One scrolling surface (the 25 Nov 2026 review): the pane no scroll box of its own, nothing inside main scrolling.
+        const scrolls = (el) => {
+          const st = getComputedStyle(el);
+          return /(auto|scroll)/.test(st.overflowY + st.overflowX) && (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1);
+        };
+        return { found: true, window: !!document.querySelector("dialog[open]"), within: p.left >= -0.5 && p.right <= innerWidth + 0.5 && p.top < innerHeight, besideList: !!card && card.right <= p.left + 0.5, nameClear: !!name && name.right <= p.left, sideways: document.documentElement.scrollWidth - innerWidth > 1, scrollBox: /(auto|scroll)/.test(getComputedStyle(pane).overflowY), scrollers: [...document.querySelectorAll("main *")].filter(scrolls).length };
       });
-    if (kind !== "phone") {
-      const after = { x: await columns(), y: await page.evaluate(() => scrollY), rows: await rowTops() };
-      let docked = { found: false };
+    if (kind === "desktop") {
+      const after = { x: await names(), y: await page.evaluate(() => scrollY), rows: await rowTops() };
+      let pane = { found: false };
       if (opened) {
         await page.getByTestId("champion-preview-foot").waitFor({ timeout: 15_000 }).catch(() => {});
         await page.waitForTimeout(300);
-        docked = await dockedPanel();
+        pane = await paneFacts();
         await shot(page, `${kind}-champion-preview`);
         await axe(page, kind, "champion-preview", "[data-testid=champion-preview]");
-        pass("all-champions", `${kind}: the preview is the compact panel docked beside the list (no window, within the screen, its content fitting it, clear of the row's name)`, docked.found && !docked.window && docked.within && docked.fits && docked.nameClear, docked);
+        pass("all-champions", `${kind}: the preview opens in a pane beside the list (no window, within the screen, the list and the row's name clear of it, nothing wider than the screen, no scroll box of its own and nothing scrolling inside the page)`, pane.found && !pane.window && pane.within && pane.besideList && pane.nameClear && !pane.sideways && !pane.scrollBox && pane.scrollers === 0, pane);
         await page.keyboard.press("Escape");
       }
       const escaped = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
@@ -1377,11 +1490,11 @@ async function allChampions(page, log, kind, playerId) {
       const again = await content.waitFor({ timeout: 15_000 }).then(() => true, () => false);
       await page.goBack();
       const backed = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
-      const still = after.x.every((x, i) => Math.abs(x - before.x[i]) <= 1) && after.y === before.y && after.rows.length === before.rows.length && after.rows.every((t, i) => Math.abs(t - before.rows[i]) <= 1);
-      pass("games", `${kind}: the champion preview opens beside the list, which stays where it was (Champion, Games and Win rate in place, every row's top, the page not scrolled); Escape and Back close it`, opened && still && escaped && again && backed, { opened, before: { x: before.x, y: before.y }, after: { x: after.x, y: after.y }, rowsKept: still, escaped, backed });
-      if (kind === "desktop") await guarded("all-champions", `${kind}: the preview's content`, () => championPreviewFacts(page, kind));
+      const still = after.x.length === before.x.length && after.x.every((x, i) => Math.abs(x - before.x[i]) <= 1) && after.y === before.y && after.rows.length === before.rows.length && after.rows.every((t, i) => Math.abs(t - before.rows[i]) <= 1);
+      pass("games", `${kind}: the champion preview opens beside the list, which stays where it was (every champion's name at the same x, every row's top, the page not scrolled); Escape and Back close it`, opened && still && escaped && again && backed, { opened, before: { y: before.y }, after: { y: after.y }, rowsKept: still, escaped, backed });
+      await guarded("all-champions", `${kind}: the preview's content`, () => championPreviewFacts(page, kind));
     } else {
-      // The shared Peek's sheet.
+      // The sheet (the phone window shell).
       const sheet = await page.locator("dialog[open][data-testid=champion-preview]").count();
       if (opened) {
         await page.waitForTimeout(500);
@@ -1460,13 +1573,13 @@ async function championPreviewFacts(page, kind) {
       .waitForFunction((n) => {
         const row = document.querySelectorAll("[data-testid=top-champion]")[n];
         const c = document.querySelector("[data-testid=champion-preview-content]");
-        return !!row && !!c && c.getAttribute("data-champion") === row.getAttribute("data-champion") && c.getAttribute("data-role") === row.getAttribute("data-role");
+        return !!row && !!c && c.getAttribute("data-champion") === row.getAttribute("data-champion") && (c.getAttribute("data-role") ?? "") === (row.getAttribute("data-role") ?? "");
       }, next, { timeout: 10_000 })
       .then(() => true, () => false);
     const after = await page.evaluate((n) => {
       const row = document.querySelectorAll("[data-testid=top-champion]")[n];
       const q = new URLSearchParams(location.search);
-      return { url: location.href, length: history.length, address: q.get("champion") === row?.getAttribute("data-champion") && q.get("crole") === row?.getAttribute("data-role") };
+      return { url: location.href, length: history.length, address: q.get("champion") === row?.getAttribute("data-champion") && (q.get("crole") ?? "") === (row?.getAttribute("data-role") ?? "") };
     }, next);
     step = { next: moved, address: after.address && after.url !== before.url, replaced: after.length === before.length };
   }
@@ -1477,34 +1590,39 @@ async function championPreviewFacts(page, kind) {
 }
 
 /**
- * A row's longest line is under the champion's name: the role with "In pool" beside it ("Support"
- * and "Bottom" are the widest of ROLE_LABELS, src/domain/roles.ts). The lineup's first player is
- * usually the Top laner, whose own rows carry only short roles, and opening another teammate's
- * pages would refresh that teammate's Riot data when it is due (the profile's layout does), so the
- * first row is copied instead: once per role, with that role's name and an "In pool" tag (a copy
- * of one from the list, or drawn with the tag's classes from src/components/players/all-champions.tsx
- * when no row has one). Each copy goes into the list beside the row, so it takes the rows' columns,
- * and is removed in the same step, before anything is drawn. The copy's height for each role, or
- * null without a row and its role line.
+ * A row's longest line is under the champion's name: its position icons (since 25 Nov 2026, one per
+ * position the player played it in, up to five) with "In pool" beside them. The lineup's first player
+ * often plays each champion in one position, and opening another teammate's pages would refresh that
+ * teammate's Riot data when it is due (the profile's layout does), so the first row is copied
+ * instead, its line holding one to five position icons (copies of its own, as the screen draws them:
+ * 24px controls with a mouse, 14px marks 2px apart on a touch screen, which since the 25 Nov 2026
+ * review fit five and "In pool" in the tablet table's narrowest champion column) and an "In pool" tag (a
+ * copy of one from the list, or drawn with the tag's classes from
+ * src/components/players/all-champions.tsx when no row has one). Each copy goes into the list beside
+ * the row, so it takes the rows' columns, and is removed in the same step, before anything is drawn.
+ * The copy's height for each number of icons, or null without a row and its position icons.
  */
 async function everyRoleRow(page) {
   return page.evaluate(async () => {
     await document.fonts.ready;
     const row = document.querySelector("[data-testid=top-champion]");
-    if (!row?.querySelector("[data-testid=champion-role-line] > :first-child")) return null;
+    // The icons as this screen draws them: controls with a mouse, marks on a touch screen.
+    const which = [...(row?.querySelectorAll("[data-role-buttons], [data-role-marks]") ?? [])].findIndex((el) => el.getBoundingClientRect().width > 0);
+    if (!row || which < 0) return null;
+    const icon = row.querySelectorAll("[data-role-buttons], [data-role-marks]")[which].firstElementChild;
+    if (!icon) return null;
     const tag = document.querySelector("[data-testid=top-champion] [data-testid=in-pool]");
     const heights = {};
-    for (const role of ["Top", "Jungle", "Mid", "Bottom", "Support"]) {
+    for (const count of [1, 2, 3, 4, 5]) {
       const copy = row.cloneNode(true);
       const line = copy.querySelector("[data-testid=champion-role-line]");
-      // The role's name: the role tag's last part (its icon comes first).
-      const name = [...line.firstElementChild.childNodes].reverse().find((n) => (n.nodeType === Node.TEXT_NODE ? !!n.data.trim() : n.nodeType === Node.ELEMENT_NODE && !n.matches("[data-role-icon]")));
-      if (!name) return null;
-      name.textContent = role;
+      const icons = copy.querySelectorAll("[data-role-buttons], [data-role-marks]")[which];
+      if (!line || !icons) return null;
+      icons.replaceChildren(...Array.from({ length: count }, () => icon.cloneNode(true)));
       if (!line.querySelector("[data-testid=in-pool]")) line.append(tag ? tag.cloneNode(true) : Object.assign(document.createElement("span"), { className: "shrink-0 whitespace-nowrap rounded-full border border-border-strong px-1.5 text-2xs font-medium leading-4 text-fg-muted", textContent: "In pool" }));
       row.after(copy);
       try {
-        heights[role] = Math.round(copy.getBoundingClientRect().height);
+        heights[count] = Math.round(copy.getBoundingClientRect().height);
       } finally {
         copy.remove();
       }
@@ -1800,6 +1918,8 @@ async function teamMatches(page, log, kind, context) {
   if (!(await visit(page, log, kind, "team-matches", "/matches", { fullPage: false }))) return;
   const games = page.getByTestId("together-game");
   if (!(await games.first().waitFor({ timeout: 20_000 }).then(() => true, () => false))) return warn("games", `${kind}: Team Matches lists no games`, "nothing to open");
+  // Each member's performance score and place (25 Nov 2026; scripts/card-score-facts.mjs readTogetherScores).
+  for (const v of togetherScoreVerdicts({ kind, games: await page.evaluate(readTogetherScores) })) check("games", v.name, v.status, v.detail);
   const game = games.first();
   if (kind === "phone") return phoneGame(page, kind, "Team Matches", "team-matches", () => game.getByTestId("together-card").click({ position: { x: 24, y: 12 } }));
   // A game with four or more members lists them two to a row (their column is 34rem wide on the
@@ -1928,6 +2048,17 @@ async function reachFacts(page, kind) {
  * readCardScores), then the first scored game opened, its scoreboard's row for the player read once
  * its timeline has answered, and closed with Back (one history rule: Back closes a game).
  */
+/**
+ * The text hierarchy (the owner's readability request, 25 Nov 2026; scripts/type-facts.mjs): on the
+ * page just opened, no live text in the disabled tone; with `tiers`, the four text tiers deployed;
+ * with `sentenceCase`, no capitals outside a pill (the profile's Overview and Settings, whose labels
+ * are sentence case; Team Overview keeps its approved capitals, so it is judged without).
+ */
+async function typeFacts(page, kind, name, { tiers = false, sentenceCase = false } = {}) {
+  const facts = await page.evaluate(readTypeFacts);
+  for (const v of typeVerdicts({ kind, page: name, facts, tiers, sentenceCase })) check("type", v.name, v.status, v.detail);
+}
+
 async function cardScoreFacts(page, kind) {
   await page.evaluate(() => window.scrollTo(0, 0));
   const cards = await page.evaluate(readCardScores);
@@ -2188,6 +2319,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
       playerId ??= await page.locator("[data-testid^=lineup-row-][data-player-id]").first().getAttribute("data-player-id").catch(() => null);
       await axe(page, kind, "team");
       await teamFacts(page, kind);
+      await guarded("type", `${kind}: Team Overview's text`, () => typeFacts(page, kind, "team", { tiers: true }));
       await guarded("team", `${kind}: shared kit`, () => sharedKitFacts(page, kind));
     }
   });
@@ -2204,6 +2336,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
       if (await visit(page, log, kind, "profile", `/players/${playerId}`)) {
         await noteProfileTabs(page, kind, "overview");
         await axe(page, kind, "profile");
+        await guarded("type", `${kind}: the profile's text`, () => typeFacts(page, kind, "profile", { sentenceCase: true }));
         await guarded("ranked", `${kind}: Ranked progress`, () => rankedProgressEnds(page, kind));
         if (kind === "desktop") await guarded("profile", "desktop: the Overview on one screen", () => oneScreenFacts(page, "profile", "profile"));
       }
@@ -2231,6 +2364,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
     if (await visit(page, log, kind, "settings", "/settings")) {
       await settingsFacts(page, kind);
       await axe(page, kind, "settings");
+      await guarded("type", `${kind}: Settings' text`, () => typeFacts(page, kind, "settings", { sentenceCase: true }));
     }
   });
   await guarded(kind, "resources", async () => {

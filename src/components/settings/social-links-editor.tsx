@@ -83,8 +83,11 @@ export function SocialLinksFields({ draft, onChange, disabled = false, idPrefix 
   );
 }
 
-/** What the links are for and who sees them, under their heading. */
-const SOCIAL_LINKS_HELP = "Optional. A link stays private until you switch on Show publicly: then teammates and visitors to the public team page see it. YouTube and Twitch open your channel; Discord shows your username for others to copy. No account is connected and nothing is embedded.";
+/**
+ * Who sees the links, under their heading: two short sentences (25 Nov 2026, the owner's readability
+ * request: 44 words before; what each service opens is in its field's placeholder).
+ */
+const SOCIAL_LINKS_HELP = "Optional. Each link stays private until you switch on Show publicly, then it shows on your card and the public team page. Nothing is connected or embedded.";
 
 /**
  * Settings → Social links (and the optional welcome step): the member's own YouTube, Twitch and
@@ -123,7 +126,7 @@ export function SocialLinksEditor({ initial, preview = false, titled = true }: {
     <form onSubmit={save} className="space-y-3" data-testid="social-links-form">
       <div>
         {titled ? <p className="text-sm font-medium text-fg">Social links</p> : null}
-        <p className={titled ? "mt-0.5 text-xs text-fg-subtle" : "text-xs text-fg-subtle"} data-testid="social-links-help">{SOCIAL_LINKS_HELP}</p>
+        <p className={titled ? "mt-0.5 text-xs text-fg-muted" : "text-xs text-fg-muted"} data-testid="social-links-help">{SOCIAL_LINKS_HELP}</p>
       </div>
       <SocialLinksFields draft={draft} onChange={set} disabled={preview} />
       {error ? (

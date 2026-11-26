@@ -8,8 +8,10 @@ import {
   ROLE_PRIOR_GAMES,
   breaksNestedOrder,
   buildMultikillBaseline,
+  comparisonBasis,
   expectedRates,
   mostOfKind,
+  mostPlayedRole,
   multikillEvents,
   rankMultikillScores,
   readCountingRule,
@@ -452,3 +454,83 @@ describe("the team's own games, when no other player's counts are stored", () =>
     expect(expectedRates(b, "SUPPORT", "Lulu").level).toBe("all");
   });
 });
+
+describe("what a score is made of (the Score breakdown's parts, 25 Nov 2026)", () => {
+  const b = baselineOf(RATES, 5000, NESTED_EVIDENCE, [{ role: "MID", championId: "Katarina", games: 400, events: mk(260, 40, 8, 2) }, { role: "MID", championId: "Rare", games: 10, events: mk(5) }]);
+  const member = [...nestedGames(30, "MID", mk(18, 3, 1, 1), "Katarina"), ...nestedGames(12, "MID", mk(4), "Rare"), ...nestedGames(6, "TOP", mk(2)), ...games(4, null as unknown as GameRole, () => mk(1)), ...games(3, "MID", () => null, "Katarina")];
+
+  it("gives the score's own points and expected points, so 100 × (E + 40) ÷ (X + 40) is the score itself", () => {
+    const s = scoreMember("m", member, b);
+    expect(s.points).toBe(MULTIKILL_KEYS_SUM(s.events));
+    expect(s.expectedPoints).toBeCloseTo(2 * s.kinds.double.expected + 3 * s.kinds.triple.expected + 4 * s.kinds.quadra.expected + 5 * s.kinds.penta.expected, 10);
+    expect(s.score).toBeCloseTo((100 * (s.points + MULTIKILL_CUSHION)) / (s.expectedPoints + MULTIKILL_CUSHION), 10);
+  });
+
+  it("counts the score's games by Riot's position (none recorded: unknown) and by champion and position, most first; games without counts left out", () => {
+    const s = scoreMember("m", member, b);
+    expect(s.counted).toBe(52);
+    expect(s.played).toEqual({ roles: { MID: 42, TOP: 6 }, unknown: 4 });
+    expect(s.champions).toEqual([
+      { championId: "Katarina", role: "MID", games: 30 },
+      { championId: "Rare", role: "MID", games: 12 },
+      { championId: "Any", role: "TOP", games: 6 },
+      { championId: "Any", role: null, games: 4 },
+    ]);
+  });
+
+  it("names how each game was compared: by champion and role from 50 champion games, by role below that, all positions without a role", () => {
+    const s = scoreMember("m", member, b);
+    expect(s.comparison).toEqual({ "champion-role": 30, role: 18, all: 4, team: 0, none: 0 });
+    expect(comparisonBasis(b, "MID", "Katarina")).toEqual({ basis: "champion-role", roleGames: 5000, championGames: 400 });
+    expect(comparisonBasis(b, "MID", "Rare")).toEqual({ basis: "role", roleGames: 5000, championGames: 10 });
+    expect(comparisonBasis(b, null, "Rare").basis).toBe("all");
+    // A role with fewer than 200 games of its own: every position together, as expectedRates says ("all").
+    const thin = buildMultikillBaseline([{ position: "TOP", championId: "Any", games: 3000, nested: mk(1200, 120), separate: mk(1200, 120) }, { position: "JUNGLE", championId: "Any", games: 150, nested: mk(70, 7), separate: mk(70, 7) }], NESTED_EVIDENCE);
+    expect(comparisonBasis(thin, "JUNGLE", "Any").basis).toBe("all");
+    expect(expectedRates(thin, "JUNGLE", "Any").level).toBe("all");
+    // The team's own games: no champion or role adjustment; too few other players' games: none.
+    expect(comparisonBasis(teamBaseline([{ counts: mk(1) }]), "MID", "Katarina").basis).toBe("team");
+    expect(comparisonBasis(baselineOf(RATES, 100), "MID", "Katarina").basis).toBe("none");
+  });
+
+  it("agrees with expectedRates' level for every game: \"role\" exactly when compared by champion and role or by role", () => {
+    for (const role of [null, "TOP", "JUNGLE", "MID", "ADC", "SUPPORT"] as const)
+      for (const champ of ["Katarina", "Rare", "Nobody"]) {
+        const level = expectedRates(b, role, champ).level;
+        const basis = comparisonBasis(b, role, champ).basis;
+        expect(level === "role", `${role} ${champ}`).toBe(basis === "champion-role" || basis === "role");
+        expect(level === "none").toBe(basis === "none");
+      }
+  });
+
+  it("never changes the score: the same games give the same score, chance and status as the parts alone would", () => {
+    // The score from its own arithmetic, recomputed here from the per-kind expectations (the old fields), equals the new score.
+    for (const games of [member, nestedGames(25, "SUPPORT", mk(5, 1)), nestedGames(200, "ADC", mk(120, 16, 3, 1), "Katarina")]) {
+      const s = scoreMember("m", games, b);
+      const points = 2 * s.events.double + 3 * s.events.triple + 4 * s.events.quadra + 5 * s.events.penta;
+      const expected = 2 * s.kinds.double.expected + 3 * s.kinds.triple.expected + 4 * s.kinds.quadra.expected + 5 * s.kinds.penta.expected;
+      expect(s.score).toBe((100 * (points + MULTIKILL_CUSHION)) / (expected + MULTIKILL_CUSHION));
+      expect(s.points).toBe(points);
+    }
+  });
+});
+
+describe("the most-played role over the score's games", () => {
+  it("is the position with the most games, with every position's games (Top-to-Support on a tie of shares), the unknown last", () => {
+    expect(mostPlayedRole({ roles: { TOP: 51, MID: 7 }, unknown: 2 })).toEqual({ kind: "role", role: "TOP", games: 51, total: 60, rows: [{ role: "TOP", games: 51 }, { role: "MID", games: 7 }, { role: null, games: 2 }] });
+  });
+
+  it("is a split when two or more positions share the most games: none is picked, never the role a member chose", () => {
+    expect(mostPlayedRole({ roles: { MID: 9, TOP: 9, ADC: 2 }, unknown: 0 })).toEqual({ kind: "split", roles: ["TOP", "MID"], games: 9, total: 20, rows: [{ role: "TOP", games: 9 }, { role: "MID", games: 9 }, { role: "ADC", games: 2 }] });
+  });
+
+  it("is unknown when no game recorded a position", () => {
+    expect(mostPlayedRole({ roles: {}, unknown: 21 })).toEqual({ kind: "unknown", games: 0, total: 21, rows: [{ role: null, games: 21 }] });
+    // More unknown games than any one position: the known position is still the most played of the positions.
+    expect(mostPlayedRole({ roles: { SUPPORT: 3 }, unknown: 30 }).kind).toBe("role");
+  });
+});
+
+function MULTIKILL_KEYS_SUM(e: MultikillCounts) {
+  return MULTIKILL_WEIGHTS.double * e.double + MULTIKILL_WEIGHTS.triple * e.triple + MULTIKILL_WEIGHTS.quadra * e.quadra + MULTIKILL_WEIGHTS.penta * e.penta;
+}

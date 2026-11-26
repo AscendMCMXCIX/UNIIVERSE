@@ -43,8 +43,8 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
   },
   {
     what: "Match records: for each stored game, the record Riot publishes (all ten players' in-game names, PUUIDs, champions, positions, items, runes, per-game figures and results) and its timeline (what each player bought, sold and used up, their skill order and when they reached each level, their gold, experience, CS, level, ability haste and place on the map minute by minute, when they took part in a kill, and the objectives and turret plates each team took), kept once per game",
-    why: "Match details, Matchups, Played Together and Encounters",
-    who: "Team members, for games in a profile's history",
+    why: "Match details, Matchups, Played Together and Encounters; Champion Intel's build totals per champion",
+    who: "Team members, for games in a profile's history; the build totals, naming no one, to members who may see teammates' statistics",
     kept: "Not deleted automatically: a game stays stored after the profiles that played it are deleted, but is no longer shown. Permanent removal takes the person out of every stored game (below)",
   },
   {
@@ -153,13 +153,13 @@ export default async function PrivacyPage() {
         {name} is a private app for one League of Legends team. Administrators create every account; there is no public sign-up. This notice explains what it stores about members, why, who can see it, how long it stays, and how to reach us about it.
       </p>
       <p className="mt-1 text-xs text-fg-subtle">
-        Updated <time dateTime="2026-11-20">{PRIVACY_UPDATED}</time>
+        Updated <time dateTime="2026-11-26">{PRIVACY_UPDATED}</time>
       </p>
 
       <div className="lg:mt-6 lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-8">
       {/* Phones and tablets: chips under the title. From lg: a table of contents that stays in view beside the notice. */}
       <nav aria-label="On this page" className="mt-4 lg:sticky lg:top-6 lg:mt-0 lg:self-start" data-testid="privacy-index">
-        <p className="mb-2 hidden text-xs font-semibold uppercase tracking-label text-fg-subtle lg:block">On this page</p>
+        <p className="mb-2 hidden text-xs font-semibold text-fg-muted lg:block">On this page</p>
         <ul className="flex flex-wrap gap-1.5 lg:flex-col lg:gap-0.5 lg:border-l lg:border-border">
           {SECTIONS.map((s) => (
             <li key={s.id}>
@@ -200,12 +200,12 @@ export default async function PrivacyPage() {
           {STORED.map((row) => (
             <li key={row.what} className="space-y-1 p-3">
               <p className="text-fg">{row.what}</p>
-              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs text-fg-muted">
-                <dt className="text-fg-subtle">Why</dt>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs text-fg">
+                <dt className="text-fg-muted">Why</dt>
                 <dd>{row.why}</dd>
-                <dt className="text-fg-subtle">Who sees it</dt>
+                <dt className="text-fg-muted">Who sees it</dt>
                 <dd>{row.who}</dd>
-                <dt className="text-fg-subtle">Kept</dt>
+                <dt className="text-fg-muted">Kept</dt>
                 <dd>{row.kept}</dd>
               </dl>
             </li>

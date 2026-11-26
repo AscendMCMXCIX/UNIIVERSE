@@ -7,6 +7,44 @@ UNIIVERSE runs on the free plans of Supabase (the Postgres database) and Vercel 
 
 This page records what caused that, what was changed, how it was measured, and how to check it again. The second pass, after egress reached 7.14 GB on 20 Oct, is the next section.
 
+## 26 Nov 2026: Champion Intel's builds and runes (one counting statement per champion, cached six hours)
+
+**What it reads.** Champion Intel's builds (docs/CHAMPION_INTEL.md, "Builds and runes") count what
+players chose on a champion in the team's stored draft games: one statement per champion and patch
+window (`src/server/champion-builds/query.ts`) that opens only that champion's records through a new
+GIN index on the records' champions (`match_details_champions_idx`, migration `0069`, the PUUID
+index's twin: a few MB at most), reads each player's timeline entry inside the database (never a
+timeline's frames or events, its big columns), and returns totals only: about one short row per
+counted value.
+
+**Measured** (the in-memory demo, PGlite, 266 records, 219 timelines; `tests/db/champion-builds.test.ts`
+bounds the answer): 17–50 ms of database time per champion; the answer 1–9 KB (Nasus 2.1 KB, Thresh
+7.2 KB, Leona's two roles on two patches 7.9 KB, the largest 9.1 KB). Production estimate (about 3,000
+records a patch window): 50–300 ms of database time with the index, 5–20 KB for a popular champion.
+Without the index every computation would unpack all of the season's records (0.9–2.4 s measured for
+comparable scans, PERFORMANCE.md).
+
+**Cost per day.** The counts are cached six hours in Next's data cache, shared by every server
+instance (a per-instance cache would miss on every cold instance), keyed by the champion, the patch
+window, the abilities' ranks, the item data's version and the rules' format; a page view inside the
+six hours reads nothing for them. About eleven members opening 20 champions a day, each counted at
+most four times: under 1 MB of egress a day, against the 120 MB budget; a few seconds of database
+time. The Production check opens Ahri and Jinx, then Matchup Intel's old address, which lands on
+Mordekaiser and reads his builds like any champion's: at most three statements a run (and none
+within six hours of another). Vercel Active CPU: choosing and drawing the parts, a few milliseconds a view. The
+section streams in after the abilities, so the page's first answer does not wait for it. No job, no
+table, no Riot request.
+
+**If it ever weighs.** Read the statement's line in the egress counts: a Data jobs run of `db-usage`
+lists the day's 25 largest shapes with their label and sample (`appEgress.topToday`,
+`topYesterday`), and `egress` the five largest. The builds' statement is labelled `with
+riot_accounts <hash>` (the egress shape names a statement by its first word and the first table it
+reads, here the team's accounts in its first `WITH`), its sample starting "WITH mem AS MATERIALIZED (
+SELECT ra.puuid FROM riot_accounts ra JOIN players"; `src/server/champion-builds/query.test.ts` holds
+the label to these words. A derived per-player table filled as games arrive
+would make the read smaller still, at the cost of a migration with its grants block and its own
+erasure step (the design's rejected alternative, kept for a future population source).
+
 ## 25 Nov 2026: profile pictures read once per upload, not once per browser
 
 **What happened.** Data jobs' hourly health check failed from 24 Nov: the app's own egress counter put
@@ -43,6 +81,37 @@ stored size once per upload (11 members at the 400 KB limit is 4.4 MB, and only 
 a few bytes per request for the saving time. That alone brings a day like 24 Nov to about 90 MB,
 under the budget. To check: Data jobs' tick prints yesterday's egress and its largest statements.
 
+## 25 Nov 2026: scores on Team → Matches, and a smaller timeline answer
+
+- **Database egress: one more query for the games Team → Matches shows, plus their lane timelines.**
+  Each member's row shows their performance score and place (docs/PERFORMANCE_SCORE.md, "Where it
+  shows"), each shown game scored once (`togetherScores`, `src/server/matches/together-scores.ts`):
+  the records trimmed in the database to the score's figures, sent as arrays (`loadScoreSources`: no
+  names, items, spells, runes, challenges or other stats), the members' PUUIDs looked up once
+  (`teamMembersByPuuid`), and the same trimmed lane timelines Match History's cards read
+  (`loadScoreTimelines`) for the shown Summoner's Rift games with a lane opponent. Measured with the
+  app's egress counter on local PostgreSQL 16 (`tests/db/together-scores.test.ts`): the demo's six
+  games, which have no timeline, 10.2 KB, **1.7 KB a game** (2.8 KB a game sent as objects, before
+  the arrays). Real PUUIDs are longer than the demo's (78 characters: about 0.5 KB more a game) and
+  a stored lane timeline adds about 3–4 KB (above), so a default page of 20 real games is about
+  45–125 KB. Against 120 MB a day that is about 1,000 default views for the whole budget; the
+  page's other reads (compositions, names) are unchanged. **"Show more"** renders the whole page
+  again with 20 more games (`?limit=` up to 500), and a render scores every game it shows, so each
+  instance keeps the scores it worked out for 15 minutes (at most 1,000 games; a game waiting for
+  its timeline keeps its trimmed record and asks again for the timeline only): on the same
+  instance the nth "Show more" reads only its 20 new games (45–125 KB), and the games kept cost the
+  members' PUUID lookup alone (measured: 0.5 KB a render on the demo, against 10.2 KB for its six
+  games read cold; its first three, then all six with three kept, read 5.6 KB each time). A fresh
+  instance, or one past the 15 minutes, reads every shown game once: at `?limit=500` about 1.1–3.1
+  MB (1–2.5% of the day's budget). Without the kept scores, the nth "Show more" read 20·(n+1)
+  games.
+- **Smaller timeline answer (Vercel to the browser):** an opened game's timeline answer no longer
+  carries every player's kill, death and assist times or CS at every frame (only the score through
+  the game, removed, read them): about 10–20 KB less a game, not database egress (the stored row is
+  read as before).
+- **Vercel Active CPU:** scoring a page of 20 games is the same work as Match History's cards (about
+  1 ms for 10 games, above). **Riot: no new request**, no migration, no new table.
+
 ## 24 Nov 2026: the performance score on Match History's cards (Release 17)
 
 Each collapsed Match History card shows its game's performance score (docs/PERFORMANCE_SCORE.md,
@@ -65,7 +134,7 @@ own functions.
   - so a production page of 10 lane games adds at most about 40 KB, 25 games about 100 KB. Against
     120 MB a day that is about 3,000 page views of 10 for the whole budget; the page's records already
     send 60–150 KB. Encounters' list of one player's games (`?met=`) is the same list and costs the
-    same; Team → Matches does not read it.
+    same; Team → Matches reads its own (25 Nov 2026, above).
 - **Vercel Active CPU: under 2 ms a page.** Scoring a page of 10 games (the record's mapping, the
   timeline's frames and lanes, the final scores; no score through the game) took 0.9 ms (median of
   the nine demo players, warm; 1.7 ms at most) on this machine, beside the page's render. Nothing is

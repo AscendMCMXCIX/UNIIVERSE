@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { CHAMPIONS_FIRST_TEST_COOKIE, championsFirstForTest } from "@/server/demo/test-hooks";
+import { CHAMPIONS_FIRST_TEST_COOKIE, OPPONENT_SEARCH_TEST_COOKIE, championsFirstForTest, opponentSearchFromForTest } from "@/server/demo/test-hooks";
 import type { Db } from "@/server/db/types";
 import type { Session } from "@/server/auth/permissions";
 import { hasPermission } from "@/server/auth/permissions";
@@ -29,7 +29,9 @@ async function ProfileChampionsTabBody({ db, header, session, basePath, search }
   const player = header.player;
   const self = session?.playerId === player.id;
   if (!self && !hasPermission(session, "view-teammate-stats")) return <p className="rounded-panel border border-border bg-surface p-4 text-sm text-fg-muted">Teammates&apos; champion statistics are not part of your access.</p>;
-  const firstRows = championsFirstForTest((await cookies()).get(CHAMPIONS_FIRST_TEST_COOKIE)?.value) ?? undefined;
+  const jar = await cookies();
+  const firstRows = championsFirstForTest(jar.get(CHAMPIONS_FIRST_TEST_COOKIE)?.value) ?? undefined;
+  const searchFrom = opponentSearchFromForTest(jar.get(OPPONENT_SEARCH_TEST_COOKIE)?.value) ?? undefined;
   const [overview, championsById, sync] = await Promise.all([
     getPlayerOverview(db, player, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, accountId: search.account ?? null, riotConfigured: !!process.env.RIOT_API_KEY }),
     championMap(db),
@@ -42,13 +44,16 @@ async function ProfileChampionsTabBody({ db, header, session, basePath, search }
     redirect(`${basePath}/champions?${q.toString()}`);
   }
   // A linked preview (?champion=&crole=[&vs=]) is in the first HTML: its tally, and the opponent's
-  // games when one is open, in the list's scope (all linked accounts unless one is chosen).
-  const role = isGameRole(search.crole) ? search.crole : null;
-  const card = search.champion ? (overview.topChampions.filter((c) => c.championId === search.champion).sort((a, b) => (role ? Number(b.role === role) - Number(a.role === role) : 0) || b.selected.games - a.selected.games)[0] ?? null) : null;
-  const scope = card ? { season: overview.season, mode: overview.mode, account: overview.filter.accountId ?? "all", champion: card.championId, role: card.role } : null;
+  // games when one is open, in the list's scope (all linked accounts unless one is chosen), in the
+  // position the address names where the champion was played in it, else its most played one. A
+  // champion with no recorded position has no lane opponents to read.
+  const asked = isGameRole(search.crole) ? search.crole : null;
+  const card = search.champion ? (overview.topChampions.find((c) => c.championId === search.champion) ?? null) : null;
+  const role = card ? (card.roles.find((r) => r.role === asked)?.role ?? card.role) : null;
+  const scope = card && role ? { season: overview.season, mode: overview.mode, account: overview.filter.accountId ?? "all", champion: card.championId, role } : null;
   const [initialPreview, initialPairing] = scope ? await Promise.all([getChampionPreview(db, player.id, scope), search.vs ? getPairingGames(db, player.id, scope, search.vs) : null]) : [null, null];
   const m = overview.summary.multikills;
   const perf = overview.summary.performance;
   const status = dataStatus({ accounts: overview.accounts.map((a) => a.sync), checkedAt: sync.checkedAt, attemptedAt: sync.attemptedAt, newestGameAt: sync.newestGameAt, season: overview.completeness, multikills: m, details: { games: perf.games, detailed: perf.detailedGames, unavailable: perf.unavailableGames } });
-  return <AllChampions data={overview} basePath={`${basePath}/champions`} championsById={championsById} playerId={player.id} isOwn={self} initialPreview={initialPreview} initialPairing={initialPairing} status={status} refresh={refreshFor(session, player.id, sync, m.games - m.counted - m.unavailable > 0)} firstRows={firstRows} />;
+  return <AllChampions data={overview} basePath={`${basePath}/champions`} championsById={championsById} playerId={player.id} isOwn={self} initialPreview={initialPreview} initialPairing={initialPairing} status={status} refresh={refreshFor(session, player.id, sync, m.games - m.counted - m.unavailable > 0)} firstRows={firstRows} opponentSearchFrom={searchFrom} />;
 }

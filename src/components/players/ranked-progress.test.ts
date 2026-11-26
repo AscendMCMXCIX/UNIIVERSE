@@ -40,7 +40,8 @@ describe("RankedProgress", () => {
   it("says no change for a rank read before the 30 days and confirmed inside them", () => {
     const html = render([snap(D(9, 1), "GOLD", "I", 70, 40, 40), snap(D(10, 1), "GOLD", "II", 40, 50, 50, D(11, 3))]);
     expect(text(html, "ranked-change")).toBe("No change");
-    expect(html).toContain("Gold II 40 LP since 1 Oct");
+    // The rank it held all along is the card's own (its path in the tip went on 25 Nov 2026: one concept a tip).
+    expect(text(html, "ranked-current")).toBe("Gold II · 40\u00a0LP");
   });
 
   it("says an unranked account has nothing to compare, not that readings are missing", () => {
@@ -75,9 +76,12 @@ describe("RankedProgress", () => {
     const row = html.slice(0, html.indexOf('id="ranked-chart-fold"'));
     expect(row).toContain('data-testid="ranked-current"');
     expect(row).toMatch(/<dl id="ranked-movement" class="max-w-full shrink-0">/);
-    // The account line, the highest rank and the change's path: only in the tip beside the rank.
+    // The account line and the highest rank: only in the tip beside the rank. Since 25 Nov 2026 (one
+    // concept a tip) the change's path is not repeated there: the change beside the rank says it.
     expect(html).toMatch(/aria-label="About this rank"/);
-    for (const id of ["ranked-tracking", "ranked-peak-stat", "ranked-change-path"]) expect(html.match(new RegExp(`data-testid="${id}"`, "g")), id).toHaveLength(1);
+    for (const id of ["ranked-tracking", "ranked-peak-stat"]) expect(html.match(new RegExp(`data-testid="${id}"`, "g")), id).toHaveLength(1);
+    expect(html).not.toContain('data-testid="ranked-change-path"');
+    expect(html).not.toContain("count for the ranked year");
     expect(html).not.toMatch(/<p[^>]*id="ranked-tracking"/);
     // A compact chart, 7.5rem tall, never stretched to the card (the review: small moves looked large).
     expect(html).toMatch(/data-testid="ranked-chart-box"/);
@@ -124,9 +128,20 @@ describe("RankedProgress", () => {
     expect(text(master, "ranked-current")).toBe("Master · 251 LP");
     expect(master).not.toContain('data-testid="ranked-lp-bar"');
     expect(master).toContain('data-testid="ranked-chart"');
-    // The record and win rate always shown; its scope ("2026 (Riot)") from a 21rem card, read out on a phone's.
+    // The record, its win rate and its year always shown (a phone's too: the record is Riot's count for
+    // the year, not this season's); its source ("(Riot)") from a 21rem card, read out on a phone's.
     expect(text(master, "ranked-record")).toBe("212W 154L · 58%");
-    expect(master).toMatch(/data-testid="ranked-record">212W 154L · 58%[\s\S]*?<span class="@max-\[21rem\]\/rank:sr-only"> · 2026 \(Riot\)<\/span>/);
+    expect(text(master, "ranked-record-year")).toBe(" · 2026");
+    expect(master).toMatch(/data-testid="ranked-record">212W 154L · 58%<span data-testid="ranked-record-year"> · 2026<\/span><span class="@max-\[21rem\]\/rank:sr-only"> \(Riot\)<\/span>/);
+  });
+
+  it("the rank's tip is one short fact pair, at most about 25 words with the longest rank: the account and season, then the highest rank recorded", () => {
+    const html = render([snap(D(10, 15), "GRANDMASTER", null, 999, 300, 200), snap(D(10, 20), "GRANDMASTER", null, 1012, 310, 205), snap(D(11, 1), "GRANDMASTER", null, 950, 320, 210)]);
+    // The tip's words, as screen readers get them (the sr-only description its button points at).
+    const tip = /<span id="[^"]+" class="sr-only">((?:(?!<\/span><\/span>).)*?data-testid="ranked-peak-stat"[^>]*>[^<]*<\/span>)/.exec(html)?.[1] ?? "";
+    const words = tip.replace(/<[^>]+>/g, " ").split(/\s+/).filter((w) => /[\p{L}\p{N}]/u.test(w));
+    expect(words.length, words.join(" ")).toBeGreaterThan(10);
+    expect(words.length, words.join(" ")).toBeLessThanOrEqual(25);
   });
 
   it("ends with the chart: no History and coverage disclosure, no year strip, rank changes or readings table", () => {
@@ -138,7 +153,7 @@ describe("RankedProgress", () => {
     // the change and the highest recorded rank, and the chart, which ends the card.
     expect(text(html, "ranked-tracking")).toBe("Name#TAG · 2026 Season 3 · rank recorded since 15 Oct 2026");
     expect(text(html, "ranked-current")).toBe("Gold II · 75\u00a0LP");
-    expect(html).toContain("104W 92L · 53%<span class=\"@max-[21rem]/rank:sr-only\"> · 2026 (Riot)</span>");
+    expect(html).toContain("104W 92L · 53%<span data-testid=\"ranked-record-year\"> · 2026</span><span class=\"@max-[21rem]/rank:sr-only\"> (Riot)</span>");
     expect(html).toContain('data-testid="ranked-peak-stat"');
     expect(html).toMatch(/data-testid="ranked-chart"[\s\S]*<\/section>$/);
   });

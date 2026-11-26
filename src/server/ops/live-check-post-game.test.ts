@@ -8,7 +8,11 @@ import { PANEL_WORDS, REMOVED_PARTS, REMOVED_WORDS, fitVerdicts, postGameVerdict
   of the ten players with one MVP and one ACE, and any player inspected with a press on their row.
   Since the owner's brief of 24 Nov 2026: the open game fits the window with nothing inside it
   scrolling (readFit), and the comparison, the written why, the score strip, the build legend and the
-  grey notes under the scoreboard stay removed.
+  grey notes under the scoreboard stay removed. Since the owner's requirements of 25 Nov 2026: the
+  score through the game stays removed, the MVP is on the team that won and the ACE on the team that
+  lost, and the open card's header shows its card's score and place. Since the review of 26 Nov
+  2026: on a desktop's two columns the lane is under the scoreboard and the build panels take the
+  height beside it, so the columns end level.
 */
 
 const DEMO: PostGameRead = {
@@ -26,15 +30,18 @@ const DEMO: PostGameRead = {
   laneWords: "Lane vs",
   timeline: "ok",
   panels: { words: ["Build Path", "Skill Order", "Runes"], above: true, path: 8, missing: false },
-  scores: { rows: 10, shown: 10, inRange: true, mvp: 1, ace: 1, removed: 0, panel: true },
+  scores: { rows: 10, shown: 10, inRange: true, mvp: 1, ace: 1, removed: 0, panel: true, mvpOnWin: true, aceOnLoss: true },
+  layout: { columns: true, sideBottom: 527, bodyBottom: 527, laneTop: 423, laneBottom: 527, boardBottom: 411, notesBottom: 467 },
+  header: { score: 6, rank: 1, rowScore: 6, rowRank: 1 },
   removed: { parts: 0, words: 0 },
   steps: 6,
 };
+const LAYOUT_FACT = "desktop: the lane under the scoreboard and the build panels taking the height beside it: the two columns end level";
 const failed = (at: PostGameRead) => postGameVerdicts({ kind: "desktop", at }).filter((v) => v.status === "FAIL").map((v) => v.name);
 
 describe("the post-game facts", () => {
   it("pass on the demo's open game", () => {
-    expect(postGameVerdicts({ kind: "desktop", at: DEMO }).map((v) => v.status)).toEqual(Array(10).fill("PASS"));
+    expect(postGameVerdicts({ kind: "desktop", at: DEMO }).map((v) => v.status)).toEqual(Array(13).fill("PASS"));
   });
   it("fail the regressions they exist for", () => {
     expect(failed({ ...DEMO, result: "" })).toHaveLength(1);
@@ -45,7 +52,22 @@ describe("the post-game facts", () => {
     expect(failed({ ...DEMO, lane: null, laneWords: "" })).toHaveLength(1);
     expect(failed({ ...DEMO, steps: 3 })).toHaveLength(1);
   });
-  it("fail without the three headings above the lane, in their order", () => {
+  it("fail when the lane is not under the scoreboard on two columns, or the build column ends short of it; one column is a warning", () => {
+    expect(failed({ ...DEMO, layout: { ...DEMO.layout!, laneTop: 300 } })).toEqual([LAYOUT_FACT]);
+    // The area not to its column's end (the panels not taking the height), or the column ending above the lane (the space left blank).
+    expect(failed({ ...DEMO, layout: { ...DEMO.layout!, bodyBottom: 430 } })).toEqual([LAYOUT_FACT]);
+    expect(failed({ ...DEMO, layout: { ...DEMO.layout!, sideBottom: 430, bodyBottom: 430 } })).toEqual([LAYOUT_FACT]);
+    // The notes beside the lane running past the build column's end.
+    expect(failed({ ...DEMO, layout: { ...DEMO.layout!, notesBottom: 560 } })).toEqual([LAYOUT_FACT]);
+    // A taller build column (long figures) is fine: the scoreboard's column then ends first.
+    expect(failed({ ...DEMO, layout: { ...DEMO.layout!, sideBottom: 600, bodyBottom: 600 } })).toEqual([]);
+    for (const layout of [{ ...DEMO.layout!, columns: false }, null]) {
+      const v = postGameVerdicts({ kind: "desktop", at: { ...DEMO, layout } });
+      expect(v.filter((x) => x.status === "FAIL")).toEqual([]);
+      expect(v.filter((x) => x.status === "WARN").map((x) => x.name)).toEqual(["desktop: skipped: the open game is not in two columns here (the lane under the scoreboard, the build panels beside it)"]);
+    }
+  });
+  it("fail without the three headings before the lane, in their order", () => {
     expect(failed({ ...DEMO, panels: null }).length).toBeGreaterThanOrEqual(1);
     expect(failed({ ...DEMO, panels: { ...DEMO.panels!, words: ["Build Path", "Runes"] } })).toHaveLength(1);
     expect(failed({ ...DEMO, panels: { ...DEMO.panels!, above: false } })).toHaveLength(1);
@@ -60,10 +82,19 @@ describe("the post-game facts", () => {
   it("fail scores missing, out of range, or without exactly one MVP and one ACE; a removed player has none", () => {
     expect(failed({ ...DEMO, scores: { ...DEMO.scores!, shown: 9 } })).toHaveLength(1);
     expect(failed({ ...DEMO, scores: { ...DEMO.scores!, inRange: false } })).toHaveLength(1);
-    expect(failed({ ...DEMO, scores: { ...DEMO.scores!, mvp: 2 } })).toHaveLength(1);
-    expect(failed({ ...DEMO, scores: { ...DEMO.scores!, ace: 0 } })).toHaveLength(1);
+    expect(failed({ ...DEMO, scores: { ...DEMO.scores!, mvp: 2 } })).toHaveLength(2);
+    expect(failed({ ...DEMO, scores: { ...DEMO.scores!, ace: 0 } })).toHaveLength(2);
     expect(failed({ ...DEMO, scores: { ...DEMO.scores!, panel: false } })).toHaveLength(1);
     expect(failed({ ...DEMO, scores: { ...DEMO.scores!, shown: 9, removed: 1 } })).toEqual([]);
+  });
+  it("fail an MVP on the team that lost or an ACE on the team that won", () => {
+    expect(failed({ ...DEMO, scores: { ...DEMO.scores!, mvpOnWin: false } })).toEqual(["desktop: the MVP is on the team that won and the ACE on the team that lost"]);
+    expect(failed({ ...DEMO, scores: { ...DEMO.scores!, aceOnLoss: false } })).toEqual(["desktop: the MVP is on the team that won and the ACE on the team that lost"]);
+  });
+  it("fail an open card's header whose score or place differs from the player's row; none there is not applicable", () => {
+    expect(failed({ ...DEMO, header: { score: 6.1, rank: 1, rowScore: 6, rowRank: 1 } })).toEqual(["desktop: the open card's header shows the game's score and place, the same as the player's row"]);
+    expect(failed({ ...DEMO, header: { score: 6, rank: 2, rowScore: 6, rowRank: 1 } })).toHaveLength(1);
+    expect(postGameVerdicts({ kind: "desktop", at: { ...DEMO, header: null } }).find((v) => v.name.includes("header"))).toMatchObject({ status: "PASS", detail: "not applicable: this game's card had no score" });
   });
   it("fail when a removed section is back: the notes or the gold curve, by their parts or their names", () => {
     expect(failed({ ...DEMO, removed: { parts: 1, words: 0 } })).toHaveLength(1);
@@ -78,6 +109,9 @@ describe("the post-game facts", () => {
     // The comparison, the written why and the grey notes of 24 Nov 2026.
     for (const w of ["No comparison", "Stood out:", "Held back by", "Ranks around the time of this game", "not enough recorded history"]) expect(REMOVED_WORDS).toContain(w);
     for (const id of ["performance-compare", "performance-why", "performance-strip", "build-legend", "build-row"]) expect(REMOVED_PARTS).toContain(`[data-testid=${id}]`);
+    // The score through the game of 25 Nov 2026: its heading, its (i), its chart and its missing line.
+    for (const w of ["Score through the game", "About the score through the game"]) expect(REMOVED_WORDS).toContain(w);
+    for (const id of ["performance", "performance-chart-area", "performance-chart-info", "performance-timeline-missing", "score-chart", "score-chart-table"]) expect(REMOVED_PARTS).toContain(`[data-testid=${id}]`);
   });
   it("warn, not fail, for a game without its items, or whose timeline is still loading (the build path and the scores then wait)", () => {
     const v = postGameVerdicts({ kind: "desktop", at: { ...DEMO, itemsNotRecorded: true, itemSlots: 0, timeline: "loading", scores: undefined } });

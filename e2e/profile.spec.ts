@@ -370,14 +370,16 @@ async function championTable(page: Page) {
     return {
       columns: heads.length,
       heights: rows.map((r) => Math.round(box(r).height)),
-      // "Support · In pool" on one line under the name, and the role's name whole.
+      // The position icons and "In pool" on one line under the name, the icons inside the champion's column.
       wrapped: rows.filter((r) => {
         const pool = line(r).querySelector("[data-testid=in-pool]");
         return !!pool && Math.abs(box(pool).top - box(line(r).firstElementChild!).top) > 4;
       }).map((r) => r.dataset.champion),
       rolesCut: rows.filter((r) => {
-        const name = line(r).firstElementChild!.lastElementChild!;
-        return name.scrollWidth > name.clientWidth + 1;
+        const cell = box(r.firstElementChild!);
+        // As the screen draws them: controls with a mouse, marks on a touch screen.
+        const icons = [...r.querySelectorAll("[data-testid=champion-role], [data-testid=champion-role-mark]")].filter((icon) => box(icon).width > 0);
+        return !icons.length || icons.some((icon) => box(icon).right > cell.right + 0.5);
       }).map((r) => r.dataset.champion),
       // Each heading inside its own column, and each sort arrow (shown when sorted or pointed at) clear of the headings beside it.
       spilled: heads.filter((h) => h.text.left < h.cell.left - 0.5 || h.text.right > h.cell.right + 0.5).map((h) => h.label),
@@ -390,10 +392,14 @@ async function championTable(page: Page) {
 test("All Champions on tablets and computers: one compact row per champion for every role, with headings, sort arrows and figures whole", async ({ page, context, baseURL }) => {
   test.skip(test.info().project.name === "phone", "phones list each champion on two lines, its figures under it");
   // The table's columns start at a 44rem list: a 752px tablet, or a 1024px computer with the
-  // sidebar open, leaves exactly that. Bottom and Support are the longest role names beside "In pool".
+  // sidebar open, leaves exactly that. Each row's position icons and "In pool" keep one line.
   await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: baseURL! }]);
-  const widths = test.info().project.name === "tablet" ? [768, 752] : [1440, 1024];
-  for (const name of ["Demo ADC", "Demo Support"]) {
+  const tablet = test.info().project.name === "tablet";
+  const widths = tablet ? [768, 752] : [1440, 1024];
+  // On the touch tablet also a champion of five positions beside "In pool" (Demo Sub (Top)'s Sion):
+  // its 14px marks keep one line in the table's narrowest champion column (the 25 Nov 2026 review).
+  // A mouse's 24px buttons do not fit five there (1024px with the sidebar open): "In pool" takes the next line, as documented.
+  for (const name of tablet ? ["Demo ADC", "Demo Support", "Demo Sub (Top)"] : ["Demo ADC", "Demo Support"]) {
     await page.setViewportSize({ width: widths[0]!, height: 900 });
     await page.goto("/players");
     const href = await playerEntry(page, name).first().getAttribute("href");
@@ -406,7 +412,7 @@ test("All Champions on tablets and computers: one compact row per champion for e
       expect(table.columns, `${at}: Champion and seven figure columns`).toBe(8);
       expect(Math.max(...table.heights), `${at}: rows ${table.heights.join(", ")}`).toBeLessThanOrEqual(56);
       expect(table.wrapped, `${at}: "In pool" on the role's line`).toEqual([]);
-      expect(table.rolesCut, `${at}: role names whole`).toEqual([]);
+      expect(table.rolesCut, `${at}: position icons whole, inside the champion's column`).toEqual([]);
       expect(table.spilled, `${at}: headings inside their columns`).toEqual([]);
       expect(table.arrowsOver, `${at}: sort arrows clear of the headings beside them`).toEqual([]);
       expect(table.figuresCut, `${at}: figures whole`).toEqual([]);

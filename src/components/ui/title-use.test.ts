@@ -28,6 +28,7 @@ const NAMES: Array<{ file: string; fragment: string; kind: Kind; what: string }>
   { file: "src/components/champion-portrait.tsx", fragment: "title", kind: "passthrough", what: "the portrait's champion name, or the caller's name for it" },
   { file: "src/components/role-icon.tsx", fragment: "label", kind: "name", what: "the role's name on its icon" },
   { file: "src/components/match-history/icon-img.tsx", fragment: "icon.name", kind: "name", what: "an item's, rune's or spell's name on its icon" },
+  { file: "src/components/champion-lookup/champion-builds.tsx", fragment: "icon.name", kind: "name", what: "a build's item, rune or spell named on its stand-in tile where the static data has no picture (IconImg's own use)" },
   // Names of icon-only controls and marks.
   { file: "src/components/mode-switch.tsx", fragment: "{label}", kind: "name", what: "the mode switch's name when only its icon shows" },
   { file: "src/components/nav-links.tsx", fragment: "{label}", kind: "name", what: "a destination's name in the collapsed sidebar" },
@@ -77,8 +78,6 @@ const NAMES: Array<{ file: string; fragment: string; kind: Kind; what: string }>
   { file: "src/components/team/team-roster.tsx", fragment: "sg.reasons.join", kind: "truncation", what: "a suggestion's reasons, cut to one line" },
   { file: "src/components/match-history/scoreboard.tsx", fragment: "damage to champions", kind: "truncation", what: "the damage shown short (\"18.2k\") whole" },
   { file: "src/components/players/player-card.tsx", fragment: "mastery points", kind: "truncation", what: "the mastery shown short (\"189K\") whole" },
-  { file: "src/components/leaderboards/records.tsx", fragment: "said(m)", kind: "truncation", what: "a milestone chip whole (its champion's name is cut, or left out on phones)" },
-  { file: "src/components/leaderboards/records.tsx", fragment: 'names.join(", ")', kind: "truncation", what: "a multikill tile's holders whole (cut to one line on the desktop's one-screen board; each holder's row names them too)" },
   { file: "src/components/match-history/match-history-view.tsx", fragment: "With team members:", kind: "truncation", what: "the members line, cut to one line" },
   { file: "src/components/match-history/rank-short.tsx", fragment: "label.title", kind: "truncation", what: "a short rank (\"G2\") whole" },
   { file: "src/components/match-history/scoreboard.tsx", fragment: "{title}", kind: "truncation", what: "a rank badge whole where it shrinks" },

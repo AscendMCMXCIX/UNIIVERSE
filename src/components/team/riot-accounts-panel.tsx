@@ -144,11 +144,25 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
               router.refresh();
             };
             return (
-              <li key={a.id} className={`flex flex-col gap-2 rounded-panel border bg-bg-elevated p-3 ${main ? "border-accent/40" : "border-border"}`} data-testid="riot-account-row" data-label={a.label}>
-                <div className="flex items-start gap-2">
-                  <div className="min-w-0 flex-1">
+              // min-w-0: a grid item is otherwise at least as wide as its widest word, and a long Riot ID at
+              // 200% text made the row (and the page) wider than a phone, so the page under it (Data
+              // diagnostics' summary) took no tap where it was drawn. The Riot ID wraps, never cut.
+              <li key={a.id} className={`flex min-w-0 flex-col gap-2 rounded-panel border bg-bg-elevated p-3 ${main ? "border-accent/40" : "border-border"}`} data-testid="riot-account-row" data-label={a.label}>
+                <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
+                  <div className="min-w-0 flex-1 basis-[5em]">
                     <div className="flex flex-wrap items-center gap-1.5">
-                      <span className="truncate font-semibold text-fg">{a.riotId}</span>
+                      <span className="min-w-0 font-semibold text-fg [overflow-wrap:anywhere]" data-testid="riot-account-id">
+                        {/* A line may break after the tag's "#" first ("Demo Mid#" over "EUW1"), inside a word only where one is still too long. */}
+                        {a.riotId.lastIndexOf("#") > 0 ? (
+                          <>
+                            {a.riotId.slice(0, a.riotId.lastIndexOf("#") + 1)}
+                            <wbr />
+                            {a.riotId.slice(a.riotId.lastIndexOf("#") + 1)}
+                          </>
+                        ) : (
+                          a.riotId
+                        )}
+                      </span>
                       {main ? (
                         <InfoTip text="The main account is shown on the profile and gives the rank shown (another account's when it has none).">
                           <Badge tone="accent">
@@ -177,65 +191,71 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
                       ) : null}
                     </div>
                   </div>
-                  {editable && a.label === "alt" && alternatives > 1 ? (
-                    <div className="flex shrink-0 items-center" role="group" aria-label={`Order of ${a.riotId}`}>
-                      {([-1, 1] as const).map((by) => {
-                        const first = ordered[0]?.label === "main" ? 1 : 0;
-                        const disabled = busy !== null || (by === -1 ? index <= first : index >= ordered.length - 1);
-                        const Icon = by === -1 ? ChevronUp : ChevronDown;
-                        return (
-                          <button
-                            key={by}
-                            type="button"
-                            ref={(el) => {
-                              moveRefs.current.set(`${a.id}:${by}`, el);
-                            }}
-                            className={buttonClass("ghost", "sm", "px-1.5 disabled:cursor-not-allowed disabled:opacity-40 pointer-coarse:min-w-11")}
-                            aria-label={`Move ${a.riotId} ${by === -1 ? "up" : "down"}`}
-                            title={by === -1 ? "Move up" : "Move down"}
-                            disabled={disabled}
-                            onClick={() => void move(a, by)}
-                            data-testid={`riot-account-move-${by === -1 ? "up" : "down"}`}
-                          >
-                            <Icon className="h-4 w-4" aria-hidden />
-                          </button>
-                        );
-                      })}
-                    </div>
-                  ) : null}
                   {editable ? (
-                    <Menu
-                      label={`Options for ${a.riotId}`}
-                      testId="riot-account-menu"
-                      trigger={(t) => (
-                        <Button {...t} size="sm" variant="ghost" className="max-md:min-w-11 pointer-coarse:min-w-11" aria-label={`Options for ${a.riotId}`} disabled={busy !== null}>
-                          <MoreHorizontal className="h-4 w-4" />
-                        </Button>
-                      )}
-                    >
-                      {a.label === "alt" ? (
-                        <MenuItem
-                          icon={<Star className="h-4 w-4" />}
-                          onSelect={async () => {
-                            setBusy(a.id);
-                            const r = await setMainAccountAction(playerId, a.id);
-                            setBusy(null);
-                            if (!r.ok) return toast.error(r.error);
-                            toast.success(`${a.riotId} is now ${your} Main account.`, { description: `${theirs ? "Their" : "Your"} other accounts are Alts and still count in every statistic.` });
-                            router.refresh();
-                          }}
-                        >
-                          Make Main account
-                        </MenuItem>
+                    // The account's controls: at the row's end, or under the Riot ID, at the end of a line of their own,
+                    // where a large text size leaves the Riot ID less than about ten letters (5em) beside them.
+                    <div className="ml-auto flex shrink-0 items-center">
+                      {editable && a.label === "alt" && alternatives > 1 ? (
+                        <div className="flex shrink-0 items-center" role="group" aria-label={`Order of ${a.riotId}`}>
+                          {([-1, 1] as const).map((by) => {
+                            const first = ordered[0]?.label === "main" ? 1 : 0;
+                            const disabled = busy !== null || (by === -1 ? index <= first : index >= ordered.length - 1);
+                            const Icon = by === -1 ? ChevronUp : ChevronDown;
+                            return (
+                              <button
+                                key={by}
+                                type="button"
+                                ref={(el) => {
+                                  moveRefs.current.set(`${a.id}:${by}`, el);
+                                }}
+                                className={buttonClass("ghost", "sm", "px-1.5 pointer-coarse:min-w-11")}
+                                aria-label={`Move ${a.riotId} ${by === -1 ? "up" : "down"}`}
+                                title={by === -1 ? "Move up" : "Move down"}
+                                disabled={disabled}
+                                onClick={() => void move(a, by)}
+                                data-testid={`riot-account-move-${by === -1 ? "up" : "down"}`}
+                              >
+                                <Icon className="h-4 w-4" aria-hidden />
+                              </button>
+                            );
+                          })}
+                        </div>
                       ) : null}
-                      <MenuItem icon={<Pencil className="h-4 w-4" />} onSelect={() => setRenaming(a)}>
-                        Change Riot ID
-                      </MenuItem>
-                      <MenuSeparator />
-                      <MenuItem tone="danger" icon={<Trash2 className="h-4 w-4" />} onSelect={() => setRemoving(a)}>
-                        {removeWord}
-                      </MenuItem>
-                    </Menu>
+                      {editable ? (
+                        <Menu
+                          label={`Options for ${a.riotId}`}
+                          testId="riot-account-menu"
+                          trigger={(t) => (
+                            <Button {...t} size="sm" variant="ghost" className="max-md:min-w-11 pointer-coarse:min-w-11" aria-label={`Options for ${a.riotId}`} disabled={busy !== null}>
+                              <MoreHorizontal className="h-4 w-4" />
+                            </Button>
+                          )}
+                        >
+                          {a.label === "alt" ? (
+                            <MenuItem
+                              icon={<Star className="h-4 w-4" />}
+                              onSelect={async () => {
+                                setBusy(a.id);
+                                const r = await setMainAccountAction(playerId, a.id);
+                                setBusy(null);
+                                if (!r.ok) return toast.error(r.error);
+                                toast.success(`${a.riotId} is now ${your} Main account.`, { description: `${theirs ? "Their" : "Your"} other accounts are Alts and still count in every statistic.` });
+                                router.refresh();
+                              }}
+                            >
+                              Make Main account
+                            </MenuItem>
+                          ) : null}
+                          <MenuItem icon={<Pencil className="h-4 w-4" />} onSelect={() => setRenaming(a)}>
+                            Change Riot ID
+                          </MenuItem>
+                          <MenuSeparator />
+                          <MenuItem tone="danger" icon={<Trash2 className="h-4 w-4" />} onSelect={() => setRemoving(a)}>
+                            {removeWord}
+                          </MenuItem>
+                        </Menu>
+                      ) : null}
+                    </div>
                   ) : null}
                 </div>
                 <div className="flex flex-wrap items-center gap-2 text-xs">
@@ -277,8 +297,9 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
               </div>
             </form>
           ) : (
-            <Button variant="outline" onClick={() => setAdding(true)}>
-              <Plus className="h-4 w-4" /> Add Riot account
+            // Its words wrap on a phone (wrap) rather than reach past the card at a large text size.
+            <Button variant="outline" wrap onClick={() => setAdding(true)}>
+              <Plus className="h-4 w-4 shrink-0" /> Add Riot account
             </Button>
           )
         ) : null}

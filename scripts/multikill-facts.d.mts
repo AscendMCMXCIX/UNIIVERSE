@@ -6,28 +6,68 @@ export interface MultikillRowRead {
   shown: string | null;
   /** Penta, quadra, triple, double. */
   counts: number[];
+  /** The table's kind cells as drawn, penta to double (null where a cell is missing). */
+  cells: Array<number | null>;
+  counted: number | null;
+  /** The games column as drawn. */
+  games: number | null;
   /** Riot's counters: double, triple, quadra, penta. */
   riot?: number[];
-  kinds: string[];
+  leader: boolean;
   crown: boolean;
+  /** The role icon's accessible name says the most-played position, a split or an unknown role. */
+  roleNamed: boolean;
+  scoreButton: boolean;
   height: number;
 }
 export interface MultikillBoardRead {
   present: boolean;
   rows?: MultikillRowRead[];
-  tiles?: Array<{ kind: string | null; count: number | null }>;
+  heads?: string[] | null;
   basis?: string;
   explained?: boolean;
-  rule?: "nested" | "separate" | null;
+  legend?: boolean;
+  rule?: string | null;
   empty?: boolean;
+  folds?: number;
+  /** Elements in main that scroll inside themselves. */
+  scrollers?: number;
+}
+export interface MultikillBreakdownRead {
+  present: boolean;
+  score?: number | null;
+  calc?: { earned: number | null; expected: number | null; cushion: number | null; score: number | null } | null;
+  kinds?: Array<{ made: number | null; weight: number | null; points: number | null }>;
+  role?: boolean;
+  comparison?: boolean;
+  levels?: number;
+  scrolls?: number;
+  /** The breakdown says the score is not champion- or role-adjusted (the team-wide fallback). */
+  notAdjusted?: boolean;
+  /** Its words mention champions and roles. */
+  claimsAdjusted?: boolean;
+}
+export interface BreakdownFocusRead {
+  open: boolean;
+  /** The focus on the first row's Score. */
+  onTrigger: boolean;
+  /** The focus on something after the Score in the page's order. */
+  afterTrigger: boolean;
 }
 export interface Verdict {
   name: string;
   status: "PASS" | "FAIL" | "WARN";
   detail: unknown;
 }
-export function readMultikillBoard(): MultikillBoardRead;
+export const MULTIKILL_ROLE_LABEL: string;
+export function roleLabelNamed(label: string | null | undefined): boolean;
+export function readMultikillBoard(rolePattern: string): MultikillBoardRead;
+export function readMultikillBreakdown(): MultikillBreakdownRead;
+export function readBreakdownFocus(): BreakdownFocusRead;
 export const MULTIKILL_BASES: { "same-games": string; team: string };
-export function kindsInWords(counts: number[]): string[];
+export const MULTIKILL_HEADS: string[][];
 export function eventsOf(riot: number[], rule: "nested" | "separate"): number[];
+export function scoreFrom(calc: { earned: number; expected: number; cushion: number }): number;
 export function multikillVerdicts(input: { kind: string; read: MultikillBoardRead }): Verdict[];
+export function breakdownVerdicts(input: { kind: string; read: MultikillBreakdownRead; rowScore: number | null | undefined }): Verdict[];
+export function breakdownKeyboardVerdicts(input: { kind: string; forward: BreakdownFocusRead | null; back: BreakdownFocusRead | null }): Verdict[];

@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { TrendingDown, TrendingUp } from "lucide-react";
 import type { FormMetric, RecentForm } from "@/domain/recent-form";
-import { FORM_GAP, FORM_METRIC_GAP, FORM_MIN_GAMES, FORM_MIN_RECENT, FORM_RECENT } from "@/domain/recent-form";
+import { FORM_MIN_GAMES, FORM_RECENT } from "@/domain/recent-form";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { InfoTip } from "@/components/ui/info-tip";
 import { ChampionPortrait } from "@/components/champion-portrait";
@@ -9,10 +9,12 @@ import { cn } from "@/lib/cn";
 import { FitChampions } from "@/components/ui/fit-rows";
 
 /**
- * Recent form's ⓘ, true to recentForm(): the newest FORM_RECENT games against all of them; a trend
- * (and each figure's arrow) only with FORM_MIN_RECENT more games before those and a clear gap.
+ * Recent form's ⓘ, true to recentForm(), in plain words (25 Nov 2026: one concept, no thresholds):
+ * the newest FORM_RECENT games against all of them; a trend and each figure's arrow only with
+ * FORM_MIN_RECENT more games before those and a clear gap (FORM_GAP win-rate points, FORM_METRIC_GAP
+ * for the other figures, in domain/recent-form.ts; docs/HELP_TEXT.md keeps the numbers the tip left out).
  */
-export const RECENT_FORM_HELP = `The latest ${FORM_RECENT} games against all in this filter. Trends and arrows need ${FORM_MIN_RECENT}+ older games too and a clear gap: ${FORM_GAP}+ win-rate points, ${FORM_METRIC_GAP.kda.relative * 100}% KDA or vision, ${FORM_METRIC_GAP.cs.absolute} CS/min.`;
+export const RECENT_FORM_HELP = `The latest ${FORM_RECENT} games compared with every game in these filters. Arrows show only when there are enough older games and the difference is clear.`;
 
 const fmt = (m: Pick<FormMetric, "key" | "recent">) => (m.recent === null ? "—" : m.recent.toFixed(m.key === "vision" ? 0 : 1));
 
@@ -37,19 +39,35 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
           <h2 id="recent-form-title" className="text-base font-semibold text-fg">
             Recent form
           </h2>
+          {/* The verdict in words where the card has room for it beside the title, else its short form
+              (the words stay for a screen reader), so the title's row never wraps and the card never
+              grows a line because of the verdict's length (a 1440 × 900 Overview ran 2px past the
+              window when "Better lately (+N pts)" wrapped). */}
           <div className="flex items-center gap-1 text-xs" data-testid="recent-form-trend" data-trend={form.trend ?? "none"}>
             {form.trend === "up" ? (
               <span className="inline-flex items-center gap-1 text-good">
-                <TrendingUp className="h-3.5 w-3.5" aria-hidden /> Better lately (+{form.gapPoints} pts)
+                <TrendingUp className="h-3.5 w-3.5" aria-hidden />
+                <span className="@max-[19rem]:hidden">Better lately (+{form.gapPoints} pts)</span>
+                <span className="hidden whitespace-nowrap tabular-nums @max-[19rem]:inline" aria-hidden>+{form.gapPoints} pts</span>
+                <span className="sr-only @min-[19rem]:hidden">Better lately (+{form.gapPoints} pts)</span>
               </span>
             ) : form.trend === "down" ? (
               <span className="inline-flex items-center gap-1 text-bad">
-                <TrendingDown className="h-3.5 w-3.5" aria-hidden /> Worse lately ({form.gapPoints} pts)
+                <TrendingDown className="h-3.5 w-3.5" aria-hidden />
+                <span className="@max-[19rem]:hidden">Worse lately ({form.gapPoints} pts)</span>
+                <span className="hidden whitespace-nowrap tabular-nums @max-[19rem]:inline" aria-hidden>{form.gapPoints} pts</span>
+                <span className="sr-only @min-[19rem]:hidden">Worse lately ({form.gapPoints} pts)</span>
               </span>
             ) : form.trend === "steady" ? (
-              <span className="text-fg-muted">In line with the season</span>
+              <span className="text-fg-muted">
+                <span className="@max-[19rem]:hidden">In line with the season</span>
+                <span className="hidden @max-[19rem]:inline">Steady</span>
+              </span>
             ) : (
-              <span className="text-fg-subtle">Too few games to call a trend</span>
+              <span className="text-fg-subtle">
+                <span className="@max-[19rem]:hidden">Too few games to call a trend</span>
+                <span className="hidden @max-[19rem]:inline">No trend yet</span>
+              </span>
             )}
             <InfoTip label="About recent form" text={RECENT_FORM_HELP} />
           </div>
@@ -78,18 +96,18 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
           32rem; two by two where four would not hold their figures (a 320px phone at large text). */}
       <dl className="grid grid-cols-2 gap-x-4 gap-y-2.5 text-sm @min-[18rem]:grid-cols-4 @min-[18rem]:gap-x-3" data-testid="recent-form-rates">
         <div>
-          <dt className="text-xs text-fg-subtle">Last {form.recent.games}</dt>
+          <dt className="text-xs text-fg-muted">Last {form.recent.games}</dt>
           <dd className="text-lg font-semibold tabular-nums text-fg">
             {pct(form.recent.winRate)} <span className="text-xs font-normal text-fg-muted @min-[18rem]:@max-lg:block">{form.recent.wins}W {form.recent.games - form.recent.wins}L</span>
           </dd>
         </div>
         <div>
-          <dt className="text-xs text-fg-subtle">All {form.season.games}</dt>
+          <dt className="text-xs text-fg-muted">All {form.season.games}</dt>
           <dd className="text-lg font-semibold tabular-nums text-fg">{pct(form.season.winRate)}</dd>
         </div>
         {form.metrics.map((m) => (
           <div key={m.key} data-testid={`recent-form-${m.key}`} data-direction={m.direction ?? "none"} >
-            <dt className="text-xs text-fg-subtle">{m.label}</dt>
+            <dt className="text-xs text-fg-muted">{m.label}</dt>
             <dd className="text-lg font-semibold tabular-nums text-fg">
               {/* The trend beside the figure, never parted from it, so it shares the figure's line when "vs …" drops to its own. */}
               <span className="whitespace-nowrap">
@@ -153,11 +171,14 @@ function RecentChampions({ last, champ, fewer }: { last: RecentForm["last"]; cha
     [more(3), "hidden board-at-mid:board-below-short:inline"],
     [more(RECENT_CHAMPIONS_SHOWN), "hidden board-at-short:inline"],
   ];
+  // The heading on a 16px line and 4px over the list (25 Nov 2026): the sentence-case label is 12px on desktops where
+  // the capitals were 11px, and with four rows a member whose Ranked progress card is taller ran 2px past a 1440 × 900
+  // window; these 4px keep the Overview on one screen (home-layout.spec, "profile Overview on one screen").
   return (
     <div className="hidden min-[90rem]:@min-[68rem]/ov:block" data-testid="recent-form-champions">
       <FitChampions
         total={rows.length}
-        heading={<h3 className="label-caps">Champions in these games</h3>}
+        heading={<h3 className="label-text leading-4">Champions in these games</h3>}
         cssMore={
           more(2) ? (
             <p className="text-xs text-fg-subtle" data-testid="recent-form-champions-more">
@@ -166,7 +187,7 @@ function RecentChampions({ last, champ, fewer }: { last: RecentForm["last"]; cha
           ) : null
         }
       >
-        <ul className="mt-1.5 divide-y divide-border/60">
+        <ul className="mt-1 divide-y divide-border/60">
           {rows.map((c, i) => (
             <li key={c.id} className={cn("flex min-w-0 items-center gap-2.5 py-1", CHAMPION_ROW_FOLD(i, fewer))} data-champion={c.id} data-ov-rank={i + 1}>
               <span aria-hidden className="inline-flex">

@@ -9,8 +9,9 @@ Status: **live.** The owner approved the rules, and these boards replaced the pr
   "The page"). The rules below are unchanged.
 - **A multikill score since 23 Nov 2026 (Release 15, the owner's request):** the multikills are
   ranked by a per-game score against the same roles and champions in the same games, with double
-  kills counted; the most of each kind stays an achievement of its own (section 4 and
-  docs/TEAM_LEADERBOARDS.md, "The multikill score"). The one exception to principles 3 and 4 below.
+  kills counted; since 25 Nov 2026 the table's kinds' columns show each player's doubles, triples,
+  quadras and pentas (the "most of each" tiles went: section 4 and docs/TEAM_LEADERBOARDS.md, "The
+  multikill score"). The one exception to principles 3 and 4 below.
 - **Where the code is:**
   - `src/domain/leaderboard-recent.ts`, `src/domain/leaderboard-records.ts` and `src/domain/multikill-score.ts`;
   - the multikill score's comparison in `src/server/leaderboards/multikill-baseline.ts`;
@@ -79,8 +80,8 @@ Status: **live.** The owner approved the rules, and these boards replaced the pr
 | Games in the window | Status | On the board |
 |---|---|---|
 | 20 | Established | Ranked |
-| 10–19 | Provisional | Listed after every established player, in order, marked "Provisional · 14 of 20 games"; never above an established player |
-| 0–9 | Not enough recent games | The board's last group: "Needs 6 more games", with the date of their last game |
+| 10–19 | Provisional | Not listed since 25 Nov 2026 (the owner's requirements: no provisional rows or "not enough" groups); kept in the model and the data audit, never above an established player |
+| 0–9 | Not enough recent games | Not listed |
 
 ### Boards and figures
 
@@ -138,8 +139,14 @@ Status: **live.** The owner approved the rules, and these boards replaced the pr
 
 ### Inactivity
 
-- **Sixty days.** A player who stops playing moves to provisional, then to the board's last group,
-  within 60 days of their last games. They come back as soon as they play again.
+- **Thirty days, on every board** (25 Nov 2026). A player is shown only while they have both a
+  game the boards count (a supported Summoner's Rift queue, not a remake) within the last 30 days
+  and a successful data update of one of their accounts within the same 30 days (the sync cursor,
+  written on success only). A sync with no new game never makes a player active. It is a rule of
+  what is shown, worked out from the page's time on every request, so a returning player is back
+  with their next synced game; nothing is deleted, and the season's statistics stay season-based.
+  Places are counted again among the players shown.
+- **Sixty days.** Recent form's own window: a player needs 20 games in the last 60 days for a place.
 
 ### What this view does not do
 
@@ -148,7 +155,7 @@ Status: **live.** The owner approved the rules, and these boards replaced the pr
 - **No shrinkage, because the window equalises samples.** Every established player has exactly 20
   games, so shrinking towards the team's mean would not change their order. It would only hide how
   provisional players are doing, and listing provisional players after established ones does that
-  job openly.
+  job openly (since 25 Nov 2026 by not listing them).
 
 ## 4. Records & achievements
 
@@ -166,8 +173,8 @@ expected of a record.
 
   Each record shows the role and champion it was set on.
 - **Multikills this season** (since 23 Nov 2026; a rarest-first tally of triple, quadra and
-  pentakills before): a ranking by the multikill score, and the most double, triple, quadra and
-  pentakills.
+  pentakills before): a ranking by the multikill score (the most-of-each tiles went on 25 Nov 2026:
+  the table's columns show the counts).
   - **The score:** per game, each kind (double, triple, quadra, penta) against what players on the
     same roles and champions made in the same stored games (every other participant of the members'
     season games, never a team member: a real observed baseline, labelled as such, never "high-elo"),
@@ -180,22 +187,29 @@ expected of a record.
     role's rates lean toward every position's by 200 games, a champion's toward its role's by 50; a
     cushion of 40 kill points (twenty usual double kills) pulls a score with few games toward 100,
     chosen by simulation (round 3: against 20, 30 and 60) so members with few games neither top the
-    board out of proportion nor are held back on realistic boards. The ⓘ says how far luck alone
-    moves a score over 50 and 300 games, and within how many points two scores could swap by luck.
+    board out of proportion nor are held back on realistic boards. Each breakdown says how far luck
+    alone moves that score.
   - **The trade-off:** a pentakill counts as 2.5 doubles (its kills), so over many games a score is
-    mostly doubles and triples; "Most pentas" keeps pentakills recognised.
-  - **Places:** 20 games with counts for a place, 10–19 provisional (listed after), fewer no score;
-    the same statuses Recent form uses.
-  - **Records of their own:** the most of each kind (each multikill once, every holder of a shared
-    one), so a member can chase pentakills whatever the score says.
+    mostly doubles and triples; the table's Pentas column keeps pentakills recognised.
+  - **Places:** 20 games with counts for a place; 10–19 provisional and fewer are not listed (25 Nov
+    2026), the thresholds kept; places among the active players shown.
+  - **The table** (25 Nov 2026): place, player with the most-played role's icon (over the score's
+    games), games, doubles, triples, quadras, pentas and the Score; how to read a score at its foot
+    (below 100, 100, above 100). Never called a percentage.
   - **One count everywhere:** the profiles show the same once-each counts as the board (round 3).
-  - **The reason behind a score:** the player Peek a row opens shows each kind made against its
-    usual and the score's spread by chance, on every device.
+  - **The reason behind a score:** the Score is a button opening its breakdown (points per kind,
+    earned, typical, +40, the final line that gives the score, the comparison and its fallbacks;
+    docs/TEAM_LEADERBOARDS.md, "The Score breakdown"); the player Peek leads with it in short.
+  - **Fairness:** reviewed on 25 Nov 2026 (docs/TEAM_LEADERBOARDS.md, "Fairness review"): no change
+    to the maths; the limits (queue mix, games without a role, the team-wide fallback) are disclosed.
 - **Champion milestones**, under their own "Milestones" heading ("Lifetime and milestones" until 19 Nov 2026):
   - games on one champion this season (25, 50, 100);
   - Riot mastery points on a champion (100,000, 500,000, 1,000,000).
 
-  Mastery is all-time by Riot's definition, so it never mixes with season figures.
+  Mastery is all-time by Riot's definition, so it never mixes with season figures. The board shows the
+  active players' most meaningful milestones, at most eight (the highest step first, each player's
+  best before anyone's second), the rest on the profiles. The season records and milestones are the
+  active players' own: a record held by a player away for 30 days moves while they are, and returns.
 
 ## 5. Navigation
 

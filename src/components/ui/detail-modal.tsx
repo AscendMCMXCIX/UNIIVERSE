@@ -5,7 +5,7 @@ import { X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { focusWindow, lastInput, letGoWhenPressed, opensFocusingItself } from "./input-kind";
 import { noteModalAtRest, noteModalClosed, noteModalOpened } from "./top-layer";
-import { WINDOW_CONTROL_TOUCH } from "./window-control";
+import { LABELLED_CLOSE, WINDOW_CONTROL_TOUCH } from "./window-control";
 
 /**
  * How much room a detail needs: compact for a short note, standard for a player or a champion,
@@ -406,6 +406,7 @@ export function DetailModal({
   headerClassName,
   titleId: titleIdProp,
   closeTestId,
+  closeLabel,
   bodyTestId,
   headerTestId,
   bodyClassName,
@@ -434,6 +435,12 @@ export function DetailModal({
   headerClassName?: string;
   titleId?: string;
   closeTestId?: string;
+  /**
+   * The close button's word, shown beside its ✕ ("Close"): the labelled, outlined button
+   * (LABELLED_CLOSE) instead of the quiet ✕, for a window whose close is its most prominent action
+   * (All Champions' preview sheet, as its pane beside the list). Its name stays "Close".
+   */
+  closeLabel?: string;
   bodyTestId?: string;
   headerTestId?: string;
   bodyClassName?: string;
@@ -804,14 +811,20 @@ export function DetailModal({
         type="button"
         onClick={requestClose}
         aria-keyshortcuts="Escape"
-        className={cn(
-          "grid shrink-0 place-items-center transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent",
-          screen ? "touch-target h-9 w-9 rounded-full bg-surface-2/70 text-fg-muted hover:bg-surface-2" : `h-9 w-9 rounded-md text-fg-subtle hover:bg-surface-2 ${WINDOW_CONTROL_TOUCH}`,
-        )}
+        className={
+          closeLabel && !screen
+            ? LABELLED_CLOSE
+            : cn(
+                "grid shrink-0 place-items-center transition-colors hover:text-fg focus-visible:outline-2 focus-visible:outline-accent",
+                screen ? "touch-target h-9 w-9 rounded-full bg-surface-2/70 text-fg-muted hover:bg-surface-2" : `h-9 w-9 rounded-md text-fg-subtle hover:bg-surface-2 ${WINDOW_CONTROL_TOUCH}`,
+              )
+        }
         aria-label="Close"
         data-testid={closeTestId}
+        data-labelled={closeLabel && !screen ? "" : undefined}
       >
-        <X className={screen ? "h-[1.125rem] w-[1.125rem]" : "h-4 w-4"} />
+        <X className={screen ? "h-[1.125rem] w-[1.125rem]" : "h-4 w-4"} aria-hidden={closeLabel && !screen ? true : undefined} />
+        {closeLabel && !screen ? closeLabel : null}
       </button>
     </>
   );

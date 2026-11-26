@@ -46,6 +46,13 @@ export interface Branding extends BrandColours {
 export const DEFAULT_COLOURS = { accent: "#1fc3ff", accent2: "#9a7dff", background: "#0a0b12", surface: "#12131c", highlight: "#7fdcff" } as const;
 /** The app's text colour (light on dark); custom backgrounds and surfaces must keep it readable. */
 export const TEXT_COLOUR = "#eef0f6";
+/**
+ * The tertiary text colour (fg-subtle: timestamps, footnotes, small samples), the quietest that
+ * reads as running text. Custom colours must keep it at 4.5:1 too (25 Nov 2026), on the panels'
+ * selected shade as well, or a team's colours could push the quietest text under AA. Both values
+ * are globals.css's tokens (branding.test.ts compares them).
+ */
+export const SUBTLE_TEXT_COLOUR = "#a2a8bc";
 
 /** Team Overview's background visibility until an admin chooses another. */
 export const DEFAULT_BACKDROP_LEVEL = 50;
@@ -168,7 +175,10 @@ export function contrastRatio(a: string, b: string): number {
 }
 
 export interface ContrastCheck {
+  /** The colour it checks (several checks share one: body and quiet text on a surface). */
   key: keyof BrandColours;
+  /** What it checks, in words ("Quiet text on panels"): unique, so it names the check (and keys its row). */
+  what: string;
   ratio: number;
   /** Below this the colours are refused. */
   minimum: number;
@@ -177,8 +187,10 @@ export interface ContrastCheck {
 }
 
 /**
- * Readability checks for a colour set: body text on the background and on surfaces (WCAG AA,
- * 4.5:1), and the accents and highlight against the background (3:1, the level for UI parts).
+ * Readability checks for a colour set: body text and the quietest text (fg-subtle) on the background
+ * and on surfaces, the latter also on the selected shade (surface-3, the surface 12% towards white
+ * as brandThemeVars derives it), all at WCAG AA, 4.5:1; and the accents and highlight against the
+ * background (3:1, the level for UI parts).
  */
 export function checkContrast(c: BrandColours): ContrastCheck[] {
   const bg = c.background ?? DEFAULT_COLOURS.background;
@@ -186,13 +198,16 @@ export function checkContrast(c: BrandColours): ContrastCheck[] {
   const checks: Array<[keyof BrandColours, string, string, number, string]> = [
     ["background", TEXT_COLOUR, bg, 4.5, "Text on the background"],
     ["surface", TEXT_COLOUR, surface, 4.5, "Text on panels"],
+    ["background", SUBTLE_TEXT_COLOUR, bg, 4.5, "Quiet text on the background"],
+    ["surface", SUBTLE_TEXT_COLOUR, surface, 4.5, "Quiet text on panels"],
+    ["surface", SUBTLE_TEXT_COLOUR, lightenHex(surface, 0.12), 4.5, "Quiet text on selected rows"],
     ["accent", c.accent, bg, 3, "Primary accent on the background"],
     ["accent2", c.accent2 ?? DEFAULT_COLOURS.accent2, bg, 3, "Secondary accent on the background"],
     ["highlight", c.highlight ?? DEFAULT_COLOURS.highlight, bg, 3, "Highlight on the background"],
   ];
   return checks.map(([key, fg, back, minimum, what]) => {
     const ratio = Math.round(contrastRatio(fg, back) * 10) / 10;
-    return { key, ratio, minimum, ok: ratio >= minimum, message: `${what}: ${ratio}:1${ratio >= minimum ? "" : ` (needs ${minimum}:1)`}` };
+    return { key, what, ratio, minimum, ok: ratio >= minimum, message: `${what}: ${ratio}:1${ratio >= minimum ? "" : ` (needs ${minimum}:1)`}` };
   });
 }
 

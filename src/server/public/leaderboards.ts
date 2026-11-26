@@ -35,6 +35,8 @@ export function loadPublicLeaderboardData(db: Db, teamId: string): Promise<Leade
               art: p.art ? { championId: p.art.championId, skinNum: p.art.skinNum } : null,
               rank: p.rank ? { tier: p.rank.tier, division: p.rank.division, leaguePoints: p.rank.leaguePoints, queue: p.rank.queue } : null,
               primaryRole: p.primaryRole,
+              // Who the boards show (active within 30 days); server-side only, never in the page's view.
+              lastSyncedAt: p.lastSyncedAt,
             },
           ];
         }),

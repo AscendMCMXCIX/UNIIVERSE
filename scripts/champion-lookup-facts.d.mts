@@ -15,18 +15,34 @@ export interface ChampionLookupRead {
   qHasted: number[];
   qOpen: boolean;
   qDescription: number;
+  passiveKind: string | null;
+  passiveDash: string;
   passive: string;
   passiveHasted: boolean;
   rule: string;
+  limit: string;
   range: string;
   mechanics: number;
+  slotKeys: string;
+  namesCut: number;
   lastBottom: number;
   hasteBottom: number;
   panels: number;
   sideBySide: boolean;
+  rowsLevel: boolean;
   scrollers: number;
   timerWords: boolean;
   url: string;
+  secondChampion: string | null;
+  /** The first champion's builds section: "shown", "few", "unavailable", or null (none). */
+  buildsStatus: string | null;
+  buildsLine: string;
+  buildsFew: string;
+  /** Each part's row; `trees`: the rune page's tree icons drawn (two where the runes are shown). */
+  buildsParts: Array<{ part: string; state: string; win: string; pick: string; pictures: number; trees: number; text: string }>;
+  /** Compare: the two builds slots level; null with fewer than two. */
+  buildsLevel: boolean | null;
+  buildsIdentity: boolean;
 }
 
 export interface ChampionWindowRead {
@@ -55,6 +71,10 @@ export function championLookupVerdicts(input: {
   all: ChampionWindowRead;
   search: ChampionWindowRead;
   dual?: ChampionLookupRead;
+  swapped?: ChampionLookupRead;
+  removed?: ChampionLookupRead;
+  /** The step of Compare, Swap and ✕ that did not finish; undefined: all finished. */
+  stopped?: "compare" | "swap" | "remove";
   legacy: Pick<ChampionLookupRead, "url" | "champion" | "heading">;
   healthPatch?: string | null;
 }): Verdict[];

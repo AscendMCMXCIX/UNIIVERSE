@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { TYPICAL_FIGURES, COMPONENT_ORDER, OUTCOME_STEP, ROLE_WEIGHTS, SCORE_VERSION, laneValue, reasonText, scoreMatch, scoreModeOf, seriesAt, timelineScores, toTen, trendOf, evidenceAt, teamAverages, TREND_SENTENCES, EXCELLENT_AT, type ScoreInput, type ScoreLane, type TimelineInput } from "./performance-score";
+import * as model from "./performance-score";
+import { TYPICAL_FIGURES, COMPONENT_ORDER, OUTCOME_STEP, ROLE_WEIGHTS, SCORE_VERSION, laneValue, reasonText, scoreMatch, scoreModeOf, seriesAt, toTen, teamAverages, EXCELLENT_AT, type ScoreInput, type ScoreLane } from "./performance-score";
 
 /*
   The performance score's worked examples and fairness tests (docs/PERFORMANCE_SCORE.md). A game is
@@ -186,14 +187,7 @@ describe("the why", () => {
   });
 });
 
-describe("the timeline score", () => {
-  const t = [0, 60_000, 300_000, 600_000, 900_000, 1_200_000, 1_500_000, 1_800_000];
-  const frames = (lead: number) => ({ g: t.map((ms) => 500 + (ms / 60_000) * (400 + lead)), x: t.map((ms) => (ms / 60_000) * (450 + lead)), c: t.map((ms) => (ms / 60_000) * 7) });
-  const timeline = (inputs: ScoreInput[], early: Record<number, number[]> = {}): { t: number[]; players: TimelineInput[] } => ({
-    t,
-    players: inputs.map((p) => ({ slot: p.slot, kills: early[p.slot] ?? Array.from({ length: p.kills! }, (_, k) => 1_000_000 + k * 10_000), deaths: Array.from({ length: p.deaths! }, (_, k) => 400_000 + k * 200_000), assists: Array.from({ length: p.assists! }, (_, k) => 1_100_000 + k * 20_000), frames: frames(p.slot === 0 ? 80 : p.slot === 5 ? -80 : 0) })),
-  });
-
+describe("the lane figure (the timeline's one part in the score)", () => {
   it("reads values between frames, never outside them", () => {
     expect(seriesAt([0, 60_000], [0, 100], 30_000)).toBe(50);
     expect(seriesAt([0, 60_000], [0, 100], 90_000)).toBeNull();
@@ -204,139 +198,53 @@ describe("the timeline score", () => {
     expect(laneValue([0, 600_000, 900_000], me, them, 700_000)).toBe(2_000 + 1_000 - 1_800 - 900);
     expect(laneValue([0, 600_000, 900_000], me, them, 900_000)).toBe(((2_000 + 1_000 - 1_800 - 900) + (4_000 + 2_000 - 3_500 - 1_900)) / 2);
   });
+});
 
-  it("scores every five minutes on the Rift from what had happened by then, ending on the final score", () => {
-    const inputs = game();
-    const final = scoreMatch(inputs, RIFT);
-    const points = timelineScores(inputs, timeline(inputs), final, { mode: "rift", durationMinutes: 30 })!;
-    expect(points.map((p) => p.minute)).toEqual([5, 10, 15, 20, 25, 30]);
-    expect(points.at(-1)!.final).toBe(true);
-    expect(points.at(-1)!.scores[0]).toBe(scoreOf(final, 0).score);
-    // Before the end: no damage, vision or other end-of-game figure, and no result step.
-    for (const p of points.slice(0, -1)) for (const k of ["damage", "vision", "wards", "cc", "protect", "objectives", "turrets", "tanking"]) expect(p.components).not.toContain(k);
-    // The top laner ahead in gold and experience leads his lane from the first point.
-    expect(points[0]!.scores[0]!).toBeGreaterThan(points[0]!.scores[5]!);
-  });
-
-  it("never applies a later figure to an earlier moment: kills made late change nothing early", () => {
-    const inputs = game({ 2: { kills: 14 } });
-    const final = scoreMatch(inputs, RIFT);
-    const late = timelineScores(inputs, timeline(inputs, { 2: Array.from({ length: 14 }, (_, k) => 1_500_000 + k * 5_000) }), final, { mode: "rift", durationMinutes: 30 })!;
-    const early = timelineScores(inputs, timeline(inputs, { 2: Array.from({ length: 14 }, (_, k) => 200_000 + k * 20_000) }), final, { mode: "rift", durationMinutes: 30 })!;
-    expect(early[1]!.scores[2]!).toBeGreaterThan(late[1]!.scores[2]!);
-    expect(early.at(-1)!.scores[2]).toBe(late.at(-1)!.scores[2]);
-  });
-
-  it("steps three minutes on ARAM", () => {
-    const inputs = game().map((p) => ({ ...p, lane: null, counterpart: null }));
-    const t18 = { t: [0, 360_000, 720_000, 1_080_000], players: inputs.map((p) => ({ slot: p.slot, kills: [], deaths: [], assists: [], frames: { g: [500, 2_500 + p.slot * 50, 5_000 + p.slot * 80, 8_000 + p.slot * 100], x: [0, 2_000, 4_000, 6_000], c: [0, 10, 20, 30] } })) };
-    const points = timelineScores(inputs, t18, scoreMatch(inputs, { mode: "aram", minutes: 18 }), { mode: "aram", durationMinutes: 18 })!;
-    expect(points.map((p) => p.minute)).toEqual([3, 6, 9, 12, 15, 18]);
-  });
-
-  it("is null without frames or a final score, and leaves out kill figures when any player's kills are not kept", () => {
-    const inputs = game();
-    expect(timelineScores(inputs, { t: [], players: [] }, scoreMatch(inputs, RIFT), { mode: "rift", durationMinutes: 30 })).toBeNull();
-    expect(timelineScores(inputs, timeline(inputs), null, { mode: "rift", durationMinutes: 30 })).toBeNull();
-    const tl = timeline(inputs);
-    tl.players[3] = { ...tl.players[3]!, kills: null };
-    const points = timelineScores(inputs, tl, scoreMatch(inputs, RIFT), { mode: "rift", durationMinutes: 30 })!;
-    for (const p of points.slice(0, -1)) expect(p.components.some((k) => k === "kp" || k === "kda" || k === "deaths")).toBe(false);
+describe("the score through the game is gone (the owner's requirements of 25 Nov 2026)", () => {
+  it("exports no timeline score, damping, prior or trend word: final scores only", () => {
+    for (const name of ["timelineScores", "trendOf", "evidenceAt", "coverageOf", "timelineStep", "DAMPING_MINUTES", "PRIOR_MINUTES", "TREND_RULES", "TREND_SENTENCES"]) expect(model, name).not.toHaveProperty(name);
+    expect(SCORE_VERSION, "final scores unchanged").toBe("v3");
   });
 });
 
-describe("the timeline's damping (v2)", () => {
-  // Every event spread evenly over a 35-minute game, every frame linear: each player plays the same game throughout.
-  const minutes = 35;
-  const t = Array.from({ length: minutes + 1 }, (_, m) => m * 60_000);
-  const even = (n: number) => Array.from({ length: n }, (_, k) => Math.round(((k + 0.5) / n) * minutes * 60_000));
-  const steadyTimeline = (inputs: ScoreInput[]) => ({
-    t,
-    players: inputs.map((p) => ({ slot: p.slot, kills: even(p.kills!), deaths: even(p.deaths!), assists: even(p.assists!), frames: { g: t.map((ms) => 500 + (p.gold! - 500) * (ms / t.at(-1)!)), x: t.map((ms) => 18_000 * (ms / t.at(-1)!)), c: t.map((ms) => p.cs! * (ms / t.at(-1)!)) } })),
-  });
-  const run = (inputs: ScoreInput[]) => timelineScores(inputs, steadyTimeline(inputs), scoreMatch(inputs, { mode: "rift", minutes }), { mode: "rift", durationMinutes: minutes })!;
-  const series = (points: ReturnType<typeof run>, slot: number) => points.filter((p) => !p.final).map((p) => p.scores[slot]!);
-
-  it("shrinks early points toward 5 by the minutes played, and never the final point", () => {
-    expect(evidenceAt("rift", 5)).toBeCloseTo(5 / 13, 9);
-    expect(evidenceAt("rift", 15)).toBeCloseTo(15 / 23, 9);
-    expect(evidenceAt("aram", 3)).toBeCloseTo(3 / 8, 9);
-    const inputs = game({ 3: { kills: 14, deaths: 1, assists: 9, damage: 40_000, gold: 16_000, cs: 290 } });
-    const points = run(inputs);
-    const carry = series(points, 3);
-    // Ahead all game: above 5 at every point, closer to 5 early than late.
-    for (const v of carry) expect(v).toBeGreaterThan(5);
-    expect(carry[0]! - 5).toBeLessThan(carry.at(-1)! - 5);
-    expect(points.at(-1)!.scores[3]).toBe(scoreMatch(inputs, { mode: "rift", minutes })!.players.find((p) => p.slot === 3)!.score);
-  });
-
-});
-
-describe("trend words (v3: read on the undamped weighted means, z units)", () => {
-  it("follow their written rules, the first that holds naming the trend", () => {
-    expect(trendOf([0.6, 0.7, 0.5, 0.55], 0.6)?.word).toBe("Dominant");
-    expect(trendOf([-0.6, -0.5, -0.7], -0.5)?.word).toBe("Struggling");
-    // A weak start, then an above-average finish (the final read for this rule).
-    expect(trendOf([-0.5, -0.2, 0, 0.1], 0.3)?.word).toBe("Resilient");
-    expect(trendOf([-0.2, 0, 0.2, 0.3], 0.3)?.word).toBe("Rising");
-    expect(trendOf([0.4, 0.2, -0.1, -0.2], -0.2)?.word).toBe("Fading");
-    expect(trendOf([0, 0.05, 0.1, 0.05], 0.6)?.word).toBe("Strong finish");
-    expect(trendOf([0, 0.05, 0.1, 0.05], -0.4)?.word).toBe("Weak finish");
-    expect(trendOf([0.5, 0.45, 0.4, 0.42, 0.4, 0.45], 0.45)?.word).toBe("Fast start");
-    expect(trendOf([0, -0.6, 0.5, 0.4, -0.5], -0.5)?.word).toBe("Erratic");
-    expect(trendOf([0, 0.1, 0.05, -0.05], 0.05)?.word).toBe("Steady");
-    expect(trendOf([0, 0.25, -0.2, 0.15], 0.1)).toBeNull();
-    expect(trendOf([0, 0.1])).toBeNull();
-    expect(trendOf([0.6, 0.7, 0.5], 0.6)?.sentence).toBe(TREND_SENTENCES.Dominant);
-  });
-
-  it("never says Steady when the final is far from the last point", () => {
-    expect(trendOf([0, 0.05, 0.02, 0.03], 0.45)?.word).not.toBe("Steady");
-    expect(trendOf([0, 0.05, 0.02, 0.03], -0.45)?.word).not.toBe("Steady");
-  });
-
-  // Synthetic games on a linear timeline: one player's kills placed in time, everything else typical.
-  const minutes = 35;
-  const t = Array.from({ length: minutes + 1 }, (_, m) => m * 60_000);
-  const at = (n: number, from: number, to: number) => Array.from({ length: n }, (_, k) => Math.round((from + ((k + 0.5) / n) * (to - from)) * 60_000));
-  const synthetic = (inputs: ScoreInput[], place: Record<number, { kills?: [number, number]; deaths?: [number, number]; gold?: "late" | "early" }> = {}) => ({
-    t,
-    players: inputs.map((p) => {
-      const pl = place[p.slot] ?? {};
-      const g = (ms: number) => {
-        const f = ms / t.at(-1)!;
-        const shape = pl.gold === "late" ? f * f : pl.gold === "early" ? Math.sqrt(f) : f;
-        return 500 + (p.gold! - 500) * shape;
-      };
-      return { slot: p.slot, kills: at(p.kills!, ...(pl.kills ?? [0, minutes])), deaths: at(p.deaths!, ...(pl.deaths ?? [0, minutes])), assists: at(p.assists!, ...(pl.kills ?? [0, minutes])), frames: { g: t.map(g), x: t.map((ms) => 18_000 * (ms / t.at(-1)!)), c: t.map((ms) => p.cs! * (ms / t.at(-1)!)) } };
-    }),
-  });
-  const trendFor = (inputs: ScoreInput[], place: Parameters<typeof synthetic>[1], slot: number) => {
-    const final = scoreMatch(inputs, { mode: "rift", minutes })!;
-    const points = timelineScores(inputs, synthetic(inputs, place), final, { mode: "rift", durationMinutes: minutes })!;
-    return trendOf(points.filter((p) => !p.final).map((p) => p.raw[slot]!), final.players.find((p) => p.slot === slot)!.raw)?.word ?? null;
+describe("MVP and ACE (the winning team's highest score, and the losing team's)", () => {
+  /** A deterministic spread of games: each player's figures moved by a small pseudo-random factor. */
+  const varied = (seed: number, winner: 100 | 200) => {
+    let x = seed;
+    const next = () => ((x = (x * 1_103_515_245 + 12_345) % 2_147_483_648) / 2_147_483_648) * 1.6 + 0.4;
+    return game(Object.fromEntries(Array.from({ length: 10 }, (_, slot) => {
+      const t = TYPICAL[LANES[slot % 5]!];
+      return [slot, { kills: Math.round(t.kills! * next()), deaths: Math.round(t.deaths! * next()), assists: Math.round(t.assists! * next()), damage: Math.round(t.damage! * next()), gold: Math.round(t.gold! * next()), cs: Math.round(t.cs! * next()) }];
+    })), winner);
   };
 
-  it("a steady ordinary game reads Steady at every seat", () => {
-    for (let slot = 0; slot < 10; slot++) expect(trendFor(game(), {}, slot), `slot ${slot}`).toBe("Steady");
-  });
-  it("a late-game carry (every kill after 20:00, gold late) reads Resilient, Rising or Strong finish", () => {
-    const inputs = game({ 7: { kills: 12, deaths: 3, assists: 6, damage: 38_000, gold: 16_000 } });
-    expect(["Resilient", "Rising", "Strong finish"]).toContain(trendFor(inputs, { 7: { kills: [20, 35], gold: "late" } }, 7));
-  });
-  it("a player falling behind (deaths late, kills early) reads Fading", () => {
-    const inputs = game({ 2: { kills: 4, deaths: 10, assists: 3 } });
-    expect(trendFor(inputs, { 2: { kills: [0, 12], deaths: [18, 35], gold: "early" } }, 2)).toBe("Fading");
-  });
-  it("an early stomp then a throw (kills early, many deaths late) is not called Steady or Rising", () => {
-    const inputs = game({ 3: { kills: 9, deaths: 9, assists: 4 } });
-    expect(["Fading", "Weak finish", "Erratic"]).toContain(trendFor(inputs, { 3: { kills: [0, 14], deaths: [22, 35], gold: "early" } }, 3));
-  });
-  it("a strong game played the same throughout is not called Rising or Fading by the damping", () => {
-    const inputs = game({ 3: { kills: 14, deaths: 1, assists: 9, damage: 40_000, gold: 16_000, cs: 290 } });
-    expect(["Rising", "Fading"]).not.toContain(trendFor(inputs, {}, 3));
+  it("MVP is the top scorer of the winning team and ACE of the losing team, in every game of a varied set", () => {
+    for (let seed = 1; seed <= 60; seed++) {
+      const winner = seed % 2 ? 100 : 200;
+      const s = scoreMatch(varied(seed, winner), RIFT)!;
+      const best = (won: boolean) => [...s.players].filter((p) => (p.teamId === winner) === won).sort((a, b) => b.raw - a.raw || a.slot - b.slot)[0]!;
+      expect(s.players.filter((p) => p.mvp).map((p) => p.slot), `seed ${seed}`).toEqual([best(true).slot]);
+      expect(s.players.filter((p) => p.ace).map((p) => p.slot), `seed ${seed}`).toEqual([best(false).slot]);
+    }
   });
 
+  it("names the losing team's best ACE even when they are first overall, and the winning team's best MVP below them", () => {
+    const s = scoreMatch(game({ 6: { kills: 16, deaths: 1, assists: 8, damage: 45_000, gold: 17_000 } }), RIFT)!;
+    const ace = s.players.find((p) => p.ace)!;
+    const mvp = s.players.find((p) => p.mvp)!;
+    expect(ace.slot).toBe(6);
+    expect(ace.rank, "the ACE can be the game's 1st").toBe(1);
+    expect(mvp.teamId).toBe(100);
+    expect(mvp.rank).toBeGreaterThan(1);
+  });
+
+  it("names neither in a game without a winner (a remake), nor where every player is on one side's result", () => {
+    expect(scoreMatch(game().map((p) => ({ ...p, win: false })), RIFT)!.players.some((p) => p.mvp || p.ace)).toBe(false);
+    expect(scoreMatch(game().map((p) => ({ ...p, win: true })), RIFT)!.players.some((p) => p.mvp || p.ace)).toBe(false);
+  });
+});
+
+describe("team means", () => {
   it("names each team's mean score, and Excellent from 8.0", () => {
     const s = scoreMatch(game(), RIFT)!;
     const avg = teamAverages(s);

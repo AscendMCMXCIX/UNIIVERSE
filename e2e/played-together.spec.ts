@@ -306,6 +306,64 @@ test("wide cards follow their list's width, not the window's: four columns exact
   }
 });
 
+test("wide windows: the filters and the list take Team's column, centred in the room beside the sidebar open and folded, from the first tab to the team's name, the members three to a row", async ({ page, context, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "desktop windows, with the sidebar open and folded");
+  // At 80rem and left-aligned under Team's 100rem tabs, the list ended about 200px left of centre at
+  // 2560 and 3440 with the sidebar open and at 1920 with it folded (the owner's review of 25 Nov 2026).
+  for (const w of [
+    { width: 2560, height: 1440, sidebar: "expanded" },
+    { width: 3440, height: 1440, sidebar: "expanded" },
+    { width: 1920, height: 1080, sidebar: "collapsed" },
+  ] as const) {
+    const where = `${w.width} × ${w.height}, the sidebar ${w.sidebar}`;
+    await context.addCookies([{ name: "uniiverse_sidebar", value: w.sidebar, url: baseURL! }]);
+    await page.setViewportSize({ width: w.width, height: w.height });
+    await page.goto("/matches");
+    await expect(page.getByTestId("together-card").first()).toBeVisible();
+    const at = await page.evaluate(() => {
+      const box = (sel: string) => document.querySelector(sel)!.getBoundingClientRect();
+      const main = box("main#content");
+      const list = box("[data-testid=together-list]");
+      const tabs = document.querySelector("[data-testid=team-tabs]")!;
+      const cards = [...document.querySelectorAll("[data-testid=together-card]")].map((c) => c.getBoundingClientRect());
+      return {
+        gaps: { left: list.left - main.left, right: main.right - list.right },
+        list: { left: list.left, right: list.right },
+        tab: tabs.querySelector("li")!.getBoundingClientRect().left,
+        end: tabs.querySelector("[data-testid=team-tabs-identity]")!.getBoundingClientRect().right,
+        filters: box("[data-testid=together-filters]").left,
+        saved: box("[data-testid=together-saved]").right,
+        cards: cards.map((c) => [c.left, c.right]),
+        // The members' grids: three to a row from a 60rem column, each row still 19rem, so its CS and damage show.
+        members: [...document.querySelectorAll<HTMLElement>("[data-testid=together-card] [data-testid=together-member]")].map((m) => {
+          const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+          const grid = m.parentElement!;
+          return {
+            columnRem: grid.getBoundingClientRect().width / rem,
+            perRow: getComputedStyle(grid).gridTemplateColumns.split(" ").length,
+            rowRem: m.getBoundingClientRect().width / rem,
+            extra: getComputedStyle(m.querySelector("[data-testid=together-member-extra]")!).display !== "none",
+          };
+        }),
+      };
+    });
+    expect(Math.abs(at.gaps.left - at.gaps.right), `${where}: the list ${Math.round(at.gaps.left)}px from main's left, ${Math.round(at.gaps.right)}px from its right`).toBeLessThanOrEqual(2);
+    // Its tabs line up with it: the first tab where it starts, the team's name where it ends.
+    expect(Math.abs(at.list.left - at.tab), `${where}: the first tab at ${at.tab}, the list at ${at.list.left}`).toBeLessThanOrEqual(1);
+    expect(Math.abs(at.list.right - at.end), `${where}: the team's name ends at ${at.end}, the list at ${at.list.right}`).toBeLessThanOrEqual(1);
+    // The filters start with it and Bookmarked ends with it; every card spans it.
+    expect(Math.abs(at.filters - at.list.left), `${where}: the filters start with the list`).toBeLessThanOrEqual(1);
+    expect(Math.abs(at.saved - at.list.right), `${where}: Bookmarked ends with the list`).toBeLessThanOrEqual(1);
+    for (const [left, right] of at.cards) expect(Math.abs(left! - at.list.left) + Math.abs(right! - at.list.right), `${where}: a card across the list`).toBeLessThanOrEqual(1);
+    expect(at.members.length, `${where}: members to measure`).toBeGreaterThan(0);
+    for (const m of at.members) {
+      expect(m.perRow, `${where}: ${m.perRow} members a row in a ${m.columnRem.toFixed(1)}rem column`).toBe(m.columnRem >= 60 ? 3 : 2);
+      expect(m.rowRem, `${where}: a member's row of 19rem or more`).toBeGreaterThanOrEqual(19);
+      expect(m.extra, `${where}: the CS and damage shown`).toBe(true);
+    }
+  }
+});
+
 test.describe("on a touch screen", () => {
   test.use({ hasTouch: true });
   test("four-column cards give the result its whole column: the room kept clear of the corner bookmark goes with the corner", async ({ page, context, baseURL }, info) => {
@@ -349,6 +407,89 @@ test("old addresses for Season 2025 or all seasons open the current season", asy
     await page.goto(`/matches?${q}`);
     await expect(page.getByTestId("matches-summary")).toContainText(season);
   }
+});
+
+test("each member's row ends with their performance score and place badge, the opened game's own; MVP only on a won game, ACE only on a lost one, each place once", async ({ page }) => {
+  await page.goto("/matches");
+  const games = page.getByTestId("together-game");
+  await expect(games.first()).toBeVisible();
+  await page.evaluate(() => document.fonts.ready);
+  const read = await games.evaluateAll((cards) => {
+    const probe = (token: string) => {
+      const el = document.createElement("span");
+      el.style.color = `var(${token})`;
+      document.body.append(el);
+      const c = getComputedStyle(el).color;
+      el.remove();
+      return c;
+    };
+    const [gold, violet] = [probe("--color-gold"), probe("--color-violet")];
+    return cards.map((card) => ({
+      result: card.getAttribute("data-result"),
+      members: [...card.querySelectorAll("[data-testid=together-member]")].map((m) => {
+        // One of the row's two places is shown: the end of the role's line, or a column at the row's end.
+        const shown = [...m.querySelectorAll("[data-testid=together-score], [data-testid=together-score-empty]")].filter((e) => e.getBoundingClientRect().width > 0);
+        const mark = shown.find((e) => e.getAttribute("data-testid") === "together-score") ?? null;
+        const badge = mark?.querySelector("[data-testid=together-placement]");
+        const row = m.getBoundingClientRect();
+        const slot = shown[0]?.getBoundingClientRect();
+        return {
+          slots: shown.length,
+          score: mark ? Number(mark.getAttribute("data-score")) : null,
+          rank: mark ? Number(mark.getAttribute("data-rank")) : null,
+          kind: badge?.getAttribute("data-placement") ?? null,
+          text: badge?.textContent ?? null,
+          colour: badge ? (getComputedStyle(badge).color === gold ? "gold" : getComputedStyle(badge).color === violet ? "violet" : "neutral") : null,
+          // At the row's right edge (its line's end, or the row's own end), inside it.
+          atEnd: !!slot && slot.right <= row.right + 0.5 && row.right - slot.right < 2 && slot.top >= row.top - 0.5 && slot.bottom <= row.bottom + 0.5,
+          height: row.height,
+          badgeWidth: badge ? badge.getBoundingClientRect().width : null,
+          // Where the score's figure ends (tabular figures beside a fixed badge) and which side of the card its row is on (a column of rows shares one x).
+          valueRight: mark ? mark.querySelector("[data-testid=score-value]")!.getBoundingClientRect().right : null,
+          inline: mark ? getComputedStyle(mark).flexDirection === "row" : null,
+          column: Math.round(row.left),
+        };
+      }),
+    }));
+  });
+  expect(read.length).toBeGreaterThan(2);
+  let scored = 0;
+  for (const [i, g] of read.entries()) {
+    const ranks = g.members.flatMap((m) => (m.rank === null ? [] : [m.rank]));
+    expect(new Set(ranks).size, `game ${i}: each place once`).toBe(ranks.length);
+    for (const m of g.members) {
+      expect(m.slots, `game ${i}: one score or dash a row`).toBe(1);
+      expect(m.atEnd, `game ${i}: at the row's end`).toBe(true);
+      expect(m.height, `game ${i}: a member's row`).toBeLessThanOrEqual(56);
+      if (m.score === null) continue;
+      scored += 1;
+      expect(m.kind, `game ${i}`).toMatch(/^(mvp|ace|place)$/);
+      if (m.kind === "mvp") expect([g.result, m.text, m.colour], `game ${i}: MVP on a win, gold`).toEqual(["W", "MVP", "gold"]);
+      if (m.kind === "ace") expect([g.result, m.text, m.colour], `game ${i}: ACE on a loss, violet`).toEqual(["L", "ACE", "violet"]);
+      if (m.kind === "place") expect(m.colour, `game ${i}: other places restrained`).toBe("neutral");
+    }
+  }
+  // The demo's games have full records: every member is scored (no timeline: the record alone, as their card and the opened game).
+  expect(scored, "members scored").toBe(read.reduce((n, g) => n + g.members.length, 0));
+  // One badge width whatever it says, so a score beside its badge starts at one x down a column of rows: "7.1 MVP" sat 4px left
+  // of "4.5 5th" when MVP and ACE grew past the pill's minimum width (the owner's review of 25 Nov 2026).
+  const all = read.flatMap((g) => g.members);
+  expect(new Set(all.flatMap((m) => (m.badgeWidth === null ? [] : [Math.round(m.badgeWidth * 10) / 10]))).size, "one badge width").toBe(1);
+  expect(all.some((m) => m.kind === "mvp") && all.some((m) => m.kind === "place"), "MVP and other places to compare").toBe(true);
+  const columns = new Map<number, number[]>();
+  for (const m of all) if (m.inline && m.valueRight !== null) columns.set(m.column, [...(columns.get(m.column) ?? []), m.valueRight]);
+  for (const [x, lefts] of columns) expect(Math.max(...lefts) - Math.min(...lefts), `the scores beside their badges in the rows at x ${x}: one x`).toBeLessThanOrEqual(1);
+  // The opened game's own score and place for the member it opens on.
+  const first = games.first();
+  const member = first.getByTestId("together-member").first();
+  const mark = member.getByTestId("together-score").filter({ visible: true });
+  const [score, rank] = [await mark.getAttribute("data-score"), await mark.getAttribute("data-rank")];
+  const breakdown = await openTogether(first);
+  await expect(breakdown).not.toHaveAttribute("data-timeline", "loading", { timeout: 15_000 });
+  const slot = await breakdown.getAttribute("data-selected");
+  const cell = breakdown.locator(`[data-testid=participant][data-slot="${slot}"] [data-testid=participant-score]`).first();
+  await expect(cell).toHaveAttribute("data-score", score!);
+  await expect(cell).toHaveAttribute("data-rank", rank!);
 });
 
 test("members two to a row from a 34rem column: a 36px portrait with the member's 16px picture on its corner, the K/D/A right after the name; Bookmarked ends the filter row", async ({ page, context, baseURL }, info) => {
@@ -464,7 +605,11 @@ test("a member's CS and damage come in at a 19rem row and never cut the champion
         height: row.getBoundingClientRect().height,
       };
     };
-    const short = rows.find((r) => r !== withIcon && r.querySelector("[data-testid=together-member-role]")!.textContent!.length < 20)!;
+    // A short real pair, set as the long one is: since 25 Nov 2026 the row ends with the member's score and place, so at
+    // the 19rem threshold the role's line is about 40px shorter than it was, and a pair of 17 characters no longer leaves
+    // the CS and damage room beside it (they then take their own line, as the long pair's do).
+    const short = rows.find((r) => r !== withIcon && r.querySelector("[data-testid=together-member-role] [data-role-icon]"))!;
+    short.querySelector<HTMLElement>("[data-testid=together-member-role] .truncate")!.textContent = "Mid · Ahri";
     return { long: read(withIcon), short: read(short) };
   });
   expect(facts.long.layout, "the long pair whole; the CS and damage whole on the next line, at its start, without the \"·\"").toEqual({ pairWhole: true, extraWhole: true, under: true, beside: false, dotShown: false, startsLine: true, lines: 2 });

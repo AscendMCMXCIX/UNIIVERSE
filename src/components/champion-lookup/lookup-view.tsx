@@ -2,17 +2,20 @@
 
 import * as React from "react";
 import { useRouter } from "next/navigation";
-import { LayoutGrid, Plus } from "lucide-react";
+import { ArrowLeftRight, Columns2, LayoutGrid } from "lucide-react";
 import type { ChampionChoice } from "@/domain/champion-lookup/types";
 import type { LookupChampion } from "@/domain/champion-lookup/view";
+import { columnStats, rankColumns } from "@/domain/champion-lookup/board";
 import { clampHaste } from "@/domain/champion-lookup/haste";
-import { DATA_LIMIT_WORDS, HASTE_RULE_WORDS } from "@/domain/champion-lookup/words";
+import { SLOTS } from "@/domain/champion-lookup/types";
+import type { Role } from "@/domain/roles";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { toolbarButtonClass } from "@/components/ui/filter-bar";
 import { PAGE_TITLE } from "@/components/ui/page-header";
-import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
-import { cn } from "@/lib/cn";
-import { intelHref } from "./address";
+import { intelHref, swappedHref, withoutHref } from "./address";
+import { SlotKey } from "./ability-list";
+import type { StatLine } from "./base-stats";
+import { BuildsRoleProvider } from "./builds-role";
 import { ChampionPanel } from "./champion-panel";
 import { ChampionPickerWindow } from "./champion-picker";
 import { ChampionSearch } from "./champion-search";
@@ -20,41 +23,57 @@ import { useRecentLookups } from "./recent";
 
 /*
   CHAMPION INTEL's page in the browser (docs/CHAMPION_INTEL.md): the title with where the numbers
-  come from and the quiet Add champion, then one champion's panel, or two side by side, each with
-  its own haste and folds, then the rule's line and what Riot's data does not hold, said once.
+  come from and, at its right, Compare (one champion) or Swap (two); then the board: one champion,
+  or two side by side as one aligned board.
 
-  The address carries both champions and both hastes
-  (/lookup?champion=Ahri&haste=20&champion2=Jinx&haste2=0), so a reload or a shared link opens the
-  same; they are the page's state, like a filter, so a change replaces the address and never adds a
-  history entry (Back leaves the page in one step). A champion chosen (from its name, which opens
-  the window of every champion, or Add champion) is built on the server: until it arrives, its panel
-  says what is loading and is out of reach. A haste changes the numbers here at once, with no
-  request. "/" opens the window for the champion in view.
+  The address carries both champions, both hastes and the role each builds section shows where one
+  was chosen (/lookup?champion=Ahri&haste=20&champion2=Jinx&haste2=0&role2=ADC), so a reload or a
+  shared link opens the same; they are the page's state, like a filter, so a change replaces the address and never adds a
+  history entry (Back leaves the page in one step). A champion chosen (from its name, which opens the
+  window of every champion, or Compare) is built on the server: until it arrives, its column says
+  what is loading and is out of reach. A haste, and a builds section's role, change the page here at
+  once, with no request.
+  Swap and ✕ show their result at once too, while the address catches up; while any change is on
+  its way they wait (aria-disabled, so the focus stays on them), and a champion chosen for the other
+  column meanwhile keeps the one still loading. What is typed or chosen here while the page's own
+  change is on its way (a haste, a role) stays when it arrives. "/" opens the window for the
+  champion whose column holds the focus (else the first).
 
-  Two panels sit side by side where the page is 56rem wide (a desktop); narrower (a tablet, a phone)
-  one shows at a time under a switcher of the two champions. Both stay in the page, the other hidden,
-  so each keeps its haste and its open folds while the other is read.
+  Compare (the owner's request of 25 Nov 2026) is one board: a narrow column of the slots' keys,
+  then each champion's column, a subgrid of the board's ten rows (header, facts, the abilities'
+  heading, P, Q, W, E, R, the builds' twelve rows, base statistics), so every row of the two
+  champions lines up, side by side from a 390px phone up; only where the board is under 22rem (a
+  phone of 375px or less, or a large text size) the two columns stack, so no name breaks inside a
+  word. Two neutral references: no colour or word says which value is better, no difference is
+  computed.
 */
 
 type Which = 0 | 1;
 
-/** The switcher between two champions where only one panel shows (below 56rem). */
-function Switcher({ champions, active, onChange }: { champions: [ChampionChoice, ChampionChoice]; active: Which; onChange: (w: Which) => void }) {
+const subscribeNothing = () => () => undefined;
+
+/** Two keys for the two columns, the champion's own id, so a column's folds travel with its champion on a swap (the same champion twice: the second gets its own). */
+function columnKeys(a: string | null, b: string | null): [string, string] {
+  const first = a ?? "none";
+  const second = b ?? "none";
+  return [first, second === first ? `${second}~2` : second];
+}
+
+/** Compare's narrow first column: each ability row's slot key, level with both champions' rows (drawn; each row's heading names its slot). */
+function KeyColumn({ builds }: { builds: boolean }) {
   return (
-    <div role="group" aria-label="Champion shown" className={cn(segmentedGroupClass("w-full"), "@min-[56rem]/intel:hidden")} data-testid="lookup-switcher">
-      {champions.map((c, i) => (
-        <button key={i} type="button" aria-pressed={active === i} onClick={() => onChange(i as Which)} className={segmentClass(active === i, { size: "md", className: "min-w-0 flex-1 gap-2" })} data-champion={c.id} data-panel={i + 1}>
-          <span aria-hidden className="shrink-0">
-            <ChampionPortrait champion={{ id: c.id, name: c.name, portraitUrl: c.portrait }} size="xs" className="h-5 w-5" />
-          </span>
-          <span className="min-w-0 truncate">{c.name}</span>
-        </button>
+    <div aria-hidden className="col-start-1 row-span-full hidden grid-rows-subgrid @min-[22rem]/board:grid" data-testid="lookup-key-column">
+      <span className="row-start-2 border-b border-border" />
+      <span className="row-start-3 border-b border-border" />
+      {SLOTS.map((slot, i) => (
+        <span key={slot} className="flex justify-center border-b border-border pt-2 @min-[59.25rem]/board:pt-3" style={{ gridRowStart: 4 + i }}>
+          <SlotKey slot={slot} />
+        </span>
       ))}
+      {builds ? <span className="row-start-9 row-span-12 border-b border-border" /> : null}
     </div>
   );
 }
-
-const subscribeNothing = () => () => undefined;
 
 export function LookupView({
   champions,
@@ -62,41 +81,83 @@ export function LookupView({
   second,
   initialHaste,
   initialHaste2,
+  initialRoles,
   source,
   dropped,
+  builds,
 }: {
   champions: ChampionChoice[];
   lookup: LookupChampion | null;
   second: LookupChampion | null;
   initialHaste: number;
   initialHaste2: number;
+  /** The role each champion's builds section shows, from the address (role, role2); null for its default. */
+  initialRoles?: [Role | null, Role | null];
   /** The source line beside the title (Riot Data Dragon's version, its patch, the game's patch). */
   source: React.ReactNode;
   dropped: boolean;
+  /**
+   * The builds section of each champion the address names, rendered by the page (the slot of
+   * docs/CHAMPION_INTEL.md, "Builds slot"): `first` for `champion`, `second` for `champion2`. Each
+   * goes with its champion (above the statistics on one champion's board, its own row after R in
+   * Compare); nothing is drawn where none is given.
+   */
+  builds?: { first?: React.ReactNode; second?: React.ReactNode };
 }) {
   const router = useRouter();
   // False on the server and while the page hydrates, then true: the page says when its controls answer.
   const ready = React.useSyncExternalStore(subscribeNothing, () => true, () => false);
   const [pending, startTransition] = React.useTransition();
-  const [target, setTarget] = React.useState<{ which: Which; champion: ChampionChoice } | null>(null);
+  // The champion each column is loading (chosen from its name or Compare), while a change is on its way.
+  const [targets, setTargets] = React.useState<Partial<Record<Which, ChampionChoice>>>({});
   const [hastes, setHastes] = React.useState<[number, number]>([clampHaste(initialHaste), clampHaste(initialHaste2)]);
-  // An address opened from elsewhere (a link, the browser's own navigation) brings its own hastes.
-  const [seen, setSeen] = React.useState<[number, number]>([initialHaste, initialHaste2]);
-  if (seen[0] !== initialHaste || seen[1] !== initialHaste2) {
-    setSeen([initialHaste, initialHaste2]);
-    setHastes([clampHaste(initialHaste), clampHaste(initialHaste2)]);
+  // Each builds section's role (the page's state, like the hastes).
+  const [roleA, roleB] = initialRoles ?? [null, null];
+  const [roles, setRoles] = React.useState<[Role | null, Role | null]>([roleA, roleB]);
+  // The page as the server sent it: champions, hastes and roles. When it changes, an address opened
+  // from elsewhere (a link, the browser's own navigation) brings its own hastes and roles; the
+  // address this page itself sent (`sent`: Swap, ✕, a champion chosen) keeps what was typed or chosen
+  // here while it was on its way (a haste typed during a swap is not undone when the swap arrives).
+  const arrived = `${lookup?.champion.id ?? ""}|${second?.champion.id ?? ""}|${initialHaste}|${initialHaste2}|${roleA ?? ""}|${roleB ?? ""}`;
+  const [seen, setSeen] = React.useState(arrived);
+  const [sent, setSent] = React.useState<string | null>(null);
+  if (seen !== arrived) {
+    setSeen(arrived);
+    if (sent !== arrived) {
+      setHastes([clampHaste(initialHaste), clampHaste(initialHaste2)]);
+      setRoles([roleA, roleB]);
+    }
+    setSent(null);
   }
+  /** The page this page's own change will arrive as (the key `arrived` will have). */
+  const sentKey = (a: string | null, b: string | null, h: readonly [number, number], r: readonly [Role | null, Role | null]) => `${a ?? ""}|${b ?? ""}|${h[0]}|${b ? h[1] : 0}|${r[0] ?? ""}|${b ? (r[1] ?? "") : ""}`;
   const [picking, setPicking] = React.useState<Which | null>(null);
-  const [active, setActive] = React.useState<Which>(0);
-  // The second champion, removed: gone at once, while the address catches up.
-  const [removed, setRemoved] = React.useState<string | null>(null);
+  // Compare's two statistics folds, open or closed together.
+  const [statsOpen, setStatsOpen] = React.useState(false);
   const { recent, remember } = useRecentLookups();
   const byId = React.useMemo(() => new Map(champions.map((c) => [c.id, c])), [champions]);
-  const first = lookup?.champion.id ?? null;
-  const shownSecond = second && second.champion.id !== removed ? second : null;
-  const secondId = shownSecond?.champion.id ?? null;
+
+  // Swap and ✕ show their result at once, while the address catches up: each holds the page's
+  // champions as they were when it was pressed, and stops applying once the page has new ones.
+  const propsKey = `${lookup?.champion.id ?? ""}|${second?.champion.id ?? ""}|${initialHaste}|${initialHaste2}`;
+  // ✕ keeps the champion that stays as its place among the page's own (`keep`: 0 for `lookup`, 1
+  // for `second`), taken from the order shown when it was pressed, swapped or not.
+  const [removed, setRemoved] = React.useState<{ keep: Which; key: string } | null>(null);
+  const [swapped, setSwapped] = React.useState<string | null>(null);
+  const keeping = removed && removed.key === propsKey ? removed.keep : null;
+  const swapping = swapped === propsKey && pending;
+  const base: Array<{ look: LookupChampion | null; builds: React.ReactNode }> = [
+    { look: lookup, builds: builds?.first ?? null },
+    { look: second, builds: builds?.second ?? null },
+  ];
+  const order: Array<{ look: LookupChampion | null; builds: React.ReactNode }> = keeping !== null ? [base[keeping]!, { look: null, builds: null }] : swapping ? [base[1]!, base[0]!] : base;
+  const first = order[0]!.look?.champion.id ?? null;
+  const secondId = order[1]!.look?.champion.id ?? null;
+  // The champion each column will show: the one it is loading, else its own.
+  const loadingOf = (which: Which) => (pending ? (targets[which] ?? null) : null);
+  const meant: [string | null, string | null] = [loadingOf(0)?.id ?? first, loadingOf(1)?.id ?? secondId];
   const openerRef = React.useRef<HTMLElement | null>(null);
-  // A panel is out of reach (inert) while its champion loads, and the whole page while the window is
+  // A column is out of reach (inert) while its champion loads, and the whole page while the window is
   // open: the focus goes to the chosen champion's name once it has arrived and the window has closed
   // (after the window's own hand-back, a frame later).
   const focusAfter = React.useRef<Which | null>(null);
@@ -108,43 +169,67 @@ export function LookupView({
     return () => window.cancelAnimationFrame(frame);
   }, [pending, picking]);
 
-  /** Builds the champion chosen for a panel on the server; false when nothing changes (the same champion, or none known). */
+  /**
+   * Builds the champion chosen for a column on the server; false when nothing changes (the champion
+   * the column already shows or is loading, or none known). The other column keeps the champion it
+   * shows, or the one it is still loading.
+   */
   const go = (which: Which, id: string): boolean => {
     const c = byId.get(id);
-    if (!c) return false;
-    const current = which === 0 ? first : secondId;
-    if (id === current && !pending) return false;
+    if (!c || id === meant[which]) return false;
     setRemoved(null);
-    setTarget({ which, champion: c });
-    const nextHastes: [number, number] = which === 1 && !secondId ? [hastes[0], 0] : hastes;
-    if (which === 1 && !secondId) {
-      setHastes(nextHastes);
-      setActive(1);
-    }
-    const a = which === 0 ? id : first;
-    const b = which === 1 ? id : secondId;
-    startTransition(() => router.replace(intelHref({ id: a, haste: nextHastes[0] }, b ? { id: b, haste: nextHastes[1] } : null), { scroll: false }));
+    setSwapped(null);
+    setTargets((now) => (pending ? { ...now, [which]: c } : { [which]: c }));
+    const nextHastes: [number, number] = which === 1 && !meant[1] ? [hastes[0], 0] : hastes;
+    if (which === 1 && !meant[1]) setHastes(nextHastes);
+    // A new champion's builds open on their own default role.
+    const nextRoles: [Role | null, Role | null] = which === 0 ? [null, roles[1]] : [roles[0], null];
+    setRoles(nextRoles);
+    const a = which === 0 ? id : meant[0];
+    const b = which === 1 ? id : meant[1];
+    setSent(sentKey(a, b, nextHastes, nextRoles));
+    startTransition(() => router.replace(intelHref({ id: a, haste: nextHastes[0], role: nextRoles[0] }, b ? { id: b, haste: nextHastes[1], role: nextRoles[1] } : null), { scroll: false }));
     return true;
   };
 
-  const remove = () => {
-    if (!secondId) return;
-    setRemoved(secondId);
-    setTarget(null);
-    setHastes([hastes[0], 0]);
-    setActive(0);
-    // The focus goes back to the champion that stays, once the address has caught up.
+  /** ✕ on either column: the other stays, as the first, with its own haste. Waits while a change is on its way. */
+  const remove = (which: Which) => {
+    if (pending || !first || !secondId) return;
+    const stays = which === 0 ? hastes[1] : hastes[0];
+    const href = withoutHref({ id: first, haste: hastes[0], role: roles[0] }, { id: secondId, haste: hastes[1], role: roles[1] }, which);
+    const nextRoles: [Role | null, Role | null] = [which === 0 ? roles[1] : roles[0], null];
+    // The column shown second is `lookup` when the two are shown swapped.
+    setRemoved({ keep: swapping ? which : which === 0 ? 1 : 0, key: propsKey });
+    setSwapped(null);
+    setTargets({});
+    setHastes([stays, 0]);
+    setRoles(nextRoles);
+    setSent(sentKey(which === 0 ? secondId : first, null, [stays, 0], nextRoles));
+    // The focus goes to the champion that stays, once the address has caught up.
     focusAfter.current = 0;
-    startTransition(() => router.replace(intelHref({ id: first, haste: hastes[0] }), { scroll: false }));
+    startTransition(() => router.replace(href, { scroll: false }));
+  };
+
+  /** Swap: the two champions change places, each with its own haste and its open folds. Waits while a change is on its way. */
+  const swap = () => {
+    if (pending || !first || !secondId) return;
+    const href = swappedHref({ id: first, haste: hastes[0], role: roles[0] }, { id: secondId, haste: hastes[1], role: roles[1] });
+    setSwapped(propsKey);
+    setRemoved(null);
+    setTargets({});
+    setHastes([hastes[1], hastes[0]]);
+    setRoles([roles[1], roles[0]]);
+    setSent(sentKey(secondId, first, [hastes[1], hastes[0]], [roles[1], roles[0]]));
+    startTransition(() => router.replace(href, { scroll: false }));
   };
 
   // The address follows the page once it has arrived: each champion's own id (a name or another
-  // spelling reads as its id), the hastes chosen here, nothing for a champion the roster lacks.
+  // spelling reads as its id), the hastes and builds roles chosen here, nothing for a champion the roster lacks.
   React.useEffect(() => {
     if (pending) return;
-    const want = intelHref({ id: first, haste: hastes[0] }, secondId ? { id: secondId, haste: hastes[1] } : null);
+    const want = intelHref({ id: first, haste: hastes[0], role: roles[0] }, secondId ? { id: secondId, haste: hastes[1], role: roles[1] } : null);
     if (`${window.location.pathname}${window.location.search}` !== want) window.history.replaceState(window.history.state, "", want);
-  }, [pending, first, secondId, hastes]);
+  }, [pending, first, secondId, hastes, roles]);
 
   // Each champion shown joins the window's Recent row.
   React.useEffect(() => {
@@ -154,8 +239,8 @@ export function LookupView({
     if (secondId) remember(secondId);
   }, [secondId, remember]);
 
-  // "/" opens the window of every champion for the champion in view: the one the switcher shows
-  // where only one panel shows, else the first (the search's own "/" where none is shown).
+  // "/" opens the window of every champion for the champion whose column holds the focus, else the
+  // first (the search's own "/" where none is shown).
   React.useEffect(() => {
     if (!first) return;
     const onKey = (e: KeyboardEvent) => {
@@ -164,43 +249,59 @@ export function LookupView({
       if (t && (t.isContentEditable || /^(INPUT|TEXTAREA|SELECT)$/.test(t.tagName))) return;
       if (document.querySelector("dialog[open]")) return;
       e.preventDefault();
-      const switcher = document.querySelector<HTMLElement>('[data-testid="lookup-switcher"]');
-      const which: Which = secondId && switcher && switcher.offsetParent !== null ? active : 0;
+      const which: Which = secondId && t?.closest('[data-panel="2"]') ? 1 : 0;
       openerRef.current = document.querySelector<HTMLElement>(`[data-panel="${which + 1}"] [data-testid="lookup-change"]`);
       setPicking(which);
     };
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
-  }, [first, secondId, active]);
+  }, [first, secondId]);
 
-  const loadingWords = pending && target ? `Loading ${target.champion.name}…` : "";
+  const loadingNames = ([0, 1] as const).map(loadingOf).filter((c): c is ChampionChoice => !!c).map((c) => c.name);
+  const loadingWords = loadingNames.length ? `Loading ${loadingNames.join(" and ")}…` : "";
   const recentChoices = recent.map((id) => byId.get(id)).filter((c): c is ChampionChoice => !!c);
   function openPicker(which: Which, opener: HTMLElement) {
     openerRef.current = opener;
     setPicking(which);
   }
-  const panelFor = (which: Which): { look: LookupChampion | null; shown: ChampionChoice | null; loading: boolean } => {
-    const own = which === 0 ? lookup : shownSecond;
-    const loading = pending && target?.which === which;
-    return { look: own, shown: loading ? target!.champion : (own?.champion ?? null), loading };
+  const columnFor = (which: Which): { look: LookupChampion | null; shown: ChampionChoice | null; loading: boolean; builds: React.ReactNode } => {
+    const own = order[which]!;
+    const target = loadingOf(which);
+    // Each column's builds read and set that column's role, and know whether they sit on Compare's rows.
+    const builds = own.builds ? <BuildsRoleProvider value={{ role: roles[which], setRole: (r) => setRoles((now) => (which === 0 ? [r, now[1]] : [now[0], r])), compare: !!order[1 - which]!.look || !!loadingOf((1 - which) as Which) }}>{own.builds}</BuildsRoleProvider> : null;
+    return { look: own.look, shown: target ?? own.look?.champion ?? null, loading: !!target, builds };
   };
-  const one = panelFor(0);
-  const two = panelFor(1);
+  const one = columnFor(0);
+  const two = columnFor(1);
   const both = !!one.shown && !!two.shown;
+  const keys = columnKeys(one.shown?.id ?? null, two.shown?.id ?? null);
+
+  const ranks: [number, number] = [rankColumns(one.look?.abilities), rankColumns(two.look?.abilities)];
+  // Each column's statistics (none for a champion whose statistics are not stored), aligned in Compare.
+  const statLines: [StatLine[], StatLine[]] = [columnStats(one.look?.facts, two.look?.facts, both), columnStats(two.look?.facts, one.look?.facts, both)];
+  // Compare: the other column's "Changed since" mark, whose room a column without one keeps.
+  const changedTwins: [string | null, string | null] = both ? [statLines[1].length ? (two.look?.facts?.statsChangedSincePatch ?? null) : null, statLines[0].length ? (one.look?.facts?.statsChangedSincePatch ?? null) : null] : [null, null];
+  const mode = both ? "compare" : "single";
 
   return (
-    <div className="@container/intel space-y-3" data-testid="lookup-view" data-ready={ready ? "true" : undefined} data-champions={both ? "2" : one.shown ? "1" : "0"}>
-      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1">
+    <div className="space-y-3" data-testid="lookup-view" data-ready={ready ? "true" : undefined} data-champions={both ? "2" : one.shown ? "1" : "0"}>
+      <header className="flex flex-wrap items-center justify-between gap-x-4 gap-y-2">
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-4 gap-y-1">
           <h1 className={PAGE_TITLE}>Champion Intel</h1>
-          <p className="text-xs text-fg-muted" data-testid="lookup-source">
+          <p className="text-sm text-fg-muted" data-testid="lookup-source">
             {source}
           </p>
         </div>
         {one.shown && !two.shown ? (
-          <button type="button" onClick={(e) => openPicker(1, e.currentTarget)} aria-haspopup="dialog" className="-mr-1 inline-flex min-h-11 items-center gap-1.5 rounded-md px-2 text-sm font-medium text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent md:pointer-fine:min-h-8" data-testid="lookup-add">
-            <Plus className="h-4 w-4" aria-hidden />
-            Add champion
+          <button type="button" onClick={(e) => openPicker(1, e.currentTarget)} aria-haspopup="dialog" className={toolbarButtonClass(false)} data-testid="lookup-add">
+            <Columns2 className="h-4 w-4" aria-hidden />
+            Compare
+          </button>
+        ) : both ? (
+          // aria-disabled while a change is on its way, never `disabled`: a disabled button would drop the focus of the keyboard that pressed it.
+          <button type="button" onClick={swap} aria-disabled={pending || undefined} aria-label={`Swap ${one.shown!.name} and ${two.shown!.name}`} className={toolbarButtonClass(false, "aria-disabled:cursor-not-allowed aria-disabled:text-fg-disabled aria-disabled:hover:border-border-control aria-disabled:hover:text-fg-disabled")} data-testid="lookup-swap">
+            <ArrowLeftRight className="h-4 w-4" aria-hidden />
+            Swap
           </button>
         ) : null}
       </header>
@@ -213,48 +314,58 @@ export function LookupView({
         {loadingWords}
       </p>
       {one.shown ? (
-        <>
-          {both ? <Switcher champions={[one.shown, two.shown!]} active={active} onChange={setActive} /> : null}
-          <div className={cn("grid grid-cols-1 items-start gap-3", both && "@min-[56rem]/intel:grid-cols-2")}>
+        <div className="@container/board panel-depth overflow-hidden rounded-panel border border-border bg-surface" data-testid="lookup-board" data-layout={both ? "compare" : "single"}>
+          <div className={both ? "grid grid-cols-1 @min-[22rem]/board:grid-cols-[2.25rem_minmax(0,1fr)_minmax(0,1fr)] @min-[22rem]/board:grid-rows-[repeat(21,auto)]" : undefined}>
+            {both ? <KeyColumn builds={!!(one.builds || two.builds)} /> : null}
             <ChampionPanel
-              lookup={one.look}
-              shown={one.shown}
-              pending={one.loading}
-              haste={hastes[0]}
-              onHaste={(h) => setHastes(([, b]) => [h, b])}
-              onChange={(e) => openPicker(0, e.currentTarget)}
-              idPrefix="intel-1"
-              className={both && active !== 0 ? "@max-[56rem]/intel:hidden" : undefined}
-            />
-            {two.shown ? (
+                key={keys[0]}
+                mode={mode}
+                which={0}
+                lookup={one.look}
+                shown={one.shown!}
+                pending={one.loading}
+                haste={hastes[0]}
+                onHaste={(h) => setHastes((now) => [h, now[1]])}
+                onChange={(e) => openPicker(0, e.currentTarget)}
+                onRemove={both ? () => remove(0) : undefined}
+                removeWaits={pending}
+                ranks={ranks[0]}
+                statLines={statLines[0]}
+                changedTwin={changedTwins[0]}
+                builds={one.builds}
+                statsOpen={both ? statsOpen : undefined}
+                onStatsToggle={both ? setStatsOpen : undefined}
+              />
+            {both ? (
               <ChampionPanel
-                second
+                key={keys[1]}
+                mode={mode}
+                which={1}
                 lookup={two.look}
-                shown={two.shown}
+                shown={two.shown!}
                 pending={two.loading}
                 haste={hastes[1]}
-                onHaste={(h) => setHastes(([a]) => [a, h])}
+                onHaste={(h) => setHastes((now) => [now[0], h])}
                 onChange={(e) => openPicker(1, e.currentTarget)}
-                onRemove={remove}
-                idPrefix="intel-2"
-                className={active !== 1 ? "@max-[56rem]/intel:hidden" : undefined}
+                onRemove={() => remove(1)}
+                removeWaits={pending}
+                ranks={ranks[1]}
+                statLines={statLines[1]}
+                changedTwin={changedTwins[1]}
+                builds={two.builds}
+                statsOpen={statsOpen}
+                onStatsToggle={setStatsOpen}
               />
             ) : null}
           </div>
-          {one.look?.abilities || two.look?.abilities ? (
-            <div className="space-y-0.5 text-xs text-fg-subtle" data-testid="lookup-rule">
-              <p>{HASTE_RULE_WORDS}</p>
-              <p data-testid="lookup-data-limit">{DATA_LIMIT_WORDS}</p>
-            </div>
-          ) : null}
-        </>
+        </div>
       ) : (
-        <section aria-labelledby="lookup-choose" className="space-y-3 rounded-panel border border-dashed border-border-strong px-4 py-5" data-testid="lookup-empty">
+        <section aria-labelledby="lookup-choose" className="space-y-3 pt-1" data-testid="lookup-empty">
           <div>
             <h2 id="lookup-choose" className="text-base font-semibold text-fg">
               Choose a champion
             </h2>
-            <p className="mt-1 text-sm text-fg-muted">Search, or open All champions, to see its abilities, cooldowns and key mechanics. A second champion can be added beside it.</p>
+            <p className="mt-1 text-sm text-fg-muted">Search, or open All champions, for its abilities, cooldowns, costs and base stats. Compare puts a second champion beside it.</p>
           </div>
           <div className="@container/toolbar">
             <div className="flex flex-wrap items-center gap-2" data-testid="lookup-toolbar" data-ready={ready ? "true" : undefined}>
@@ -269,7 +380,7 @@ export function LookupView({
             <ul className="flex flex-wrap gap-2" aria-label="Looked up lately" data-testid="lookup-recent">
               {recentChoices.map((c) => (
                 <li key={c.id}>
-                  <button type="button" onClick={() => go(0, c.id)} className="flex min-h-11 items-center gap-2 rounded-md border border-border bg-surface py-1 pl-1 pr-3 text-sm font-medium text-fg-muted transition-colors hover:border-border-strong hover:text-fg" data-champion={c.id}>
+                  <button type="button" onClick={() => go(0, c.id)} className="flex min-h-11 items-center gap-2 rounded-md border border-border bg-surface py-1 pl-1 pr-3 text-sm font-medium text-fg transition-colors hover:border-border-strong hover:text-accent-strong" data-champion={c.id}>
                     <span aria-hidden className="shrink-0">
                       <ChampionPortrait champion={{ id: c.id, name: c.name, portraitUrl: c.portrait }} size="sm" />
                     </span>
@@ -286,9 +397,9 @@ export function LookupView({
           champions={champions}
           selected={picking === 0 ? first : secondId}
           recent={recentChoices}
-          title={picking === 1 && !secondId ? "Add a champion" : "All champions"}
+          title={picking === 1 && !secondId ? "Compare with" : "All champions"}
           onPick={(id) => {
-            // The chosen champion's name takes the focus once it has arrived (Add champion is gone by then).
+            // The chosen champion's name takes the focus once it has arrived (Compare is gone by then).
             if (go(picking, id)) focusAfter.current = picking;
           }}
           onClose={() => {
@@ -301,3 +412,4 @@ export function LookupView({
     </div>
   );
 }
+

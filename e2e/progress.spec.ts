@@ -115,6 +115,15 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
     expect(block.y, "level with the rank").toBeLessThan(cur!.y + cur!.height);
   }
   await expect(page.getByRole("button", { name: "About this rank" })).toBeVisible();
+  // The record's year on screen at every width, a phone's too (Riot's count for the year, not this
+  // season's; its "(Riot)" from a 21rem card), on one line with the record.
+  const record = ranked.getByTestId("ranked-record");
+  if (await record.count()) {
+    await expect(ranked.getByTestId("ranked-record-year")).toBeVisible();
+    await expect(record).toContainText(new RegExp(`^\\d+W \\d+L( · \\d+%)? · ${RANKED_YEAR}`));
+    const lines = await record.evaluate((el) => Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)));
+    expect(lines, "the record on one line").toBe(1);
+  }
   // The header shows the same current rank as Ranked progress.
   const current = (await page.getByTestId("ranked-current").innerText()).split("·")[0]!.trim();
   await expect(page.getByTestId("profile-rank")).toContainText(current);

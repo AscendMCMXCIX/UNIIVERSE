@@ -22,10 +22,33 @@ import { screenBox, screenHeight } from "@/lib/screen";
   - **Look.** `bg-elevated`, a border and a shadow, a 160ms fade with a 2px slide away from the
     trigger (popover-in, none with reduced motion). As tall as its content, up to the room under
     (or over) the trigger; then its body alone scrolls, its title and actions in place.
+  - **Beside** (`placement="side"`, the shared breakdown popover, breakdown-popover.tsx): before the
+    trigger (a figure at a row's end), or after it where there is no room before, centred on it and
+    kept inside the screen, up to the screen's whole height: a breakdown taller than the room under a
+    row in mid-screen opens whole instead of scrolling inside itself.
   - **Layer.** Fixed to the screen, in the page where its caller draws it (no portal), so what holds
     it keeps seeing a press on it as inside; where what holds it moves the box fixed positioning uses
     (a transform, a blurred sticky bar), it measures where its (0, 0) landed and corrects for it.
+  - **Drawn away from its trigger** (`portaled`: the breakdown popover draws it at the page's end, a
+    portal): the keyboard keeps the trigger's place, as if the panel came right after it (WCAG 2.4.3).
+    Tab past its last control closes it and goes on to what follows the trigger; Shift+Tab before its
+    first (or from the panel itself) closes it with the focus back on the trigger. Without this, Tab
+    past the panel left the page (nothing follows the portal), the panel open behind, and Shift+Tab
+    landed on the page's last control. Escape closes it wherever the focus is on the page.
 */
+
+/** What Tab stops on: controls that are not disabled, links with an address, anything given a tab stop. */
+const TAB_STOPS = 'a[href], button:not([disabled]), input:not([disabled]):not([type="hidden"]), select:not([disabled]), textarea:not([disabled]), summary, [tabindex], [contenteditable="true"]';
+
+/** The tab stops in `root`, in document order: drawn (not hidden, not inert) and not taken out of the order (tabindex -1). */
+export function tabStops(root: ParentNode): HTMLElement[] {
+  return [...root.querySelectorAll<HTMLElement>(TAB_STOPS)].filter((el) => el.tabIndex >= 0 && !el.closest("[inert]") && (typeof el.checkVisibility === "function" ? el.checkVisibility({ visibilityProperty: true }) : el.getClientRects().length > 0));
+}
+
+/** The first tab stop after `el` in document order, outside `skip` (the panel) and `el` itself; null where none follows. */
+export function tabStopAfter(el: HTMLElement, skip: HTMLElement | null): HTMLElement | null {
+  return tabStops(document).find((t) => !el.contains(t) && !skip?.contains(t) && !!(el.compareDocumentPosition(t) & Node.DOCUMENT_POSITION_FOLLOWING)) ?? null;
+}
 
 /** Room kept between the trigger and the panel, and between the panel and the screen's edges, in px. */
 const GAP = 6;
@@ -53,12 +76,16 @@ export interface PopoverProps {
   footer?: React.ReactNode;
   /** The panel's width class: `w-[min(34rem,calc(100%-1rem))]` for the filters (the five role segments in view). */
   widthClassName?: string;
+  /** Under (or over) the trigger, the filters' place; or beside it, with the screen's height to grow into (the shared breakdown popover). */
+  placement?: "below" | "side";
   testId?: string;
   closeTestId?: string;
   id?: string;
+  /** Drawn away from its trigger (a portal): Tab and Shift+Tab out of it keep the trigger's place in the page's order (see above). */
+  portaled?: boolean;
 }
 
-export function Popover({ anchor, onClose, title, description, children, footer, widthClassName = "w-[min(34rem,calc(100%-1rem))]", testId, closeTestId, id }: PopoverProps) {
+export function Popover({ anchor, onClose, title, description, children, footer, widthClassName = "w-[min(34rem,calc(100%-1rem))]", placement = "below", testId, closeTestId, id, portaled = false }: PopoverProps) {
   const ref = React.useRef<HTMLDivElement>(null);
   const titleId = React.useId();
   const descriptionId = React.useId();
@@ -76,6 +103,18 @@ export function Popover({ anchor, onClose, title, description, children, footer,
     const r = a.getBoundingClientRect();
     const { width: W, height: H } = screenBox();
     const needs = p.scrollHeight;
+    if (placement === "side") {
+      // Beside the trigger: before it where it fits, else after it, else as far as it fits inside the screen; centred on it, up to the screen's height.
+      const width = p.offsetWidth;
+      const room = Math.max(160, H - 2 * MARGIN);
+      const shown = Math.min(needs, room);
+      const before = r.left - GAP - width;
+      const left = before >= MARGIN ? before : r.right + GAP + width <= W - MARGIN ? r.right + GAP : Math.max(MARGIN, Math.min(r.left, W - MARGIN - width));
+      const top = Math.max(MARGIN, Math.min(r.top + r.height / 2 - shown / 2, H - MARGIN - shown));
+      const origin = fixedOrigin(p);
+      setPos({ top: top - origin.y, left: left - origin.x, maxHeight: room, up: false });
+      return;
+    }
     const below = H - r.bottom - GAP - MARGIN;
     const above = r.top - GAP - MARGIN;
     const up = below < needs && above > below;
@@ -87,7 +126,7 @@ export function Popover({ anchor, onClose, title, description, children, footer,
     const top = up ? r.top - GAP - shown : r.bottom + GAP;
     const origin = fixedOrigin(p);
     setPos({ top: Math.max(MARGIN, top) - origin.y, left: left - origin.x, maxHeight: room, up });
-  }, []);
+  }, [placement]);
 
   React.useLayoutEffect(() => {
     place();
@@ -119,16 +158,24 @@ export function Popover({ anchor, onClose, title, description, children, footer,
       });
     };
     const onResize = () => follow();
+    // Drawn away from its trigger, Escape closes it wherever the focus is on the page (the panel's own handler, below, where it is inside).
+    const onEscape = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented || ref.current?.contains(document.activeElement)) return;
+      e.preventDefault();
+      latest.current.onClose(true);
+    };
     document.addEventListener("pointerdown", onPointer, true);
     window.addEventListener("scroll", follow, true);
     window.addEventListener("resize", onResize);
+    if (portaled) document.addEventListener("keydown", onEscape);
     return () => {
       cancelAnimationFrame(frame);
       document.removeEventListener("pointerdown", onPointer, true);
       window.removeEventListener("scroll", follow, true);
       window.removeEventListener("resize", onResize);
+      document.removeEventListener("keydown", onEscape);
     };
-  }, [place]);
+  }, [place, portaled]);
 
   return (
     <div
@@ -142,7 +189,24 @@ export function Popover({ anchor, onClose, title, description, children, footer,
       data-popover=""
       data-testid={testId}
       onKeyDown={(e) => {
-        if (e.key !== "Escape" || e.defaultPrevented) return;
+        if (e.defaultPrevented) return;
+        if (e.key === "Tab" && portaled) {
+          // Leaving it by the keyboard, from a panel drawn at the page's end: back to the trigger's place (see above).
+          const panel = ref.current;
+          if (!panel) return;
+          const stops = tabStops(panel);
+          const at = document.activeElement;
+          const out = e.shiftKey ? at === panel || at === stops[0] || stops.length === 0 : at === stops[stops.length - 1] || stops.length === 0;
+          if (!out) return;
+          e.preventDefault();
+          const trigger = latest.current.anchor();
+          const next = !e.shiftKey && trigger ? tabStopAfter(trigger, panel) : null;
+          // Shift+Tab, or nothing after the trigger: closed with the focus back on it. Tab: closed, the focus on what follows it.
+          latest.current.onClose(!next);
+          next?.focus();
+          return;
+        }
+        if (e.key !== "Escape") return;
         e.preventDefault();
         e.stopPropagation();
         latest.current.onClose(true);

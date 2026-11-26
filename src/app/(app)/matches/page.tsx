@@ -9,6 +9,7 @@ import { EmptyState } from "@/components/ui/empty-state";
 import { InfoTip } from "@/components/ui/info-tip";
 import { loadPlayedTogether, type PlayedTogether } from "@/server/matches/played-together";
 import { togetherCompositions } from "@/server/matches/compositions";
+import { togetherScores } from "@/server/matches/together-scores";
 import { listTeamBookmarks, sharedGameRows, type TeamBookmark } from "@/server/matches/links";
 import type { Session } from "@/server/auth/permissions";
 import { filterTogether, summariseTogether } from "@/domain/played-together";
@@ -170,9 +171,10 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
           .filter((e) => e.games > 0)
       : [];
   // Both teams of the games on screen only, one composition per listed side (a game with members
-  // on both sides is listed once per side, each marking its own): server/matches/compositions.
+  // on both sides is listed once per side, each marking its own): server/matches/compositions. And
+  // each member's performance score and place, each shown game scored once: server/matches/together-scores.
   const shown = all.slice(0, limit);
-  const teams = await togetherCompositions(db, teamId, shown, session.playerId ?? null);
+  const [teams, scores] = await Promise.all([togetherCompositions(db, teamId, shown, session.playerId ?? null), togetherScores(db, teamId, shown)]);
   const wins = all.filter((g) => g.win).length;
   const decided = all.filter((g) => g.win !== null).length;
   return (
@@ -192,7 +194,7 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
           />
         }
       />
-      <PlayedTogetherView data={data} seasons={seasons} currentSeason={current} shown={shown} teams={teams} total={all.length} filters={filters} summary={summary} savedCount={savedCount} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} href={href} elsewhere={elsewhere} />
+      <PlayedTogetherView data={data} seasons={seasons} currentSeason={current} shown={shown} teams={teams} scores={scores} total={all.length} filters={filters} summary={summary} savedCount={savedCount} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} href={href} elsewhere={elsewhere} />
     </div>
   );
 }

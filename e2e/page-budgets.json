@@ -14,7 +14,7 @@
    "small": 0
   },
   "leaderboards@i15-100": {
-   "screens": 3.21,
+   "screens": 2.99,
    "frame": 0.3,
    "frameScrolled": 0.3,
    "small": 0
@@ -38,10 +38,11 @@
    "small": 0
   },
   "p-history@i15-100": {
-   "screens": 2.17,
+   "screens": 2.24,
    "frame": 0.3,
    "frameScrolled": 0.3,
-   "small": 0
+   "small": 0,
+   "why": "25 Nov 2026 (the owner's requirements, §1): each card's performance score on a line of its own under the K/D/A, with its place badge, a control added on purpose (4px a card); measured 2.20 at i15 and 8.17 at se1 150%."
   },
   "p-accounts@i15-100": {
    "screens": 1.02,
@@ -132,7 +133,7 @@
    "small": 0
   },
   "leaderboards@se1-150": {
-   "screens": 12.09,
+   "screens": 11.24,
    "frame": 0.45,
    "frameScrolled": 0.15,
    "small": 0
@@ -162,10 +163,11 @@
    "small": 0
   },
   "p-accounts@se1-150": {
-   "screens": 1.67,
-   "frame": 0.4,
-   "frameScrolled": 0.14,
-   "small": 0
+   "screens": 2.07,
+   "frame": 0.45,
+   "frameScrolled": 0.16,
+   "small": 0,
+   "why": "26 Nov 2026: measured on a page wider than the phone until then. A Riot account's row was as wide as its Riot ID (364px at 320px and 150%), so the phone's layout viewport grew to it and the page was measured zoomed out (1.54 screens, the frame 0.39), its overflow unseen (counted against innerWidth, which grew with it). The row now fits (its Riot ID wraps, its controls under it where they leave too little room), and overflow is counted against the screen: measured 2.03, the frame 0.44 and 0.15 scrolled."
   },
   "me@se1-150": {
    "screens": 1.02,
@@ -299,10 +301,11 @@
    "small": 0
   },
   "own-history@i15-100": {
-   "screens": 2.09,
+   "screens": 2.17,
    "frame": 0.3,
    "frameScrolled": 0.3,
-   "small": 0
+   "small": 0,
+   "why": "25 Nov 2026 (the owner's requirements, §1): each card's performance score on a line of its own under the K/D/A, with its place badge, a control added on purpose (4px a card); measured 2.13 at i15 and 8.39 at se1 150%."
   },
   "studio@i15-100": {
    "screens": 1.3,
@@ -372,10 +375,11 @@
    "small": 0
   },
   "own-history@se1-150": {
-   "screens": 8.38,
+   "screens": 8.56,
    "frame": 0.45,
    "frameScrolled": 0.15,
-   "small": 0
+   "small": 0,
+   "why": "25 Nov 2026 (the owner's requirements, §1): each card's performance score on a line of its own under the K/D/A, with its place badge, a control added on purpose (4px a card); measured 2.13 at i15 and 8.39 at se1 150%."
   },
   "studio@se1-150": {
    "screens": 3.42,

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { landAt, moving, placeTip, restsAfterMovingOnto } from "./info-tip";
+import { landAt, moving, placeTip, restsAfterMovingOnto, tipStep } from "./info-tip";
 
 /*
   An ⓘ's bubble: where it goes (placeTip), and the style position that lands it there however the
@@ -33,6 +33,18 @@ describe("where a bubble goes", () => {
     // A 300px bubble for an ⓘ in the middle of a 568px screen fits neither above nor below.
     expect(placeTip({ left: 100, top: 260, bottom: 284, width: 24 }, { width: 304, height: 300 }, { width: 320, height: 568 })).toEqual({ side: "sheet", edge: "bottom" });
     expect(placeTip({ left: 100, top: 300, bottom: 324, width: 24 }, { width: 304, height: 300 }, { width: 320, height: 568 })).toEqual({ side: "sheet", edge: "top" });
+  });
+
+  it("at the body text size wherever it fits; compact (12px) where it fits neither side; the sheet only where the compact bubble has no room either", () => {
+    const at = { left: 100, top: 240, bottom: 328, width: 88 };
+    const phone = { width: 320, height: 568 };
+    // Room for the body-size bubble: it lands there.
+    expect(tipStep(placeTip(at, { width: 304, height: 200 }, phone), false)).toBe("land");
+    // No room for it on either side (a 340px bubble at 200% text on a 320 × 568 phone): drawn compact, placed again.
+    expect(tipStep(placeTip(at, { width: 304, height: 340 }, phone), false)).toBe("compact");
+    // The compact bubble fits: it lands; it does not: the sheet.
+    expect(tipStep(placeTip(at, { width: 304, height: 222 }, phone), true)).toBe("land");
+    expect(tipStep(placeTip(at, { width: 304, height: 260 }, phone), true)).toBe("sheet");
   });
 });
 

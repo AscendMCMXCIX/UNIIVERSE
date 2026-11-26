@@ -74,8 +74,8 @@ const openedFit = (page: Page) =>
   });
 
 /** The removed parts, by their test ids, and their words. */
-const REMOVED_PARTS = "[data-testid^=post-game-note], [data-testid^=notes-], [data-testid^=fold-], [data-testid=post-game-folds], [data-testid=gold-chart], [data-testid=performance-compare], [data-testid=performance-compare-table], [data-testid=performance-why], [data-testid=performance-trend], [data-testid=performance-teams], [data-testid=performance-strip], [data-testid=performance-tile], [data-testid=build-legend], [data-testid=build-row], [data-testid=score-chart-legend], [data-testid=inspected-jump], [data-testid=more-fold], [data-testid=performance-fold]";
-const REMOVED_WORDS = ["Went well", "Went wrong", "Focus next", "Gold over the game", "Build and skill order", "No comparison", "Compare with", "Stood out", "Held back", "Ranks around the time of this game", "not enough recorded history", "no other players to assess", "inferred from", "skill points in this game", "Maxed "];
+const REMOVED_PARTS = "[data-testid^=post-game-note], [data-testid^=notes-], [data-testid^=fold-], [data-testid=post-game-folds], [data-testid=gold-chart], [data-testid=performance-compare], [data-testid=performance-compare-table], [data-testid=performance-why], [data-testid=performance-trend], [data-testid=performance-teams], [data-testid=performance-strip], [data-testid=performance-tile], [data-testid=build-legend], [data-testid=build-row], [data-testid=score-chart-legend], [data-testid=inspected-jump], [data-testid=more-fold], [data-testid=performance-fold], [data-testid=performance], [data-testid=performance-chart-area], [data-testid=performance-chart-info], [data-testid=performance-timeline-missing], [data-testid=score-chart], [data-testid=score-chart-table]";
+const REMOVED_WORDS = ["Went well", "Went wrong", "Focus next", "Gold over the game", "Build and skill order", "No comparison", "Compare with", "Stood out", "Held back", "Ranks around the time of this game", "not enough recorded history", "no other players to assess", "inferred from", "skill points in this game", "Maxed ", "Score through the game", "About the score through the game"];
 
 test("while the timeline loads, the view passes axe, and it says when the timeline has answered", async ({ page }) => {
   await openHistory(page, "TOP");
@@ -102,8 +102,18 @@ test("while the timeline loads, the view passes axe, and it says when the timeli
   await expect(breakdown).toHaveAttribute("data-timeline", "loading");
   const scan = await new AxeBuilder({ page }).include("[data-testid=match-breakdown]").withTags(["wcag2a", "wcag2aa", "wcag21a", "wcag21aa"]).analyze();
   expect(scan.violations.filter((v) => v.impact === "critical" || v.impact === "serious").map((v) => `${v.id}: ${v.nodes.map((n) => n.target.join(" ")).join(" | ")}`)).toEqual([]);
+  // Every scoreboard row keeps its height as the scores replace their stand-ins (a phone's window: on its Scoreboard page).
+  const boardPage = breakdown.getByTestId("post-game-page-board");
+  if (await boardPage.isVisible()) await boardPage.click();
+  const rowHeights = () => breakdown.locator("[data-testid=participant]").evaluateAll((els) => els.map((e) => Math.round(e.getBoundingClientRect().height * 2) / 2));
+  const waiting = await rowHeights();
+  expect(waiting).toHaveLength(10);
+  expect(waiting.every((h) => h > 0), "the rows are shown").toBe(true);
+  await expect(breakdown.locator("[data-testid=participant-score][data-state=loading]")).toHaveCount(10);
   release();
   await expect(breakdown).not.toHaveAttribute("data-timeline", "loading", { timeout: 15_000 });
+  await expect(breakdown.locator("[data-testid=participant-score][data-score]")).toHaveCount(10);
+  expect(await rowHeights(), "each row as tall scored as while it waited").toEqual(waiting);
 });
 
 test("one view: the loadout names itself, each figure once, the other figures in three groups, the lane and the scoreboard; no notes, narrative, comparison or folds", async ({ page }) => {
@@ -286,7 +296,6 @@ test("a game with a timeline reads its lane at 10:00 and 15:00, says nothing mis
     const lane = breakdown.getByTestId("post-game-lane");
     if ((await breakdown.getAttribute("data-timeline")) === "ok" && (await lane.getAttribute("data-state")) === "clear") {
       await expect(breakdown.getByTestId("panel-timeline-missing")).toHaveCount(0);
-      await expect(breakdown.getByTestId("performance-timeline-missing")).toHaveCount(0);
       const ten = await lane.locator("tbody tr").evaluateAll((rows) => rows.map((r) => r.querySelectorAll("td")[0]?.textContent?.trim()));
       expect(ten.some((c) => c !== "—"), "a figure at 10:00").toBe(true);
       // The game's requests settle (its record, the timeline, the groups and the rank check): the timeline once.
@@ -371,7 +380,7 @@ async function openGameWithTimeline(page: Page, want: boolean, tries = 8) {
   throw new Error(`no demo game ${want ? "with" : "without"} a timeline among the newest ${tries}`);
 }
 
-test("every player has a performance score 0–10 beside their row, one MVP and one ACE; the player inspected shows theirs with its place, its (i) and the score through the game", async ({ page }) => {
+test("every player has a performance score 0–10 beside their row with one place badge, one MVP (gold, the winning team) and one ACE (violet, the losing team); the player inspected shows theirs with its place and its (i); the score through the game is gone", async ({ page }) => {
   await openHistory(page, "MID");
   const { breakdown } = await openGameWithTimeline(page, true);
   const scores = breakdown.locator("[data-testid=participant-score][data-score]");
@@ -400,14 +409,36 @@ test("every player has a performance score 0–10 beside their row, one MVP and 
   const n = Number(await row.getAttribute("data-rank"));
   const ordinal = `${n}${n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th"}`;
   await expect(mine.getByTestId("performance-rank")).toHaveText(`${ordinal} of 10`);
-  // One (i) on the score, saying how it is worked out (docs/PERFORMANCE_SCORE.md).
-  await expect(mine.getByTestId("performance-info")).toHaveAccessibleName("About the performance score");
-  // The score through the game: one line, points every five minutes and the end, its figures in a table for screen readers.
-  const chart = breakdown.getByTestId("performance").getByTestId("score-chart");
-  await expect(chart).toBeVisible();
-  await expect(chart).toHaveAttribute("data-series", "1");
-  expect(Number(await chart.getAttribute("data-points"))).toBeGreaterThanOrEqual(3);
-  await expect(chart.getByTestId("score-chart-table").locator("tbody tr").last().locator("th")).toHaveText(/^End \(\d+:\d\d\)$/);
+  // Its place badge, the shared one: MVP or ACE in place of the ordinal, the ordinal otherwise.
+  const badge = mine.getByTestId("performance-mark");
+  const word = (await row.getAttribute("data-mvp")) ? "MVP" : (await row.getAttribute("data-ace")) ? "ACE" : ordinal;
+  await expect(badge.locator("[aria-hidden]")).toHaveText(word);
+  // One (i) on the score, saying how it is worked out and that it is UNIIVERSE's own score, not another site's.
+  const info = mine.getByTestId("performance-info");
+  await expect(info).toHaveAccessibleName("About the performance score");
+  // Two short sentences on that one concept (what MVP and ACE mean is the badge's own words).
+  await expect(info).toHaveAccessibleDescription(/^UNIIVERSE's own score, not OP\.GG's: [^.]+\. 5 is average\.$/);
+  // Every row's badge: one look per kind (the fixed gold and violet tokens; other places the secondary text), the same size on every row.
+  const looks = await breakdown.locator("[data-testid=participant-score] [data-placement]").evaluateAll((els) => {
+    const probe = (token: string) => {
+      const el = document.createElement("span");
+      el.style.color = `var(${token})`;
+      document.body.append(el);
+      const c = getComputedStyle(el).color;
+      el.remove();
+      return c;
+    };
+    const [gold, violet, muted] = [probe("--color-gold"), probe("--color-violet"), probe("--color-fg-muted")];
+    return els.map((e) => ({ kind: e.getAttribute("data-placement"), colour: getComputedStyle(e).color === gold ? "gold" : getComputedStyle(e).color === violet ? "violet" : getComputedStyle(e).color === muted ? "muted" : getComputedStyle(e).color, h: Math.round(e.getBoundingClientRect().height), text: e.textContent }));
+  });
+  expect(looks).toHaveLength(10);
+  for (const l of looks) expect(l.colour, `${l.kind}: ${l.text}`).toBe(l.kind === "mvp" ? "gold" : l.kind === "ace" ? "violet" : "muted");
+  expect(new Set(looks.map((l) => l.h)).size, "one height for every badge").toBe(1);
+  expect(looks.filter((l) => l.kind === "mvp").map((l) => l.text)).toEqual(["MVP"]);
+  expect(looks.filter((l) => l.kind === "ace").map((l) => l.text)).toEqual(["ACE"]);
+  // The score through the game is gone: no chart, no heading, no (i).
+  await expect(breakdown.locator("[data-testid=performance], [data-testid=score-chart], [data-testid=performance-chart-info]")).toHaveCount(0);
+  expect(await breakdown.innerText()).not.toMatch(/score through the game/i);
   // Never the other site's name for its score.
   expect(await breakdown.innerText()).not.toMatch(/OP Score/i);
 });
@@ -456,17 +487,35 @@ test("Build Path, Skill Order and Runes: one segmented control over one fixed ar
   await expect(panels.getByTestId("panel-runes")).toHaveAttribute("aria-checked", "true");
   await panels.getByTestId("panel-build").click();
   // The area is sized per game (the review of Release 17, finding 3): as tall as the taller of the
-  // skill grid and the rune page, both laid out in it, never a constant that leaves a band.
-  const area = await panels.getByTestId("panel-body").evaluate((b) => ({ body: b.getBoundingClientRect().height, views: [...b.querySelectorAll(":scope > [data-view=runes], :scope > [data-view=skills]")].map((v) => v.getBoundingClientRect().height) }));
+  // skill grid and the rune page, both laid out in it, never a constant that leaves a band. In the
+  // view's two columns (a desktop) it also takes the height the scoreboard and the lane leave beside
+  // it (the room the score through the game left, 25 Nov 2026), so nothing stands under it there:
+  // the build column ends with the view, level with the lane.
+  const area = await panels.getByTestId("panel-body").evaluate((b) => {
+    const bd = b.closest("[data-testid=match-breakdown]")!;
+    const box = (sel: string) => bd.querySelector(sel)!.getBoundingClientRect();
+    const side = box("[data-testid=post-game-side]");
+    const lane = box("[data-testid=post-game-lane]");
+    const notes = box("[data-testid=scoreboard-notes]");
+    return { body: b.getBoundingClientRect().height, bottom: b.getBoundingClientRect().bottom, views: [...b.querySelectorAll(":scope > [data-view=runes], :scope > [data-view=skills]")].map((v) => v.getBoundingClientRect().height), columns: lane.left >= side.right, sideBottom: side.bottom, laneTop: lane.top, laneBottom: lane.bottom, boardBottom: box("[data-testid=post-game-scoreboard]").bottom, notes: { left: notes.left, top: notes.top, bottom: notes.bottom }, laneRight: lane.right };
+  });
   expect(area.views).toHaveLength(2);
-  expect(Math.abs(area.body - Math.max(...area.views)), "the area as tall as the skill grid or the rune page").toBeLessThanOrEqual(1);
+  expect(area.body - Math.max(...area.views), "the area at least as tall as the skill grid or the rune page").toBeGreaterThanOrEqual(-1);
+  if (area.columns) {
+    expect(Math.abs(area.bottom - area.sideBottom), "the area to the build column's end").toBeLessThanOrEqual(1);
+    expect(area.sideBottom, "the build column ends with the view, no higher than the lane and the notes").toBeGreaterThanOrEqual(Math.max(area.laneBottom, area.boardBottom, area.notes.bottom) - 1);
+    // The lane under the scoreboard, its notes beside the lane (not over it, which made the column taller than the chart had left it).
+    expect(area.laneTop, "the lane under the scoreboard").toBeGreaterThanOrEqual(area.boardBottom);
+    expect(area.notes.left, "the notes beside the lane").toBeGreaterThanOrEqual(area.laneRight);
+    expect(Math.abs(area.notes.top - area.laneTop), "the notes level with the lane").toBeLessThanOrEqual(1);
+  } else expect(Math.abs(area.body - Math.max(...area.views)), "the area as tall as the skill grid or the rune page").toBeLessThanOrEqual(1);
   // A path too long for its area is split into pages of whole rows: every purchase is still in the
   // page, each page shown whole. Here the area is made short and narrow, as a long game's twenty
   // visits fill it: the two views that set its height are taken out and it is given 6rem (the area
   // is no longer a fixed min-height of its own since it is sized per game, so the min-height alone
   // no longer shortens it).
   await panels.locator("[data-testid=panel-body] > [data-view=runes], [data-testid=panel-body] > [data-view=skills]").evaluateAll((els) => els.forEach((el) => ((el as HTMLElement).style.display = "none")));
-  await panels.getByTestId("panel-body").evaluate((el) => ((el as HTMLElement).style.minHeight = "6rem"));
+  await panels.getByTestId("panel-body").evaluate((el) => Object.assign((el as HTMLElement).style, { minHeight: "6rem", height: "6rem", flex: "none" }));
   await panels.evaluate((el) => ((el as HTMLElement).style.width = "9rem"));
   const box = panels.getByTestId("build-path-box");
   await expect.poll(async () => Number(await box.getAttribute("data-pages"))).toBeGreaterThan(1);
@@ -484,7 +533,7 @@ test("Build Path, Skill Order and Runes: one segmented control over one fixed ar
   }
   expect(seen, "every purchase on one of the pages").toBe(total);
   await panels.evaluate((el) => (el as HTMLElement).style.removeProperty("width"));
-  await panels.getByTestId("panel-body").evaluate((el) => (el as HTMLElement).style.removeProperty("min-height"));
+  await panels.getByTestId("panel-body").evaluate((el) => ["min-height", "height", "flex"].forEach((k) => (el as HTMLElement).style.removeProperty(k)));
   await panels.locator("[data-testid=panel-body] > [data-view]").evaluateAll((els) => els.forEach((el) => (el as HTMLElement).style.removeProperty("display")));
   await closeGame(card);
   // A game without a timeline opens on Runes: Build Path and Skill Order are disabled, with one quiet
@@ -501,11 +550,17 @@ test("Build Path, Skill Order and Runes: one segmented control over one fixed ar
     await expect(p2.getByTestId(`panel-${k}`)).toHaveAccessibleDescription("Timeline not available for this game");
   }
   await expect(p2.getByTestId("rune-page")).toBeVisible();
-  const runesArea = await p2.getByTestId("panel-body").evaluate((b) => b.getBoundingClientRect().height - b.querySelector("[data-testid=rune-page]")!.getBoundingClientRect().height);
-  expect(runesArea, "no band under the rune page").toBeLessThanOrEqual(1);
-  await showGamePage(none.breakdown, "player");
-  await expect(none.breakdown.getByTestId("performance-timeline-missing")).toBeVisible();
-  // Its final scores still stand, from the record.
+  // No band under the rune page: the area is its height, or in the view's two columns it ends with the build column (nothing under it).
+  const runesArea = await p2.getByTestId("panel-body").evaluate((b) => {
+    const bd = b.closest("[data-testid=match-breakdown]")!;
+    const side = bd.querySelector("[data-testid=post-game-side]")!.getBoundingClientRect();
+    const columns = bd.querySelector("[data-testid=post-game-lane]")!.getBoundingClientRect().left >= side.right;
+    return { band: b.getBoundingClientRect().height - b.querySelector("[data-testid=rune-page]")!.getBoundingClientRect().height, columns, toEnd: side.bottom - b.getBoundingClientRect().bottom };
+  });
+  if (runesArea.columns) expect(runesArea.toEnd, "nothing under the area in the build column").toBeLessThanOrEqual(1);
+  else expect(runesArea.band, "no band under the rune page").toBeLessThanOrEqual(1);
+  // Its final scores still stand, from the record (and no chart says the timeline is missing: it is gone).
+  await expect(none.breakdown.getByTestId("performance-timeline-missing")).toHaveCount(0);
   await expect(none.breakdown.locator("[data-testid=participant-score][data-score]")).toHaveCount(10);
 });
 
@@ -569,7 +624,6 @@ test("a press on any scoreboard row inspects that player at once, with nothing f
         panels: y(bd.querySelector("[data-testid=participant-panels]")),
         body: y(bd.querySelector("[data-testid=panel-body]")),
         lane: y(bd.querySelector("[data-testid=post-game-lane]")),
-        chart: y(bd.querySelector("[data-testid=performance]")),
         height: Math.round(bd.getBoundingClientRect().height),
       };
     });
@@ -697,16 +751,18 @@ test("desktop with motion on: a game opened from a card in the upper half of the
     await page.setViewportSize(size);
     await openHistory(page, "MID");
     // A card whose top can sit at about half the screen's height (the upper 55% is left where it is
-    // as it opens; a short list on a tall screen cannot scroll its first cards that far down).
+    // as it opens; a short list on a tall screen cannot scroll its first cards that far down): at 53%,
+    // so that even at 2560 × 1440 the game runs past the window's foot (it is shorter since
+    // 26 Nov 2026, the lane and the scoreboard's notes side by side under the scoreboard).
     let card = page.getByTestId("match-card").first();
     let before = 0;
     for (let i = 1; i < 8; i++) {
       card = page.getByTestId("match-card").nth(i);
       before = await card.evaluate((c) => {
-        window.scrollBy({ top: c.getBoundingClientRect().top - innerHeight / 2, behavior: "instant" });
+        window.scrollBy({ top: c.getBoundingClientRect().top - innerHeight * 0.53, behavior: "instant" });
         return c.getBoundingClientRect().top;
       });
-      if (before > size.height * 0.45 && before < size.height * 0.55) break;
+      if (before > size.height * 0.5 && before < size.height * 0.55) break;
     }
     expect(before, `${size.width}: the card in the upper part of the screen`).toBeLessThan(size.height * 0.55);
     expect(before).toBeGreaterThan(size.height * 0.45);

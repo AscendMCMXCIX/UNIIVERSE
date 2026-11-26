@@ -284,8 +284,8 @@ Resources (its own sidebar entry, last in Player Mode, every signed-in account) 
 (`/resources`, below), one page with no tabs. From 16 to 18 Nov 2026 it also held Matchup Intel as
 its second tab; from 18 Nov 2026 Matchup Intel (`/resources/matchups`) was a sidebar entry of its
 own, between Team and Resources, and since 23 Nov 2026 Champion Lookup, renamed Champion Intel on
-24 Nov 2026 (`/lookup`, one or two champions' abilities, cooldowns, costs, key mechanics and base
-statistics: docs/CHAMPION_INTEL.md) takes that place; Matchup Intel's address
+24 Nov 2026 (`/lookup`, one or two champions' abilities, cooldowns, costs, mechanics, facts, base
+statistics and, for members, builds and runes: docs/CHAMPION_INTEL.md) takes that place; Matchup Intel's address
 redirects to it (docs/MATCHUP_INTEL.md).
 The Library is the team's library of League of Legends sites in five sections (League of Legends, Summoner's Rift,
 ARAM, Arena, Esports). One filter bar (search, then the section), favourites kept in the browser
@@ -382,8 +382,9 @@ request is a game's match timeline, once per game, when a section that needs it 
   Order | Runes in `participant-panels.tsx`, and the lane against *their* lane opponent). Each row
   carries the performance score (`src/domain/performance-score.ts`, docs/PERFORMANCE_SCORE.md),
   computed in the browser from the record and the timeline already loaded
-  (`performance-inputs.ts`), with the score through the game (`score-chart.tsx`) and a comparison
-  with a second player (`performance-panel.tsx`). `DetailParticipant` gained each player's
+  (`performance-inputs.ts`), with the score through the game (`score-chart.tsx`, removed with its
+  calculations on 25 Nov 2026) and a comparison with a second player (`performance-panel.tsx`,
+  removed on 24 Nov 2026). `DetailParticipant` gained each player's
   `runePage`, `laneOpponentSlot` and `win` and the healing, shielding, mitigation, time dead and
   plates figures, from the row the view already read.
   **Release 17 (24 Nov 2026):** `performance-inputs.ts` moved to `src/domain/` (the old path

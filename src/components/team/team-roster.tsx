@@ -219,7 +219,7 @@ export function RosterCard({ slot, championsById, canManageLineup, editingLineup
             {canManageLineup ? (editingLineup ? "Choose a player with Assign" : "No player yet: use Edit lineup") : "Not assigned yet"}
           </div>
           <div className="border-t border-border pt-3">
-            <p className="text-xs font-medium text-fg-subtle">Suggested</p>
+            <p className="text-xs font-medium text-fg-muted">Suggested</p>
             {slot.suggestions.length === 0 ? (
               <p className="mt-1 text-sm text-fg-muted">No registered player lists {slot.roleLabel} as a role.{canManageLineup ? " An administrator can add their account." : ""}</p>
             ) : (
@@ -377,7 +377,7 @@ function LineupSheet({ slot, kind, pick, startsElsewhere, onClose }: { slot: Ros
         {none ? option(null, <span className="flex min-w-0 items-center gap-3 text-sm text-fg-muted"><span className="grid h-8 w-8 shrink-0 place-items-center rounded-full border border-dashed border-border-strong"><X className="h-4 w-4" aria-hidden /></span><span className="min-w-0 [overflow-wrap:break-word]">{none}</span></span>, starter ? "clear-role" : "remove-substitute") : null}
         {starter && slot.waiting.length ? (
           <>
-            <p className="pt-2.5 text-xs font-medium text-fg-subtle">Roles not chosen yet</p>
+            <p className="pt-2.5 text-xs font-medium text-fg-muted">Roles not chosen yet</p>
             {slot.waiting.map((w) =>
               option(
                 w.id,
@@ -652,7 +652,8 @@ export function playerDetail({ slot, championsById, canEdit, canViewProfile, pro
   const status = assignmentStatus(p, slot.role);
   const figure = (label: string, value: string, sub: React.ReactNode, tone?: string) => (
     <div className="min-w-0">
-      <dt className="text-2xs font-semibold uppercase tracking-label text-fg-subtle">{label}</dt>
+      {/* The window keeps its approved capitals; a figure's label is secondary (25 Nov 2026). */}
+      <dt className="text-2xs font-semibold uppercase tracking-label text-fg-muted">{label}</dt>
       <dd className={cn("text-2xl font-bold leading-tight tabular-nums", tone ?? "text-fg")}>{value}</dd>
       <dd className="truncate text-xs tabular-nums text-fg-muted">{sub}</dd>
     </div>

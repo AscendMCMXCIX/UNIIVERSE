@@ -1,7 +1,7 @@
 import type { Slot } from "./types";
 
 /*
-  CHAMPION INTEL's mechanics from Riot's own words (docs/CHAMPION_INTEL.md, "Key mechanics"): which
+  CHAMPION INTEL's mechanics from Riot's own words (docs/CHAMPION_INTEL.md, "Mechanics (the rows' chips)"): which
   kinds of mechanic (a stun, a dash, a shield, a heal, magic damage…) each ability's short
   description in Riot's Data Dragon names, found by fixed, reviewed word rules, each with the
   sentence of Riot's description that carries it and where in that text the words stand, so the
@@ -25,16 +25,6 @@ import type { Slot } from "./types";
 export type MechanicGroup = "crowd-control" | "mobility" | "defence" | "sustain" | "damage" | "casting";
 
 export const MECHANIC_GROUPS: readonly MechanicGroup[] = ["crowd-control", "mobility", "damage", "sustain", "defence", "casting"];
-
-/** Each group's heading as the page writes it. */
-export const MECHANIC_GROUP_WORDS: Record<MechanicGroup, string> = {
-  "crowd-control": "Crowd control",
-  mobility: "Mobility",
-  damage: "Damage",
-  sustain: "Sustain",
-  defence: "Defence",
-  casting: "Casting",
-};
 
 interface Rule {
   kind: string;
@@ -227,23 +217,4 @@ export function mechanicsOf(ability: MechanicInput, champion: { id: string; name
     if (found) facts.push(found);
   }
   return facts;
-}
-
-/** A champion's key mechanics: each group with its kinds, each kind with the abilities whose description names it, in slot order. */
-export interface KeyMechanics {
-  groups: Array<{ group: MechanicGroup; kinds: Array<{ kind: string; word: string; slots: Slot[] }> }>;
-}
-
-export function keyMechanics(facts: readonly MechanicFact[]): KeyMechanics {
-  const groups: KeyMechanics["groups"] = [];
-  for (const group of MECHANIC_GROUPS) {
-    const kinds: KeyMechanics["groups"][number]["kinds"] = [];
-    for (const rule of MECHANIC_RULES) {
-      if (rule.group !== group) continue;
-      const slots = facts.filter((f) => f.kind === rule.kind).map((f) => f.slot);
-      if (slots.length) kinds.push({ kind: rule.kind, word: rule.word, slots: [...new Set(slots)] });
-    }
-    if (kinds.length) groups.push({ group, kinds });
-  }
-  return { groups };
 }

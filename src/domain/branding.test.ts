@@ -1,5 +1,7 @@
+import { readFileSync } from "node:fs";
+import { join } from "node:path";
 import { describe, expect, it } from "vitest";
-import { brandThemeCss, brandThemeVars, checkContrast, contrastRatio, contrastText, controlEdge, DEFAULT_BRANDING, DEFAULT_COLOURS, lightenHex, logoSrc, logoStillSrc, NEUTRAL_NAME, parseBranding, resetLook } from "./branding";
+import { brandThemeCss, brandThemeVars, checkContrast, contrastRatio, contrastText, controlEdge, DEFAULT_BRANDING, DEFAULT_COLOURS, lightenHex, logoSrc, logoStillSrc, NEUTRAL_NAME, parseBranding, resetLook, SUBTLE_TEXT_COLOUR, TEXT_COLOUR } from "./branding";
 
 describe("branding", () => {
   it("falls back to defaults for anything invalid and keeps valid values", () => {
@@ -52,6 +54,34 @@ describe("branding", () => {
     expect(light.find((c) => c.key === "background")!.ok).toBe(false);
     const dimAccent = checkContrast({ ...DEFAULT_BRANDING, accent: "#151a40" });
     expect(dimAccent.find((c) => c.key === "accent")!.ok).toBe(false);
+  });
+
+  it("keeps the quietest text (fg-subtle) at 4.5:1 on a custom page, panel and selected row, not only the main text (25 Nov 2026)", () => {
+    // A mid-grey panel: the main text still reads (about 6:1), the quiet text would not (about 2.9:1).
+    const grey = checkContrast({ ...DEFAULT_BRANDING, surface: "#5a5a5a" });
+    expect(grey.find((c) => c.key === "surface" && c.message.startsWith("Text on panels"))!.ok).toBe(true);
+    expect(grey.filter((c) => c.key === "surface" && !c.ok).map((c) => c.message.split(":")[0])).toEqual(["Quiet text on panels", "Quiet text on selected rows"]);
+    // A panel that passes as it is but whose selected shade (12% towards white) would not.
+    const nearly = checkContrast({ ...DEFAULT_BRANDING, surface: "#33363f" });
+    expect(nearly.find((c) => c.message.startsWith("Quiet text on panels"))!.ok).toBe(true);
+    expect(nearly.find((c) => c.message.startsWith("Quiet text on selected rows"))!.ok).toBe(false);
+    // The defaults pass every check, the quiet ones included.
+    expect(checkContrast(DEFAULT_BRANDING).filter((c) => c.message.startsWith("Quiet")).map((c) => c.ok)).toEqual([true, true, true]);
+  });
+
+  it("names every check uniquely (the Contrast checks list keys its rows by it), though several share a colour", () => {
+    const checks = checkContrast(DEFAULT_BRANDING);
+    const names = checks.map((c) => c.what);
+    expect(new Set(names).size).toBe(checks.length);
+    // The colour keys repeat (body and quiet text on the background and on panels): never a list's key.
+    expect(new Set(checks.map((c) => c.key)).size).toBeLessThan(checks.length);
+    for (const c of checks) expect(c.message.startsWith(`${c.what}: `), c.what).toBe(true);
+  });
+
+  it("checks the text colours globals.css defines (fg and fg-subtle)", () => {
+    const css = readFileSync(join(__dirname, "..", "app", "globals.css"), "utf8");
+    expect(/--color-fg:\s*(#[0-9a-f]{6})/i.exec(css)?.[1]?.toLowerCase()).toBe(TEXT_COLOUR);
+    expect(/--color-fg-subtle:\s*(#[0-9a-f]{6})/i.exec(css)?.[1]?.toLowerCase()).toBe(SUBTLE_TEXT_COLOUR);
   });
 
   it("emits theme variables only for changed colours, derived shades from the surface", () => {

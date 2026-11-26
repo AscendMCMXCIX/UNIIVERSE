@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "./test";
+import { openDataStatus } from "./data-status";
 import { cardOf, expandedOf, openGame, opensFullScreen, pastGameHeader, showGamePage } from "./match-history";
 import { createMember } from "./member-account";
 import { pagerFold, pagerItems, pagerRem } from "../src/components/match-history/pager";
@@ -202,7 +203,7 @@ const cardGeometry = (els: Element[]) =>
     // The figures' column (the CS and damage sit in a line of their own inside it on a narrow phone).
     let next = cs.closest('[data-testid="match-figures"]')!.nextElementSibling;
     while (next && !inRow(next)) next = next.nextElementSibling;
-    // From 50 to 61rem of list (1280 with the sidebar open) the build takes the teams' place (S6c, UD.H1): no teams drawn there.
+    // From 50 to 65rem of list (1280 with the sidebar open) the build takes the teams' place (S6c, UD.H1): no teams drawn there.
     const shown = (e: Element | null) => !!e && box(e).width > 0;
     const teams = card.querySelector('[data-testid="match-teams"]');
     const build = card.querySelector('[data-testid="match-card-build"]');
@@ -237,9 +238,10 @@ test("a wide card's figures end before the next column, the teams keep their nam
     const cards = await page.getByTestId("match-card").evaluateAll(cardGeometry);
     expect(cards.length).toBeGreaterThan(1);
     if (size.width === 1366) {
-      // With the build and the teams both on the card (a 61–70rem list), the columns keep 10px apart
+      // With the build and the teams both on the card (a 65–74rem list, the chevron left out), the columns keep 8px apart
       // so the teams have the room the 12px floor needs (Release 11): with 16px gaps 8 of the
-      // first card's 10 names were cut here, at 12px.
+      // first card's 10 names were cut here, at 12px. 10px until 25 Nov 2026, when the score's own
+      // column after the K/D/A took 2.5rem of the row: at 10px 5 names were cut once the rivals' ranks were read.
       // Demo Mid's first game has the longer names.
       await page.goto(`${await profileOf(page, "MID")}/matches`, { waitUntil: "networkidle" });
       await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
@@ -247,7 +249,7 @@ test("a wide card's figures end before the next column, the teams keep their nam
         const names = [...c.querySelectorAll("[data-testid=team-slot-name]")];
         return { gap: getComputedStyle(c.querySelector("[data-testid=match-card-grid]")!).columnGap, names: names.length, cut: names.filter((n) => n.scrollWidth > n.clientWidth + 0.5).length };
       });
-      expect(roster.gap, "1366: 10px between the columns").toBe("10px");
+      expect(roster.gap, "1366: 8px between the columns").toBe("8px");
       expect(roster.names).toBe(10);
       expect(roster.cut, "1366: the first card's roster names mostly whole").toBeLessThanOrEqual(3);
       await page.goto(`${profile}/matches`, { waitUntil: "networkidle" });
@@ -262,7 +264,7 @@ test("a wide card's figures end before the next column, the teams keep their nam
       if (size.width >= 1000) expect(c.build, `${at}: the build is drawn`).toBe(true);
       if (size.width >= 1000) expect(c.items, `${at}: six items and the trinket`).toBe(7);
       if (size.width === 1280) {
-        expect(c.teams, `${at}: the build in the teams' place`).toBeNull();
+        expect(c.teams, `${at}: no teams (the game's scoreboard has them)`).toBeNull();
         expect(c.height, `${at}: D8's density, unchanged`).toBeLessThanOrEqual(106);
       }
       if (c.teams === null) continue;
@@ -273,6 +275,28 @@ test("a wide card's figures end before the next column, the teams keep their nam
     }
     const lefts = cards.map((c) => c.teams).filter((x): x is number => x !== null);
     if (lefts.length) expect(Math.max(...lefts) - Math.min(...lefts), `${size.width}px: the teams start at the same place on every card`).toBeLessThanOrEqual(1);
+    // Without the teams (50–65rem: 1280 with the sidebar open, 860 without), the room they leave goes
+    // to the champion's column, not to blank after the build (review of 26 Nov 2026: about 150px
+    // stood empty there while the champion's column sat at its 6.25rem floor and the line of team
+    // members in the game was cut early): the build sits at the row's end, one column gap before
+    // the chevron, and the champion's column is well past its floor (256px at 1280, the measure of
+    // 26 Nov 2026), so a line naming a team member or two keeps them whole.
+    if (size.width === 1280 || size.width === 860) {
+      const room = await page.getByTestId("match-card").evaluateAll((els) =>
+        els.map((card) => {
+          const build = card.querySelector('[data-testid="match-card-build"]')!.getBoundingClientRect();
+          const chevron = card.querySelector('[data-testid="match-card-chevron"]')!.getBoundingClientRect();
+          const grid = card.querySelector('[data-testid="match-card-grid"]')!;
+          const gap = parseFloat(getComputedStyle(grid).columnGap);
+          const champion = parseFloat(getComputedStyle(grid).gridTemplateColumns.split(" ")[2]!);
+          return { after: chevron.left - build.right - gap, champion: champion / parseFloat(getComputedStyle(document.documentElement).fontSize) };
+        }),
+      );
+      for (const [i, r] of room.entries()) {
+        expect(r.after, `${size.width}px, card ${i}: the build one gap before the chevron`).toBeLessThanOrEqual(1);
+        expect(r.champion, `${size.width}px, card ${i}: the champion's column takes the teams' room (rem)`).toBeGreaterThanOrEqual(size.width === 1280 ? 14 : 9);
+      }
+    }
 
     // Real games go further than the demo's (its deaths stop at 9): the widest K/D/A, three
     // two-digit numbers, fits the KDA column's floor, so that card stays level with the others;
@@ -398,10 +422,9 @@ test("a build that was not recorded draws nothing on its card, and the page says
     }
   }
   // The page says it once, in its data status.
-  const infoTip = page.getByTestId("data-refresh-info");
-  if (isPhone(page)) await infoTip.tap();
-  else await infoTip.hover();
-  await expect(page.getByTestId("data-refresh-info-bubble").locator('[data-part="note"]')).toContainText("Items of 3 games on this page were not recorded");
+  await expect((await openDataStatus(page)).locator('[data-part="note"]')).toContainText("Items of 3 games on this page were not recorded");
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("data-refresh-details")).toHaveCount(0);
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 });
 
@@ -979,7 +1002,9 @@ const HEIGHTS: Record<string, Array<{ device: string; size: { width: number; hei
   ],
   tablet: [
     { device: "iPad (820×1180)", size: { width: 820, height: 1180 }, games: 1.6 },
-    { device: "iPad (810×1080)", size: { width: 810, height: 1080 }, games: 1.6, encounters: 1.0 },
+    // 1.62 since 25 Nov 2026 (the plan's 1.6 before): the performance score's own line under the K/D/A (the owner's
+    // requirements, §1) adds 5px to a two-row card with a multikill; measured 1.617 on the demo (docs/MOBILE.md).
+    { device: "iPad (810×1080)", size: { width: 810, height: 1080 }, games: 1.62, encounters: 1.0 },
   ],
   desktop: [
     { device: "a laptop (1440×900)", size: { width: 1440, height: 900 }, games: 1.6 },

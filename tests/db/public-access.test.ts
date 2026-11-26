@@ -84,7 +84,9 @@ beforeAll(async () => {
     await db.insert(userAvatars).values({ userId: user!.id, contentType: "image/webp", data: Buffer.from(`avatar-${name}`) });
     await setLineupSlot(db, teamId, role, id);
     const account = await addAccount(db, { ownerType: "player", playerId: id, riotId: `${name}Riot#OCE`, platform: "oc1" });
-    await db.update(riotAccounts).set({ tier: "GOLD", division: "II", leaguePoints: 64, rankQueue: "solo" }).where(eq(riotAccounts.id, account.id));
+    // A successful read just now (sync_cursor, in seconds, is written on success only): with the recent games below, each lineup
+    // player is active, so the public Leaderboards hold them and the privacy checks below run on real rows (25 Nov 2026).
+    await db.update(riotAccounts).set({ tier: "GOLD", division: "II", leaguePoints: 64, rankQueue: "solo", syncStatus: "ok", lastSyncAt: new Date(), syncCursor: Math.floor(Date.now() / 1000) }).where(eq(riotAccounts.id, account.id));
     await db.insert(accountChampionHistory).values({ accountId: account.id, championId, role, queueGroup: "solo", patch: "16.20", games: 140, wins: 80, lastPlayedAt: new Date() });
     await db.insert(accountMatches).values(Array.from({ length: 4 }, (_, i) => ({ accountId: account.id, matchId: `OC1_${name}${i}`, gameCreation: Date.now() - i * 3_600_000, queueId: 420, championId, role, win: i % 2 === 0, patch: "16.20", kills: 7, deaths: 3, assists: 6, cs: 210, damage: 21000, visionScore: 23, gameDuration: 1800 })));
   }
@@ -225,13 +227,27 @@ describe("where the deployment allows Riot data on the public pages", () => {
     expect(new Set(data.games.map((g) => g.playerId))).not.toContain(ids.benchother);
     // The page, as the public page builds it: no profile or game links, no viewer.
     const view = buildLeaderboardsView(data, {}, null, { basePath: "/public/leaderboards", profiles: false });
+    // The checks below run on real rows: the five lineup players are active (a recent counted game and a successful read), so the
+    // page names them and holds their records. The substitute has no linked account or game: on the public list, not shown.
+    const lineup = ROLES.map(([name]) => ids[name]!);
+    expect(Object.keys(view.players).sort()).toEqual([...lineup].sort());
+    expect(view.playerCount).toBe(5);
+    const held = view.records.records.filter((r) => r.holder !== null);
+    expect(held.length).toBeGreaterThan(0);
+    expect(held.every((r) => lineup.includes(r.holder!.playerId))).toBe(true);
     expect(Object.values(view.players).every((p) => p.profileHref === null)).toBe(true);
+    expect(Object.values(view.players).every((p) => p.avatarUrl === null || p.avatarUrl.startsWith("/api/public/avatars/"))).toBe(true);
     expect(view.records.seasons.every((s) => s.href.startsWith("/public/leaderboards"))).toBe(true);
     expect(view.viewer).toBeNull();
-    expect(view.records.records.every((r) => r.holder === null || r.holder.href === null)).toBe(true);
-    // What the page sends: the view, with no sign-in name, Riot ID, profile route or private picture route.
+    expect(held.every((r) => r.holder!.href === null && r.holder!.game === null)).toBe(true);
+    // What the page sends: the view, with no sign-in name, Riot ID, profile route or private picture route, and no sync time
+    // (each player's last successful read decides who is shown: server-side only, never on the page).
+    expect(data.players.every((p) => "lastSyncedAt" in p)).toBe(true);
     const json = JSON.stringify(view);
+    // The names it does send are the display names (so the checks below are on a view that names people).
+    expect(json).toContain("Top Shown");
     expect(json).not.toMatch(/_login|Riot#OCE|\/players\/|\/api\/avatars\//);
+    expect(json).not.toMatch(/lastSyncedAt|syncCursor|lastSyncAt/);
     expect(json).not.toContain(ids.benchother);
     for (const id of Object.values(userIds)) expect(json).not.toContain(id);
   });

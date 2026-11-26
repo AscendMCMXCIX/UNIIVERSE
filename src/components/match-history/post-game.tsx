@@ -11,10 +11,10 @@ import { Undo2 } from "lucide-react";
 import { formatCount, formatDateTime, formatKilo } from "@/lib/format";
 import { laneOf } from "@/domain/match-analysis";
 import { ParticipantPanels, type PanelKey } from "./participant-panels";
-import { ScoreSummary, ScoreTimeline } from "./performance-panel";
+import { ScoreSummary } from "./performance-panel";
 import { usePhone } from "@/components/ui/use-phone";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
-import { gameScoresOf } from "@/domain/performance-inputs";
+import { finalScoresOf } from "@/domain/performance-inputs";
 import { cn } from "@/lib/cn";
 import { MatchDetailCacheContext, type MeetingScope } from "./match-detail-cache";
 import { OpggHistoryLink } from "./opgg-history-link";
@@ -35,13 +35,16 @@ import { publicPatchName } from "@/domain/patch";
     trinket beside the first row); six figures; the other recorded figures in a grid of three
     groups, ordered by role; Build Path | Skill Order | Runes over one area, one height per game; the lane
     by role against the lane opponent at 10:00, 15:00 and the end.
-  - The scoreboard: both teams as one component, every player's score and place in their row; one
-    quiet line under it (ranks and possible groups, each with its (i), the date, the bookmark and
-    OP.GG); and the inspected player's score through the game.
+  - The scoreboard: both teams as one component, every player's score and place in their row; its
+    quiet notes under it (ranks and possible groups, each with its (i), the date, the bookmark and
+    OP.GG; from 56rem beside the lane). The score through the game under it was removed at the owner's request of 25 Nov 2026;
+    its room went to the scoreboard's rows, the player's own score, the lane (from 56rem under the
+    scoreboard, where the chart was) and the build panels, which take the height the scoreboard and
+    the lane leave beside them, so a long build path needs fewer pages and the columns end level.
   Every part above the scoreboard and beside it keeps its height whoever is inspected, so the rows
-  never move as another player is chosen. Widths (the view's own, @container/pg): from 56rem two
-  columns (the player, then the scoreboard); 40–56rem the player beside the build and the lane,
-  the scoreboard under both; under 40rem one column. A phone's window shows one of three pages at a
+  never move as another player is chosen. Widths (the view's own, @container/pg; VIEW_GRID): from
+  56rem two columns (the player over the build panels, the scoreboard over the lane); 40–56rem the
+  player beside the build panels and the lane, the scoreboard under both; under 40rem one column. A phone's window shows one of three pages at a
   time (Player, Build, Scoreboard: the shared segmented control), each within its screen, instead of
   one long scrolling column. The timeline is asked for once as the game opens (stored, about 10–20
   KB, every player's in it; Riot is asked at most once per game, ever). Inspecting another player
@@ -141,11 +144,12 @@ function Loadout({ p, champ, score }: { p: DetailParticipant; champ: PortraitCha
   );
 }
 
+/** From a 56rem view (two columns) the figures and the other figures a step larger: the room the score through the game left (25 Nov 2026). */
 function Figure({ label, value, sub, testId }: { label: string; value: string; sub: string | null; testId: string }) {
   return (
     <div className="min-w-0" data-testid={testId}>
-      <div className="text-2xs font-medium uppercase leading-4 tracking-label text-fg-subtle [overflow-wrap:anywhere]">{label}</div>
-      <div className="text-base font-semibold leading-5 tabular-nums text-fg">{value}</div>
+      <div className="label-text leading-4 [overflow-wrap:anywhere]">{label}</div>
+      <div className="text-base font-semibold leading-5 tabular-nums text-fg @min-[56rem]/pg:text-lg @min-[56rem]/pg:leading-6">{value}</div>
       <div className="text-xs leading-4 tabular-nums text-fg-muted">{sub ?? " "}</div>
     </div>
   );
@@ -228,10 +232,10 @@ function MoreStats({ p, support }: { p: DetailParticipant; support: boolean }) {
         const g = groups[k];
         return (
           <section key={k} aria-label={g.label} className="min-w-0" data-testid={`more-${k}`}>
-            <p className="text-2xs font-medium uppercase leading-4 tracking-label text-fg-subtle [overflow-wrap:anywhere]" aria-hidden>
+            <p className="label-text leading-4 [overflow-wrap:anywhere]" aria-hidden>
               {g.label}
             </p>
-            <dl className="text-2xs leading-4">
+            <dl className="text-2xs leading-4 @min-[56rem]/pg:text-xs @min-[56rem]/pg:leading-5">
               {g.rows.map(([key, label, value, spoken]) => (
                 <div key={key} className="flex items-baseline justify-between gap-1.5" data-testid={`more-${key}`}>
                   <dt className="min-w-0 text-fg-muted">
@@ -268,7 +272,7 @@ function Lane({ view, champ, me, entry, state }: { view: MatchDetailView; champ:
   if (opp === null)
     return (
       <section aria-label="Lane" className={box} data-testid="post-game-lane" data-state="unclear">
-        <p className="text-2xs font-semibold uppercase leading-5 tracking-label text-fg-subtle">Lane</p>
+        <p className="label-text leading-5">Lane</p>
         <p className="text-xs text-fg-subtle">Lane opponent not clear in this game</p>
       </section>
     );
@@ -296,12 +300,12 @@ function Lane({ view, champ, me, entry, state }: { view: MatchDetailView; champ:
       {/* Under 20rem (a phone at large text) each row's name stands on a line of its own, its figures under it, so nothing runs past the screen. */}
       <table className={cn("w-full text-sm leading-5 tabular-nums", "@max-[20rem]/lane:block @max-[20rem]/lane:[&_tbody]:block @max-[20rem]/lane:[&_td]:block @max-[20rem]/lane:[&_th]:block @max-[20rem]/lane:[&_th]:w-auto @max-[20rem]/lane:[&_thead]:block @max-[20rem]/lane:[&_tr]:grid @max-[20rem]/lane:[&_tr]:grid-cols-3 @max-[20rem]/lane:[&_tr>th:first-child]:col-span-3")}>
         <thead>
-          <tr className="text-2xs text-fg-subtle">
-            <th className="text-left font-semibold">
-              <span className="flex items-center gap-1.5 uppercase tracking-label">
+          <tr className="label-text">
+            <th className="text-left font-medium">
+              <span className="flex items-center gap-1.5">
                 Lane vs
                 <ChampionPortrait champion={c} size="xs" className="h-4 w-4 rounded" />
-                <span className="truncate text-xs font-semibold normal-case tracking-normal text-fg">{c.name}</span>
+                <span className="truncate text-xs font-semibold text-fg">{c.name}</span>
                 <span className="sr-only">: you minus them</span>
               </span>
             </th>
@@ -354,8 +358,26 @@ function Lane({ view, champ, me, entry, state }: { view: MatchDetailView; champ:
 
 const POSITION_WORDS: Record<string, string> = { TOP: "Top", JUNGLE: "Jungle", MIDDLE: "Mid", BOTTOM: "Bottom", UTILITY: "Support" };
 
-/** The 40–56rem grid (a tablet): the player beside the build and the lane, the score through the game under those, the scoreboard across. */
-const MID = "@min-[40rem]/pg:@max-[56rem]/pg:grid-cols-2 @min-[40rem]/pg:@max-[56rem]/pg:[grid-template-areas:'player_side'_'player_chart'_'board_board']";
+/*
+  The view's grid, by its own width (@container/pg). Its four parts are its own items, in reading
+  order: the player inspected, the build panels (Build Path | Skill Order | Runes), the lane and the
+  scoreboard, then its notes (the ranks and the possible groups with their (i), the date, the
+  bookmark and OP.GG). Under 40rem one column in that order (a phone's pages show one or two of
+  them). 40–56rem (a tablet): the player beside the build panels with the lane under them, the
+  scoreboard and its notes across under both; the lane's row takes what the player's column has
+  left (1fr), so nothing opens between the panels and the lane. From 56rem two columns: the player
+  over the build panels, the scoreboard over the lane with its notes beside the lane, right-aligned
+  (since 26 Nov 2026: the room the score through the game left under the scoreboard; the notes beside
+  the lane rather than over it keep the column no taller than the chart left it, so the game still
+  fits 1280 × 720 with a scoreboard of long names and possible groups); the build panels' row is the
+  flexible one, so they take whatever height the scoreboard and the lane leave beside them (the
+  build path's pages hold more rows) and the two columns end level.
+*/
+const VIEW_GRID = cn(
+  "grid gap-x-5 gap-y-3",
+  "@min-[40rem]/pg:@max-[56rem]/pg:grid-cols-2 @min-[40rem]/pg:@max-[56rem]/pg:grid-rows-[auto_1fr_auto_auto] @min-[40rem]/pg:@max-[56rem]/pg:[grid-template-areas:'player_side'_'player_lane'_'board_board'_'notes_notes']",
+  "@min-[56rem]/pg:grid-cols-[minmax(0,22rem)_21rem_minmax(0,1fr)] @min-[56rem]/pg:grid-rows-[auto_auto_1fr] @min-[56rem]/pg:[grid-template-areas:'player_board_board'_'side_board_board'_'side_lane_notes'] @min-[64rem]/pg:grid-cols-[minmax(0,24rem)_21rem_minmax(0,1fr)] @min-[80rem]/pg:grid-cols-[minmax(0,27rem)_21rem_minmax(0,1fr)]",
+);
 
 type PhonePage = "player" | "build" | "board";
 const PHONE_PAGES: Array<{ key: PhonePage; label: string }> = [
@@ -367,7 +389,7 @@ const PHONE_PAGES: Array<{ key: PhonePage; label: string }> = [
 export function PostGame({ playerId, view, champ, variant, encounterLinks = false }: { playerId: string; view: MatchDetailView; champ: (id: string | null) => PortraitChampion; variant: "inline" | "window"; /** A window over the list itself (a phone's whole-screen game): its marks may lead to the list's Encounters, as under a card. */ encounterLinks?: boolean }) {
   const cache = React.useContext(MatchDetailCacheContext);
   const id = view.matchId;
-  // The timeline first (the lane, the build path, the skill order and the scores read it), then the possible groups, the rank check and the players met, each after the view is on screen.
+  // The timeline first (the lane, the build path, the skill order and the scores' lane read it), then the possible groups, the rank check and the players met, each after the view is on screen.
   const timeline = useResult<MatchTimelineResult>(() => (cache ? cache.timeline(playerId, id) : getMatchTimelineAction(playerId, id)), { status: "error", message: "" }, [cache, playerId, id]);
   const groups = useResult<MatchGroupsResult>(() => (cache ? cache.groups(playerId, id) : getMatchGroupsAction(playerId, id)), { status: "unavailable", message: "" }, [cache, playerId, id]);
   const ranks = useResult<MatchRanksResult>(view.rankCheck ? () => (cache ? cache.ranks(playerId, id) : getMatchRanksAction(playerId, id)) : null, { status: "not-found", message: "" }, [cache, playerId, id, view.rankCheck]);
@@ -393,8 +415,8 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
   const all = React.useMemo(() => view.teams.flatMap((t) => t.participants), [view.teams]);
   const subject = all.find((p) => p.slot === selected && !p.removed) ?? view.player;
   const entry = tl?.players.find((p) => p.slot === subject.slot) ?? null;
-  // The scores, once the timeline has answered (its lane at 10:00 and 15:00 is one of their figures), from what is loaded.
-  const { scores, points } = React.useMemo(() => (timeline ? gameScoresOf(view, tl) : { scores: null, points: null }), [timeline, tl, view]);
+  // The final scores, once the timeline has answered (its lane at 10:00 and 15:00 is one of their figures), from what is loaded: the card's own calculation (finalScoresOf).
+  const scores = React.useMemo(() => (timeline ? finalScoresOf(view, tl) : null), [timeline, tl, view]);
   const scoreOf = React.useCallback((slot: number) => scores?.players.find((p) => p.slot === slot) ?? null, [scores]);
   const subjectTeam = view.teams.find((t) => t.participants.some((p) => p.slot === subject.slot)) ?? view.teams[0];
   const nameOf = React.useCallback((p: DetailParticipant) => shownName(p, champ(p.championId).name), [champ]);
@@ -443,9 +465,10 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
   const on = (p: PhonePage) => (paged && page !== p ? "hidden" : undefined);
   const meta = (
     <span className="flex flex-wrap items-center gap-x-3 gap-y-1 empty:hidden" data-testid="post-game-meta">
+      {/* The date and the patch each kept whole: a narrow line (the notes beside the lane) breaks between them. */}
       <span className={cn("tabular-nums", variant === "window" && "hidden")} data-testid="match-breakdown-when">
-        {formatDateTime(new Date(view.playedAt))}
-        {view.patch ? ` · Patch ${publicPatchName(view.patch)}` : ""}
+        <span className="whitespace-nowrap">{formatDateTime(new Date(view.playedAt))}</span>
+        {view.patch ? <span className="whitespace-nowrap">{` · Patch ${publicPatchName(view.patch)}`}</span> : null}
       </span>
       {view.share.eligible ? <BookmarkButton matchId={view.matchId} bookmarked={view.share.shared} share /> : null}
       {view.player.opgg ? <OpggHistoryLink href={view.player.opgg} account={view.player.name?.split("#")[0]?.trim() || null} /> : null}
@@ -479,54 +502,49 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
           ))}
         </div>
       ) : null}
-      {/* From 56rem two columns (the player, then the scoreboard and the score through the game).
-          From 40rem to 56rem the two columns' parts share one grid: the player beside the build
-          and the lane, the score through the game under those, and the scoreboard across. */}
-      <div className={cn("grid gap-x-5 gap-y-2.5 @min-[40rem]/pg:gap-y-3 @min-[56rem]/pg:grid-cols-[minmax(0,22rem)_minmax(0,1fr)] @min-[64rem]/pg:grid-cols-[minmax(0,24rem)_minmax(0,1fr)] @min-[80rem]/pg:grid-cols-[minmax(0,27rem)_minmax(0,1fr)]", MID)}>
-        <div className="grid min-w-0 content-start gap-y-3 @min-[40rem]/pg:@max-[56rem]/pg:contents">
-          <section aria-label={own && view.own ? "Your game" : `${nameOf(subject)}'s game`} className={cn("min-w-0 space-y-2 @min-[56rem]/pg:space-y-2.5 @min-[40rem]/pg:@max-[56rem]/pg:[grid-area:player]", on("player"))} data-testid="post-game-yours" data-own={own || undefined}>
-            {/* Who is inspected, and the way back to the profile's player: one line, as tall whoever it is. */}
-            <div className="flex min-h-7 items-center gap-2 pointer-coarse:min-h-11" data-testid="inspected">
-              <p className="min-w-0 flex-1 truncate text-sm leading-5 @max-[20rem]/pg:whitespace-normal" aria-live="polite">
-                <span className="font-semibold text-fg" data-testid="inspected-name">
-                  {nameOf(subject)}
-                </span>
-                <span className="text-fg-muted">
-                  {" "}
-                  · {champ(subject.championId).name}
-                  {position ? ` · ${position}` : ""}
-                </span>
-              </p>
-              {!own ? (
-                <button type="button" onClick={() => select(view.player.slot)} className="inline-flex min-h-7 max-w-[50%] shrink-0 items-center gap-1 rounded-md px-1.5 text-xs font-medium text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11" data-testid="inspect-back">
-                  <Undo2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
-                  <span className="truncate">Back to {nameOf(view.player)}</span>
-                </button>
-              ) : null}
-            </div>
-            <Loadout key={subject.slot} p={subject} champ={champ(subject.championId)} score={<ScoreSummary scores={scores} score={mine} timeline={state} />} />
-            <Figures p={subject} teamKills={subjectTeam?.kills ?? 0} />
-            <MoreStats p={subject} support={support} />
-          </section>
-          <div className={cn("min-w-0 space-y-3 @min-[40rem]/pg:@max-[56rem]/pg:[grid-area:side]", on("build"))} data-testid="post-game-side">
-            <ParticipantPanels panel={panel} onPanel={setPanel} result={timeline} entry={entry} page={subject.runePage} />
-            <Lane view={view} champ={champ} me={subject} entry={entry} state={state} />
-          </div>
-        </div>
-        <div className="grid min-w-0 content-start gap-y-2 @min-[40rem]/pg:@max-[56rem]/pg:contents">
-          <section aria-label="Scoreboard" className={cn("min-w-0 space-y-1.5 @min-[40rem]/pg:@max-[56rem]/pg:[grid-area:board]", on("board"))} data-testid="post-game-scoreboard" onKeyDown={onRowKeys}>
-            <Scoreboard teams={view.teams} champ={champ} groups={groups} laneSlot={subject.laneOpponentSlot} rankOf={rankOf} queueId={view.queueId} checking={checking} met={met} meetHref={meetHref} selection={{ selected: subject.slot, onSelect: inspect, score: scoreOf, scoring: !timeline, scored: scores?.scored ?? 0 }} />
-            {/* One quiet line: the ranks and the possible groups, each with its (i); the date, the bookmark and OP.GG. */}
-            <div className="flex flex-wrap items-center justify-between gap-x-4 gap-y-1 text-2xs leading-4 text-fg-subtle" data-testid="scoreboard-notes">
-              <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
-                <ScoreboardNotes ranks={view.teams.flatMap((t) => t.participants.filter((x) => !x.removed).map(rankOf))} queueId={view.queueId} checking={checking} result={ranks} groups={groups} />
+      {/* The player, the build panels, the lane and the scoreboard, placed by VIEW_GRID. */}
+      <div className={VIEW_GRID}>
+        <section aria-label={own && view.own ? "Your game" : `${nameOf(subject)}'s game`} className={cn("min-w-0 space-y-2 self-start @min-[56rem]/pg:space-y-2.5 @min-[40rem]/pg:[grid-area:player]", on("player"))} data-testid="post-game-yours" data-own={own || undefined}>
+          {/* Who is inspected, and the way back to the profile's player: one line, as tall whoever it is. */}
+          <div className="flex min-h-7 items-center gap-2 pointer-coarse:min-h-11" data-testid="inspected">
+            <p className="min-w-0 flex-1 truncate text-sm leading-5 @max-[20rem]/pg:whitespace-normal" aria-live="polite">
+              <span className="font-semibold text-fg" data-testid="inspected-name">
+                {nameOf(subject)}
               </span>
-              {meta}
-            </div>
-          </section>
-          <div className={cn("min-w-0 @min-[40rem]/pg:@max-[56rem]/pg:[grid-area:chart]", on("player"))}>
-            <ScoreTimeline scores={scores} points={points} timeline={state} slot={subject.slot} label={nameOf(subject)} />
+              <span className="text-fg-muted">
+                {" "}
+                · {champ(subject.championId).name}
+                {position ? ` · ${position}` : ""}
+              </span>
+            </p>
+            {!own ? (
+              <button type="button" onClick={() => select(view.player.slot)} className="inline-flex min-h-7 max-w-[50%] shrink-0 items-center gap-1 rounded-md px-1.5 text-xs font-medium text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11" data-testid="inspect-back">
+                <Undo2 className="h-3.5 w-3.5 shrink-0" aria-hidden />
+                <span className="truncate">Back to {nameOf(view.player)}</span>
+              </button>
+            ) : null}
           </div>
+          <Loadout key={subject.slot} p={subject} champ={champ(subject.championId)} score={<ScoreSummary scores={scores} score={mine} timeline={state} />} />
+          <Figures p={subject} teamKills={subjectTeam?.kills ?? 0} />
+          <MoreStats p={subject} support={support} />
+        </section>
+        {/* The build panels fill their grid area: from 56rem the height the scoreboard and the lane leave beside them. */}
+        <div className={cn("min-w-0 flex-col @min-[40rem]/pg:[grid-area:side]", on("build") ?? "flex")} data-testid="post-game-side">
+          <ParticipantPanels panel={panel} onPanel={setPanel} result={timeline} entry={entry} page={subject.runePage} />
+        </div>
+        <div className={cn("min-w-0 self-start @min-[40rem]/pg:[grid-area:lane]", on("build"))}>
+          <Lane view={view} champ={champ} me={subject} entry={entry} state={state} />
+        </div>
+        <section aria-label="Scoreboard" className={cn("min-w-0 self-start @min-[40rem]/pg:[grid-area:board]", on("board"))} data-testid="post-game-scoreboard" onKeyDown={onRowKeys}>
+          <Scoreboard teams={view.teams} champ={champ} groups={groups} laneSlot={subject.laneOpponentSlot} rankOf={rankOf} queueId={view.queueId} checking={checking} met={met} meetHref={meetHref} selection={{ selected: subject.slot, onSelect: inspect, score: scoreOf, scoring: !timeline, scored: scores?.scored ?? 0 }} />
+        </section>
+        {/* The scoreboard's quiet notes: the ranks and the possible groups, each with its (i); the date, the bookmark and OP.GG.
+            One line 6px under the scoreboard (the grid's 12px gap less 6px); from 56rem beside the lane, right-aligned, wrapping in its cell. */}
+        <div className={cn("-mt-1.5 min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 text-2xs leading-4 text-fg-subtle @min-[40rem]/pg:[grid-area:notes] @min-[56rem]/pg:mt-0 @min-[56rem]/pg:flex-col @min-[56rem]/pg:items-end @min-[56rem]/pg:justify-start @min-[56rem]/pg:self-start @min-[56rem]/pg:text-right @min-[56rem]/pg:[&>span]:justify-end", on("board") ?? "flex")} data-testid="scoreboard-notes">
+          <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <ScoreboardNotes ranks={view.teams.flatMap((t) => t.participants.filter((x) => !x.removed).map(rankOf))} queueId={view.queueId} checking={checking} result={ranks} groups={groups} />
+          </span>
+          {meta}
         </div>
       </div>
     </div>

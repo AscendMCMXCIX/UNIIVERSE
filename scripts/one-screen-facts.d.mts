@@ -20,13 +20,27 @@ export interface OneScreenRead {
   height: number;
   boxes: OneScreenBox[];
   folds: OneScreenFold[];
-  /** Leaderboards only: words drawn across two lines, Multikills' tiles shown and those on one line with their title. */
+  /** Leaderboards only: words drawn across two lines (tiles: none since 25 Nov 2026, the tiles having gone). */
   words?: { broken: number; tiles: number; oneLine: number } | null;
+  /** Leaderboards only: each board's room under its last line (its foot's), in px. */
+  spare?: OneScreenSpare[];
+}
+export interface OneScreenSpare {
+  board: string;
+  present: boolean;
+  rows?: number;
+  /** The room between the board's last line (its foot, where it has one) and its end, in px. */
+  spare?: number;
+  /** The gap between the last row and the foot, in px; null without a foot. */
+  footGap?: number | null;
+  /** The rows have grown as far as they may: their list at its cap (3.5rem a row on average), or held taller by its content. */
+  grown?: boolean;
 }
 export interface OneScreenInput {
   sections: Array<[string, string]>;
   overviews: Array<[string, string, string]>;
-  whole: { root: string; tiles: string } | null;
+  whole: { root: string; tiles: string | null } | null;
+  fills: Array<[string, string, string | null]> | null;
 }
 export interface Verdict {
   name: string;
@@ -34,6 +48,8 @@ export interface Verdict {
   detail: unknown;
 }
 export const ONE_SCREEN_SECTIONS: Record<OneScreenPage, Array<[string, string]>>;
+export const FILL_ROW_MAX_REM: number;
+export const FILL_SPARE_MAX: number;
 export function oneScreenInput(page: OneScreenPage): OneScreenInput;
 export function readOneScreen(input: OneScreenInput): OneScreenRead;
 export function showAllCounts(words: string | null | undefined): [number | null, number | null];

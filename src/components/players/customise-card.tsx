@@ -604,7 +604,7 @@ export function CardStudio({ playerId, name, avatarUrl, art, accent, look, champ
   );
 }
 
-const ICON_BUTTON = "grid h-9 w-9 place-items-center rounded-md text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:pointer-events-none disabled:opacity-35 focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:h-11 pointer-coarse:w-11";
+const ICON_BUTTON = "grid h-9 w-9 place-items-center rounded-md text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:pointer-events-none disabled:text-fg-disabled focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:h-11 pointer-coarse:w-11";
 
 /** The question in the action bar before unsaved changes are lost. */
 function ConfirmBar({ onKeep, onConfirm }: { onKeep: () => void; onConfirm: () => void }) {
@@ -644,9 +644,9 @@ function Part({ title, changed, onRevert, children, testId, className }: { title
   return (
     <section className={cn("space-y-3", className)} data-testid={testId}>
       <div className="flex min-h-7 items-center justify-between gap-2">
-        <h3 className="text-2xs font-semibold uppercase tracking-label text-fg-subtle">{title}</h3>
+        <h3 className="text-sm font-semibold text-fg">{title}</h3>
         {changed && onRevert ? (
-          <button type="button" onClick={onRevert} className="inline-flex min-h-7 shrink-0 items-center gap-1 rounded-md px-1.5 text-xs text-fg-subtle hover:bg-surface-2 hover:text-fg pointer-coarse:min-h-10" aria-label={`Undo changes: ${title}`} data-testid="revert-part">
+          <button type="button" onClick={onRevert} className="inline-flex min-h-7 shrink-0 items-center gap-1 rounded-md px-1.5 text-xs text-fg-muted hover:bg-surface-2 hover:text-fg pointer-coarse:min-h-10" aria-label={`Undo changes: ${title}`} data-testid="revert-part">
             <Undo2 className="h-3 w-3" aria-hidden /> Undo changes
           </button>
         ) : null}
@@ -666,7 +666,7 @@ function Field({ label, hint, changed = false, onReset, children, testId }: { la
           {hint ? <span className="ml-1.5 text-xs font-normal text-fg-subtle">{hint}</span> : null}
         </span>
         {changed && onReset ? (
-          <button type="button" onClick={onReset} className="inline-flex min-h-7 shrink-0 items-center gap-1 rounded-md px-1.5 text-xs text-fg-subtle hover:bg-surface-2 hover:text-fg pointer-coarse:min-h-10" aria-label={`Reset ${label}`} data-testid="reset-setting">
+          <button type="button" onClick={onReset} className="inline-flex min-h-7 shrink-0 items-center gap-1 rounded-md px-1.5 text-xs text-fg-muted hover:bg-surface-2 hover:text-fg pointer-coarse:min-h-10" aria-label={`Reset ${label}`} data-testid="reset-setting">
             <RotateCcw className="h-3 w-3" aria-hidden /> Reset
           </button>
         ) : null}
@@ -695,7 +695,7 @@ function Choice<T extends string>({ value, options, labels, onChange, label }: {
  * so a fast drag never queues a re-render of the whole Studio for every pixel. A value set from
  * outside (a preset, Reset, Undo, a drag on the preview) replaces the local one. The track fills up to the thumb.
  */
-function Slider({ value, min, max, step = 1, onChange, label, format, disabled = false }: { value: number; min: number; max: number; step?: number; onChange: (v: number) => void; label: string; format?: (v: number) => string; disabled?: boolean }) {
+export function Slider({ value, min, max, step = 1, onChange, label, format, disabled = false }: { value: number; min: number; max: number; step?: number; onChange: (v: number) => void; label: string; format?: (v: number) => string; disabled?: boolean }) {
   const [local, setLocal] = React.useState(value);
   const [seen, setSeen] = React.useState(value);
   const [sent, setSent] = React.useState(value);
@@ -748,7 +748,8 @@ function Slider({ value, min, max, step = 1, onChange, label, format, disabled =
         className="studio-range h-9 min-w-0 flex-1 cursor-pointer disabled:cursor-not-allowed pointer-coarse:h-11"
         style={{ ["--fill" as string]: fill }}
       />
-      <output className={cn("min-w-[3.25rem] shrink-0 rounded-md bg-surface-2 px-1.5 py-1 text-center text-xs font-semibold tabular-nums text-fg", disabled && "opacity-50")} aria-hidden>
+      {/* The readout is not the control (axe checks its contrast whatever the slider's state): tertiary while the slider is off, never the disabled tone. */}
+      <output className={cn("min-w-[3.25rem] shrink-0 rounded-md bg-surface-2 px-1.5 py-1 text-center text-xs font-semibold tabular-nums", disabled ? "text-fg-subtle" : "text-fg")} aria-hidden data-testid="studio-slider-value">
         {format ? format(local) : local}
       </output>
     </div>

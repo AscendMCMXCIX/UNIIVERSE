@@ -32,7 +32,7 @@ export function FirstRole({ playerId, name, self, editable }: { playerId: string
           </p>
           <div role="group" aria-labelledby={`first-role-${playerId}`} className="flex flex-wrap gap-2" data-testid="first-role">
             {ROLES.map((r) => (
-              <button key={r} type="button" disabled={pending} onClick={() => choose(r)} className={buttonClass("outline", "md", "gap-2 disabled:cursor-not-allowed disabled:opacity-50")} data-testid={`first-role-${r}`}>
+              <button key={r} type="button" disabled={pending} onClick={() => choose(r)} className={buttonClass("outline", "md", "gap-2")} data-testid={`first-role-${r}`}>
                 <RoleIcon role={r} className="h-3.5 w-3.5" /> {ROLE_LABELS[r]}
               </button>
             ))}

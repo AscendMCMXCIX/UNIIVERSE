@@ -495,7 +495,8 @@ function Highlights({ insights, gamesOf, repeated }: { insights: EncounterInsigh
   );
 }
 
-const HEAD = "whitespace-nowrap text-2xs font-semibold uppercase tracking-label";
+/** A column's name: a sentence-case label in the secondary colour (25 Nov 2026; small capitals before). */
+const HEAD = "label-text whitespace-nowrap";
 /**
  * The column names stay pinned under the profile's section tabs while the list scrolls (as All
  * Champions' do: globals.css, --bar-top and --tabs-top), where those tabs are pinned: from md in a
@@ -509,7 +510,7 @@ function ColumnHeads({ relation, sort, href }: { relation: EncounterRelation; so
     const active = sort === order || (order === "best" && sort === "worst");
     const down = sort !== "worst";
     return (
-      <Link href={href({ sort: active && order === "best" ? (sort === "best" ? "worst" : "best") : next })} replace scroll={false} className={cn("group/sort inline-flex items-center gap-1 rounded px-1 py-2.5 transition-colors", HEAD, align === "right" && "justify-end", active ? "text-fg" : "text-fg-subtle hover:text-fg-muted")} data-testid={`encounter-sort-${order === "worst" ? "best" : order}`} data-active={active || undefined}>
+      <Link href={href({ sort: active && order === "best" ? (sort === "best" ? "worst" : "best") : next })} replace scroll={false} className={cn("group/sort inline-flex items-center gap-1 rounded px-1 py-2.5 transition-colors", HEAD, align === "right" && "justify-end", active ? "text-fg" : "hover:text-fg")} data-testid={`encounter-sort-${order === "worst" ? "best" : order}`} data-active={active || undefined}>
         {label}
         {active ? <span className="sr-only">, sorted {order === "best" ? (sort === "best" ? "highest first" : "lowest first") : "first"}</span> : null}
         {active ? down ? <ArrowDown className="h-3 w-3 shrink-0" aria-hidden /> : <ArrowUp className="h-3 w-3 shrink-0" aria-hidden /> : <ArrowUpDown className="h-3 w-3 shrink-0 opacity-0 transition-opacity group-hover/sort:opacity-60 group-focus-visible/sort:opacity-60" aria-hidden />}
@@ -523,14 +524,14 @@ function ColumnHeads({ relation, sort, href }: { relation: EncounterRelation; so
           <span className={cn("h-1.5 w-1.5 rounded-full", REL[side].dot)} aria-hidden />
           {REL[side].word}
         </span>
-        <span className={cn(HEAD, "pb-1 text-right text-fg-subtle")}>Games</span>
-        <span className={cn(HEAD, "pb-1 text-right text-fg-subtle")}>Record</span>
-        <span className={cn(HEAD, "pb-1 text-right text-fg-subtle")}>Win %</span>
+        <span className={cn(HEAD, "pb-1 text-right")}>Games</span>
+        <span className={cn(HEAD, "pb-1 text-right")}>Record</span>
+        <span className={cn(HEAD, "pb-1 text-right")}>Win %</span>
       </span>
     );
     return (
       <div className={cn("hidden items-end gap-x-4 border-b border-border/70 pl-4 pr-3 @min-[60rem]/enc:grid", BOTH_SIDES_GRID, PINNED_HEADS)} data-testid="encounter-heads">
-        <span className={cn(HEAD, "self-end py-2.5 text-fg-subtle")}>Player</span>
+        <span className={cn(HEAD, "self-end py-2.5")}>Player</span>
         <span className="flex justify-end self-end">{sortable("Games", "games", "games")}</span>
         {group("opponent")}
         {group("ally")}
@@ -547,7 +548,7 @@ function ColumnHeads({ relation, sort, href }: { relation: EncounterRelation; so
         Players met {REL[side].word.toLowerCase()}
       </span>
       <span className="flex justify-end">{sortable("Games", "games", "games")}</span>
-      <span className={cn(HEAD, "py-2.5 text-right text-fg-subtle")}>Record</span>
+      <span className={cn(HEAD, "py-2.5 text-right")}>Record</span>
       <span className="flex justify-end">{sortable("Win rate", "best", "best")}</span>
       <span className="flex justify-end">{sortable("Last game", "recent", "recent")}</span>
       <span aria-hidden />

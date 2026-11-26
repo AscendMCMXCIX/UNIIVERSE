@@ -144,3 +144,67 @@ Kept, and why:
 
 The segmented groups keep their height (36px with a mouse, the boxed group's 36px; 44px on touch),
 so no other page moved: every other page of the walk measured the same before and after at both sizes.
+
+## 6. All Champions: positions, a pane beside the list, one table of opponents (25 Nov 2026)
+
+The owner's request of 25 Nov 2026 reassessed All Champions and its preview rather than adding to
+them (docs/MATCHUPS.md has the whole behaviour).
+
+| Before | After | Why |
+|---|---|---|
+| One role per row: the most played recorded role, or the configured primary role when no game recorded one; a champion of a member without a primary role whose games recorded none had no row | One row per champion with the icon of every position Riot recorded, most games first, no minimum; games without a position counted in the totals and said in the preview | Positions are what was played, never what was configured; the table's figures are the filters' totals |
+| The preview a panel docked at the window's right edge, over half the table | A pane beside the list, which narrows (no row or name moves); a sheet where both do not fit | Nothing covered without purpose; the preview gets real room on wide screens |
+| Champion-wide figures above role-specific opponents; "Also as" links that no longer appeared | A position choice that switches every figure and the opponents at once; mastery marked as all positions' | Each figure says what it covers |
+| Four boxed tiles; 3+ opponents (first five, then "more"), 1–2 folded; Most games, Best, Worst; each opponent an accordion with "Show all" | Labels over figures; one table of every opponent with a search and Most games, Highest and Lowest win rate (small samples quiet and ranked last); the detail beside the table, or one step in place of it | Fewer clicks, no nested expanders, no misleading best/worst from one game |
+| A click outside closed the panel | It stays (part of the page); Close is labelled; Back, Escape and the row again still close it | A pane in the page is not a layer to dismiss by accident |
+
+Back and Escape keep the one history rule: the preview is one entry (switching champion, position or
+opponent replaces it), and closing returns the list with its place, search, sort and filters.
+
+The review of the same day tightened it:
+
+| Before | After | Why |
+|---|---|---|
+| The pane a scroll box as tall as the window, beside the page's own scroll | No scroll box: pinned while it fits, taller it scrolls with the page between the tabs and the window's foot, its header pinned | One scrolling surface, the page's (no wheel that moves the list over one part and the pane over another) |
+| On a touch screen a tap on a position mark opened the most played position; the marks read only games | The row stays one 44px target but honours a tapped mark; the marks and the position choice say each position's games, win rate and record | The same facts and the same result for a finger as for a mouse |
+| A search typed in one position filtered the next (with no field left to clear it where the table was short) | Each position's table starts whole; a table without a field is never filtered | Never hide an opponent |
+| Five positions and "In pool" wrapped as the pane opened at 1366 with the sidebar open; a list sorted by a hidden figure put it under every row | A 22.5rem list; "Sorted by KDA" once in the heading row | No row moves as the pane opens or closes |
+
+## 7. 25 Nov 2026: readability (the owner's request)
+
+Too much grey text, too many capitals, tiny annotations and boxes inside boxes. The base commit of the
+release lifted the two greys (`fg-muted` `#b4b8c9` → `#c9cddb`, `fg-subtle` `#8f95aa` → `#a2a8bc`) and
+added a disabled tone (`fg-disabled` `#70758c`) and the sentence-case label (`label-text`); the
+typography lane then gave every text its tier by its job (STANDARDS, "Type"), outside the Match
+History, Champion Intel and Leaderboards files, which their lanes changed by the same rule. Walked in
+Player Mode and Admin Mode on the demo at 1366 × 768 to 3440 × 1440, sidebar open and folded, on
+phones and a tablet, and at 200% text.
+
+| Where | Before | After | Why |
+|---|---|---|---|
+| All Champions' table (rewritten in §6 by the same rule) | the sorted column `fg` semibold, every other column `fg-muted`; headings 11px uppercase tracked in `fg-subtle` | every figure `fg`, the sorted column semibold beside its arrow; headings 12px sentence case in `fg-muted`, the sorted one `fg` semibold | grey figures read as less important, not as unsorted; capitals were harder to read than the words |
+| The profile's season card | "13W 7L", "per game" and the other sub-lines in `fg-subtle`; the total kills `fg-muted` | sub-lines `fg-muted`; the total kills `fg` | a qualifying figure is secondary; a figure is primary |
+| Recent form, Ranked progress | "Last 20", "All 120", "Last 30 days" in `fg-subtle` (11px on phones); "No change" grey | labels `fg-muted`, 12px; "No change" `fg` | labels of figures are secondary; a value is primary |
+| All Champions' preview (rewritten in §6 by the same rule) | its stat labels in capitals; opponents' records `fg-subtle`; a small-sample win rate `fg-muted`, barely apart from a plain one after the lift | sentence-case labels; records `fg-muted`; a small sample `fg-subtle`, with its words | the grey says "small sample" only if it is clearly grey |
+| Team player window | the pool's games, KDA and CS in `fg-muted`; figure and column labels in `fg-subtle` (capitals kept, approved) | figures `fg`; labels `fg-muted` | Team Overview keeps its capitals and layout; only colours changed. The card face is unchanged (approved) |
+| Pools on the profile, the off roles | column names uppercase from 24rem; "OFF ROLES" | sentence case at every width | no width changes the label's case any more |
+| Riot data panel, Settings → Riot API, Admin → page speed | uppercase `fg-subtle` labels in bordered tiles inside the panel; table values `fg-muted` | sentence-case `fg-muted` labels over `fg` figures, no tile; table values `fg`, the phone list's figures `fg` beside their `fg-muted` words (the release's review); the metrics as many columns as fit 10rem each (one on a phone or at a large text size); the experience label's why in the shared breakdown | boxes within boxes; table values are read; two fixed columns let a label at 150–200% text run into the next |
+| Panels' part headings (`SectionLabel`), the capabilities' groups, Recover's "Owner account found", Privacy's "On this page" | 12px uppercase tracked `fg-subtle` | sentence-case headings (`fg` for a heading, `fg-muted` for a label) | a heading read as a caption |
+| Menus and lists | "SIGNED IN AS"; "OFTEN PLAYED MID"; champion filter groups in capitals; group labels `fg-subtle` | sentence case; group labels `fg-muted` | one look for a list's group heading (as `MenuLabel` and Select's groups were already) |
+| Card Studio's parts | 11px uppercase `fg-subtle` titles | 14px `fg` headings; Undo and Reset `fg-muted` | headings of the studio's parts |
+| Disabled controls | opacities from 30% to 70% across 25 places; a disabled segment `fg-subtle` at 60% | one look: `fg-disabled`, the not-allowed cursor, no hover; a filled button on the neutral fill | "disabled" read differently on every page |
+| Zero counts (role segments, Resources' index) | `fg-subtle` at 60% (3:1, under AA) | plain `fg-subtle` | a zero is not disabled |
+| InfoTip bubble | 12px in an 18rem bubble | 14px in a 20rem bubble (12px in 18rem only where that has no room beside its trigger) | the body size, about the same number of lines |
+| Tips | Recent form 31 words with four thresholds; the rank's tip 38 words, three concepts; the Riot credential's legend of three states; Social links' 44-word help | 25, about 20, one state, 27 words (docs/HELP_TEXT.md, "25 Nov 2026") | one concept a tip, plain words |
+
+Kept, and why: Team Overview's card face (approved: its capitals, sizes and colours as they were,
+lifted only by the tokens), the Admin mode marker and the admin pages' accent eyebrow (the mode's
+identity), pill badges ("You", "Primary role"), a member's own "wide" name style, footnotes and
+coverage lines in `fg-subtle` (supplementary, and 6.2:1 or more now), timestamps and the ⓘ mark.
+
+Guards added: `src/app/type-hierarchy.test.ts` (capitals outside a pill and the approved list; a
+disabled control dimmed with opacity; the disabled tone on live text; an alpha on a text colour),
+`tip-length.test.ts` counting the new composed texts, Branding's check of `fg-subtle` at 4.5:1 on a
+team's own colours (page, panel and selected row), and the Production check's text facts
+(docs/LIVE_VALIDATION.md, "The text hierarchy").
+

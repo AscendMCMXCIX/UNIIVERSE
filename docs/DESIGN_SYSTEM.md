@@ -43,21 +43,23 @@ decorative chrome.
   - a single `panel-featured` lead card;
   - quiet labels and strong figures.
 - **Champion Intel** (Champion Lookup, the owner's request of 23 Nov 2026 in Matchup Intel's place,
-  renamed and extended on 24 Nov 2026) is the reference read in a glance on a second monitor: one
-  panel per champion (one, or two side by side from a 56rem page, one at a time under a segmented
-  switcher narrower), each a single surface: a 70px header with the champion's splash art faint
-  behind its right side (the pool rows' convention), the name that opens the window of every
-  champion, and one compact haste field; the key mechanics as quiet label-caps groups with the
-  abilities' keys as small key chips; base statistics in a row Fold; the five abilities each a row
-  Fold whose summary is the quick reference (icon, key, name, cost, cooldowns per rank as columns
-  where the row has room). No box inside the panel, no badge, no decorative control. The header, the
-  haste and the five folded rows fit one viewport from 1280 × 720, single and dual; nothing in it
-  scrolls inside it. Colour is kept for meaning: the cooldown at the chosen haste in the main weight
-  with its label in `accent`, the base quieter, the special cases in `fg-muted` words, the words that
-  name a mechanic in Riot's description underlined in `accent` (and listed, never colour alone)
-  (docs/CHAMPION_INTEL.md).
+  renamed and extended on 24 Nov 2026, one aligned board since 25 Nov 2026) is the reference read in
+  a glance on a second monitor: one surface, no box inside it. The header: the portrait, the name in
+  the primary colour (whole, never cut or broken; it opens the window of every champion), Riot's title
+  in the secondary, the champion's facts as sentence-case label and value pairs, and "Ability haste"
+  with the rule in an ⓘ. The five abilities each a row Fold: the slot's key tile (P to R) beside the
+  icon, the name, the mechanics Riot's description names as chips (crowd control in `warn`, the rest
+  neutral: the word is the chip), and one grid of rank columns (cooldown at the haste in use primary
+  and semibold, the base under it small and secondary, the cost per rank secondary); a passive's
+  missing cooldown a quiet dash; column headings in `label-text`. Base statistics a small table
+  beside the abilities on a desktop. Compare is the same board with two champion columns, a CSS
+  subgrid of the board's rows, so each row of the two lines up; two neutral references (no colour
+  for better or worse). The single view fits one viewport from 1280 × 720, Compare from 1440 × 780;
+  nothing scrolls inside it (docs/CHAMPION_INTEL.md).
 - **Match History** is a finished, successful experience. Do not restyle it for novelty. Change it
-  only for a bug, an accessibility fix or a product decision.
+  only for a bug, an accessibility fix or a product decision. The owner's requirements of 25 Nov 2026
+  (§1) were one: the performance score's own place on every collapsed card, one place badge across
+  the site, the score on Team → Matches' member rows, and the score through the game removed.
   - **The post-game view (the owner's directive of 19 Nov 2026, §5; redrawn at the owner's brief of
     24 Nov 2026, §1–§8).** An open game is one integrated post-game screen (`post-game.tsx`), the same
     under a card and in the match window, with nothing in it scrolling: no sideways build path, no
@@ -65,11 +67,30 @@ decorative chrome.
     off by an overflow (e2e/match-breakdown.spec.ts and the Production check count scroll containers
     and clipped elements inside it). Fewer boxes: one surface for the scoreboard, everything else on
     the open card's own background, separated by space, never a card per figure.
-    - **Layout** (the view's own width, `@container/pg`): from 56rem two columns, the player
-      inspected (22rem; 24rem from 64rem, 27rem from 80rem) beside the scoreboard and the score
-      through the game; 40–56rem (a tablet) one grid: the player beside Build Path | Skill Order |
-      Runes and the lane, the score through the game under those, the scoreboard across; under 40rem
-      one column. Every part above the scoreboard or beside it keeps its height whoever is inspected
+    - **Layout** (the view's own width, `@container/pg`; `VIEW_GRID` in `post-game.tsx`, its four
+      parts one grid's items in reading order: the player, the build panels, the lane, the
+      scoreboard): from 56rem two columns, the player inspected (22rem; 24rem from 64rem, 27rem from
+      80rem) over Build Path | Skill Order | Runes, beside the scoreboard over the lane; 40–56rem (a
+      tablet) the player beside the build panels and the lane, the scoreboard across under both;
+      under 40rem one column. The score through the game (a chart under the scoreboard, about 136px
+      of the right column) was removed on 25 Nov 2026; its room went to the scoreboard's rows (36px,
+      32px portraits, 22px items from a 36rem scoreboard), its place badges, the inspected player's
+      score (`text-2xl` bold with its badge) and, since 26 Nov 2026 (the review: the build had got
+      none of it, and 120px of the right column stood blank), the lane, now under the scoreboard
+      (a 21rem column) with the scoreboard's notes beside it, and the build panels: their area takes
+      whatever height the scoreboard and the lane leave beside it (the build column's row is the
+      grid's flexible one), so the two columns end level and a build path of 9–11 visits shows on
+      one page (paged one row at a time before at 1440 × 900). The notes beside the lane, not over
+      it, keep the right column the scoreboard plus the lane (about 116px, less than the chart's
+      148px with its gap), so a scoreboard with possible groups, long names and wrapping notes still
+      fits 1280 × 720: with the notes over the lane, the long-names demo's tallest game read 729px
+      there (room 668). In the two columns the figures, the other figures and the three panels are
+      a step larger (the figures `text-lg`, the other figures `text-xs`, the build's items 26px, the
+      skill grid's cells 24px, the runes 22–24px with `text-sm` names). Measured on the demo (MID's
+      six newest games): the build column and the lane both end 527–555px under the view's top at
+      1280 × 720 and 1440 × 900 (583–614px at 1920 × 1080), the panels' area 143–187px (the skill
+      grid and the rune page 122–125px), the card and its game 602–630px at 1280 × 720 (651px for
+      MID's third game before, below). Every part above the scoreboard or beside it keeps its height whoever is inspected
       (fixed lines, truncation, reserved rows: the loadout row 56px, the six figures, the other
       figures' grid with every row always drawn, the panels' area, the lane's four rows), so the rows
       never move when another player is chosen (asserted ±1px).
@@ -117,12 +138,13 @@ decorative chrome.
       profile name, else the Riot name), champion and role, with "Back to …" while another player is
       inspected; the loadout as the client draws it (a 56px portrait with its level, spells and runes
       two by two, the six items two rows of three with the trinket beside the first, in inset
-      slots) with the performance score beside it in two fixed lines (the score with MVP or ACE, then
-      "3rd of 10" and one (i) that says how the score is worked out) and the line an icon names
-      itself in; six figures in aligned columns (K/D/A, CS, gold, damage, vision, KP; each of the
+      slots) with the performance score beside it in two fixed lines (the score, bold, with its place
+      badge, then "3rd of 10" and one (i) that says how the score is worked out and that it is
+      UNIIVERSE's own, not OP.GG's) and the line an icon names itself in; six figures in aligned columns (K/D/A, CS, gold, damage, vision, KP; each of the
       player's figures once in the view); the other recorded figures as a grid of three groups of
       aligned rows, **Combat** (taken, mitigated, CC), **Utility** (heal + shield, wards cleared,
-      control wards) and **Objectives** (damage, turrets), ordered by role (a support's utility first,
+      control wards) and **Objectives** (damage, turrets), their labels in sentence case
+      (`label-text`, 25 Nov 2026, as are the six figures' and the lane table's), ordered by role (a support's utility first,
       a jungler's objectives, everyone else's combat), "—" where the record lacks a figure and "0"
       where it recorded none (`src/lib/format.ts` for every number). **Build Path | Skill Order |
       Runes** (`segmentedGroupClass`, radios: the view still has no tabs) over one area of one height
@@ -130,10 +152,11 @@ decorative chrome.
       skill grid and the rune page are laid out in one grid cell, the one not chosen invisible, so the
       area is as tall as the taller of the two (109px at 1280–1440, 119px at 1920, 137px at 2560, 146px
       at 3440; the constant area was 112px at 1440, 124px at 1920 and 154px at 3440), and the build
-      path is laid over it. Both have one
-      shape for every player, so inspecting another moves nothing. A one-row build path still leaves
-      the rest of the area empty (73px at 1440), the price of switching never moving the lane under
-      it. The build path is a wrapping timeline in
+      path is laid over it; from a 56rem view (two columns) the area also takes the height beside
+      it (Layout, above), and the build path's pages are laid out again when that height changes.
+      Both have one shape for every player, so inspecting another moves nothing. Under 56rem a
+      one-row build path still leaves the rest of the area empty, the price of switching never
+      moving the lane under it. The build path is a wrapping timeline in
       game order, each shop visit its items over its game time, a completed item ringed, a
       consumable or ward smaller, a sold item faded with a minus (and each in words for screen
       readers), one (i) in place of the legend; a path too long for the area is split into pages of
@@ -148,7 +171,9 @@ decorative chrome.
     - **The scoreboard** (`scoreboard.tsx`, `Scoreboard`): both teams as one component, the player's
       team first, each team's band (its side and result in words, its kills, gold, towers, dragons
       and barons) and five rows on one grid, so K/D/A, the build, CS over damage and the score over
-      its place sit at the same x on both teams; every row 32px (two lines) from a 30rem scoreboard,
+      its place badge sit at the same x on both teams; every row 36px (two lines; 32px until 25 Nov
+      2026) from a 30rem scoreboard, as tall while the scores wait for the timeline as once they
+      show (the stand-in and the score over its badge both 32px; e2e/match-breakdown.spec.ts),
       two lines on a phone (the name, the K/D/A and the score; the build, the rank and CS with
       damage; from 17.5rem to 21rem, a 320–360px phone, the score beside the K/D/A so the second
       line has the row's width), everything wrapping whole under 17.5rem. The rank is text with its tier's crest, no
@@ -162,11 +187,12 @@ decorative chrome.
       differ. Solo/Duo unless marked Flex.", or the Flex wording in a Flex game) and a check's state
       when it is running or could not ask for everyone; "Possible groups" with its (i) ("Players
       frequently seen together in earlier games. Not confirmed premades.") only where a side has
-      one; the date and patch, the bookmark and OP.GG. Under it the inspected player's score through
-      the game, one line (docs/PERFORMANCE_SCORE.md, "The chart").
+      one; the date and patch, the bookmark and OP.GG. From a 56rem view (since 26 Nov 2026) the
+      notes sit beside the lane under the scoreboard, right-aligned and wrapping in their cell
+      (the date and the patch each kept whole), instead of a line over the lane.
     - **Removed on 24 Nov 2026** (the owner's brief, §3–§7; the Production check asserts each stays
       gone): the "Compare with" select, the comparison table and the chart's second line; the
-      written why and the trend word under the name (`reasonText` and `trendOf` stay in the domain);
+      written why and the trend word under the name (`reasonText` stays in the domain; `trendOf` went with the score through the game on 25 Nov 2026);
       "Excellent"; each team's mean on a split bar and the ten score tiles (the rows carry every
       score and place); the build path's sideways row and its legend; the skill grid's sentence
       ("Maxed Q → E", the points taken); the sentences under the scoreboard (the ranks' lead, "not
@@ -176,6 +202,11 @@ decorative chrome.
       notes and the gold curve stay removed (23 Nov 2026, docs/MATCH_NOTES.md). The open card's
       header with Previous, Next and Close and the one history rule (Back closes the game, however
       many games were stepped through) are unchanged.
+    - **Removed on 25 Nov 2026** (the owner's requirements, §1; the Production check asserts it stays
+      gone): the score through the game, its heading, its (i), its chart and its "not available"
+      line, and with them the timeline score's code (`timelineScores`, its damping and priors, the
+      trend words `trendOf`; docs/PERFORMANCE_SCORE.md). The open card's header now shows its card's
+      score and badge.
   - **Density (owner decision D8, approved 8 Nov 2026, built 18 Nov):** denser cards that keep the
     statistics, champions, ranks, LP and every interaction readable. The card follows the list's
     own width (`@container/mh`), in three tiers:
@@ -190,22 +221,41 @@ decorative chrome.
       figures and the build in one row, both teams under them. The champion's name has its whole
       box (the role takes the next line when both do not fit), so even a 36rem list keeps "Nunu &
       Willump" whole;
-    - **the wide card** (from 50rem), one row of about 100px, unchanged.
-  - **The performance score on the card (Release 17, 24 Nov 2026; docs/PERFORMANCE_SCORE.md, "Where
-    it shows"):** one small mark, `ScoreMark` (`components/match-history/score-mark.tsx`): "3.5 ·
-    9th" at the smallest text size (`text-2xs`), the score in `fg`, the separator in `fg-subtle` and
-    the place in `fg-muted`, then MVP in the emphasis colour (`accent-2`, filled and ringed) or ACE
-    ringed in `fg`, the looks of the scoreboard's `RankChip`; its words for a screen reader are
-    `scoreWords`' ("Performance score 3.5, 9th of 10, MVP"), also in the card's label (no native
-    title: how many were scored is said, not hovered). Exported for the scoreboard's use too (with `MVP_TONE` and `ACE_TONE`). Where it sits: a
-    line under the K/D/A's ratio on a phone's and a two-row card, the K/D/A and the ratio set
-    `leading-tight` there and a multikill under it drawn `dense` (no taller than its text), so a card
-    without a multikill keeps its height and one with a multikill grows about 5px (measured at 375,
-    390 and 768: 0px on cards without one, +5.2px with one); with the build on a wide card, beside it
-    while the build keeps the teams' 13rem (50–61rem) and under it from 61rem (beside the teams' five
-    lines), 0px at 1280 and 1440. At the end of the phone's result line it was tried and dropped: the
-    line wrapped on 13 of 95 demo cards at 375px, 27 at 360px and 66 at 320px. A card without a score
-    draws nothing (its label says why).
+    - **the wide card** (from 50rem), one row of about 100px, unchanged in height; since 25 Nov 2026
+      the performance score has a column of its own (2.5rem) right after the K/D/A, the teams join
+      from a 65rem list (61rem before), the columns sit 8px apart from 65 to 74rem (10px before),
+      the chevron is left out there and the 16px and 20px gaps start at 74 and 76rem (70 and 72rem
+      before), so beside the open sidebar 1366 keeps its teams (272px, against 275 before: 3 of 10
+      names cut on the demo's longest roster once both sides' ranks are read) and 1440 widens them
+      (334px, against about 300). The K/D/A's floor is 6em (6.25em before: "10 / 10 / 10" is 5.71em).
+  - **The performance score on the card** (Release 17; its own place at the owner's request of 25 Nov
+    2026, §1, OP.GG's hierarchy as the reference, not its looks; docs/PERFORMANCE_SCORE.md, "Where it
+    shows"): `ScoreMark` (`components/match-history/score-mark.tsx`), the score bold in `fg` with the
+    shared place badge (`PlacementBadge`, below). A wide card gives it a column of its own right
+    after the K/D/A, the score (`text-xl`, the card's largest figure) over the badge, centred, at one
+    x on every card (the Production check and e2e/match-score.spec.ts assert ±1px); a phone's and a
+    two-row card give it a line of its own directly under the K/D/A and its ratio, the score
+    (`text-md`) beside the badge, right-aligned on a phone and left-aligned on a two-row card. A card
+    without a score keeps the place with a quiet dash (`ScoreMarkEmpty`, `match-score-empty`, hidden
+    from screen readers). Its words for a screen reader are `scoreWords`' ("Performance score 3.5,
+    9th of 10, MVP"), also in the card's label. Heights (measured 25 Nov 2026 on the demo, Demo ADC,
+    against `main` 3aab01b): a phone's card 118.5px (114.5 before), +4px, 129.5 with a multikill
+    (125.5), and 142.5 at 320px (138.5); a two-row card 118px (117.5), 129 with a multikill (125);
+    the wide card unchanged, 102px at 1440 and 74–76px at 1280. The iPad's page (810 × 1080) went from
+    1.6 to 1.617 screens (docs/MOBILE.md).
+  - **The place badge** (`PlacementBadge`, `components/ui/placement-badge.tsx`, 25 Nov 2026): the one
+    mark for a place everywhere one shows (the cards, the open card's header, the inspected player,
+    every scoreboard row, Team → Matches' member rows). MVP: `--color-gold` text on a gold 15% wash
+    with a gold ring, bold; ACE: the same in `--color-violet`; any other place: `fg-muted` on a faint
+    `fg` wash, no ring. Both colours are the fixed rarity tokens, never `accent-2`, which Branding
+    changes. MVP and ACE replace the ordinal ("MVP", not "1st MVP"); the ordinal stays in the
+    accessible name ("MVP: highest score on the winning team, 1st of 10"). Sizes by prop (`row` 16px,
+    `card` 20px, `header` 20px with 12px text), one shape and one fixed width per size whatever it
+    says (`row` 2.25rem, `card` and `header` 2.5rem: the widest word, "MVP", with room either side;
+    a minimum width let MVP and ACE grow past "5th", so a score beside its badge moved 2–4px from row
+    to row: the owner's review of 25 Nov 2026). Hook-free and server-safe (Team → Matches renders it on the server). Contrast (worked out from the
+    tokens): on `surface` gold 8.3:1, violet 6.6:1, the ordinal 9.6:1; on the selected row's
+    `surface-3` 6.4, 5.1 and 7.3:1.
   - Read in the order drawn: a card's parts and the header's come in the page in the order they
     are drawn. A phone's card has its own copies of the result line (its first line) and of the
     build (beside the champion), placed where they are read; only one copy is ever displayed.
@@ -295,7 +345,11 @@ same way for custom colours (`brandThemeVars`: surface 50%, page 50%).
 It replaced a near-neutral charcoal (`#131418`). That grey sat lighter than the indigo ground and
 read as a separate grey slab beside the team's art: the "awkward colour block" in the sidebar. The
 ink is darker than every panel, so panels still lift off it. Text contrast on it improves: fg-subtle
-6.41:1 (was 6.18:1), fg-muted 9.68:1, and control edges 3.62:1 (was 3.49:1).
+6.41:1 (was 6.18:1), fg-muted 9.68:1, and control edges 3.62:1 (was 3.49:1). Since the brighter
+greys of 25 Nov 2026 (the owner's readability request): fg-muted `#c9cddb` 12.0:1, fg-subtle
+`#a2a8bc` 8.1:1, and the disabled tone `#70758c` 4.2:1 on the frame (3.2:1 on `surface-3`, the
+lowest, which WCAG allows for disabled controls only). The four tiers stand about 13 L* apart (95,
+82.5, 69, 50), so primary, secondary and tertiary text read as three steps, not as one grey.
 
 ### Depth utilities (`globals.css`)
 
@@ -350,7 +404,7 @@ gradient's second stop and emphasis that is not a control.
 
 Bars that are figures (Recent form's 20-game record, All Champions' share of the games: `QuietBar`)
 are neutral overlays of `fg` (filled, empty and outlined segments, or one continuous share), never
-the accent or a state colour, so they keep their contrast on any surface and any Branding. Gold appears only on the first place's crown.
+the accent or a state colour, so they keep their contrast on any surface and any Branding. Gold marks first place only, as the place's own number (no crown since 25 Nov 2026: restrained placements, `Place`'s `leader`).
 
 ## 5. Interaction states
 
@@ -408,10 +462,12 @@ of one family, so they never compete:
   sheet's six roles with no sign of them. Resources' index keeps its sideways row on tablets
   (`flex-nowrap`, a ScrollRow with its fading edge).
 - **Focus:** the 2px accent outline, drawn inside the item (`-outline-offset-2`), where a group that
-  scrolls sideways cannot clip it. **Disabled:** `fg-subtle` at 60%, no line, no hover.
+  scrolls sideways cannot clip it. **Disabled:** `fg-disabled`, no line, no hover, the not-allowed
+  cursor (25 Nov 2026; `fg-subtle` at 60% before, 3:1 and drawn differently on every surface).
 - **Keyboard and semantics unchanged:** radios with `aria-checked` in a `radiogroup`, toggles with
   `aria-pressed`, links with `aria-current`; the arrow keys where a group had them.
-- **Counts** beside a role or a section are plain `fg-subtle` figures, not chips.
+- **Counts** beside a role or a section are plain `fg-subtle` figures, not chips; a zero too (it is
+  not disabled: until 25 Nov 2026 a zero was `fg-subtle` at 60%, 3:1, under AA).
 - **Groups side by side** keep 24px between them (Admin Previews' page and screen size), so the
   words of one never read as the next's; an action beside them is a button with an edge (Rotate,
   Reset), not words.
@@ -429,9 +485,27 @@ of one family, so they never compete:
   Match History, Encounters, Players, All Champions, Leaderboards, Champion Intel, Settings and
   Admin Previews are flat and their chosen items underlined, at the three projects' widths.
 
-**Uppercase labels** keep one letter spacing, `tracking-label`, at every width: no width or container
-variant may change it (`design-tokens.test.ts`; the Team card's WIN RATE was 0.44px on a laptop and
-1.32px on a phone before S2b).
+**Disabled controls, one look** (25 Nov 2026): every control that is `disabled` or `aria-disabled`
+draws its words and icon in `fg-disabled`, keeps the not-allowed cursor and takes no hover. A
+filled `Button` keeps a fill, the neutral `surface-2`, not its accent; an outlined one a quiet
+`border` edge; a `Switch` a flat track with the knob in the disabled tone (its side still says on or
+off), its label in the disabled tone and its description, often why it is off, in readable `fg-subtle`;
+a Card Studio slider's readout (an `<output>`, not the control, which axe checks) `fg-subtle` too; a menu item, a select's option and the window steps (‹ ›) the same tone. Never a
+half-transparent control: opacities from 30% to 70% across 25 places read differently on every
+page. `opacity` stays for a picture that dims as a whole (an avatar button, a lineup choice with the
+player's picture, a native range input the browser draws) and for a busy part while a choice loads
+(`opacity-60`, `aria-busy`). The tone is under 4.5:1, which WCAG 1.4.3 allows for inactive controls
+and axe skips; on live text it fails, so `src/app/type-hierarchy.test.ts` refuses it without a
+disabled variant or condition.
+
+**Labels are sentence case** (25 Nov 2026, the owner's readability request): `label-text` for column
+headings and small labels (`text-2xs`, medium, `fg-muted`), `SectionLabel` a small `fg` heading for
+a part inside a panel, `Metric` a `fg-muted` label over its figure with no box of its own. Capitals
+stay only where an approved design keeps them (Team Overview's card and window, the Admin mode
+marker and the admin eyebrow, pill badges), listed in `src/app/type-hierarchy.test.ts` with their
+reasons. **Uppercase labels** that remain keep one letter spacing, `tracking-label`, at every width:
+no width or container variant may change it (`design-tokens.test.ts`; the Team card's WIN RATE was
+0.44px on a laptop and 1.32px on a phone before S2b).
 
 ## 6. Motion
 
@@ -460,7 +534,7 @@ One set of containers, chosen by what the content is, never by page. Each is one
 
 | Container | For | Component | Opens | Closes | Address and history |
 |---|---|---|---|---|---|
-| **Peek** | a quick look at one item from a list or a board (a team player; a Players row or a Leaderboards member, `player-peek.tsx` since 20 Nov 2026, the row's name still the profile's link; a game from a board; a champion of All Champions, since Release 16) | `peek.tsx`: `usePeek`, `Peek` | a row (click, tap, Enter); ↑/↓ or J/K and ‹ › switch | ✕, Escape, Back, the selected row again; not an outside click, except where the panel is its row's contextual detail (`closeOnOutsidePress`: All Champions) | `?player=` (and so on) on the current page: the one history rule |
+| **Peek** | a quick look at one item from a list or a board (a team player; a Players row or a Leaderboards member, `player-peek.tsx` since 20 Nov 2026, the row's name still the profile's link; a game from a board; a champion of All Champions from Release 16 until 25 Nov 2026, now a pane beside its list: below, "All Champions' champion") | `peek.tsx`: `usePeek`, `Peek` | a row (click, tap, Enter); ↑/↓ or J/K and ‹ › switch | ✕, Escape, Back, the selected row again; not an outside click, except where a consumer asks for it (`closeOnOutsidePress`; none since 25 Nov 2026) | `?player=` (and so on) on the current page: the one history rule |
 | **Unfold** | an item opened under its card, for items compared down a list (games) | `unfold.tsx`: `useUnfold`, `UnfoldRegion`, `UnfoldHeader` | the card | the card again, Escape, the pinned header's Close, Back | the one history rule |
 | **Task dialog** | work that needs full attention (editors, confirmations, pickers, Card Studio, Install) | `dialog.tsx`: `Dialog` with its `size` (every one states it, `TASK_DIALOG_REM`): `form` 30rem for forms and confirmations (`ConfirmDialog`, the account and job confirmations, Change Riot ID, Position your picture), `picker` 42rem for a choice among many or an editor with a table (Access, an access level); Card Studio alone `min(100% − 3rem, 100rem)` by `min(100% − 3rem, 64rem)` (`DetailModal size="full"`, Release 17: its live preview 45% of it, docs/PLAYER_CARD_STUDIO.md); Install and sign-in 30rem (`compact`, `form`); the champion picker 42rem (`standard`). Phones and short windows: docked to the bottom edge, or the whole screen | its button | Close, Escape, the backdrop | none |
 | **Phone window shell** | the window an item opens in on a touch phone or in a short window (a Peek's, a game's) | `preview-window.tsx`: `PreviewWindow` on `DetailModal` | the item | ✕, Escape, Back, a pull down on its header (or its bar) | the item's own (`?player=`, `?match=`) |
@@ -615,23 +689,35 @@ const peek = usePeek({ param: "player", ids, initial: searchParams.get("player")
   scrolling inside. `windowSize` and `windowHeader` give the phone's window its size and header.
 - **First consumer:** the Team player (`?player=`), its ↑/↓ moving along the starters; a turned
   card opens its substitute.
-- **All Champions' champion** (`?champion=&crole=[&vs=]`, `all-champions.tsx`, `champion-preview.tsx`;
-  Release 16, the owner's request of 23 Nov 2026): a champion's detail is a compact panel docked
-  beside its table, so the table never moves (until then it unfolded under its row and pushed the
-  list down, with a tall list of opponents). Its content, the same in the panel and the phone's sheet:
-  the portrait, role and record, four tiles of averages, a line of kills and the four multikills
-  (the columns the panel lies over on a wide table), and the lane opponents as a dense table
-  (Opponent, Games, Record, Win; Most games, Best, Worst; the first five with 3+ games, the rest one
-  click away) whose opened opponent shows its games under its row in the same panel, never a second
-  panel. Its tallest content (five opponents with 3+ games, both "more" toggles, an opponent open
-  with its three newest games) fits without scrolling at 1440 × 900 and at 1920 × 950 (the owner's
-  window, the sidebar folded); in a shorter window, such as 1280 × 800, its body is the panel's one
-  scroll region, its header with ✕ and ‹ › staying in place.
-  It also closes on a click outside it (`closeOnOutsidePress`: not on a row, which switches it, a
-  link, a window or a popover; a click, so a touch that scrolls never closes it). ↑/↓ and J/K move it
-  from the list (its own keys inside the panel stay its own); its address keeps the page's two-key
-  hook with the one history rule, so Back closes it. Nothing is drawn until hydration has decided
-  between the panel and the sheet.
+- **All Champions' champion** (`?champion=&crole=[&vs=]`, `all-champions.tsx`, `champion-preview.tsx`,
+  `champion-matchups.tsx`, `champion-roles.tsx`; the owner's request of 25 Nov 2026): no longer a
+  Peek. From Release 16 it was the Peek's panel docked at the window's right edge, which lay over
+  half the table; it is now a **master-detail pane beside the list**, in the page: the list narrows
+  to `minmax(22.5rem, min(32%, 24rem))` (each champion's name, position icons and "In pool", its win
+  rate over its games, under a heading row of the table's height that says "Sorted by KDA" when the
+  order is a figure it no longer shows, so no row or name moves) and the pane takes the rest of the
+  section. The page is the one thing that scrolls (the 25 Nov 2026 review): the pane has no scroll
+  box; while it fits the window it is pinned under the section tabs, and taller it scrolls with the
+  page, held between the tabs and the window's foot, its header (portrait, name, ‹ ›, a labelled
+  Close) pinned under the tabs while it passes. It opens where the section has 47.5rem (from 768px
+  wide, in a window taller than 480px); narrower, a short window and the phone's frame get the phone window shell's sheet with
+  the same content and the same labelled Close in its header (`DetailModal`'s `closeLabel`, the shared `LABELLED_CLOSE`:
+  outlined, "✕ Close", 44px on touch screens, as tall as the ‹ › beside it; a bare ✕ there until the review of 25 Nov 2026,
+  the least prominent control in the header). Close, Escape, Back and the selected row again close it (an outside click does
+  not: it is part of the page); ↑/↓ and J/K from the list and ‹ › move it; the address keeps the
+  one history rule. Its content (docs/MATCHUPS.md): identity with mastery marked as all positions'; a
+  segmented position choice that switches every figure and the opponents, each position with its
+  games, win rate and record ("Top 22" over "50% · 11W 11L") where there are two or more (one
+  position shows its name alone, the record being the figures right under it; its accessible name
+  keeps the record); its kills and multikills on one line that wraps between items only ("0 penta"
+  whole, each "·" ending its line); the position's figures as
+  labels over numbers, no tiles; one table of every lane opponent (search, Most games / Highest /
+  Lowest win rate, small samples quiet and ranked last); an opponent's detail beside the table from a
+  38rem preview, one step in place of it below that. The list's position icons are 24px controls
+  with a tooltip (hover after `HOVER_OPEN_MS`, keyboard focus; Escape closes it alone) with a mouse,
+  and 14px marks on a touch screen, where the row stays the one 44px target and reads where it was
+  tapped: a tap on a mark opens that position, elsewhere the most played (the tooltip's facts are
+  the marks' screen-reader text and the position choice's own words).
 - **Matchup Intel's abilities** (`?ability=Mordekaiser.Q`, `ability-peek.tsx`, 23 Nov 2026) were a
   consumer until Matchup Intel was retired the same day (Release 16).
 
@@ -646,16 +732,57 @@ const peek = usePeek({ param: "player", ids, initial: searchParams.get("player")
 - **Touch:** a tap opens it; any tap closes it (on the ⓘ, the bubble or elsewhere) and that tap does
   nothing else; scrolling closes it.
 - **Placement:** above, else below, 8px inside the screen, never over its trigger; where neither side
-  has room, a small sheet at the screen's far edge with the same text. Never a bubble that scrolls.
-- **Text:** one plain sentence, at most about 25 words (`tip-length.test.ts`; STANDARDS, "Tooltips"),
-  in the page's words. A tip on a text trigger (children) can wrap a badge or a chip, as the LP and
-  the Best chip on a match card, Setup incomplete, Riot accounts' Main and Alt, the experience label
-  in the champion data panel and "Changed since the check" do.
+  has room for the body-size bubble (large text on a small phone), the compact bubble (12px, up to
+  18rem, the size before 25 Nov 2026; `tipStep`), and only where that has no room either, a small
+  sheet at the screen's far edge with the same text. Never a bubble that scrolls.
+- **Text:** one concept in plain words, one or two short sentences, at most about 25 words
+  (`tip-length.test.ts`; STANDARDS, "Tooltips"), in the page's words, no needless maths or
+  thresholds. Since 25 Nov 2026 the bubble's text is the body size (14px, `text-sm`; 12px before),
+  in a bubble up to 20rem wide (18rem before), so a tip of 25 words keeps about four lines, wherever
+  it fits beside its trigger (see Placement). Essential
+  information is visible without it; a detailed breakdown is the shared breakdown popover, never a
+  giant bubble. A tip on a text trigger (children) can wrap a badge or a chip, as the LP and
+  the Best chip on a match card, Setup incomplete, Riot accounts' Main and Alt and "Changed since the
+  check" do. (The experience label in the champion data panel and the data status's ⓘ open the shared
+  breakdown on a press since the release's review, 25 Nov 2026: their texts held up to six concepts.)
 - **Not a `title`:** a native title explains nothing (`title-use.test.ts`). It names an icon-only
   control or mark, or shows a cut value whole; anything else is an InfoTip, visible text or
   sr-only words.
 - **Chart readouts** take the bubble's look: the rank chart's readout has the same border, corners,
   type and fade (`rank-timeline-chart.tsx`), beside the reading it describes.
+
+### Breakdown popover (`BreakdownPopover`, 25 Nov 2026)
+
+How a figure was worked out, one press from the figure itself: for what is too long for an InfoTip
+(one concept, one or two sentences). The first is Leaderboards' multikill Score (docs/TEAM_LEADERBOARDS.md,
+"The Score breakdown").
+
+- **Trigger:** the figure itself, a `<button>` with a dotted underline (an InfoTip term's cue), named by
+  the figure and what it opens ("Score 132: how it was worked out"), `aria-haspopup="dialog"` and
+  `aria-expanded`; 44px on touch; the shared focus ring; above a row's own link (`relative z-[2]`).
+- **Where:** on screens that open previews beside a list (posture.ts), the shared `Popover` beside the
+  figure (`placement="side"`: before it, else after it, centred on it, up to the window's height), drawn
+  at the page's end (a portal: a list row's `isolate` would otherwise keep it under the rows after it); a
+  window under 768px wide, or a short one, gets a sheet (`DetailModal`, `size="sheet"`, the picker's width),
+  whose body grows from its content (`flex-auto`, never `flex-1`: Safari 26).
+- **No scrollbar of its own** at normal sizes: the beside form has the window's height to open whole; a
+  phone's sheet scrolls as every sheet does.
+- **Closes** on Escape (the focus back on the figure), a press outside, the focus leaving it, its ✕, or
+  the figure leaving the screen. No address or history entry of its own.
+- **The keyboard keeps the figure's place** (the Popover's `portaled`): drawn at the page's end, it is
+  still read as if it came right after the figure. Tab past its last control closes it and goes on to
+  what follows the figure; Shift+Tab out of it (from its first control or the panel itself) closes it
+  with the focus back on the figure; Escape closes it wherever the focus is on the page (WCAG 2.4.3).
+  The sheet keeps the focus inside until it closes, as every sheet does.
+- **Content** drawn only while open, from the figure's own data (the breakdown never works the figure out
+  again): plain sections with a heading each (no boxes inside boxes), the arithmetic in tabular numerals.
+- **A status or a label as the trigger** (`bare`, 25 Nov 2026 review): the caller draws the trigger in the
+  line's own size, with the same press, names and forms. The data status's ⓘ (`DataStatusNote`: the word
+  as the heading, each part with its dot and why, the times, this visit's Refresh; "Data status: Partial
+  data"; an InfoTip before, up to six concepts in a bubble) and the experience label in Riot data
+  (`TierWhy`: the label as the heading, the tier's rule, then the estimate's notes; 44px on touch through
+  `touch-target`, the table's rows keep their height). An ⓘ that opens a breakdown takes a press, not a
+  hover: its pointer is the hand, not the help cursor of an InfoTip.
 
 ### Unfold
 
@@ -682,7 +809,8 @@ const unfold = useUnfold({ param: "match", initial, valid: (id) => ids.includes(
   inline.
 - **Not a table's row.** All Champions' champion unfolded under its row from 23 Nov 2026 until
   Release 16, across the whole list; it pushed the rows below it down, so the owner asked for a
-  compact detail beside the table instead: the Peek's docked panel (above, "Peek").
+  compact detail beside the table instead: the Peek's docked panel, then (25 Nov 2026) a pane beside
+  the narrowed list ("Peek", above, "All Champions' champion").
 
 ### Admin's pages, drawn as the benchmarks (the design review, 20 Nov 2026)
 
@@ -843,10 +971,11 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     their own 84rem, centred in it (its approved design), under a 1920px window, and from 1920px
     take the whole column (S2c, 19 Nov 2026), so the first tab, the logo and the first card share
     one left edge (before, the logo sat 38px inside at 1920 and 165px at 2560). Team
-    Matches' list keeps `--content-max` under Team's wider header, left-aligned, so a game's row is
-    never longer than before. A page's loading state takes the width `pageWidthOf` gives its address
-    (a Team section's own; the ordinary 80rem elsewhere); Team Matches' own skeleton stands as its
-    page does, its list at `--content-max`.
+    Matches' filters and list take Team's whole column, centred with it (the owner's review of
+    25 Nov 2026: at `--content-max`, left-aligned, the list ended about 200px left of centre on wide
+    windows). A page's loading state takes the width `pageWidthOf` gives its address (a Team
+    section's own; the ordinary 80rem elsewhere); Team Matches' own skeleton stands as its page
+    does, its list across the column.
   - **One frame, one place for everything (S2c, 19 Nov 2026).**
     - *The shared frame* (`app-shell.tsx`, `FRAME`): one content column, at most `--content-wide`
       and centred in the room beside the sidebar, open or folded. A page narrower than it (80rem
@@ -881,7 +1010,7 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
       account card and the Add button's row: `AccountsSkeleton`, 20 Nov 2026), and a profile opened from
       outside it as its band, tabs and section. Leaderboards and Team Matches had theirs.
     - *The 12px floor* (UD.X5): `text-2xs` is 12px on desktops (lg), 11px on phones and tablets,
-      one token for every use (globals.css); uppercase labels (and `label-caps`) keep 11px. The game cards of Match History and Team Matches
+      one token for every use (globals.css); uppercase labels keep 11px (the retired `label-caps` did too). The game cards of Match History and Team Matches
       took it in Release 11 after a measured pass at 1024, 1280, 1366, 1440, 1536, 1920 and 2560: no new wrap,
       the build whole, heights +1px at most. Where the card holds the build and the teams (a 61–70rem list,
       1366 and 1440 with the sidebar open) its columns stay 10px apart (16px from 70rem), which gives the
@@ -894,11 +1023,12 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
     (stat label, Panel, DataRow, a badge, Button, the current section tab, InfoTip's bubble, Select)
     at 375 and at 1440 and compares their font family, size in rem, weight, letter spacing in em,
     colours, radius and border. Listed differences, the only ones allowed: the badge's size (the 12px
-    floor on desktops), and Select's size (16px on a touch screen, so iOS
+    floor on desktops), the stat label's size (since 25 Nov 2026 the sentence-case `label-text`, which
+    takes the same floor: 11px on phones, 12px on desktops), and Select's size (16px on a touch screen, so iOS
     never zooms into the field; 14px with a mouse). Select compares the popover's button on the
     desktop with the browser's own select on the phone (§7, Select). Each later stage adds the components it creates.
     Since Release 11 (20 Nov 2026) a second test compares the components S5–S9 created, each opened
-    as a member opens it: All Champions' preview (its panel, figures, an opponent, the foot line), the
+    as a member opens it: All Champions' preview (its pane, figures, an opponent, the foot line), the
     post-game view (an item and the loadout's name, a scoreboard K/D/A
     and name), Champion Intel (the champion's name, an ability's name, its Q's base cooldown and its
     cooldown at the haste; Matchup Intel's slots and tiles until 23 Nov 2026) and Admin's person view (the window, a section
@@ -1077,7 +1207,7 @@ deliberately. Each needs its own small PR. Check STATUS.md for the Actions-minut
 |---|---|---|
 | Hover on panels | About 50 controls use `hover:bg-surface-2`, a few `hover:bg-surface-2/70` or `bg-fg/5` | Converge on §5: surface steps on panels, fg overlays on the frame. `DataList` rows follow §5 already (`ROW_STATES`) |
 | Page headers | Players, Matches and Resources open with `PageHeader`. Leaderboards (one page since 19 Nov 2026) opens with its title, member count and data status on one line (its own header: the line `PageHeader` would put under the title stands beside it, so the boards start one line higher); Settings (64rem, both modes) leads with its account card (`surface-lead`) beside or above its sections, its title over them | Intended by STANDARDS.md's three tiers |
-| Eyebrows | `PageHeader`'s eyebrow is `accent`; `SectionLabel` is `fg-subtle` | Both are valid. Keep `accent` eyebrows to Team Overview's header (from `sm` in a window taller than 480px; on a phone held either way it is left to screen readers, since the selected tab says it), admin pages (`PageHeader`) and the sign-in frames (`BrandFrame`) |
+| Eyebrows | `PageHeader`'s eyebrow is `accent`, in capitals; `SectionLabel` is a small sentence-case heading in `fg` since 25 Nov 2026 (an uppercase `fg-subtle` label before) | Keep `accent` eyebrows, and their capitals, to Team Overview's header (from `sm` in a window taller than 480px; on a phone held either way it is left to screen readers, since the selected tab says it), admin pages (`PageHeader`) and the sign-in frames (`BrandFrame`); every other label is sentence case |
 | Tablet and phone mode switch | A row on the phone's account screen and an item of a tablet's avatar menu, each in the accent on the way to Admin Mode; a quiet row in the sidebar | Deliberate (§7). Revisit only with the owner, since phones were verified |
 
 ## 11. Working on the design

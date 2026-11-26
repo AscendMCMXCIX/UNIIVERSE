@@ -27,7 +27,7 @@ export interface PreviewSiblings {
 }
 
 /** The look of a window's and a Peek's own controls (‹ ›, ✕): 36px, 44px on touch screens (WINDOW_CONTROL_TOUCH). */
-export const PREVIEW_NAV = `inline-flex h-9 w-9 items-center justify-center rounded-lg bg-bg/60 text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:opacity-40 disabled:hover:bg-transparent focus-visible:outline-2 focus-visible:outline-accent ${WINDOW_CONTROL_TOUCH}`;
+export const PREVIEW_NAV = `inline-flex h-9 w-9 items-center justify-center rounded-lg bg-bg/60 text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:text-fg-disabled disabled:hover:bg-bg/60 disabled:hover:text-fg-disabled focus-visible:outline-2 focus-visible:outline-accent ${WINDOW_CONTROL_TOUCH}`;
 
 /** ‹ › for an item's siblings: disabled at either end of the list, never wrapping. */
 export function SiblingSteps({ siblings }: { siblings: PreviewSiblings }) {
