@@ -6,7 +6,7 @@ import { ChampionPortrait, type PortraitChampion } from "@/components/champion-p
 import { RoleIcon } from "@/components/role-icon";
 import { Badge, type BadgeTone } from "@/components/ui/badge";
 import { Panel, PanelBody, PanelHeader, SectionLabel } from "@/components/ui/panel";
-import { Info, Metric, MetricLabel } from "@/components/ui/metric";
+import { Info, METRIC_LABEL, METRIC_VALUE, Metric, MetricLabel } from "@/components/ui/metric";
 import { InfoTip } from "@/components/ui/info-tip";
 import { metricTooltip } from "@/domain/metrics";
 import { formatCount, percent, timeAgo } from "@/lib/format";
@@ -64,20 +64,20 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
         </div>
         ) : null}
 
-        <div className="grid gap-2 sm:grid-cols-2 lg:grid-cols-4">
+        <div className="grid grid-cols-2 gap-x-6 gap-y-3 lg:grid-cols-4">
           <Metric id="games-on-record" value={formatCount(report.gamesAnalysed)} />
           <Metric id="patch-games" value={formatCount(report.currentPatchGames)} />
-          <div className="rounded-md border border-border bg-bg-elevated px-2.5 py-1.5">
-            <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-label text-fg-subtle">
+          <div className="min-w-0">
+            <div className={METRIC_LABEL}>
               Champions with data <Info text="Champions with at least one game or some mastery." label="About champions with data" />
             </div>
-            <div className="text-sm font-semibold text-fg">{report.championsWithData}</div>
+            <div className={METRIC_VALUE}>{formatCount(report.championsWithData)}</div>
           </div>
-          <div className="rounded-md border border-border bg-bg-elevated px-2.5 py-1.5">
-            <div className="flex items-center gap-1 text-xs font-semibold uppercase tracking-label text-fg-subtle">
+          <div className="min-w-0">
+            <div className={METRIC_LABEL}>
               Last sync <Info text={metricTooltip("last-sync")} label="About last sync" />
             </div>
-            <div className="text-sm font-semibold text-fg">{report.lastSyncAt ? timeAgo(report.lastSyncAt) : "never"}</div>
+            <div className={METRIC_VALUE}>{report.lastSyncAt ? timeAgo(report.lastSyncAt) : "never"}</div>
           </div>
         </div>
 
@@ -121,7 +121,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
             </div>
             <ScrollRegion label="Champion data" className="hidden md:block">
               <table className="w-full text-xs">
-                <thead className="text-left text-fg-subtle">
+                <thead className="text-left text-fg-muted">
                   <tr>
                     <th className="py-1 pr-3 font-medium">Champion</th>
                     <th className="py-1 pr-3 font-medium"><MetricLabel id="proficiency-tier">Experience</MetricLabel></th>
@@ -134,7 +134,7 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
                     <th className="py-1 pr-3 font-medium"><MetricLabel id="proficiency-confidence" /></th>
                   </tr>
                 </thead>
-                <tbody className="divide-y divide-border">
+                <tbody className="divide-y divide-border text-fg">
                   {report.champions.map((c) => (
                     <tr key={c.championId} className="align-middle">
                       <td className="py-1.5 pr-3">
@@ -158,9 +158,9 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
                       <td className="py-1.5 pr-3">{c.patchGames}</td>
                       <td className="py-1.5 pr-3">{c.games}</td>
                       <td className="py-1.5 pr-3 text-fg-muted">{c.lastPlayedAt ? timeAgo(c.lastPlayedAt) : "—"}</td>
-                      <td className="py-1.5 pr-3 text-fg-muted">{c.mastery ? `${formatCount(c.mastery.points)} pts · M${c.mastery.level}` : "—"}</td>
-                      <td className="py-1.5 pr-3 text-fg-muted">{c.knownRoleGames > 0 ? `${percent(c.roleShare, 0)} in ${ROLE_LABELS[c.role]}` : "—"}</td>
-                      <td className="py-1.5 pr-3 text-fg-muted">{c.confidenceWord}</td>
+                      <td className="py-1.5 pr-3">{c.mastery ? `${formatCount(c.mastery.points)} pts · M${c.mastery.level}` : "—"}</td>
+                      <td className="py-1.5 pr-3">{c.knownRoleGames > 0 ? `${percent(c.roleShare, 0)} in ${ROLE_LABELS[c.role]}` : "—"}</td>
+                      <td className="py-1.5 pr-3">{c.confidenceWord}</td>
                     </tr>
                   ))}
                 </tbody>
@@ -190,10 +190,14 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
   );
 }
 
-/** The experience label, with why it was given (the tier's rule and the estimate's notes) one tap or hover away. */
+/**
+ * The experience label, with why it was given (the tier's rule and the estimate's notes) one tap or
+ * hover away. A finger's 44px target on a touch screen (touch-target: its band reaches past the
+ * badge, not the row's height); no row here is a link whose taps it could take.
+ */
 function TierWhy({ tier, label, notes }: { tier: ProficiencyTier; label: string; notes: string[] }) {
   return (
-    <InfoTip text={`${TIER_DESCRIPTIONS[tier]}${notes.length ? ` ${notes.join(". ")}.` : ""}`}>
+    <InfoTip className="touch-target" text={`${TIER_DESCRIPTIONS[tier]}${notes.length ? ` ${notes.join(". ")}.` : ""}`}>
       <Badge tone={TIER_TONE[tier]}>{label}</Badge>
     </InfoTip>
   );

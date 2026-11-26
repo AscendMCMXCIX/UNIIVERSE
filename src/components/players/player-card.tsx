@@ -497,11 +497,12 @@ const POOL_TILE_GRID = "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center ga
 
 /** The column names over the pool list, where it has the columns (narrower, each champion's figures in a short block). */
 export function PoolColumnNames({ support }: { support: boolean }) {
-  const head = "whitespace-nowrap text-right text-2xs font-semibold uppercase tracking-label text-fg-subtle";
+  // The window keeps its approved capitals (25 Nov 2026); its column names are labels, so the secondary grey.
+  const head = "whitespace-nowrap text-right text-2xs font-semibold uppercase tracking-label text-fg-muted";
   return (
     <div className={cn(POOL_TILE_GRID, "hidden border-b border-border/70 bg-bg/30 px-3 py-1.5 @min-[28rem]/pool:grid")} aria-hidden data-testid="pool-columns">
       <span className="w-10" />
-      <span className="text-2xs font-semibold uppercase tracking-label text-fg-subtle">Champion</span>
+      <span className="text-2xs font-semibold uppercase tracking-label text-fg-muted">Champion</span>
       <span className={head}>Win rate</span>
       <span className={head}>Games</span>
       <span className={head}>KDA</span>
@@ -555,7 +556,7 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
                 Narrower still, a line of its own, its figures side by side (see the row's lines above). */}
             <span className="text-right leading-tight @min-[28rem]/pool:hidden @max-[15.5rem]/pool:col-span-3 @max-[15.5rem]/pool:col-start-1 @max-[15.5rem]/pool:row-start-3 @max-[15.5rem]/pool:flex @max-[15.5rem]/pool:flex-wrap @max-[15.5rem]/pool:items-baseline @max-[15.5rem]/pool:gap-x-2 @max-[15.5rem]/pool:pt-1 @max-[15.5rem]/pool:text-left" data-testid="pool-champion-stats">
               <span className={cn("block text-sm font-semibold tabular-nums", tone)}>{rate}</span>
-              <span className="block text-2xs tabular-nums text-fg-subtle">
+              <span className="block text-2xs tabular-nums text-fg-muted">
                 {row.games} game{row.games === 1 ? "" : "s"}
               </span>
               <span className="block text-2xs tabular-nums text-fg-muted" data-testid={support ? "pool-champion-kda-vision" : "pool-champion-kda-cs"}>
@@ -563,9 +564,10 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
               </span>
             </span>
             <span className={cn("hidden text-right text-sm font-semibold tabular-nums @min-[28rem]/pool:block", tone)}>{rate}</span>
-            <span className="hidden text-right text-sm tabular-nums text-fg-muted @min-[28rem]/pool:block">{row.games}</span>
-            <span className="hidden text-right text-sm tabular-nums text-fg-muted @min-[28rem]/pool:block">{kda}</span>
-            <span className="hidden text-right text-sm tabular-nums text-fg-muted @min-[28rem]/pool:block">{third}</span>
+            {/* Compared statistics: primary (the win rate keeps its tone, a small sample its grey). */}
+            <span className="hidden text-right text-sm tabular-nums text-fg @min-[28rem]/pool:block">{row.games}</span>
+            <span className="hidden text-right text-sm tabular-nums text-fg @min-[28rem]/pool:block">{kda}</span>
+            <span className="hidden text-right text-sm tabular-nums text-fg @min-[28rem]/pool:block">{third}</span>
           </>
         ) : (
           // A note too long for a narrow list's figure column ("189K mastery · no games this season")

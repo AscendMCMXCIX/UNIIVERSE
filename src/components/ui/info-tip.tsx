@@ -343,7 +343,8 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
                 sheetOpen
                   ? cn("inset-x-0 px-safe-4 py-3 text-sm leading-normal motion-safe:fade-in", sheet === "bottom" ? "bottom-0 rounded-t-[1.25rem] border-b-0 pb-safe-4" : "top-0 rounded-b-[1.25rem] border-t-0 pt-safe-4")
                   : cn(
-                      "w-max max-w-[min(18rem,calc(100%-16px))] rounded-md px-2.5 py-1.5 text-xs leading-snug motion-safe:animate-[fade-in_100ms_ease-out]",
+                      // The body text size (25 Nov 2026, the owner's readability request: 12px before), a line about as long as it was.
+                      "w-max max-w-[min(20rem,calc(100%-16px))] rounded-md px-3 py-2 text-sm leading-snug motion-safe:animate-[fade-in_100ms_ease-out]",
                       // The 6px between the bubble and its trigger belongs to the bubble, so a pointer crossing it stays in one visit.
                       "before:absolute before:inset-x-0 before:h-1.5 before:content-['']",
                       pos?.side === "bottom" ? "before:bottom-full" : "before:top-full",

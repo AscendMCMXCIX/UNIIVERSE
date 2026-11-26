@@ -160,3 +160,42 @@ them (docs/MATCHUPS.md has the whole behaviour).
 
 Back and Escape keep the one history rule: the preview is one entry (switching champion, position or
 opponent replaces it), and closing returns the list with its place, search, sort and filters.
+
+## 7. 25 Nov 2026: readability (the owner's request)
+
+Too much grey text, too many capitals, tiny annotations and boxes inside boxes. The base commit of the
+release lifted the two greys (`fg-muted` `#b4b8c9` → `#c9cddb`, `fg-subtle` `#8f95aa` → `#a2a8bc`) and
+added a disabled tone (`fg-disabled` `#70758c`) and the sentence-case label (`label-text`); the
+typography lane then gave every text its tier by its job (STANDARDS, "Type"), outside the Match
+History, Champion Intel and Leaderboards files, which their lanes changed by the same rule. Walked in
+Player Mode and Admin Mode on the demo at 1366 × 768 to 3440 × 1440, sidebar open and folded, on
+phones and a tablet, and at 200% text.
+
+| Where | Before | After | Why |
+|---|---|---|---|
+| All Champions' table (rewritten in §6 by the same rule) | the sorted column `fg` semibold, every other column `fg-muted`; headings 11px uppercase tracked in `fg-subtle` | every figure `fg`, the sorted column semibold beside its arrow; headings 12px sentence case in `fg-muted`, the sorted one `fg` semibold | grey figures read as less important, not as unsorted; capitals were harder to read than the words |
+| The profile's season card | "13W 7L", "per game" and the other sub-lines in `fg-subtle`; the total kills `fg-muted` | sub-lines `fg-muted`; the total kills `fg` | a qualifying figure is secondary; a figure is primary |
+| Recent form, Ranked progress | "Last 20", "All 120", "Last 30 days" in `fg-subtle` (11px on phones); "No change" grey | labels `fg-muted`, 12px; "No change" `fg` | labels of figures are secondary; a value is primary |
+| All Champions' preview (rewritten in §6 by the same rule) | its stat labels in capitals; opponents' records `fg-subtle`; a small-sample win rate `fg-muted`, barely apart from a plain one after the lift | sentence-case labels; records `fg-muted`; a small sample `fg-subtle`, with its words | the grey says "small sample" only if it is clearly grey |
+| Team player window | the pool's games, KDA and CS in `fg-muted`; figure and column labels in `fg-subtle` (capitals kept, approved) | figures `fg`; labels `fg-muted` | Team Overview keeps its capitals and layout; only colours changed. The card face is unchanged (approved) |
+| Pools on the profile, the off roles | column names uppercase from 24rem; "OFF ROLES" | sentence case at every width | no width changes the label's case any more |
+| Riot data panel, Settings → Riot API, Admin → page speed | uppercase `fg-subtle` labels in bordered tiles inside the panel; table values `fg-muted` | sentence-case `fg-muted` labels over `fg` figures, no tile; table values `fg` | boxes within boxes; table values are read |
+| Panels' part headings (`SectionLabel`), the capabilities' groups, Recover's "Owner account found", Privacy's "On this page" | 12px uppercase tracked `fg-subtle` | sentence-case headings (`fg` for a heading, `fg-muted` for a label) | a heading read as a caption |
+| Menus and lists | "SIGNED IN AS"; "OFTEN PLAYED MID"; champion filter groups in capitals; group labels `fg-subtle` | sentence case; group labels `fg-muted` | one look for a list's group heading (as `MenuLabel` and Select's groups were already) |
+| Card Studio's parts | 11px uppercase `fg-subtle` titles | 14px `fg` headings; Undo and Reset `fg-muted` | headings of the studio's parts |
+| Disabled controls | opacities from 30% to 70% across 25 places; a disabled segment `fg-subtle` at 60% | one look: `fg-disabled`, the not-allowed cursor, no hover; a filled button on the neutral fill | "disabled" read differently on every page |
+| Zero counts (role segments, Resources' index) | `fg-subtle` at 60% (3:1, under AA) | plain `fg-subtle` | a zero is not disabled |
+| InfoTip bubble | 12px in an 18rem bubble | 14px in a 20rem bubble | the body size, about the same number of lines |
+| Tips | Recent form 31 words with four thresholds; the rank's tip 38 words, three concepts; the Riot credential's legend of three states; Social links' 44-word help | 25, about 20, one state, 27 words (docs/HELP_TEXT.md, "25 Nov 2026") | one concept a tip, plain words |
+
+Kept, and why: Team Overview's card face (approved: its capitals, sizes and colours as they were,
+lifted only by the tokens), the Admin mode marker and the admin pages' accent eyebrow (the mode's
+identity), pill badges ("You", "Primary role"), a member's own "wide" name style, footnotes and
+coverage lines in `fg-subtle` (supplementary, and 6.2:1 or more now), timestamps and the ⓘ mark.
+
+Guards added: `src/app/type-hierarchy.test.ts` (capitals outside a pill and the approved list; a
+disabled control dimmed with opacity; the disabled tone on live text; an alpha on a text colour),
+`tip-length.test.ts` counting the new composed texts, Branding's check of `fg-subtle` at 4.5:1 on a
+team's own colours (page, panel and selected row), and the Production check's text facts
+(docs/LIVE_VALIDATION.md, "The text hierarchy").
+

@@ -137,29 +137,29 @@ function SetupComplete({ values, displayName, champions, teamMember }: { values:
       <p className="mt-2 text-sm text-fg-muted">Setup is complete. Their own password now replaces the temporary one, and their Riot account starts syncing in the background.</p>
       <dl className="mt-4 space-y-1.5 rounded-md border border-border bg-bg-elevated px-3 py-2 text-sm" data-testid="onboarding-summary">
         <div className="flex flex-wrap justify-between gap-x-3">
-          <dt className="text-fg-subtle">Display name</dt>
+          <dt className="text-fg-muted">Display name</dt>
           <dd className="font-medium">{displayName}</dd>
         </div>
         <div className="flex flex-wrap justify-between gap-x-3">
-          <dt className="text-fg-subtle">Username (sign-in)</dt>
+          <dt className="text-fg-muted">Username (sign-in)</dt>
           <dd className="font-medium">{PREVIEW_ACCOUNT.username}</dd>
         </div>
         <div className="flex flex-wrap justify-between gap-x-3">
-          <dt className="text-fg-subtle">Primary role</dt>
+          <dt className="text-fg-muted">Primary role</dt>
           <dd className="font-medium">{values.primaryRole ? ROLE_LABELS[values.primaryRole] : "not chosen"}</dd>
         </div>
         <div className="flex flex-wrap justify-between gap-x-3">
-          <dt className="text-fg-subtle">Champions</dt>
+          <dt className="text-fg-muted">Champions</dt>
           <dd className="text-right">{list(values.primaryPool)}</dd>
         </div>
         {values.secondaryRole ? (
           <>
             <div className="flex flex-wrap justify-between gap-x-3">
-              <dt className="text-fg-subtle">Off Role</dt>
+              <dt className="text-fg-muted">Off Role</dt>
               <dd className="font-medium">{ROLE_LABELS[values.secondaryRole]}</dd>
             </div>
             <div className="flex flex-wrap justify-between gap-x-3">
-              <dt className="text-fg-subtle">Off Role champions</dt>
+              <dt className="text-fg-muted">Off Role champions</dt>
               <dd className="text-right">{list(values.secondaryPool)}</dd>
             </div>
           </>

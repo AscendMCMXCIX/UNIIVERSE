@@ -333,7 +333,7 @@ export function DataListSkeleton({ rows = 7, heads = true, title = false, surfac
         headsClassName="hidden @min-[36rem]/list:grid"
         heads={
           heads ? (
-            // Each block takes the whole line of the label-caps headings it stands for (1lh), so the headings row is the board's height.
+            // Each block takes the whole line of the label-text headings it stands for (1lh), so the headings row is the board's height.
             <>
               <Skeleton className="my-[calc((1lh_-_0.625rem)/2)] h-2.5 w-3 justify-self-end" />
               <Skeleton className="col-span-2 my-[calc((1lh_-_0.625rem)/2)] h-2.5 w-14" />

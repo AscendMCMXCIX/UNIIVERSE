@@ -114,6 +114,7 @@ describe("the board", () => {
     const rows = h(DataGroup, { label: "Ranking", caption: "Provisional", captionTestId: "cap", testId: "rows", children: h("li", null, "row") });
     const out = html(h(DataList, { columns: "[--dl-cols:2rem_1fr]", heads: "#", headsTestId: "heads", surface: "lead", testId: "board", children: rows }));
     expect(out).toMatch(/^<div class="@container\/list min-w-0 overflow-clip rounded-card border border-border bg-surface surface-lead" data-testid="board"><div class="divide-y divide-border\/70 \[--dl-cols:2rem_1fr\]">/);
+    // The headings in sentence case since 25 Nov 2026 (label-text; label-caps before), the owner's readability request.
     expect(out).toContain('<div aria-hidden="true" data-testid="heads" class="grid grid-cols-(--dl-cols) items-end py-1.5 label-text');
     expect(out).toContain('<p class="bg-surface-2/40 py-1.5 text-xs text-fg-muted px-3 @min-[58rem]/list:px-4" data-testid="cap">Provisional</p><ol aria-label="Ranking" data-testid="rows" class="divide-y divide-border/60"><li>row</li></ol>');
   });

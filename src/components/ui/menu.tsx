@@ -230,7 +230,8 @@ export function MenuItem({ onSelect, icon, tone = "default", active, hint, child
       tabIndex={-1}
       aria-disabled={disabled || undefined}
       disabled={disabled}
-      className={cn(menuItemClass(tone, active), disabled && "pointer-events-none opacity-50", className)}
+      // Disabled: the disabled tone, its icon and hint with it, and no hover (DESIGN_SYSTEM.md §5).
+      className={cn(menuItemClass(tone, active), "disabled:pointer-events-none disabled:text-fg-disabled", className)}
       onClick={() => {
         onSelect?.();
         // A submit button must reach its form before the menu unmounts.
@@ -238,9 +239,9 @@ export function MenuItem({ onSelect, icon, tone = "default", active, hint, child
         else ctx?.close(returnFocus);
       }}
     >
-      {icon ? <span className="inline-flex shrink-0 text-fg-subtle">{icon}</span> : null}
+      {icon ? <span className={cn("inline-flex shrink-0", disabled ? "text-fg-disabled" : "text-fg-subtle")}>{icon}</span> : null}
       <span className="min-w-0 flex-1 truncate">{children}</span>
-      {hint ? <span className="shrink-0 text-xs text-fg-subtle">{hint}</span> : null}
+      {hint ? <span className={cn("shrink-0 text-xs", disabled ? "text-fg-disabled" : "text-fg-subtle")}>{hint}</span> : null}
     </button>
   );
 }
@@ -262,7 +263,7 @@ export function MenuSeparator() {
 }
 
 export function MenuLabel({ children }: { children: React.ReactNode }) {
-  return <div className="px-3 pb-1 pt-2 text-xs font-medium text-fg-subtle">{children}</div>;
+  return <div className="px-3 pb-1 pt-2 text-xs font-medium text-fg-muted">{children}</div>;
 }
 
 /**

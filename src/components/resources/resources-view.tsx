@@ -73,7 +73,7 @@ export function ResourcesView({ entries }: { entries: Resource[] }) {
                   ) : (
                     label
                   )}
-                  <span className={cn("min-w-4 text-center text-2xs font-medium tabular-nums", n ? "text-fg-subtle" : "text-fg-subtle/60")} data-testid="resources-index-count">
+                  <span className="min-w-4 text-center text-2xs font-medium tabular-nums text-fg-subtle" data-testid="resources-index-count">
                     {shownCount === null ? "" : formatCount(shownCount)}
                   </span>
                 </button>

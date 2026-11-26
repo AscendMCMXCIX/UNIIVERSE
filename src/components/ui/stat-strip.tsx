@@ -56,7 +56,7 @@ export function StatLine({ children, className, testId }: { children: React.Reac
  * finger or a keyboard; what a reader needs to see goes in the strip's ⓘ).
  */
 export function StatTile({ value, label, detail, lead = false, labelFirst = false, labelFrom60 = false, wideLine = false, className, valueClassName, testId }: { value: React.ReactNode; label: React.ReactNode; detail?: string; lead?: boolean; labelFirst?: boolean; labelFrom60?: boolean; /** From 78rem, value and label side by side again (see StatStrip). */ wideLine?: boolean; className?: string; valueClassName?: string; testId?: string }) {
-  const labelSize = cn("text-xs leading-5 text-fg-subtle @min-[60rem]/strip:text-2xs @min-[60rem]/strip:leading-3.5", wideLine && "@min-[78rem]/strip:text-xs @min-[78rem]/strip:leading-5");
+  const labelSize = cn("text-xs leading-5 text-fg-muted @min-[60rem]/strip:text-2xs @min-[60rem]/strip:leading-3.5", wideLine && "@min-[78rem]/strip:text-xs @min-[78rem]/strip:leading-5");
   return (
     <div
       className={cn(

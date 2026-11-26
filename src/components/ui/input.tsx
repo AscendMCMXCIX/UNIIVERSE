@@ -32,7 +32,7 @@ export function Label({ className, children, htmlFor }: { className?: string; ch
   );
 }
 
-const SELECT = "h-11 w-full min-w-0 truncate rounded-md border border-border-control bg-bg-elevated px-2 text-base text-fg hover:border-fg-subtle focus:border-accent focus:outline-none disabled:opacity-50 md:pointer-fine:text-sm md:pointer-fine:h-9";
+const SELECT = "h-11 w-full min-w-0 truncate rounded-md border border-border-control bg-bg-elevated px-2 text-base text-fg hover:border-fg-subtle focus:border-accent focus:outline-none disabled:cursor-not-allowed disabled:border-border disabled:text-fg-disabled disabled:hover:border-border md:pointer-fine:text-sm md:pointer-fine:h-9";
 
 /** The one dropdown look (for a <select> rendered elsewhere, e.g. inside a form helper). Pass width overrides as className. */
 export function selectClass(className?: string): string {

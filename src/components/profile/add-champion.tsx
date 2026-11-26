@@ -160,7 +160,7 @@ export function AddChampion({ role, champions, exclude, onAdd, testId, compact =
         data-testid={`${testId}-results`}
         data-side={place?.side}
       >
-        {!query ? <li role="presentation" className="px-2 pb-1 pt-1 text-2xs font-semibold uppercase tracking-label text-fg-subtle">Often played {ROLE_LABELS[role]}</li> : null}
+        {!query ? <li role="presentation" className="px-2 pb-1 pt-1 text-xs font-medium text-fg-muted">Often played {ROLE_LABELS[role]}</li> : null}
         {results.length === 0 ? <li className="px-2 py-3 text-center text-sm text-fg-subtle">{query ? `No champion matches “${query}”.` : "Type a champion's name."}</li> : null}
         {results.map((c, i) => (
           <li

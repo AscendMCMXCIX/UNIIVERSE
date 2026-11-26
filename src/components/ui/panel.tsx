@@ -26,6 +26,10 @@ export function PanelBody({ className, children }: { className?: string; childre
   return <div className={cn("px-3 py-3 sm:px-4", className)}>{children}</div>;
 }
 
+/**
+ * A part's heading inside a panel ("Accounts", "Recent errors"): a small heading in the main text
+ * colour, sentence case (25 Nov 2026: the uppercase grey label read as a caption, not a heading).
+ */
 export function SectionLabel({ children, className }: { children: React.ReactNode; className?: string }) {
-  return <div className={cn("text-xs font-semibold uppercase tracking-label text-fg-subtle", className)}>{children}</div>;
+  return <div className={cn("text-sm font-semibold text-fg", className)}>{children}</div>;
 }

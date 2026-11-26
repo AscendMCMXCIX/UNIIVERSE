@@ -47,8 +47,10 @@ function games(n: number, recentWins: number): FormGame[] {
 }
 
 describe("Recent form's tip says what recentForm does", () => {
-  it("names the window, the older games a trend needs and every figure's gap", () => {
-    expect(RECENT_FORM_HELP).toBe("The latest 20 games against all in this filter. Trends and arrows need 10+ older games too and a clear gap: 8+ win-rate points, 15% KDA or vision, 0.5 CS/min.");
+  // 25 Nov 2026 (the owner's readability request: one concept, plain words, no needless maths): the
+  // thresholds left the tip; the rule below still pins them in the code.
+  it("names the window and says, in plain words, when the arrows show", () => {
+    expect(RECENT_FORM_HELP).toBe("The latest 20 games compared with every game in these filters. Arrows show only when there are enough older games and the difference is clear.");
   });
 
   it("calls no trend with fewer than 10 games before the latest 20, however large the gap", () => {

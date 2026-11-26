@@ -159,7 +159,7 @@ export default async function PrivacyPage() {
       <div className="lg:mt-6 lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-8">
       {/* Phones and tablets: chips under the title. From lg: a table of contents that stays in view beside the notice. */}
       <nav aria-label="On this page" className="mt-4 lg:sticky lg:top-6 lg:mt-0 lg:self-start" data-testid="privacy-index">
-        <p className="mb-2 hidden text-xs font-semibold uppercase tracking-label text-fg-subtle lg:block">On this page</p>
+        <p className="mb-2 hidden text-xs font-semibold text-fg-muted lg:block">On this page</p>
         <ul className="flex flex-wrap gap-1.5 lg:flex-col lg:gap-0.5 lg:border-l lg:border-border">
           {SECTIONS.map((s) => (
             <li key={s.id}>
@@ -200,12 +200,12 @@ export default async function PrivacyPage() {
           {STORED.map((row) => (
             <li key={row.what} className="space-y-1 p-3">
               <p className="text-fg">{row.what}</p>
-              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs text-fg-muted">
-                <dt className="text-fg-subtle">Why</dt>
+              <dl className="grid grid-cols-[auto_1fr] gap-x-3 gap-y-0.5 text-xs text-fg">
+                <dt className="text-fg-muted">Why</dt>
                 <dd>{row.why}</dd>
-                <dt className="text-fg-subtle">Who sees it</dt>
+                <dt className="text-fg-muted">Who sees it</dt>
                 <dd>{row.who}</dd>
-                <dt className="text-fg-subtle">Kept</dt>
+                <dt className="text-fg-muted">Kept</dt>
                 <dd>{row.kept}</dd>
               </dl>
             </li>

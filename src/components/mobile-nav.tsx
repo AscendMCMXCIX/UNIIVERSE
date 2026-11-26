@@ -212,7 +212,7 @@ export function MobileNav({ logoSrc, logoStill, shortName, tagline, home, user, 
             {adminMode ? (
               <span className="hidden whitespace-nowrap short:block" data-testid="mobile-brand-mode">
                 <span className="sr-only">{shortName}, </span>
-                <span className={cn("label-caps text-accent", sideways.mode)}>Admin mode</span>
+                <span className={cn("text-2xs font-semibold uppercase tracking-label text-accent", sideways.mode)}>Admin mode</span>
               </span>
             ) : null}
           </Link>

@@ -367,7 +367,7 @@ function PopoverSelect({ value, options, onValueChange, id, "aria-label": ariaLa
         onClick={() => (open ? close() : show())}
         onKeyDown={onKeyDown}
         // The closed control looks like the native select it replaces (input.tsx), with its chevron.
-        className={cn(withDefaults(selectClass("inline-flex items-center gap-1.5 pr-2 text-left aria-disabled:cursor-default aria-disabled:opacity-50"), className), open && "border-accent")}
+        className={cn(withDefaults(selectClass("group/select inline-flex items-center gap-1.5 pr-2 text-left aria-disabled:cursor-not-allowed aria-disabled:text-fg-disabled aria-disabled:hover:border-border-control"), className), open && "border-accent")}
         data-testid={testId}
         data-value={value}
         data-select=""
@@ -386,7 +386,7 @@ function PopoverSelect({ value, options, onValueChange, id, "aria-label": ariaLa
             </span>
           ))}
         </span>
-        <ChevronDown className={cn("h-4 w-4 shrink-0 text-fg-subtle transition-transform motion-reduce:transition-none", open && "rotate-180")} aria-hidden />
+        <ChevronDown className={cn("h-4 w-4 shrink-0 text-fg-subtle transition-transform group-aria-disabled/select:text-fg-disabled motion-reduce:transition-none", open && "rotate-180")} aria-hidden />
       </button>
       {name ? <input type="hidden" name={name} value={value} /> : null}
       {open ? (
@@ -419,10 +419,9 @@ function PopoverSelect({ value, options, onValueChange, id, "aria-label": ariaLa
                   onPointerMove={() => !o.disabled && active !== i && setActive(i)}
                   onClick={() => choose(i)}
                   className={cn(
-                    "flex min-h-11 cursor-pointer items-center gap-2 rounded-md px-3 py-1.5 text-sm md:pointer-fine:min-h-9",
-                    i === active ? "bg-surface-2 text-fg" : "text-fg-muted",
-                    i === selected && "font-medium text-fg",
-                    o.disabled && "cursor-default opacity-50",
+                    "flex min-h-11 items-center gap-2 rounded-md px-3 py-1.5 text-sm md:pointer-fine:min-h-9",
+                    // A disabled option: the disabled tone, no highlight (it is never the active one).
+                    o.disabled ? "cursor-not-allowed text-fg-disabled" : cn("cursor-pointer", i === active ? "bg-surface-2 text-fg" : "text-fg-muted", i === selected && "font-medium text-fg"),
                   )}
                 >
                   <span className="min-w-0 flex-1">{o.label}</span>
@@ -433,7 +432,7 @@ function PopoverSelect({ value, options, onValueChange, id, "aria-label": ariaLa
                 // A group: its heading, then its options (a listbox's group, as an <optgroup> is read).
                 return (
                   <li key={`g-${run.items[0]!.option.value}`} role="group" aria-label={run.group} className="mt-1 border-t border-border/60 pt-1 first:mt-0 first:border-t-0 first:pt-0">
-                    <div className="px-3 pb-0.5 pt-1 text-xs font-medium text-fg-subtle" aria-hidden>
+                    <div className="px-3 pb-0.5 pt-1 text-xs font-medium text-fg-muted" aria-hidden>
                       {run.group}
                     </div>
                     <ul role="presentation">{items}</ul>

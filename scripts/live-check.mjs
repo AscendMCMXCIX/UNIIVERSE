@@ -153,6 +153,11 @@
   - ranked (18 Nov 2026): on the teammate's profile at every width, Ranked progress ends with its
     chart: no History and coverage disclosure, year strip, rank changes or readings table (a profile
     without the card passes as not applicable). True or false only.
+  - type (25 Nov 2026, the owner's readability request; scripts/type-facts.mjs): at every width the
+    four text tiers are deployed with their values (primary, secondary, tertiary, disabled); on Team
+    Overview, the teammate's profile and Settings no live text is drawn in the disabled tone (only a
+    disabled control or its label); on the profile and Settings, whose labels are sentence case, no
+    text in capitals outside a round pill and a member's own name style. Counts, values and tags only.
   - reach (PR 2b; S4a, 20 Nov 2026): from the end of Match History, on the desktop and the tablet the
     pinned row offers Filters and it opens the Filters popover (anchored, no modal window, "Support"
     whole and nothing in it scrolling sideways); on the phone the top bar's Filters opens the filter
@@ -171,6 +176,7 @@ import { championPreviewVerdicts, readChampionPreview, readChampionRows, targetR
 import { breakdownVerdicts, multikillVerdicts, readMultikillBoard, readMultikillBreakdown } from "./multikill-facts.mjs";
 import { cardScoreVerdicts, firstScored, readCardScores, readOpenedScore, readTogetherScores, togetherScoreVerdicts } from "./card-score-facts.mjs";
 import { oneScreenInput, oneScreenVerdicts, readOneScreen } from "./one-screen-facts.mjs";
+import { readTypeFacts, typeVerdicts } from "./type-facts.mjs";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
@@ -1977,6 +1983,17 @@ async function reachFacts(page, kind) {
  * readCardScores), then the first scored game opened, its scoreboard's row for the player read once
  * its timeline has answered, and closed with Back (one history rule: Back closes a game).
  */
+/**
+ * The text hierarchy (the owner's readability request, 25 Nov 2026; scripts/type-facts.mjs): on the
+ * page just opened, no live text in the disabled tone; with `tiers`, the four text tiers deployed;
+ * with `sentenceCase`, no capitals outside a pill (the profile's Overview and Settings, whose labels
+ * are sentence case; Team Overview keeps its approved capitals, so it is judged without).
+ */
+async function typeFacts(page, kind, name, { tiers = false, sentenceCase = false } = {}) {
+  const facts = await page.evaluate(readTypeFacts);
+  for (const v of typeVerdicts({ kind, page: name, facts, tiers, sentenceCase })) check("type", v.name, v.status, v.detail);
+}
+
 async function cardScoreFacts(page, kind) {
   await page.evaluate(() => window.scrollTo(0, 0));
   const cards = await page.evaluate(readCardScores);
@@ -2237,6 +2254,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
       playerId ??= await page.locator("[data-testid^=lineup-row-][data-player-id]").first().getAttribute("data-player-id").catch(() => null);
       await axe(page, kind, "team");
       await teamFacts(page, kind);
+      await guarded("type", `${kind}: Team Overview's text`, () => typeFacts(page, kind, "team", { tiers: true }));
       await guarded("team", `${kind}: shared kit`, () => sharedKitFacts(page, kind));
     }
   });
@@ -2253,6 +2271,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
       if (await visit(page, log, kind, "profile", `/players/${playerId}`)) {
         await noteProfileTabs(page, kind, "overview");
         await axe(page, kind, "profile");
+        await guarded("type", `${kind}: the profile's text`, () => typeFacts(page, kind, "profile", { sentenceCase: true }));
         await guarded("ranked", `${kind}: Ranked progress`, () => rankedProgressEnds(page, kind));
         if (kind === "desktop") await guarded("profile", "desktop: the Overview on one screen", () => oneScreenFacts(page, "profile", "profile"));
       }
@@ -2280,6 +2299,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
     if (await visit(page, log, kind, "settings", "/settings")) {
       await settingsFacts(page, kind);
       await axe(page, kind, "settings");
+      await guarded("type", `${kind}: Settings' text`, () => typeFacts(page, kind, "settings", { sentenceCase: true }));
     }
   });
   await guarded(kind, "resources", async () => {

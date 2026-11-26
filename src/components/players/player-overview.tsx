@@ -113,7 +113,7 @@ function Headline({ label, value, sub, info, tone = "plain", testId, className, 
       </div>
       {children}
       {/* Its context wraps rather than ends cut short ("4.0 / 4.0 / 4.0" on a 320px phone's third of the card). */}
-      {sub ? <div className="mt-1 text-xs leading-snug text-fg-subtle">{sub}</div> : null}
+      {sub ? <div className="mt-1 text-xs leading-snug text-fg-muted">{sub}</div> : null}
     </div>
   );
 }
@@ -129,7 +129,7 @@ function Supporting({ label, value, sub, info, muted, testId, className }: { lab
         <span className={cn("text-lg font-semibold leading-tight tabular-nums", muted ? "text-fg-subtle" : "text-fg")} data-testid={`${testId}-value`}>
           {value}
         </span>
-        {sub ? <span className="hidden min-w-0 truncate text-xs text-fg-subtle @min-[40rem]/perf:inline">{sub}</span> : null}
+        {sub ? <span className="hidden min-w-0 truncate text-xs text-fg-muted @min-[40rem]/perf:inline">{sub}</span> : null}
       </div>
     </div>
   );
@@ -219,7 +219,7 @@ function KillsTotal({ perf }: { perf: PerformanceSummary }) {
   const partial = perf.detailedGames < perf.games;
   return (
     <span className="block" data-testid="stat-total-kills">
-      <span className="font-semibold text-fg-muted tabular-nums" data-testid="stat-total-kills-value">
+      <span className="font-semibold text-fg tabular-nums" data-testid="stat-total-kills-value">
         {formatCount(perf.totalKills)}
       </span>{" "}
       {perf.totalKills === 1 ? "kill" : "kills"}

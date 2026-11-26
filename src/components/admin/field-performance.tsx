@@ -49,9 +49,9 @@ const VERDICT_ICON = "h-3.5 w-3.5 shrink-0";
 
 /* A table from 640px; below it each row is a label-and-figure list (the cells' data-label), so nothing scrolls sideways. */
 const TABLE = "w-full max-sm:block";
-const HEAD = "text-left text-fg-subtle max-sm:sr-only";
+const HEAD = "text-left text-fg-muted max-sm:sr-only";
 const ROW = "max-sm:block max-sm:py-2";
-const CELL = "py-1 pr-3 max-sm:flex max-sm:justify-between max-sm:gap-3 max-sm:py-0.5 max-sm:pr-0 max-sm:before:shrink-0 max-sm:before:text-fg-subtle max-sm:before:content-[attr(data-label)]";
+const CELL = "py-1 pr-3 max-sm:flex max-sm:justify-between max-sm:gap-3 max-sm:py-0.5 max-sm:pr-0 max-sm:before:shrink-0 max-sm:before:text-fg-muted max-sm:before:content-[attr(data-label)]";
 
 export function FieldPerformancePanel({ report }: { report: VitalsReport }) {
   const loads = report.metrics.find((m) => m.metric === "TTFB")?.all?.count ?? 0;
@@ -114,9 +114,9 @@ export function FieldPerformancePanel({ report }: { report: VitalsReport }) {
                         <td className={`${CELL} tabular-nums`} data-label="75% of loads">
                           <Bound metric={metric} s={all} />
                         </td>
-                        <td className={`${CELL} tabular-nums text-fg-muted`} data-label="Good">{all ? pct(all.good) : "—"}</td>
-                        <td className={`${CELL} tabular-nums text-fg-muted`} data-label="Needs work">{all ? pct(all.needsImprovement) : "—"}</td>
-                        <td className={`${CELL} tabular-nums text-fg-muted`} data-label="Poor">{all ? pct(all.poor) : "—"}</td>
+                        <td className={`${CELL} tabular-nums text-fg`} data-label="Good">{all ? pct(all.good) : "—"}</td>
+                        <td className={`${CELL} tabular-nums text-fg`} data-label="Needs work">{all ? pct(all.needsImprovement) : "—"}</td>
+                        <td className={`${CELL} tabular-nums text-fg`} data-label="Poor">{all ? pct(all.poor) : "—"}</td>
                         <td className={`${CELL} text-fg-muted`} data-label="By device">
                           <span className="min-w-0 text-right sm:text-left">
                             {byDevice.length
@@ -128,7 +128,7 @@ export function FieldPerformancePanel({ report }: { report: VitalsReport }) {
                               : "—"}
                           </span>
                         </td>
-                        <td className={`${CELL} tabular-nums text-fg-muted sm:text-right`} data-label="Measured">{all ? formatCount(all.count) : 0}</td>
+                        <td className={`${CELL} tabular-nums text-fg sm:text-right`} data-label="Measured">{all ? formatCount(all.count) : 0}</td>
                       </tr>
                     ))}
                   </tbody>
@@ -152,7 +152,7 @@ export function FieldPerformancePanel({ report }: { report: VitalsReport }) {
                         {report.pages.map((p) => (
                           <tr key={p.page} className={ROW} data-testid={`field-page-${p.page}`}>
                             <td className="py-1 pr-3 font-medium text-fg max-sm:block max-sm:pr-0">{p.page}</td>
-                            <td className={`${CELL} tabular-nums text-fg-muted sm:text-right`} data-label="Loads">{formatCount(p.loads)}</td>
+                            <td className={`${CELL} tabular-nums text-fg sm:text-right`} data-label="Loads">{formatCount(p.loads)}</td>
                             {CORE.map((m) => (
                               <td key={m} className={`${CELL} tabular-nums`} data-label={m}>
                                 <Bound metric={m} s={p[m as "LCP" | "INP" | "CLS"]} />

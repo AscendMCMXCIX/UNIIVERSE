@@ -566,7 +566,7 @@ export function RefineButton({ open, count = 0, controls, onClick, haspopup, but
       aria-haspopup={unavailable ? undefined : haspopup}
       aria-disabled={unavailable ? true : undefined}
       aria-describedby={unavailable?.describedBy}
-      className={toolbarButtonClass(!unavailable && (open || count > 0), cn(unavailable && "cursor-not-allowed opacity-50 hover:border-border-control hover:text-fg-muted", className))}
+      className={toolbarButtonClass(!unavailable && (open || count > 0), cn(unavailable && "aria-disabled:cursor-not-allowed aria-disabled:border-border aria-disabled:text-fg-disabled aria-disabled:hover:border-border aria-disabled:hover:text-fg-disabled", className))}
       data-testid={testId}
       data-unavailable={unavailable ? true : undefined}
     >

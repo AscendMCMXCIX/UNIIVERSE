@@ -80,7 +80,7 @@ export function AccountMenu({ user, showSignOut, variant = "sidebar", adminMode 
               <span className="block truncate text-sm font-medium text-fg" data-testid="account-current-name">
                 {user.name}
               </span>
-              <span className="block truncate text-xs text-fg-subtle">{user.roleLabel}</span>
+              <span className="block truncate text-xs text-fg-muted">{user.roleLabel}</span>
             </span>
             <ChevronsUpDown className={cn("h-4 w-4 shrink-0 text-fg-subtle", RAIL_FADE)} aria-hidden />
           </button>
@@ -92,7 +92,7 @@ export function AccountMenu({ user, showSignOut, variant = "sidebar", adminMode 
       }
     >
       <MenuLabel>
-        <span className="block text-2xs uppercase tracking-label">Signed in as</span>
+        <span className="block">Signed in as</span>
         <span className="block truncate text-sm font-semibold text-fg">{user.name}</span>
         {otherUsername(user) ? <span className="block truncate" data-testid="account-current-username">Username: {otherUsername(user)}</span> : null}
         <span className="block truncate">{user.roleLabel}</span>
