@@ -326,9 +326,9 @@ describe("multikills", () => {
     expect(html).toContain('aria-label="How the multikill score works"');
     expect(html).toContain("Multikills earn 2–5 points. The score compares a player&#x27;s points with typical results for their champions and roles, accounting for games played.");
     expect(html).not.toContain("multikill-explain-point");
-    expect(shownOf(html, "multikill-legend")).toBe("Below 100 below typical100 typicalAbove 100 above typicalFrom 31 of 32 games");
+    expect(shownOf(html, "multikill-score-legend")).toBe("Below 100 below typical100 typicalAbove 100 above typicalFrom 31 of 32 games");
     // The counting rule, for the Production check (it reads no ⓘ).
-    expect(html).toMatch(/data-testid="multikill-legend" data-counting-rule="nested" data-counting-shown="true"/);
+    expect(html).toMatch(/data-testid="multikill-score-legend" data-counting-rule="nested" data-counting-shown="true"/);
     // Never a raw percentage: no "30% more".
     expect(html).not.toMatch(/% more/);
   });
@@ -357,15 +357,18 @@ describe("milestones", () => {
     expect(cells).toEqual([["3", "mastery", "ash"], ["2", "games", "bo"], ["1", "games", "ash"]]);
     const riven = /data-tier="3"[\s\S]*?<\/li>/.exec(html)![0];
     expect(shownOf(riven, "milestone-champion")).toBe("Riven · 1.2M mastery");
-    expect(riven).toContain('<span class="sr-only">, 1.2M mastery points</span>');
-    expect(shownOf(riven, "milestone-step")).toBe("1M+");
-    // Rarities: violet and gold marks, never a state colour.
-    expect(riven).toMatch(/border-gold\/60 bg-gold\/10[^"]*" data-testid="milestone-step"/);
-    expect(/data-tier="2"[\s\S]*?<\/li>/.exec(html)![0]).toMatch(/border-violet\/50 bg-violet\/10[^"]*" data-testid="milestone-step"/);
+    expect(riven).toContain('<span class="sr-only">, 1.2M mastery points, 1M+ milestone</span>');
+    // Rarities on the champion's portrait: violet and gold rings, never a state colour.
+    expect(riven).toMatch(/ring-2 ring-gold\/80" data-testid="milestone-portrait"/);
+    expect(/data-tier="2"[\s\S]*?<\/li>/.exec(html)![0]).toMatch(/ring-2 ring-violet\/70" data-testid="milestone-portrait"/);
+    expect(/data-tier="1"[\s\S]*?<\/li>/.exec(html)![0]).toMatch(/ring-1 ring-border-strong" data-testid="milestone-portrait"/);
     // Each cell opens the player's Peek (the profile on a board drawn alone).
     expect(riven).toContain('data-row-link="" href="/players/ash"');
-    expect(shownOf(html, "milestones-more")).toBe("4 more on the players' profiles");
-    expect(shownOf(html, "milestones-scope")).toBe("25+ games this season · 100K+ mastery");
+    // The rest counted at the title's end; what counts behind its ⓘ.
+    expect(shownOf(html, "milestones-more")).toBe("4 more on profiles");
+    expect(html.indexOf('data-testid="milestones-more"')).toBeLessThan(html.indexOf('data-testid="milestones-list"'));
+    expect(html).toContain('aria-label="What counts as a milestone"');
+    expect(html).toContain("25, 50 or 100 games on one champion this season, or 100K, 500K or 1M mastery points on one. The rest are on players&#x27; profiles.");
     // One presentation, no kinds' captions, no fold.
     expect(html).not.toContain("milestones-games");
     expect(html).not.toContain("milestones-mastery");

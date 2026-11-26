@@ -58,12 +58,13 @@ const ACTIVE_TIP = `Players with a game and a data update in the last ${LEADERBO
 /*
   The grid (literal classes, so Tailwind sees them). From 59rem two columns: Recent form's at least
   36.25rem (its board's medium tier, the name over the role and dates, inside its 1px border), the
-  multikill table's at least 27rem (eight columns: place, player and role, games, the four kinds,
-  the score), the rest shared 1.25 : 1 (at 1366 with the sidebar open 36.25 and 28.15rem, at 1440
-  38.3 and 30.7, at 1920 48.3 and 38.7, on a 100rem page 55 and 44). Rows stretch: the boards in a row
-  share its height. The gap is 16px, as the panels' own padding.
+  multikills' at least 21.75rem, so the two fit from 59rem; the rest shared 1.25 : 1 (at 1280 with
+  the sidebar open 36.25 and 22.75rem: the multikills' two-line rows, a short scroll; at 1366 36.25
+  and 28.15rem, the table's eight columns from a 26rem board; at 1440 38.3 and 30.7, at 1920 48.3 and
+  38.7, on a 100rem page 55 and 44). Rows stretch: the boards in a row share its height. The gap is
+  16px, as the panels' own padding.
 */
-const GRID = "grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 @min-[59rem]/dash:grid-cols-[minmax(36.25rem,1.25fr)_minmax(27rem,1fr)]";
+const GRID = "grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 @min-[59rem]/dash:grid-cols-[minmax(36.25rem,1.25fr)_minmax(21.75rem,1fr)]";
 
 export function LeaderboardsDashboard({ view, champions, status, peekable }: { view: LeaderboardsView; /** The members' page: who has a player Peek (a main role chosen); the other rows open the profile. */ peekable?: readonly string[]; champions: Record<string, PortraitChampion>; /** The members' page: the team's data status. */ status?: DataStatus | null }) {
   const player = (id: string) => view.players[id]!;

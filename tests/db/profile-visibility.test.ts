@@ -204,7 +204,8 @@ beforeAll(async () => {
   for (const a of accounts) {
     const [row] = await db
       .insert(riotAccounts)
-      .values({ ownerType: "player", playerId: player[a.name]!, gameName: a.name, tagLine: "OCE", platform: "oc1", puuid: a.puuid, label: "main", syncStatus: "ok", tier: a.tier, division: a.division, leaguePoints: a.lp, rankedWins: a.tier ? 31 : null, rankedLosses: a.tier ? 27 : null, rankQueue: a.tier ? "solo" : null, rankUpdatedAt: a.tier ? new Date() : null })
+      // Read successfully just now (sync_cursor): Leaderboards shows only players with a game and a successful read in 30 days.
+      .values({ ownerType: "player", playerId: player[a.name]!, gameName: a.name, tagLine: "OCE", platform: "oc1", puuid: a.puuid, label: "main", syncStatus: "ok", syncCursor: Math.floor(Date.now() / 1000), tier: a.tier, division: a.division, leaguePoints: a.lp, rankedWins: a.tier ? 31 : null, rankedLosses: a.tier ? 27 : null, rankQueue: a.tier ? "solo" : null, rankUpdatedAt: a.tier ? new Date() : null })
       .returning({ id: riotAccounts.id });
     accountId[a.name] = row!.id;
   }

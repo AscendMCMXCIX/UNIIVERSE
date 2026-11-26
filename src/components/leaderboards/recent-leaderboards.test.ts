@@ -165,7 +165,7 @@ describe("the board's markup", () => {
     expect(html).toContain('<section id="recent-form" aria-labelledby="form-board-title"');
     expect(html).toMatch(/class="[^"]*surface-lead[^"]*" data-testid="form-board"/);
     expect(html).toMatch(/<h2 id="form-board-title" class="[^"]*">(?:(?!<\/h2>)[\s\S])*Recent form<span class="sr-only">, ranked by win rate over each member&#x27;s latest 20 games<\/span>/);
-    expect(textOf(html, "form-scope")).toBe("Latest 20 games from the last 60 days · Summoner's Rift, 5 minutes or longer");
+    expect(textOf(html, "form-scope")).toBe("Latest 20 games from the last 60 days · Summoner's Rift");
     // The title row comes first, then the column headings, then the ranking.
     expect(html.indexOf('id="form-board-title"')).toBeLessThan(html.indexOf('data-testid="form-heads"'));
     expect(html.indexOf('data-testid="form-heads"')).toBeLessThan(html.indexOf('data-testid="form-rows"'));

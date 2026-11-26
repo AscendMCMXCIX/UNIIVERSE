@@ -195,24 +195,13 @@ test("tablet and desktop: a profile section chosen far down the page starts at i
 
 test("tablet and desktop: Team's sections stay in reach as a long page scrolls, and switch the section from there", async ({ page }) => {
   test.skip(isPhone(page), "phones have the bottom tab bar");
-  // Leaderboards is the longest Team page (Recent form, then the season's records and achievements,
-  // since 19 Nov 2026 on one page): a desktop window 600px tall keeps it long enough to scroll well past the
-  // tabs (still taller than 480px, where they pin). The tablet's 768×1024 shows it in about two screens.
-  if (!isTablet(page)) await page.setViewportSize({ width: 1440, height: 600 });
+  // Leaderboards' one column is a long Team page: a desktop window 1100px wide (the page under 59rem beside the open sidebar:
+  // the four boards one under another) and 600px tall scrolls well past the tabs (still taller than 480px, where they pin);
+  // from 59rem its boards fit one screen (25 Nov 2026), nothing to scroll. The tablet's 768×1024 shows it in about two screens.
+  if (!isTablet(page)) await page.setViewportSize({ width: 1100, height: 600 });
   await page.goto("/leaderboards");
   await expect(page.getByTestId("leaderboards")).toHaveAttribute("data-ready", "true");
   await expect(page.getByTestId("records")).toBeVisible();
-  // Since Release 16 a desktop's boards fit the window (the multikills and the milestones fold to the rows that fit, the rest
-  // behind their Show all), so the page is long only with them open: open both, as a reader going through them would.
-  if (!isTablet(page)) {
-    for (const id of ["multikill-show-all", "milestones-show-all"]) {
-      const show = page.getByTestId(id).getByRole("button");
-      if (await show.isVisible()) await show.click();
-    }
-    // A click can scroll its button into view: back to the top, the tabs at rest.
-    await page.evaluate(() => window.scrollTo(0, 0));
-    await expect.poll(() => page.evaluate(() => window.scrollY)).toBe(0);
-  }
   const tabs = page.getByTestId("team-tabs");
   const resting = await rect(tabs);
   // At rest the bar is part of the page: no ink of its own.
@@ -1055,7 +1044,7 @@ test("tablet and desktop: Leaderboards is one page, with no views for the pinned
   // "Recent form"), so the row holds the tabs alone and the index under the header serves.
   await expect(pageToolbar(page)).toHaveCount(1);
   if (isTablet(page)) await expect(pageToolbar(page).getByRole("link")).toHaveCount(0);
-  else await expect(pageToolbar(page).getByRole("link")).toHaveText(["Recent form", "Season records", "Multikills", "Milestones"]);
+  else await expect(pageToolbar(page).getByRole("link")).toHaveText(["Recent form", "Multikills", "Season records", "Milestones"]);
   await expect(page.getByTestId("toolbar-leaderboards-tab-form")).toHaveCount(0);
 });
 

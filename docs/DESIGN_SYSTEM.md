@@ -350,7 +350,7 @@ gradient's second stop and emphasis that is not a control.
 
 Bars that are figures (Recent form's 20-game record, All Champions' share of the games: `QuietBar`)
 are neutral overlays of `fg` (filled, empty and outlined segments, or one continuous share), never
-the accent or a state colour, so they keep their contrast on any surface and any Branding. Gold appears only on the first place's crown.
+the accent or a state colour, so they keep their contrast on any surface and any Branding. Gold marks first place only, as the place's own number (no crown since 25 Nov 2026: restrained placements, `Place`'s `leader`).
 
 ## 5. Interaction states
 
@@ -656,6 +656,27 @@ const peek = usePeek({ param: "player", ids, initial: searchParams.get("player")
   sr-only words.
 - **Chart readouts** take the bubble's look: the rank chart's readout has the same border, corners,
   type and fade (`rank-timeline-chart.tsx`), beside the reading it describes.
+
+### Breakdown popover (`BreakdownPopover`, 25 Nov 2026)
+
+How a figure was worked out, one press from the figure itself: for what is too long for an InfoTip
+(one concept, one or two sentences). The first is Leaderboards' multikill Score (docs/TEAM_LEADERBOARDS.md,
+"The Score breakdown").
+
+- **Trigger:** the figure itself, a `<button>` with a dotted underline (an InfoTip term's cue), named by
+  the figure and what it opens ("Score 132: how it was worked out"), `aria-haspopup="dialog"` and
+  `aria-expanded`; 44px on touch; the shared focus ring; above a row's own link (`relative z-[2]`).
+- **Where:** on screens that open previews beside a list (posture.ts), the shared `Popover` beside the
+  figure (`placement="side"`: before it, else after it, centred on it, up to the window's height), drawn
+  at the page's end (a portal: a list row's `isolate` would otherwise keep it under the rows after it); a
+  window under 768px wide, or a short one, gets a sheet (`DetailModal`, `size="sheet"`, the picker's width),
+  whose body grows from its content (`flex-auto`, never `flex-1`: Safari 26).
+- **No scrollbar of its own** at normal sizes: the beside form has the window's height to open whole; a
+  phone's sheet scrolls as every sheet does.
+- **Closes** on Escape (the focus back on the figure), a press outside, the focus leaving it, its ✕, or
+  the figure leaving the screen. No address or history entry of its own.
+- **Content** drawn only while open, from the figure's own data (the breakdown never works the figure out
+  again): plain sections with a heading each (no boxes inside boxes), the arithmetic in tabular numerals.
 
 ### Unfold
 

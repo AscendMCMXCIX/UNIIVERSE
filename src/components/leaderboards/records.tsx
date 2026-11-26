@@ -291,7 +291,9 @@ function RecordPicture({ record, holder, champion }: { record: RecordView; holde
             headings "2×"–"5×", their words ("Doubles"…) from a 40rem board; 40px rows (44 on touch);
     narrow  (a phone) place · player and icon · Score on the first line; the games and the kinds made
             in words across the line under it ("46 games · 32 doubles · 7 triples · 5 quadras · 2 pentas",
-            a kind with none left out), so nothing is wider than the phone and no figure is microscopic.
+            a kind with none left out), so nothing is wider than the phone and no figure is microscopic;
+            under 15rem (a phone at a large text size) the place and the Score on the first line, the
+            name the row's whole width under them, then the words, so no name is squeezed to a letter.
   The Score is a button (the shared breakdown popover): how the score was worked out, from its own
   parts (multikill-breakdown.tsx). The role icon's ⓘ (hover, focus, tap) gives every position's
   share of the score's games. The row itself opens the player Peek; the name, the role and the Score
@@ -359,7 +361,7 @@ export function Multikills({ records, player, champions, className }: { records:
           </DataGroup>
         ) : null}
         {/* How to read a score, always in view (at the panel's foot: a shorter table leaves its room above this line). */}
-        <p className={cn("mt-auto flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5 py-1.5 text-xs text-fg-muted", ROW_PAD_X)} data-testid="multikill-legend" data-counting-rule={board.rule} data-counting-shown={board.ruleShown}>
+        <p className={cn("mt-auto flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5 py-1.5 text-xs text-fg-muted", ROW_PAD_X)} data-testid="multikill-score-legend" data-counting-rule={board.rule} data-counting-shown={board.ruleShown}>
           <span>
             <span className="font-medium text-fg">Below 100</span> below typical
           </span>
@@ -468,12 +470,12 @@ function MultikillRowItem({ r, p, tie, board, champions }: { r: MultikillRow; p:
       }
     >
       {/* The player as their card names them, and the role they mostly played in the score's games (its ⓘ: every position's share). */}
-      <span className="col-[2/3] row-[1/2] flex min-w-0 items-center gap-1.5 self-center" data-testid="multikill-player">
+      <span className="col-[2/3] row-[1/2] flex min-w-0 items-center gap-1.5 self-center @max-[15rem]/list:col-[1/-1] @max-[15rem]/list:row-[2/3]" data-testid="multikill-player">
         <MemberCell look={p.look} name={p.name} avatar={false} you={r.you} readName={!linked} nameHref={p.profileHref ?? undefined} nameTestId="board-member-name" className="min-w-0" />
         <RoleTip role={r.role} />
       </span>
       {/* A phone's line of words under the name: the games and every kind (the table's columns say these from 26rem). */}
-      <span aria-hidden className="col-[2/4] row-[2/3] flex min-w-0 flex-wrap gap-x-1.5 self-start text-xs tabular-nums text-fg-muted @min-[26rem]/list:hidden" data-testid="multikill-words">
+      <span aria-hidden className="col-[2/4] row-[2/3] flex min-w-0 flex-wrap gap-x-1.5 self-start text-xs tabular-nums text-fg-muted @max-[15rem]/list:col-[1/-1] @max-[15rem]/list:row-[3/4] @min-[26rem]/list:hidden" data-testid="multikill-words">
         {words.map((w, i) => (
           <span key={i} className="whitespace-nowrap">
             {i ? <span className="text-fg-subtle">· </span> : null}
@@ -490,6 +492,8 @@ function MultikillRowItem({ r, p, tie, board, champions }: { r: MultikillRow; p:
 
 /** A milestone's step, as the system marks rarities: plain, raised, violet, gold (never a state colour), on the champion's portrait. */
 const TIER_RING = ["ring-1 ring-border", "ring-1 ring-border-strong", "ring-2 ring-violet/70", "ring-2 ring-gold/80"] as const;
+/** What counts as a milestone (the board's ⓘ): the steps of both kinds, and where the rest are. */
+const MILESTONES_TIP = "25, 50 or 100 games on one champion this season, or 100K, 500K or 1M mastery points on one. The rest are on players' profiles.";
 /** The cells: one column, two from a 26rem panel (the desktop board's column beside the records); a hairline between neighbours, as the records'. */
 const MILESTONE_CELLS = "grid grid-cols-[minmax(0,1fr)] border-t border-border/70 @min-[26rem]/list:grid-cols-2";
 const MILESTONE_CELL = "relative isolate flex min-h-11 min-w-0 items-center gap-2.5 border-border/60 py-1 [&:not(:first-child)]:border-t @min-[26rem]/list:[&:nth-child(2)]:border-t-0 @min-[26rem]/list:[&:nth-child(odd)]:border-r";
@@ -506,7 +510,19 @@ export function Milestones({ records, player, champ, className }: { records: Rec
   return (
     <section id={SECTIONS.milestones} aria-labelledby="milestones-title" className={cn("flex min-w-0 flex-col", className)} data-testid="milestones">
       <div className={cn(BOARD_PANEL, "flex flex-auto flex-col")} data-testid="records-milestones">
-        <BoardTitle id="milestones-title" icon={<Sparkles className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />} note="25+ games this season · 100K+ mastery" noteTestId="milestones-scope">
+        <BoardTitle
+          id="milestones-title"
+          icon={<Sparkles className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />}
+          aside={<InfoTip label="What counts as a milestone" text={MILESTONES_TIP} testId="milestones-tip" />}
+          // The rest, counted at the title's end (on the players' profiles): a line of its own at the board's foot cost the desktop's one screen 28px.
+          end={
+            more ? (
+              <span className="text-xs text-fg-muted" data-testid="milestones-more">
+                {formatCount(more)} more on profiles
+              </span>
+            ) : null
+          }
+        >
           Milestones
         </BoardTitle>
         {items.length ? (
@@ -520,11 +536,6 @@ export function Milestones({ records, player, champ, className }: { records: Rec
             <EmptyState variant="row" testId="milestones-empty" title="No milestones among the active players yet." />
           </div>
         )}
-        {more ? (
-          <p className={cn("mt-auto border-t border-border/70 py-1.5 text-xs text-fg-muted", ROW_PAD_X)} data-testid="milestones-more">
-            {formatCount(more)} more on the players&apos; profiles
-          </p>
-        ) : null}
       </div>
     </section>
   );

@@ -3,9 +3,10 @@ import { ONE_SCREEN_SECTIONS, oneScreenInput, oneScreenVerdicts, showAllCounts, 
 
 /*
   The Production check's one-screen facts (scripts/one-screen-facts.mjs, Release 16): the readings
-  below are the demo's pages as the check's own reader saw them (23 Nov 2026, the sidebar open). The
-  facts pass on them, and fail a board that runs below the window, an essential section not drawn,
-  and rows folded away without a Show all saying how many.
+  below are the demo's pages as the check's own reader saw them (the profile 23 Nov 2026; Leaderboards
+  25 Nov 2026, the 2 × 2 grid with nothing folded; the sidebar open). The facts pass on them, and fail
+  a board that runs below the window, an essential section not drawn, rows folded away without a Show
+  all saying how many, and a Show all on Leaderboards at all.
 */
 
 const box = (id: string, top: number, bottom: number) => ({ id, present: true, top, bottom });
@@ -13,12 +14,12 @@ const LEADERBOARDS_1440: OneScreenRead = {
   window: 900,
   width: 1440,
   height: 900,
-  boxes: [box("form-board", 124, 569), box("records-book", 124, 529), box("records-multikills", 545, 852), box("records-milestones", 585, 871)],
+  boxes: [box("form-board", 124, 489), box("records-multikills", 124, 489), box("records-book", 505, 751), box("records-milestones", 505, 751)],
   folds: [
-    { board: "records-multikills", present: true, total: 7, shown: 4, button: true, words: "Show all 7 · , 3 more of the multikill ranking" },
-    { board: "records-milestones", present: true, total: 8, shown: 5, button: true, words: "Show all 8 · , 3 more of the milestones" },
+    { board: "records-multikills", present: true, total: 5, shown: 5, button: false, words: null },
+    { board: "records-milestones", present: true, total: 8, shown: 8, button: false, words: null },
   ],
-  words: { broken: 0, tiles: 4, oneLine: 4 },
+  words: { broken: 0, tiles: 0, oneLine: 0 },
 };
 const PROFILE_1440: OneScreenRead = {
   window: 900,
@@ -31,7 +32,7 @@ const statuses = (v: ReturnType<typeof oneScreenVerdicts>) => v.map((x) => x.sta
 
 describe("one screen", () => {
   it("reads the four boards and the Overview's four sections, in reading order", () => {
-    expect(oneScreenInput("leaderboards").sections.map(([id]) => id)).toEqual(["form-board", "records-book", "records-multikills", "records-milestones"]);
+    expect(oneScreenInput("leaderboards").sections.map(([id]) => id)).toEqual(["form-board", "records-multikills", "records-book", "records-milestones"]);
     expect(oneScreenInput("profile").sections.map(([id]) => id)).toEqual(["season-figures", "ranked-progress", "recent-form", "champion-pools"]);
     expect(Object.keys(ONE_SCREEN_SECTIONS)).toEqual(["leaderboards", "profile"]);
   });
@@ -46,9 +47,9 @@ describe("one screen", () => {
     const lb = oneScreenVerdicts({ page: "leaderboards", size: "1440 × 900", read: LEADERBOARDS_1440 });
     expect(lb.map((v) => v.name)).toEqual([
       "1440 × 900: Leaderboards' four boards end within the window",
-      "1440 × 900: Multikills: the rows not shown are behind a Show all that says how many",
-      "1440 × 900: Milestones: the rows not shown are behind a Show all that says how many",
-      "1440 × 900: names whole: no word broken across two lines, each multikill tile's holders on one line",
+      "1440 × 900: Multikills: every row shown, no Show all",
+      "1440 × 900: Milestones: every row shown, no Show all",
+      "1440 × 900: names whole: no word broken across two lines",
     ]);
     expect(statuses(lb)).toEqual(["PASS", "PASS", "PASS", "PASS"]);
     const pr = oneScreenVerdicts({ page: "profile", size: "1440 × 900", read: PROFILE_1440 });
@@ -63,24 +64,24 @@ describe("one screen", () => {
   });
 
   it("fails a board below the window, or a page without one it promises", () => {
-    const below = { ...LEADERBOARDS_1440, height: 1751, boxes: [box("form-board", 124, 659), box("records-book", 683, 1107), box("records-multikills", 683, 1213), box("records-milestones", 1237, 1699)] };
+    const below = { ...LEADERBOARDS_1440, height: 1051, boxes: [box("form-board", 124, 659), box("records-multikills", 124, 659), box("records-book", 675, 931), box("records-milestones", 675, 931)] };
     const [fact] = oneScreenVerdicts({ page: "leaderboards", size: "1440 × 900", read: below });
     expect(fact!.status).toBe("FAIL");
-    expect(fact!.detail).toMatchObject({ below: ["Season records 1107px", "Multikills 1213px", "Milestones 1699px"] });
+    expect(fact!.detail).toMatchObject({ below: ["Season records 931px", "Milestones 931px"] });
     const missing = { ...LEADERBOARDS_1440, boxes: LEADERBOARDS_1440.boxes.map((b) => (b.id === "records-milestones" ? { id: b.id, present: false } : b)) };
     expect(oneScreenVerdicts({ page: "leaderboards", size: "1440 × 900", read: missing })[0]!.status).toBe("FAIL");
     expect(oneScreenVerdicts({ page: "profile", size: "1440 × 900", read: { ...PROFILE_1440, boxes: PROFILE_1440.boxes.filter((b) => b.id !== "champion-pools") } })[0]!.status).toBe("FAIL");
   });
 
-  it("fails a name broken inside a word, or a multikill tile on two lines (counts only, never the words)", () => {
-    const broken = oneScreenVerdicts({ page: "leaderboards", size: "1440 × 900", read: { ...LEADERBOARDS_1440, words: { broken: 1, tiles: 4, oneLine: 4 } } });
+  it("fails a name broken inside a word (counts only, never the words); reads no tiles on Leaderboards since they went", () => {
+    const broken = oneScreenVerdicts({ page: "leaderboards", size: "1440 × 900", read: { ...LEADERBOARDS_1440, words: { broken: 1, tiles: 0, oneLine: 0 } } });
     expect(statuses(broken)).toEqual(["PASS", "PASS", "PASS", "FAIL"]);
-    expect(broken[3]!.detail).toEqual({ broken: 1, tiles: 4, oneLine: 4 });
-    expect(statuses(oneScreenVerdicts({ page: "leaderboards", size: "1440 × 900", read: { ...LEADERBOARDS_1440, words: { broken: 0, tiles: 4, oneLine: 3 } } })).at(-1)).toBe("FAIL");
+    expect(broken[3]!.detail).toEqual({ broken: 1, tiles: 0, oneLine: 0 });
+    expect(oneScreenInput("leaderboards").whole).toEqual({ root: "leaderboards", tiles: null });
     expect(oneScreenInput("profile").whole).toBeNull();
   });
 
-  it("fails rows folded away without a Show all, or one that miscounts; and a Show all where every row shows", () => {
+  it("fails rows folded away (with a Show all or without: Leaderboards folds nothing since 25 Nov 2026), or a Show all where every row shows", () => {
     const silent = { ...LEADERBOARDS_1440, folds: [{ board: "records-multikills", present: true, total: 7, shown: 4, button: false, words: null }] };
     expect(statuses(oneScreenVerdicts({ page: "leaderboards", size: "1440 × 900", read: silent }))).toEqual(["PASS", "FAIL", "PASS"]);
     const wrong = { ...LEADERBOARDS_1440, folds: [{ board: "records-multikills", present: true, total: 7, shown: 4, button: true, words: "Show all 7 · , 2 more of the multikill ranking" }] };

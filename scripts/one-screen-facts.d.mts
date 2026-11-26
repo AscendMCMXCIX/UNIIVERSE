@@ -20,13 +20,13 @@ export interface OneScreenRead {
   height: number;
   boxes: OneScreenBox[];
   folds: OneScreenFold[];
-  /** Leaderboards only: words drawn across two lines, Multikills' tiles shown and those on one line with their title. */
+  /** Leaderboards only: words drawn across two lines (tiles: none since 25 Nov 2026, the tiles having gone). */
   words?: { broken: number; tiles: number; oneLine: number } | null;
 }
 export interface OneScreenInput {
   sections: Array<[string, string]>;
   overviews: Array<[string, string, string]>;
-  whole: { root: string; tiles: string } | null;
+  whole: { root: string; tiles: string | null } | null;
 }
 export interface Verdict {
   name: string;
