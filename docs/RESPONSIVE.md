@@ -446,9 +446,19 @@ the phone project):
   the spec checks no sideways scroll, every link inside the header, whole and clear of the mark at
   125% to 200% on 320 to 414px, and one line at 100%.
 
+- **A profile's Riot accounts** (`riot-accounts-panel.tsx`; `e2e/player-data.spec.ts`, 26 Nov 2026):
+  an account's row was at least as wide as its Riot ID (a grid item's least width): 364px at 150% on
+  a 320px phone and 484px at 200% on a 375px one, so the page grew sideways and Data diagnostics'
+  summary under it took no tap. The row fits its column now: the Riot ID wraps (after its "#" first,
+  inside a word only where one is still too long), the account's controls sit at the row's end, or
+  under the Riot ID at the end of a line of their own where they would leave it less than about ten
+  letters (5em), and Add Riot account wraps on a phone. The spec checks no sideways scroll, every row
+  and Riot ID inside the phone, the summary at its centre and a tap opening it, at 150% and 200%.
+
 **The specs' sideways measure.** On the phone project (`isMobile`) Chromium widens the window to what
 spills past it, so `scrollWidth - innerWidth` stays 0 whatever overflows; the large-text specs
-measure against `document.documentElement.clientWidth` (so do phone-wraps and the public specs).
+measure against `document.documentElement.clientWidth` (so do phone-wraps and the public specs, and
+the page budgets' measure since 26 Nov 2026: docs/MOBILE.md, "Page budgets").
 
 **At 100% nothing moves.** The six touched pages were compared with the base pixel by pixel at 320,
 375, 768 and 1440 (Chromium with deterministic raster flags, images from other sites refused on both):

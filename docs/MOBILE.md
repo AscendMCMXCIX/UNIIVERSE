@@ -596,6 +596,13 @@ allowed), and touch targets under 44px on the first screen.
 The setups are the mobile audit's (Chromium with touch and an iPhone's safe areas through CDP; the
 text size is the browser's own, `Page.setFontSizes`, so the breakpoints move as with a real setting).
 
+Sideways overflow is counted against the screen's own width (the root's `clientWidth`) since 26 Nov
+2026. On a phone a page wider than the screen widens the layout viewport with it, `innerWidth`
+included, so counted against `innerWidth` such a page read 0, and its height was measured on a
+zoomed-out screen: the profile's Riot accounts at se1 150%, whose account row was as wide as its
+Riot ID (364px), counted 1.54 screens for 2.03. With the row fitted, its ceiling was set from the
+honest figure, its reason on the entry; no other page at the CI setups is wider than its screen.
+
 Since S8a (20 Nov 2026) the pages carry their visitor: a signed-out one (the local guest cookie) for
 sign-in, recovery, Privacy and the public team page, and the in-memory demo's viewers
 (`server/auth/demo-viewer.ts`) for the first sign-in (`/welcome` with a temporary password and with

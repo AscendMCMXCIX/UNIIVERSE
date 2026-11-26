@@ -149,7 +149,7 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
               // diagnostics' summary) took no tap where it was drawn. The Riot ID wraps, never cut.
               <li key={a.id} className={`flex min-w-0 flex-col gap-2 rounded-panel border bg-bg-elevated p-3 ${main ? "border-accent/40" : "border-border"}`} data-testid="riot-account-row" data-label={a.label}>
                 <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
-                  <div className="min-w-0 flex-1 basis-[8em]">
+                  <div className="min-w-0 flex-1 basis-[5em]">
                     <div className="flex flex-wrap items-center gap-1.5">
                       <span className="min-w-0 font-semibold text-fg [overflow-wrap:anywhere]" data-testid="riot-account-id">
                         {/* A line may break after the tag's "#" first ("Demo Mid#" over "EUW1"), inside a word only where one is still too long. */}
@@ -193,7 +193,7 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
                   </div>
                   {editable ? (
                     // The account's controls: at the row's end, or under the Riot ID, at the end of a line of their own,
-                    // where a large text size leaves the Riot ID less than about eight letters beside them.
+                    // where a large text size leaves the Riot ID less than about ten letters (5em) beside them.
                     <div className="ml-auto flex shrink-0 items-center">
                       {editable && a.label === "alt" && alternatives > 1 ? (
                         <div className="flex shrink-0 items-center" role="group" aria-label={`Order of ${a.riotId}`}>
