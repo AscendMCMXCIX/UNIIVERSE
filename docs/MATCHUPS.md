@@ -28,7 +28,8 @@ show that one icon. Each position's own figures are sent with the row only where
 the row's (two or more positions, or a game with none), so a one-position champion's figures go once.
 
 **Where it opens.** On a computer (from 768px wide, in a window taller than 480px, where the
-section is at least 46rem: a 1024px window with the sidebar folded, 1280px with it open) the
+section is at least 46rem: a 1024px window with the sidebar folded, 1280px with it open, an
+1180px tablet held sideways) the
 preview is a **pane beside the list** (the owner's request of 25 Nov 2026: the docked panel of
 Release 16 lay over half the table "without purpose"). The list narrows to a column of
 `minmax(20rem, min(32%, 24rem))`: each champion's name, position icons and "In pool", and its win

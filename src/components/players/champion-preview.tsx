@@ -110,7 +110,7 @@ function Figures({ f, role, champion }: { f: RoleFigures; role: Role; champion: 
             <span className="font-semibold tabular-nums text-fg">{formatCount(r.games)}</span> game{r.games === 1 ? "" : "s"} · {record(r.wins, r.games)}
           </p>
         </div>
-        <dl className="col-span-2 grid grid-cols-2 gap-x-6 gap-y-3 @min-[22rem]/detail:grid-cols-4 @min-[34rem]/detail:col-span-4" data-testid="champion-preview-stats">
+        <dl className="col-span-2 grid grid-cols-2 gap-x-6 gap-y-3 @min-[28rem]/detail:grid-cols-4 @min-[34rem]/detail:col-span-4" data-testid="champion-preview-stats">
           <Figure label="KDA" value={p.perfectKda ? "Perfect" : p.kdaRatio === null ? "—" : p.kdaRatio.toFixed(2)} sub={kda.every((x) => x !== null) ? kda.join(" / ") : null} testId="champion-stat-kda" />
           <Figure label="CS/min" value={p.csPerMinute === null ? "—" : p.csPerMinute.toFixed(1)} sub={p.csPerGame === null ? null : `${formatCount(Math.round(p.csPerGame))} a game`} testId="champion-stat-cs" />
           <Figure label="Damage/min" value={p.damagePerMinute === null ? "—" : formatCount(Math.round(p.damagePerMinute))} sub={p.damagePerGame === null ? null : `${formatKilo(Math.round(p.damagePerGame))} a game`} testId="champion-stat-damage" />

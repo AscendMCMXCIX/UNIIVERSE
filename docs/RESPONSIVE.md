@@ -777,13 +777,13 @@ and its legend against the filters' games, and the groups with the 76rem grid's 
 figures at 1536 and 1680px. All Champions' preview (S5, 19 Nov 2026; docs/MATCHUPS.md) replaces the
 champion window. Since 25 Nov 2026 (the owner's request: the docked panel of Release 16 lay over
 half the table) it is a pane **beside** the list wherever the section has 46rem, from 768px wide in a
-window taller than 480px (a 1024px window with the sidebar folded, 1280px with it open; tablets held
-sideways): the list narrows to `minmax(20rem, min(32%, 24rem))`, its rows in the narrow layout
+window taller than 480px (a 1024px window with the sidebar folded, 1280px with it open; an 1180px
+tablet held sideways): the list narrows to `minmax(20rem, min(32%, 24rem))`, its rows in the narrow layout
 (the name over the position icons and "In pool", the win rate over the games) under a heading row
 of the table's height (Champion, Games, Win rate), so every row keeps its place and height and every
 name its x; the pane takes the rest, pinned under the section tabs, at most the window's height, its
 body the one scroll region. Its position choice wraps; its figures go five across from a 34rem pane,
-the win rate over four from 22rem, two by two below; the opponents' detail sits beside their table
+the win rate over four from 28rem, two by two below; the opponents' detail sits beside their table
 from a 38rem pane and is one step in place of it below (with "All opponents"). Narrower sections (an
 upright tablet, a large text size), windows under 768px (touch or mouse) and short windows get the
 phone window shell's sheet with the same content. Each row shows the position icon of every position

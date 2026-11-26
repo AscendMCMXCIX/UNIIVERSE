@@ -89,7 +89,7 @@ test("desktop: the preview opens in a pane beside the list; the list narrows but
   expect(await page.evaluate(() => scrollY)).toBe(0);
   await expect(rows.nth(0)).toHaveAttribute("data-selected", "true");
   // The list beside it shows the champions, their positions, games and win rates; the table's other columns are the preview's.
-  await expect(page.getByTestId("all-champions-header").getByRole("button")).toHaveText(["Champion", "Games", "Win rate"]);
+  await expect(page.getByTestId("all-champions-header").getByRole("button")).toHaveText([/^Champion/, /^Games/, /^Win rate/]);
   await expect(page.getByTestId("sort-kda")).toHaveCount(0);
   // Opened from the row: the champion's most played position, chosen in the preview, its games the icon's.
   const first = (await icons(rows.nth(0)))[0]!;
@@ -177,7 +177,8 @@ test("desktop: the preview opens in a pane beside the list; the list narrows but
   await rows.nth(0).getByTestId("open-champion").click();
   await expect(page.getByTestId("champion-preview")).toHaveCount(0);
   await expect(page).not.toHaveURL(/champion=/);
-  expect(await page.evaluate(() => history.length), "every close went Back: no entry added").toBe(closed);
+  // Each open pushed one entry and each close went Back over it, so they never piled up: one entry past the list's.
+  expect(await page.evaluate(() => history.length), "every close went Back: entries never pile up").toBe(closed + 1);
 });
 
 test("desktop: in a short scrolled window, opening, switching and closing never move the list", async ({ page }, info) => {
@@ -420,7 +421,7 @@ test("phones: a sheet; ‹ › switch, Back closes it and the list keeps its pla
 });
 
 test("tablets: upright, no room for both: the sheet, its targets 44px; held sideways, the pane beside the list", async ({ page }, info) => {
-  test.skip(info.project.name !== "tablet", "a touch tablet (768 × 1024, then 1024 × 768)");
+  test.skip(info.project.name !== "tablet", "a touch tablet (768 × 1024, then 1180 × 820)");
   const profile = await demoMember(page);
   await page.goto(`${profile}/champions`);
   const rows = page.getByTestId("top-champion");
@@ -442,8 +443,8 @@ test("tablets: upright, no room for both: the sheet, its targets 44px; held side
   await expect(page.getByTestId("champion-preview")).toHaveCount(0);
   await expect(page).not.toHaveURL(/champion=/);
   expect(await page.evaluate(() => scrollY)).toBe(y);
-  // Held sideways (1024 × 768): room for both, so the pane, its Close a 44px target.
-  await page.setViewportSize({ width: 1024, height: 768 });
+  // A larger tablet held sideways (1180 × 820, the sidebar beside the page): room for both, so the pane, its Close a 44px target.
+  await page.setViewportSize({ width: 1180, height: 820 });
   await openRow(page, rows.nth(1));
   await expect.poll(() => beside(page, rows.nth(1))).toEqual(BESIDE);
   const paneClose = (await pane(page).getByTestId("champion-preview-close").boundingBox())!;

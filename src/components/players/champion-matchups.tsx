@@ -73,18 +73,25 @@ export function Matchups({ playerId, isOwn, me, role, vs, champ, data, onVs, onM
   const tableRef = React.useRef<HTMLDivElement>(null);
   const backRef = React.useRef<HTMLButtonElement>(null);
   const lastRow = React.useRef<string | null>(null);
+  // A row pressed: in a narrow preview its detail takes the table's place, and the focus goes with it.
+  const follow = React.useRef(false);
   const stacked = () => !!tableRef.current && getComputedStyle(tableRef.current).display === "none";
   const pick = (id: string) => {
     lastRow.current = id;
+    follow.current = vs !== id;
     onVs(vs === id ? null : id);
   };
-  React.useEffect(() => {
-    if (vs && stacked() && document.activeElement?.closest("[data-opponent-row]")) backRef.current?.focus({ preventScroll: true });
+  // "All opponents": the table back, the focus on the row it left from.
+  const returnTo = React.useRef<string | null>(null);
+  React.useLayoutEffect(() => {
+    if (vs && follow.current && stacked()) backRef.current?.focus({ preventScroll: true });
+    follow.current = false;
+    if (!vs && returnTo.current) tableRef.current?.querySelector<HTMLButtonElement>(`[data-opponent-row="${CSS.escape(returnTo.current)}"]`)?.focus({ preventScroll: true });
+    returnTo.current = null;
   }, [vs]);
   const back = () => {
-    const row = lastRow.current ?? vs;
+    returnTo.current = lastRow.current ?? vs;
     onVs(null);
-    requestAnimationFrame(() => tableRef.current?.querySelector<HTMLButtonElement>(`[data-opponent-row="${CSS.escape(row ?? "")}"]`)?.focus({ preventScroll: true }));
   };
 
   const heading = (
