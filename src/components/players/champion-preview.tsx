@@ -90,7 +90,7 @@ function KillsLine({ f }: { f: RoleFigures }) {
 }
 
 /** The position's record and averages (each over the games that carry it). */
-function Figures({ f, role, champion }: { f: RoleFigures; role: Role; champion: string }) {
+function Figures({ f, role, champion }: { f: RoleFigures; role: Role | null; champion: string }) {
   const r = f.selected;
   const p = f.performance;
   const one = (v: number | null) => (v === null ? null : v.toFixed(1));
@@ -98,7 +98,7 @@ function Figures({ f, role, champion }: { f: RoleFigures; role: Role; champion: 
   const tone = WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)];
   const partial = p.detailedGames < r.games;
   return (
-    <section aria-label={`${champion} as ${ROLE_LABELS[role]}`} className="flex flex-col gap-3" data-testid="champion-preview-record">
+    <section aria-label={role ? `${champion} as ${ROLE_LABELS[role]}` : `${champion}'s games`} className="flex flex-col gap-3" data-testid="champion-preview-record">
       <div className="grid grid-cols-2 items-start gap-x-6 gap-y-3 @min-[34rem]/detail:grid-cols-[auto_repeat(4,minmax(0,1fr))]" data-testid="champion-preview-figures">
         <div className="col-span-2 flex items-baseline gap-x-3 @min-[34rem]/detail:col-span-1 @min-[34rem]/detail:block">
           <p className="label-text @max-[34rem]/detail:sr-only">Win rate</p>
@@ -120,7 +120,13 @@ function Figures({ f, role, champion }: { f: RoleFigures; role: Role; champion: 
       <div className="flex flex-col gap-1">
         <KillsLine f={f} />
         <p className="text-xs text-fg-subtle" data-testid="champion-preview-coverage">
-          {partial ? `Averages from the ${plural(p.detailedGames, "game")} with a full record, of ${formatCount(r.games)} ${ROLE_LABELS[role]} games.` : `Averages over ${r.games === 1 ? `the one ${ROLE_LABELS[role]} game` : `all ${formatCount(r.games)} ${ROLE_LABELS[role]} games`} in these filters.`}
+          {role
+            ? partial
+              ? `Averages from the ${plural(p.detailedGames, "game")} with a full record, of ${formatCount(r.games)} ${ROLE_LABELS[role]} games.`
+              : `Averages over ${r.games === 1 ? `the one ${ROLE_LABELS[role]} game` : `all ${formatCount(r.games)} ${ROLE_LABELS[role]} games`} in these filters.`
+            : partial
+              ? `Averages from the ${plural(p.detailedGames, "game")} with a full record, of ${formatCount(r.games)}.`
+              : `Averages over ${r.games === 1 ? "the one game" : `all ${formatCount(r.games)} games`} in these filters.`}
         </p>
       </div>
     </section>
@@ -155,7 +161,8 @@ function Positions({ row, role, onRole, champion }: { row: ChampionRow; role: Ro
  */
 export function PreviewContent({ playerId, isOwn, row, role, vs, champ, data, onVs, onRole, onMatch, titleId, chrome, controls }: PreviewProps) {
   const me = champ(row.championId);
-  const figures = roleFigures(row, role);
+  // The position's figures; for a champion no game of which records a position, its games in all.
+  const figures = roleFigures(row, role) ?? (row.roles.length ? null : { selected: row.selected, performance: row.performance, multikills: row.multikills ?? null });
   const many = row.roles.length > 1 || row.noRole > 0;
   const pane = chrome === "pane";
   return (
@@ -194,10 +201,10 @@ export function PreviewContent({ playerId, isOwn, row, role, vs, champ, data, on
         <p className="-mt-2 text-xs text-fg-subtle" data-testid="champion-preview-no-role">
           {row.roles.length
             ? `${plural(row.noRole, "more game")} ${row.noRole === 1 ? "has" : "have"} no recorded position: ${row.noRole === 1 ? "it counts" : "they count"} in ${me.name}'s totals only.`
-            : `${row.noRole === 1 ? "Its one game has" : `All ${formatCount(row.noRole)} games have`} no recorded position: ${formatCount(row.selected.wins)}W ${formatCount(row.selected.games - row.selected.wins)}L in all.`}
+            : `${row.noRole === 1 ? "Its one game has" : `All ${formatCount(row.noRole)} of its games have`} no recorded position: the figures are ${row.noRole === 1 ? "that game's" : "those games'"}.`}
         </p>
       ) : null}
-      {figures && role ? <Figures f={figures} role={role} champion={me.name} /> : null}
+      {figures ? <Figures f={figures} role={role} champion={me.name} /> : null}
       <Matchups key={row.championId} playerId={playerId} isOwn={isOwn} me={me} role={role} vs={vs} champ={champ} data={data} onVs={onVs} onMatch={onMatch} titleId={titleId} />
     </div>
   );

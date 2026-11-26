@@ -377,7 +377,9 @@ async function championTable(page: Page) {
       }).map((r) => r.dataset.champion),
       rolesCut: rows.filter((r) => {
         const cell = box(r.firstElementChild!);
-        return [...r.querySelectorAll("[data-testid=champion-role]")].some((icon) => box(icon).right > cell.right + 0.5 || box(icon).width < 1);
+        // As the screen draws them: controls with a mouse, marks on a touch screen.
+        const icons = [...r.querySelectorAll("[data-testid=champion-role], [data-testid=champion-role-mark]")].filter((icon) => box(icon).width > 0);
+        return !icons.length || icons.some((icon) => box(icon).right > cell.right + 0.5);
       }).map((r) => r.dataset.champion),
       // Each heading inside its own column, and each sort arrow (shown when sorted or pointed at) clear of the headings beside it.
       spilled: heads.filter((h) => h.text.left < h.cell.left - 0.5 || h.text.right > h.cell.right + 0.5).map((h) => h.label),
