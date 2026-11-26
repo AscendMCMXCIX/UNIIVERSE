@@ -35,14 +35,19 @@ import { useWindowPosture } from "./posture";
     sheet keeps the focus inside it until it closes, as every sheet does.
   - **The content** renders only while open (`children` is drawn then), from the figure's own data:
     the breakdown never works the figure out again.
+  - **A mark or a label as the trigger** (`bare`): where the breakdown explains a status or a label
+    rather than a figure (the data status's ⓘ, the experience label), the caller draws the trigger's
+    look in `triggerClassName`, keeping the line's height; the press, the names and the forms stay.
 */
 
-export function BreakdownPopover({ trigger, triggerLabel, triggerClassName, title, description, children, testId, panelTestId, widthClassName = "w-[min(44rem,calc(100%-1rem))]" }: {
+export function BreakdownPopover({ trigger, triggerLabel, triggerClassName, bare = false, title, description, children, testId, panelTestId, widthClassName = "w-[min(44rem,calc(100%-1rem))]" }: {
   /** The figure as the trigger shows it (the score). */
   trigger: React.ReactNode;
   /** The trigger's accessible name: the figure and what pressing it shows ("Score 132: how it was worked out"). */
   triggerLabel: string;
   triggerClassName?: string;
+  /** The caller draws the trigger (`triggerClassName`: its size, colours and touch band): a mark or a label, not a figure. */
+  bare?: boolean;
   /** The breakdown's heading. */
   title: string;
   description?: React.ReactNode;
@@ -79,7 +84,9 @@ export function BreakdownPopover({ trigger, triggerLabel, triggerClassName, titl
           setOpen((o) => !o);
         }}
         className={cn(
-          "relative z-[2] inline-flex min-h-8 min-w-8 cursor-pointer items-center justify-end rounded-md px-1.5 tabular-nums underline decoration-fg-subtle/70 decoration-dotted underline-offset-4 transition-colors duration-150 hover:bg-surface-2 hover:decoration-fg-muted focus-visible:outline-2 focus-visible:outline-accent data-[open=true]:bg-surface-2 pointer-coarse:min-h-11 pointer-coarse:min-w-11",
+          bare
+            ? "cursor-pointer transition-colors duration-150 focus-visible:outline focus-visible:outline-2 focus-visible:outline-accent"
+            : "relative z-[2] inline-flex min-h-8 min-w-8 cursor-pointer items-center justify-end rounded-md px-1.5 tabular-nums underline decoration-fg-subtle/70 decoration-dotted underline-offset-4 transition-colors duration-150 hover:bg-surface-2 hover:decoration-fg-muted focus-visible:outline-2 focus-visible:outline-accent data-[open=true]:bg-surface-2 pointer-coarse:min-h-11 pointer-coarse:min-w-11",
           triggerClassName,
         )}
       >

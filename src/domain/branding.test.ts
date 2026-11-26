@@ -69,6 +69,15 @@ describe("branding", () => {
     expect(checkContrast(DEFAULT_BRANDING).filter((c) => c.message.startsWith("Quiet")).map((c) => c.ok)).toEqual([true, true, true]);
   });
 
+  it("names every check uniquely (the Contrast checks list keys its rows by it), though several share a colour", () => {
+    const checks = checkContrast(DEFAULT_BRANDING);
+    const names = checks.map((c) => c.what);
+    expect(new Set(names).size).toBe(checks.length);
+    // The colour keys repeat (body and quiet text on the background and on panels): never a list's key.
+    expect(new Set(checks.map((c) => c.key)).size).toBeLessThan(checks.length);
+    for (const c of checks) expect(c.message.startsWith(`${c.what}: `), c.what).toBe(true);
+  });
+
   it("checks the text colours globals.css defines (fg and fg-subtle)", () => {
     const css = readFileSync(join(__dirname, "..", "app", "globals.css"), "utf8");
     expect(/--color-fg:\s*(#[0-9a-f]{6})/i.exec(css)?.[1]?.toLowerCase()).toBe(TEXT_COLOUR);

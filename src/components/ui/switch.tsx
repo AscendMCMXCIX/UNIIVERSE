@@ -5,7 +5,8 @@ import { cn } from "@/lib/cn";
 /**
  * The track and knob every switch shares: the brand blue and the knob at the right when on, a quiet
  * track with the knob at the left when off (the knob's side says it without the colour). Disabled:
- * a flat track and the knob in the disabled tone, on or off (the knob's side still says which).
+ * a flat track and the knob in the disabled tone, on or off (the knob's side still says which); the
+ * label in the disabled tone, its description (often the reason it is off) in readable fg-subtle.
  */
 function Track() {
   return (
@@ -45,7 +46,8 @@ export function Switch({ checked, onChange, label, description, disabled, id, in
           breaks, hyphenated, rather than push the sheet 29px sideways. */}
       <span className="min-w-0 hyphens-auto [overflow-wrap:break-word]">
         <span className={cn("block text-sm", disabled ? "text-fg-disabled" : "text-fg")}>{label}</span>
-        {description ? <span className={cn("block text-xs", disabled ? "text-fg-disabled" : "text-fg-muted")}>{description}</span> : null}
+        {/* The description often says why it is off ("Needs a colour wash"): readable either way, tertiary while off. */}
+        {description ? <span className={cn("block text-xs", disabled ? "text-fg-subtle" : "text-fg-muted")} data-testid="switch-description">{description}</span> : null}
       </span>
     </label>
   );

@@ -695,7 +695,7 @@ function Choice<T extends string>({ value, options, labels, onChange, label }: {
  * so a fast drag never queues a re-render of the whole Studio for every pixel. A value set from
  * outside (a preset, Reset, Undo, a drag on the preview) replaces the local one. The track fills up to the thumb.
  */
-function Slider({ value, min, max, step = 1, onChange, label, format, disabled = false }: { value: number; min: number; max: number; step?: number; onChange: (v: number) => void; label: string; format?: (v: number) => string; disabled?: boolean }) {
+export function Slider({ value, min, max, step = 1, onChange, label, format, disabled = false }: { value: number; min: number; max: number; step?: number; onChange: (v: number) => void; label: string; format?: (v: number) => string; disabled?: boolean }) {
   const [local, setLocal] = React.useState(value);
   const [seen, setSeen] = React.useState(value);
   const [sent, setSent] = React.useState(value);
@@ -748,7 +748,8 @@ function Slider({ value, min, max, step = 1, onChange, label, format, disabled =
         className="studio-range h-9 min-w-0 flex-1 cursor-pointer disabled:cursor-not-allowed pointer-coarse:h-11"
         style={{ ["--fill" as string]: fill }}
       />
-      <output className={cn("min-w-[3.25rem] shrink-0 rounded-md bg-surface-2 px-1.5 py-1 text-center text-xs font-semibold tabular-nums", disabled ? "text-fg-disabled" : "text-fg")} aria-hidden>
+      {/* The readout is not the control (axe checks its contrast whatever the slider's state): tertiary while the slider is off, never the disabled tone. */}
+      <output className={cn("min-w-[3.25rem] shrink-0 rounded-md bg-surface-2 px-1.5 py-1 text-center text-xs font-semibold tabular-nums", disabled ? "text-fg-subtle" : "text-fg")} aria-hidden data-testid="studio-slider-value">
         {format ? format(local) : local}
       </output>
     </div>

@@ -128,9 +128,11 @@ describe("RankedProgress", () => {
     expect(text(master, "ranked-current")).toBe("Master · 251 LP");
     expect(master).not.toContain('data-testid="ranked-lp-bar"');
     expect(master).toContain('data-testid="ranked-chart"');
-    // The record and win rate always shown; its scope ("2026 (Riot)") from a 21rem card, read out on a phone's.
+    // The record, its win rate and its year always shown (a phone's too: the record is Riot's count for
+    // the year, not this season's); its source ("(Riot)") from a 21rem card, read out on a phone's.
     expect(text(master, "ranked-record")).toBe("212W 154L · 58%");
-    expect(master).toMatch(/data-testid="ranked-record">212W 154L · 58%[\s\S]*?<span class="@max-\[21rem\]\/rank:sr-only"> · 2026 \(Riot\)<\/span>/);
+    expect(text(master, "ranked-record-year")).toBe(" · 2026");
+    expect(master).toMatch(/data-testid="ranked-record">212W 154L · 58%<span data-testid="ranked-record-year"> · 2026<\/span><span class="@max-\[21rem\]\/rank:sr-only"> \(Riot\)<\/span>/);
   });
 
   it("the rank's tip is one short fact pair, at most about 25 words with the longest rank: the account and season, then the highest rank recorded", () => {
@@ -151,7 +153,7 @@ describe("RankedProgress", () => {
     // the change and the highest recorded rank, and the chart, which ends the card.
     expect(text(html, "ranked-tracking")).toBe("Name#TAG · 2026 Season 3 · rank recorded since 15 Oct 2026");
     expect(text(html, "ranked-current")).toBe("Gold II · 75\u00a0LP");
-    expect(html).toContain("104W 92L · 53%<span class=\"@max-[21rem]/rank:sr-only\"> · 2026 (Riot)</span>");
+    expect(html).toContain("104W 92L · 53%<span data-testid=\"ranked-record-year\"> · 2026</span><span class=\"@max-[21rem]/rank:sr-only\"> (Riot)</span>");
     expect(html).toContain('data-testid="ranked-peak-stat"');
     expect(html).toMatch(/data-testid="ranked-chart"[\s\S]*<\/section>$/);
   });

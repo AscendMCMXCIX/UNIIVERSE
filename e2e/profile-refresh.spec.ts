@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "./test";
+import { openDataStatus } from "./data-status";
 import { createMember } from "./member-account";
 
 /*
@@ -144,12 +145,9 @@ test("Refresh reads Riot, shows its progress, re-reads the page, and a second pr
   await expect(page.getByTestId("season-record")).toHaveText("3");
   await expect(control).toHaveAttribute("data-state", "current");
   await expect(page.getByTestId("data-refresh-flag")).toHaveCount(0);
-  // The ⓘ says it all: the word, when Riot was read, and what this Refresh did.
-  const infoTip = page.getByTestId("data-refresh-info");
-  if (isPhone(page)) await infoTip.tap();
-  else await infoTip.hover();
-  const bubble = page.getByTestId("data-refresh-info-bubble");
-  await expect(bubble).toContainText("Up to date");
+  // The ⓘ's breakdown says it all: the word, when Riot was read, and what this Refresh did.
+  const bubble = await openDataStatus(page);
+  await expect(bubble.getByRole("heading", { name: "Up to date" })).toBeVisible();
   await expect(bubble.getByTestId("data-refresh-times")).toContainText("Last checked: just now");
   await expect(bubble.getByTestId("data-refresh-last")).toContainText("Refreshed just now: 3 new games");
   await page.keyboard.press("Escape");
@@ -224,8 +222,5 @@ test("demo players and the team's boards show the status alone: nothing there Ri
   await expect(page.getByTestId("leaderboards-status")).toBeVisible();
   await expect(page.getByTestId("leaderboards-status-button")).toHaveCount(0);
   await expect(page.getByTestId("last-updated")).toHaveCount(0);
-  const infoTip = page.getByTestId("leaderboards-status-info");
-  if (isPhone(page)) await infoTip.tap();
-  else await infoTip.hover();
-  await expect(page.getByTestId("leaderboards-status-info-bubble")).toContainText("The boards follow the account syncs");
+  await expect(await openDataStatus(page, "leaderboards-status")).toContainText("The boards follow the account syncs");
 });

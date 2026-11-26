@@ -5,7 +5,7 @@ import { RefreshCw } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { timeAgo } from "@/lib/format";
 import { toolbarButtonClass } from "@/components/ui/filter-bar";
-import { InfoTip } from "@/components/ui/info-tip";
+import { BreakdownPopover } from "@/components/ui/breakdown-popover";
 import { useNow } from "@/components/ui/relative-time";
 import { CATCH_UP_LIMIT } from "@/domain/refresh";
 import type { DataStatus, DataStatusState } from "@/domain/data-status";
@@ -16,10 +16,12 @@ import { usePlayerRefresh, usePlayerRefreshState, type RefreshStep } from "./ref
   in the same two places on each (components/ui/section-header.tsx): Refresh at the end of the
   section's toolbar, after its filters, for the player and those who manage Riot accounts; and,
   beside the line that says which games are counted, the status in a few quiet words ("Synced 5 min
-  ago", or Syncing, Partial data, Delayed, Needs attention) with one ⓘ holding the rest: each part
-  (multikills counted in 21 of 43 games, and why), when the accounts were last checked and last read
-  successfully, the newest game, and this visit's Refresh. A dot on the ⓘ marks anything short of Up
-  to date, so figures from only some of the games are never presented as complete. No banner.
+  ago", or Syncing, Partial data, Delayed, Needs attention) with one ⓘ that opens the rest in the
+  shared breakdown (BreakdownPopover: beside it on a computer or tablet, a sheet on a phone; 25 Nov
+  2026, an InfoTip before, too many concepts for a tip): each part (multikills counted in 21 of 43
+  games, and why), when the accounts were last checked and last read successfully, the newest game,
+  and this visit's Refresh. A dot on the ⓘ marks anything short of Up to date, so figures from only
+  some of the games are never presented as complete. No banner.
 
   Refresh is real (components/ui/refresh-store.ts): Riot is read now, missing multikill counts are
   fetched in batches, the page is read again and the result arrives as a notification; the button
@@ -28,10 +30,7 @@ import { usePlayerRefresh, usePlayerRefreshState, type RefreshStep } from "./ref
   on a server without Riot, shows the status alone.
 */
 
-/**
- * Each state's colour, on still dots: a page can read Syncing for hours, and the bubble's text is
- * always in the page for screen readers, so nothing here may move for ever.
- */
+/** Each state's colour, on still dots: a page can read Syncing for hours, so nothing here may move for ever. */
 const DOT: Record<DataStatusState, string> = {
   current: "bg-good",
   syncing: "bg-accent",
@@ -81,8 +80,9 @@ function statusTimes(status: DataStatus, now: Date): Array<{ label: string; valu
  * How current the section's Riot data is, beside its scope line: "Synced 5 min ago" when it is up to
  * date (or the state in words when it is not: Syncing, Partial data, Delayed, Needs attention, with
  * its dot), the step while this visit's Refresh runs ("Checking Riot…", then "Updating the page…"),
- * and one ⓘ with every detail (each part, when the accounts were last checked and read, the newest
- * game, this visit's Refresh). Quiet text: it informs, the Refresh button acts.
+ * and one ⓘ that opens every detail in the shared breakdown, headed by the state (each part with its
+ * dot, when the accounts were last checked and read, the newest game, this visit's Refresh). Quiet
+ * text: it informs, the Refresh button acts. The ⓘ is named by the state ("Data status: Partial data").
  */
 export function DataStatusNote({ status, refresh, className, testId = "data-refresh" }: { status: DataStatus; refresh?: DataRefreshTarget | null; className?: string; testId?: string }) {
   const now = useNow();
@@ -90,44 +90,42 @@ export function DataStatusNote({ status, refresh, className, testId = "data-refr
   const { step, last } = usePlayerRefreshState(offered ? refresh!.playerId : null);
   const times = statusTimes(status, now);
   const synced = status.checkedAt ?? status.attemptedAt;
-  // Inside the tooltip's bubble (a span), so spans only.
+  // The breakdown's body, drawn only while it is open: plain sections, each part's dot and label, then its why.
   const details = (
-    <span className="block space-y-1.5">
-      <span className="flex items-center gap-1.5 font-semibold">
-        <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", DOT[status.state])} aria-hidden />
-        {status.label}
-      </span>
+    <div className="space-y-3 text-sm">
       {status.parts.length ? (
         status.parts.map((p, i) => (
-          <span key={`${p.key}-${i}`} className="block" data-part={p.key} data-state={p.state}>
-            <span className="block font-medium">{p.label}</span>
-            {p.detail ? <span className="block text-fg-muted">{p.detail}</span> : null}
-            {p.key === "multikills" && offered && refresh?.multikillsPending ? <span className="block text-fg-muted">Refresh fetches up to {CATCH_UP_LIMIT} of them now.</span> : null}
-          </span>
+          <div key={`${p.key}-${i}`} data-part={p.key} data-state={p.state}>
+            <p className="flex items-center gap-1.5 font-medium text-fg" data-testid={`${testId}-part`}>
+              <span className={cn("h-1.5 w-1.5 shrink-0 rounded-full", DOT[p.state])} aria-hidden />
+              {p.label}
+            </p>
+            {p.detail ? <p className="mt-0.5 text-fg-muted">{p.detail}</p> : null}
+            {p.key === "multikills" && offered && refresh?.multikillsPending ? <p className="mt-0.5 text-fg-muted">Refresh fetches up to {CATCH_UP_LIMIT} of them now.</p> : null}
+          </div>
         ))
       ) : (
-        <span className="block text-fg-muted">{status.headline}</span>
+        <p className="text-fg-muted">{status.headline}</p>
       )}
       {times.length ? (
-        <span className="block text-fg-subtle" data-testid={`${testId}-times`}>
-          {/* The server's words stand while the page hydrates (relative-time.tsx). React allows that only for an element's own text, so each line carries it. */}
+        <div className="text-fg-subtle" data-testid={`${testId}-times`}>
           {times.map((t) => (
-            <span key={t.label} className="block" suppressHydrationWarning>
+            <p key={t.label}>
               {t.label}: {t.value}
-            </span>
+            </p>
           ))}
-        </span>
+        </div>
       ) : null}
       {step ? (
-        <span className="block font-medium text-fg" data-testid={`${testId}-progress`}>
+        <p className="font-medium text-fg" data-testid={`${testId}-progress`}>
           Refreshing now: {STEP_TEXT[step]}
-        </span>
+        </p>
       ) : last ? (
-        <span className="block text-fg-muted" data-testid={`${testId}-last`} suppressHydrationWarning>
+        <p className="text-fg-muted" data-testid={`${testId}-last`}>
           Refreshed {timeAgo(new Date(last.at), now)}: {last.text}
-        </span>
+        </p>
       ) : null}
-    </span>
+    </div>
   );
   const flagged = status.state !== "current" && status.state !== "none";
   // The line's words: the Refresh's step while one runs; else the state when something is short of up to date, else when Riot was last read.
@@ -139,8 +137,24 @@ export function DataStatusNote({ status, refresh, className, testId = "data-refr
           {words}
         </span>
       ) : null}
-      <span className="relative inline-flex">
-        <InfoTip text={details} label={`Data status: ${status.label}`} testId={`${testId}-info`} />
+      <span className="relative inline-flex align-middle">
+        {/* The ⓘ as InfoTip draws it (a 24px target, 44px on a touch screen, the line's 16px kept by its margins); a press opens the breakdown. */}
+        <BreakdownPopover
+          bare
+          trigger={
+            <span aria-hidden className="grid h-4 w-4 place-items-center rounded-full border border-border-strong text-4xs font-semibold leading-none group-hover/status:border-accent group-data-[open=true]/status:border-accent">
+              i
+            </span>
+          }
+          triggerLabel={`Data status: ${status.label}`}
+          triggerClassName="group/status relative -m-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded-full text-fg-subtle hover:text-accent data-[open=true]:text-accent pointer-coarse:-m-3.5 pointer-coarse:h-11 pointer-coarse:w-11"
+          title={status.label}
+          testId={`${testId}-info`}
+          panelTestId={`${testId}-details`}
+          widthClassName="w-[min(24rem,calc(100%-1rem))]"
+        >
+          {details}
+        </BreakdownPopover>
         {flagged ? <span className={cn("pointer-events-none absolute -right-0.5 -top-0.5 h-1.5 w-1.5 rounded-full ring-2 ring-bg", DOT[status.state])} aria-hidden data-testid={`${testId}-flag`} /> : null}
       </span>
     </span>

@@ -161,7 +161,9 @@
     four text tiers are deployed with their values (primary, secondary, tertiary, disabled); on Team
     Overview, the teammate's profile and Settings no live text is drawn in the disabled tone (only a
     disabled control or its label); on the profile and Settings, whose labels are sentence case, no
-    text in capitals outside a round pill and a member's own name style. Counts, values and tags only.
+    text in capitals outside a round pill and a member's own name style; on All Champions' table (not
+    on narrow rows), every figure primary (a dash or zero tertiary), semibold only in the sorted
+    column, under the one semibold heading. Counts, values and tags only.
   - reach (PR 2b; S4a, 20 Nov 2026): from the end of Match History, on the desktop and the tablet the
     pinned row offers Filters and it opens the Filters popover (anchored, no modal window, "Support"
     whole and nothing in it scrolling sideways); on the phone the top bar's Filters opens the filter
@@ -180,7 +182,7 @@ import { championPreviewVerdicts, readChampionPreview, readChampionRows, targetR
 import { breakdownKeyboardVerdicts, breakdownVerdicts, MULTIKILL_ROLE_LABEL, multikillVerdicts, readBreakdownFocus, readMultikillBoard, readMultikillBreakdown } from "./multikill-facts.mjs";
 import { cardScoreVerdicts, firstScored, readCardScores, readOpenedScore, readTogetherScores, togetherScoreVerdicts } from "./card-score-facts.mjs";
 import { oneScreenInput, oneScreenVerdicts, readOneScreen } from "./one-screen-facts.mjs";
-import { readTypeFacts, typeVerdicts } from "./type-facts.mjs";
+import { TABLE_FIGURES, readTableFigures, readTypeFacts, tableFigureVerdicts, typeVerdicts } from "./type-facts.mjs";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 
@@ -1429,6 +1431,8 @@ async function allChampions(page, log, kind, playerId) {
     }
   }
   pass("all-champions", `${kind}: no heading cut short`, facts.cut.length === 0, facts.cut);
+  // The text hierarchy in the table (scripts/type-facts.mjs; counts only).
+  for (const v of tableFigureVerdicts({ kind, facts: await page.evaluate(readTableFigures, TABLE_FIGURES) })) check("type", v.name, v.status, v.detail);
   await axe(page, kind, "all-champions");
   // All Champions' preview (25 Nov 2026, the owner's request: no panel over the table): on the
   // desktop a pane beside the list, the list narrowing to its champions (each name where it was,

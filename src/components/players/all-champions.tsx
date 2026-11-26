@@ -143,7 +143,7 @@ function killsText(c: ChampionRow): string {
 function TotalKills({ c, strong }: { c: ChampionRow; strong: boolean }) {
   const p = c.performance;
   return (
-    <span className={cn("hidden text-right text-sm tabular-nums @min-[44rem]:block", LAYOUT_CLASS.medium, p.totalKills === null ? "text-fg-subtle" : strong ? "font-semibold text-fg" : "text-fg-muted")} data-testid="champion-kills">
+    <span className={cn("hidden text-right text-sm tabular-nums @min-[44rem]:block", LAYOUT_CLASS.medium, p.totalKills === null ? "text-fg-subtle" : cn("text-fg", strong && "font-semibold"))} data-testid="champion-kills">
       <span aria-hidden>
         {p.totalKills === null ? "—" : formatCount(p.totalKills)}
         {p.totalKills !== null && p.detailedGames < c.selected.games ? <span className="ml-0.5 align-super text-2xs font-semibold text-warn">*</span> : null}
@@ -174,7 +174,7 @@ function RarestMultikill({ c, strong }: { c: ChampionRow; strong: boolean }) {
         </span>
       ) : top ? (
         <>
-          <span className={cn("tabular-nums", strong ? "font-semibold text-fg" : "font-medium text-fg-muted")}>{formatCount(top.count)}</span> <span className="text-xs text-fg-subtle">{MULTIKILL_SHORT[top.key].toLowerCase()}</span>
+          <span className={cn("tabular-nums text-fg", strong && "font-semibold")}>{formatCount(top.count)}</span> <span className="text-xs text-fg-muted">{MULTIKILL_SHORT[top.key].toLowerCase()}</span>
         </>
       ) : (
         <span className="text-xs text-fg-subtle">None</span>
@@ -190,7 +190,7 @@ function RarestMultikill({ c, strong }: { c: ChampionRow; strong: boolean }) {
 function KindCount({ c, kind, strong }: { c: ChampionRow; kind: KindKey; strong: boolean }) {
   const m = countedMultikills(c);
   return (
-    <span className={cn("text-right text-sm tabular-nums", LAYOUT_CLASS.wide, m && m[kind] ? (strong ? "font-semibold text-fg" : "text-fg-muted") : "text-fg-subtle")} data-testid={`champion-${kind}`}>
+    <span className={cn("text-right text-sm tabular-nums", LAYOUT_CLASS.wide, m && m[kind] ? cn("text-fg", strong && "font-semibold") : "text-fg-subtle")} data-testid={`champion-${kind}`}>
       {m ? (
         formatCount(m[kind])
       ) : (
@@ -642,11 +642,13 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           const ch = champ(c.championId);
           const r = c.selected;
           const p = c.performance;
-          // The sorted column's figures stand out a little; the rest stay quiet, so the numbers never all compete.
+          // Every figure is primary (a table's values are read and compared); the sorted column's stand out a
+          // little more, in semibold beside its heading's arrow; a dash (not counted yet) is tertiary
+          // (docs/STANDARDS.md, Tables and rankings).
           const strong = (key: SortKey) => sortsAs(key, sorted);
           const kda = kdaText(p);
           const cs = csText(p);
-          const figure = (key: SortKey) => cn("hidden text-right text-sm tabular-nums @min-[44rem]:block", strong(key) ? "font-semibold text-fg" : "text-fg-muted");
+          const figure = (key: SortKey, value: string) => cn("hidden text-right text-sm tabular-nums @min-[44rem]:block", value === "—" ? "text-fg-subtle" : cn("text-fg", strong(key) && "font-semibold"));
           const share = gamesShare(r.games, total);
           // Narrow rows: sorted by a figure other than games or win rate, that figure replaces "In pool".
           // Not beside the pane: there a row keeps the table's line (its positions and "In pool"), so no
@@ -676,11 +678,11 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
                       line: five touch marks and "In pool" fit the table's narrowest champion column, and
                       five mouse buttons the list beside the pane; only five or four mouse buttons in the
                       table's narrowest column (a window of about 770–1100px) let "In pool" go under them. */}
-                  <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-fg-subtle" data-testid="champion-role-line">
+                  <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-fg-muted" data-testid="champion-role-line">
                     <RoleIcons row={c} champion={ch.name} active={selectedKey === c.championId ? selRole : null} onPick={(role, keys) => chooseRoleRef.current(c, role, keys)} onAhead={(role) => void previewData.preview(c.championId, role)} />
                     {/* Kept on one line, except in a list under 17rem (a large text size), where it wraps inside the phone. */}
                     {narrowFigure ? (
-                      <span className="shrink-0 whitespace-nowrap font-medium text-fg-muted @max-[17rem]:min-w-0 @max-[17rem]:shrink @max-[17rem]:whitespace-normal @max-[17rem]:[overflow-wrap:anywhere] @min-[44rem]:hidden" data-testid="champion-sorted-figure">
+                      <span className="shrink-0 whitespace-nowrap font-medium text-fg @max-[17rem]:min-w-0 @max-[17rem]:shrink @max-[17rem]:whitespace-normal @max-[17rem]:[overflow-wrap:anywhere] @min-[44rem]:hidden" data-testid="champion-sorted-figure">
                         · {narrowFigure.label} {narrowFigure.value}
                       </span>
                     ) : null}
@@ -699,9 +701,9 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
                   {r.winRate === null ? "—" : percent(r.winRate, 0)}
                   <SampleNote note={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)} />
                 </span>
-                <span className="block text-xs text-fg-subtle">
+                <span className="block text-xs text-fg-muted">
                   {/* Sorted by games: the count drawn strong, as the desktop's Games column. */}
-                  <span className={cn(strong("games") && "font-semibold text-fg-muted")} data-testid="champion-row-games">
+                  <span className={cn(strong("games") && "font-semibold text-fg")} data-testid="champion-row-games">
                     {formatCount(r.games)} game{r.games === 1 ? "" : "s"}
                   </span>
                   {/* Beside the preview the games alone (the record is the preview's and the position icons'). */}
@@ -722,19 +724,19 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
                   <SampleNote note={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)} />
                 </span>
                 {r.games > 0 ? (
-                  <span className="block text-2xs tabular-nums text-fg-subtle">
+                  <span className="block text-2xs tabular-nums text-fg-muted">
                     {r.wins}W {r.games - r.wins}L
                   </span>
                 ) : null}
               </span>
-              <span className={figure("kda")}>{kda}</span>
-              <span className={figure("cs")}>{cs}</span>
+              <span className={figure("kda", kda)} data-testid="champion-kda">{kda}</span>
+              <span className={figure("cs", cs)} data-testid="champion-cs">{cs}</span>
               <TotalKills c={c} strong={strong("kills")} />
               <RarestMultikill c={c} strong={strong("multikills")} />
               {MULTIKILL_KINDS.map((k) => (
                 <KindCount key={k.key} c={c} kind={k.key} strong={strong(k.key)} />
               ))}
-              <span className={figure("mastery")} title={c.mastery?.points ? `${formatCount(c.mastery.points)} mastery points` : undefined} data-testid="mastery-points">
+              <span className={figure("mastery", masteryText(c.mastery?.points))} title={c.mastery?.points ? `${formatCount(c.mastery.points)} mastery points` : undefined} data-testid="mastery-points">
                 {masteryText(c.mastery?.points)}
               </span>
             </li>
@@ -755,7 +757,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     const Arrow = active ? (sort.dir === "asc" ? ArrowUp : ArrowDown) : ArrowUpDown;
     return (
       <span key={c.key} className={cn("min-w-0", right && "text-right", c.layout && LAYOUT_CLASS[c.layout])} data-sort={active ? sort.dir : undefined}>
-        <button type="button" onClick={() => sortBy(c.key)} className={cn("label-text group/sort relative inline-flex items-center whitespace-nowrap rounded py-2.5 transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-accent", active ? "text-fg" : "hover:text-fg")} data-testid={`sort-${c.key}`}>
+        <button type="button" onClick={() => sortBy(c.key)} className={cn("group/sort relative inline-flex items-center whitespace-nowrap rounded py-2.5 transition-colors duration-150 focus-visible:outline-2 focus-visible:outline-accent", active ? "text-2xs font-semibold text-fg" : "label-text hover:text-fg")} data-testid={`sort-${c.key}`}>
           {/* The arrow sits beside the name without taking its width: the name always fits its column. */}
           <Arrow className={cn("absolute top-1/2 h-3 w-3 -translate-y-1/2", right ? "right-full mr-0.5" : "left-full ml-0.5", active ? "opacity-100" : "opacity-0 transition-opacity duration-150 group-hover/sort:opacity-60 group-focus-visible/sort:opacity-60")} aria-hidden />
           {c.label}

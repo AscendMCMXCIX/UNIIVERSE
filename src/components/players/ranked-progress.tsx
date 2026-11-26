@@ -120,8 +120,11 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
                 {cur.wins !== null && cur.losses !== null ? (
                   <p className="text-xs tabular-nums text-fg-muted" data-testid="ranked-record">
                     {cur.wins}W {cur.losses}L{cur.wins + cur.losses > 0 ? ` · ${Math.round((cur.wins / (cur.wins + cur.losses)) * 100)}%` : ""}
-                    {/* Its scope, shown from a 21rem card; read out on a narrower one (a phone), and in the ⓘ. */}
-                    <span className="@max-[21rem]/rank:sr-only"> · {RANKED_YEAR} (Riot)</span>
+                    {/* Its scope: the ranked year at every width (Riot's count covers the whole year, not this
+                        season alone), its source too from a 21rem card; read out on a narrower one (a phone),
+                        where "· 2026 (Riot)" would take the record to a second line beside the 30-day change. */}
+                    <span data-testid="ranked-record-year"> · {RANKED_YEAR}</span>
+                    <span className="@max-[21rem]/rank:sr-only"> (Riot)</span>
                   </p>
                 ) : null}
               </div>

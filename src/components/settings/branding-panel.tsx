@@ -376,7 +376,7 @@ export function BrandingPanel({ branding, canEdit }: { branding: Branding; canEd
             <Preview form={form} />
             <ul className="space-y-1 text-xs" aria-label="Contrast checks">
               {checks.map((c) => (
-                <li key={c.key} className={cn("flex items-center gap-1.5", c.ok ? "text-fg-muted" : "text-bad")}>
+                <li key={c.what} className={cn("flex items-center gap-1.5", c.ok ? "text-fg-muted" : "text-bad")}>
                   {c.ok ? <CheckCircle2 className="h-3.5 w-3.5 text-good" /> : <XCircle className="h-3.5 w-3.5" />} {c.message}
                 </li>
               ))}

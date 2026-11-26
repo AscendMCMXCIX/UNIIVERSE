@@ -47,9 +47,11 @@ from each section; this page does not repeat them.
     (`src/components/ui/tip-length.test.ts` counts every literal InfoTip text, `title` and `hint`,
     a state's `means`, the tip constants, the metric tips and each state of the LP tip; tips composed
     in JSX are counted by their component's own test, as the rank's in `ranked-progress.test.ts`; its
-    allowlist is empty since S8b, and an entry needs its reason). Essential information stays
-    visible without the tip. A detailed breakdown is the shared breakdown popover
-    (`src/components/ui/breakdown-popover.tsx`), never a giant bubble or one that scrolls;
+    allowlist is empty since S8b, and an entry needs its reason; `player-data-panel.test.ts` holds
+    every tip the Riot data panel renders to 25 words). Essential information stays visible without
+    the tip. A detailed breakdown is the shared breakdown popover
+    (`src/components/ui/breakdown-popover.tsx`: Leaderboards' Score, the data status, the experience
+    label's why), never a giant bubble or one that scrolls;
   - in the page's words, never the code's: no "PUUID", "Riot's API", "frame" for a minute of the
     timeline, "sync window", "Population:", "Source:" or "SELECT" in member-facing help (the same
     test). A source reads "from …"; a stored reading of a rank is a "rank check";
@@ -65,8 +67,9 @@ from each section; this page does not repeat them.
     (neutral words, or `lib/tip-words.ts`, tested).
 - How current a page's Riot data is goes in the same two places on every page, in the fixed words
   of `src/domain/data-status.ts`, never a banner: the status in a few quiet words ("Synced 5 min
-  ago", or the state when it is short of up to date) with one ⓘ holding the details, beside the
-  line that says what is counted (`DataStatusNote`); and Refresh at the end of the section's
+  ago", or the state when it is short of up to date) with one ⓘ that opens the details in the
+  shared breakdown (a press, not a hover: several parts are too much for a tip), beside the line
+  that says what is counted (`DataStatusNote`); and Refresh at the end of the section's
   toolbar, after the filters, never on a row of its own (`RefreshButton`). `SectionHeader` places
   both; a panel puts Refresh in its header's actions. Figures and cards carry no status marks of
   their own. A Refresh does something real (it asks Riot now, then reads the page again from what
@@ -143,7 +146,7 @@ grey and not blindly white:
 | Primary | `text-fg` | names (players, champions, items, runes), headings and titles, every figure a reader reads or compares (KDA, win rate, CS, damage, games, scores, LP, ranks, cooldowns), every value in a table (the sorted column is marked by its arrow and semibold, not by greying the others), the selected or current item, field values | |
 | Secondary | `text-fg-muted` | labels of figures and fields, column headings (`label-text`), a section's description and scope line, a figure that qualifies a primary one ("13W 7L" under a win rate), units, idle tabs, segments and navigation words, empty-state words | a figure on its own |
 | Tertiary | `text-fg-subtle` | timestamps and "3h ago", queue and duration meta, separators, counts beside a tab or role (a zero too: it is not disabled), footnotes and coverage lines, placeholders, idle icons and chevrons, the ⓘ mark, `kbd` hints, "—" and "None yet", small-sample figures (with the words "small sample"), Riot's notice | a label over a figure; a figure that is not a small sample |
-| Disabled | `text-fg-disabled` | a control that is disabled or `aria-disabled`, and its label: `disabled:text-fg-disabled disabled:cursor-not-allowed`, no hover; a filled button keeps a fill (the neutral `surface-2`), never half-transparent | anything that is not disabled (axe fails it) |
+| Disabled | `text-fg-disabled` | a control that is disabled or `aria-disabled`, and its label: `disabled:text-fg-disabled disabled:cursor-not-allowed`, no hover; a filled button keeps a fill (the neutral `surface-2`), never half-transparent | anything that is not disabled (axe fails it); what explains a disabled control or reads its value (a switch's description, often why it is off; a slider's readout): `fg-subtle` while it is off |
 
 Semantic colours stay as they are: good, warn, bad, info, the blue and red sides, accent, gold,
 violet, bronze and the tier colours. `opacity` dims only a picture (a portrait out of the pool, an
