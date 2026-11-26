@@ -489,14 +489,18 @@ test("the data status ends the scope line, and never takes a line of its own", a
   // active players and the records' season), so the status no longer always fits on the count's line: it ends the
   // season's line instead, the two taking the next line together where they do not fit beside the count (a phone with
   // the status in words, "Syncing", as another spec's sync leaves it; a larger text size). The count's ⓘ stays with it.
-  for (const [width, root] of [[320, 100], [375, 100], [320, 200], [375, 200]] as const) {
-    const at = `${width}px at ${root}%`;
+  for (const [width, root, players] of [[320, 100, null], [375, 100, null], [320, 200, null], [375, 200, null], [320, 200, "10"], [320, 200, "1,000"]] as const) {
+    const at = `${width}px at ${root}%${players ? `, ${players} active players` : ""}`;
     await page.setViewportSize({ width, height: 667 });
+    // A larger team's count, as production's or another spec's linked accounts make it: the count's words wrap before the line runs past the screen.
+    if (players) await page.getByTestId("scope-count").evaluate((e, n) => { e.textContent = `${n} active players`; }, players);
     await page.evaluate((size) => { document.documentElement.style.fontSize = size; }, `${root}%`);
     await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
     const f = await page.evaluate(() => {
       const box = (sel: string) => document.querySelector(sel)!.getBoundingClientRect();
-      const count = box("[data-testid=scope-count]");
+      // The count's last line: its words may wrap at 200% text, the ⓘ glued to the last word.
+      const countLines = document.querySelector("[data-testid=scope-count]")!.getClientRects();
+      const count = countLines[countLines.length - 1]!;
       const tip = box("[data-testid=scope-tip]");
       const season = box("[data-testid=records-season-label], [data-testid=records-season]");
       const status = box("[data-testid=leaderboards-status]");

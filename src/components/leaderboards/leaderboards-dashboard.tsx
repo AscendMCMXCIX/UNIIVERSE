@@ -86,12 +86,16 @@ export function LeaderboardsDashboard({ view, champions, status, peekable }: { v
         {/* The members' page: on phones the sections row names it (SECTION_NAMED_TITLE); the public page keeps its title. */}
         <h1 className={cn("min-w-0 text-2xl font-semibold tracking-tight text-fg hyphens-auto [overflow-wrap:anywhere]", status && SECTION_NAMED_TITLE)}>Leaderboards</h1>
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 text-sm text-fg-muted" data-testid="scope-label">
-          {/* The count and its ⓘ as one unit: they move to the next line together, so the ⓘ never stands on a line alone. */}
-          <span className="inline-flex items-baseline gap-x-1.5 whitespace-nowrap">
+          {/* The count and its ⓘ as one unit, the ⓘ glued to the count's last word (no space between them, so no break):
+              where the line is too narrow for the whole count (a 320px phone at 200% text with a two-digit count) its
+              words wrap, "players ⓘ" taking the next line together, rather than the unit running past the screen. */}
+          <span className="min-w-0 max-w-full">
             <span className="text-fg" data-testid="scope-count" data-count={view.playerCount}>
               {formatCount(view.playerCount)} active player{view.playerCount === 1 ? "" : "s"}
             </span>
-            <InfoTip label="Who is shown" text={ACTIVE_TIP} testId="scope-tip" />
+            <span className="ml-1.5 inline-flex align-baseline">
+              <InfoTip label="Who is shown" text={ACTIVE_TIP} testId="scope-tip" />
+            </span>
           </span>
           {/* The season of the records, the multikills and the milestones (its choice where two are offered), then the data
               status, as one unit: where the line has no room for both after the count (a phone, a status in words such as
