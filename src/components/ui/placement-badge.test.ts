@@ -5,6 +5,7 @@ import { createElement } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
 import { PLACEMENT_TONE, PlacementBadge, placementKind, placementWord, placementWords, type Placement } from "./placement-badge";
 import { ScoreMark, ScoreMarkEmpty, scoreWords } from "../match-history/score-mark";
+import { SCORE_METHOD, SCORE_METHOD_NEUTRAL } from "../match-history/performance-panel";
 
 /*
   The one place badge (the owner's requirements of 25 Nov 2026, §1): MVP gold, ACE violet, any other
@@ -83,5 +84,17 @@ describe("ScoreMark", () => {
     expect(html).toContain('aria-hidden="true" data-testid="match-score-empty"');
     expect(html).toContain("text-fg-subtle");
     expect(html).not.toContain("match-score\"");
+  });
+});
+
+describe("the score's (i) in the opened game", () => {
+  it("says one concept in at most two short sentences: UNIIVERSE's own score (not OP.GG's), how it is compared, and its scale; MVP and ACE are the badge's words", () => {
+    for (const text of [SCORE_METHOD, SCORE_METHOD_NEUTRAL]) {
+      expect(text).toMatch(/^UNIIVERSE's own score, not OP\.GG's: /);
+      expect(text).toMatch(/ 5 is average\.$/);
+      expect(text.split(/(?<=\.)\s+/).length, text).toBeLessThanOrEqual(2);
+      expect(text.split(/\s+/).length, text).toBeLessThanOrEqual(25);
+      expect(text, text).not.toMatch(/\b(MVP|ACE|OP Score)\b/);
+    }
   });
 });

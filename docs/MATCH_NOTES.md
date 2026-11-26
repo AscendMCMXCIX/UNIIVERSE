@@ -22,7 +22,8 @@ end, and the scoreboard with every player, their ranks and the possible groups
 
 **Release 16 (23 Nov 2026):** at the owner's request the build and the skill order came back, not as
 the fold, but as two of three segmented headings above the lane (**Build Path | Skill Order |
-Runes**, `src/components/match-history/participant-panels.tsx`), for whichever player is inspected,
+Runes**, `src/components/match-history/participant-panels.tsx`; on a desktop's two columns the lane
+moved under the scoreboard on 26 Nov 2026, the panels taking the height beside it), for whichever player is inspected,
 with sales and completed items marked where the timeline and Data Dragon support them. The notes and
 the gold curve stay removed.
 

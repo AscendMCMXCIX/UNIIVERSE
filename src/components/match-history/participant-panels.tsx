@@ -29,6 +29,11 @@ import { gameClock } from "./match-format";
   player missing from it) opens on Runes: Build Path and Skill Order are disabled, with the reason
   in a quiet phrase beside the control, so no empty band says "not available" over blank space.
   Nothing is filled in from the final items.
+
+  In the post-game view's two columns (from a 56rem view) the area also takes the height the
+  scoreboard and the lane leave beside it (post-game.tsx, VIEW_GRID), and the three are drawn a step
+  larger there (the build's items 26px, the skill grid's cells 24px, the runes 22–24px with 14px
+  names): the room the score through the game left (the owner's requirements of 25 Nov 2026).
 */
 
 export type PanelKey = "build" | "skills" | "runes";
@@ -68,24 +73,32 @@ function BuildPath({ entry, kinds, items }: { entry: TimelinePlayerView; kinds: 
   const box = React.useRef<HTMLDivElement>(null);
   const list = React.useRef<HTMLOListElement>(null);
   const [width, setWidth] = React.useState(0);
-  const [layout, setLayout] = React.useState<{ width: number; rowOf: number[]; rows: number; perPage: number } | null>(null);
+  // The area the path is laid over: the panel body, at least as tall as the skill order or the rune
+  // page, and taller where its column gives it more (the post-game view's build column from 56rem).
+  const roomOf = () => box.current?.closest<HTMLElement>("[data-testid=panel-body]")?.clientHeight ?? 0;
+  const [room, setRoom] = React.useState(0);
+  const [layout, setLayout] = React.useState<{ width: number; room: number; rowOf: number[]; rows: number; perPage: number } | null>(null);
   const [page, setPage] = React.useState(0);
   React.useLayoutEffect(() => {
     const el = box.current;
     if (!el) return;
-    setWidth(Math.round(el.clientWidth));
-    const ro = new ResizeObserver(() => setWidth(Math.round(el.clientWidth)));
+    const body = el.closest<HTMLElement>("[data-testid=panel-body]");
+    // Its width, and the area's height (the column beside it can change it as the scoreboard's ranks and groups answer): the path is laid out again for either.
+    const read = () => {
+      setWidth(Math.round(el.clientWidth));
+      setRoom(Math.round(body?.clientHeight ?? 0));
+    };
+    read();
+    const ro = new ResizeObserver(read);
     ro.observe(el);
+    if (body) ro.observe(body);
     return () => ro.disconnect();
   }, []);
-  const measuring = !layout || layout.width !== width;
-  // The area the path is laid over: the panel body, as tall as the skill order or the rune page.
-  const roomOf = () => box.current?.closest<HTMLElement>("[data-testid=panel-body]")?.clientHeight ?? 0;
+  const measuring = !layout || layout.width !== width || layout.room !== room;
   React.useLayoutEffect(() => {
     const ol = list.current;
     if (!measuring || !ol || !width) return;
     const lis = [...ol.children] as HTMLElement[];
-    const room = roomOf();
     const gap = parseFloat(getComputedStyle(ol).rowGap) || 0;
     // Each visit's row, by its top.
     const tops = [...new Set(lis.map((li) => li.offsetTop))].sort((a, b) => a - b);
@@ -97,9 +110,9 @@ function BuildPath({ entry, kinds, items }: { entry: TimelinePlayerView; kinds: 
       const pager = (window.matchMedia("(pointer: coarse)").matches ? 44 : 36) + 6;
       perPage = Math.max(1, Math.floor((room - pager + gap) / (rowHeight + gap)));
     }
-    setLayout({ width, rowOf, rows: tops.length, perPage });
+    setLayout({ width, room, rowOf, rows: tops.length, perPage });
     setPage(0);
-  }, [measuring, width, visits]);
+  }, [measuring, width, room, visits]);
   // Drawn in pages, the path and its buttons must still fit the area: one row fewer a page until they do.
   React.useLayoutEffect(() => {
     const el = box.current;
@@ -111,14 +124,14 @@ function BuildPath({ entry, kinds, items }: { entry: TimelinePlayerView; kinds: 
   const pages = !measuring && layout ? Math.max(1, Math.ceil(layout.rows / layout.perPage)) : 1;
   return (
     <div ref={box} className="space-y-1.5" data-testid="build-path-box" data-pages={pages} data-page={Math.min(page, pages - 1)}>
-      <ol ref={list} className="flex flex-wrap items-start gap-x-2.5 gap-y-1" aria-label={pages > 1 ? `Purchases and sales, in order: page ${Math.min(page, pages - 1) + 1} of ${pages}` : "Purchases and sales, in order"} data-testid="build-path" data-path={entry.path.length}>
+      <ol ref={list} className="flex flex-wrap items-start gap-x-2.5 gap-y-1 @min-[56rem]/pg:gap-x-3 @min-[56rem]/pg:gap-y-2" aria-label={pages > 1 ? `Purchases and sales, in order: page ${Math.min(page, pages - 1) + 1} of ${pages}` : "Purchases and sales, in order"} data-testid="build-path" data-path={entry.path.length}>
         {visits.map((visit, i) => (
           <li key={i} className="flex flex-col items-start gap-0.5" hidden={pageOf ? pageOf[i] !== Math.min(page, pages - 1) : undefined} data-testid="build-visit">
             <span className="flex items-end gap-0.5">
               {visit.map((x, k) => {
                 const kind = buildItemKind(x, kinds);
                 return (
-                  <span key={k} className="relative" data-testid="build-item" data-kind={x.kind} data-done={x.done || undefined} data-minor={x.minor || undefined}>
+                  <span key={k} className={cn("relative", kind === "minor" ? "@min-[56rem]/pg:[--icon-size:1.125rem]" : "@min-[56rem]/pg:[--icon-size:1.625rem]")} data-testid="build-item" data-kind={x.kind} data-done={x.done || undefined} data-minor={x.minor || undefined}>
                     <IconImg
                       icon={x.url ? { url: x.url, name: x.name } : null}
                       size={kind === "minor" ? 16 : 22}
@@ -137,7 +150,7 @@ function BuildPath({ entry, kinds, items }: { entry: TimelinePlayerView; kinds: 
                 );
               })}
             </span>
-            <span className="text-2xs tabular-nums leading-3 text-fg-subtle">{gameClock(visit[0]!.ms)}</span>
+            <span className="text-2xs tabular-nums leading-3 text-fg-subtle @min-[56rem]/pg:text-xs @min-[56rem]/pg:leading-4">{gameClock(visit[0]!.ms)}</span>
           </li>
         ))}
       </ol>
@@ -163,7 +176,7 @@ function SkillOrder({ entry }: { entry: TimelinePlayerView | null }) {
   // One grid of every level where the panel is wide enough, else two of nine levels each. Nothing
   // under it: the order each skill was maxed and the points taken are read from the grid itself.
   const table = (from: number, to: number) => (
-    <table className="w-full table-fixed border-separate border-spacing-0.5 text-center text-2xs tabular-nums">
+    <table className="w-full table-fixed border-separate border-spacing-0.5 text-center text-2xs tabular-nums @min-[56rem]/pg:text-xs">
       <thead>
         <tr>
           <th scope="col" className="w-5 font-normal">
@@ -187,7 +200,7 @@ function SkillOrder({ entry }: { entry: TimelinePlayerView | null }) {
               const level = from + i;
               const taken = (grid.rows[k] as readonly number[]).includes(level);
               return (
-                <td key={i} className={cn("h-5 rounded-sm leading-5", taken ? (k === "R" ? "bg-accent-2/40 font-semibold text-fg" : "bg-fg/20 font-semibold text-fg") : "bg-surface-3/50")}>
+                <td key={i} className={cn("h-5 rounded-sm leading-5 @min-[56rem]/pg:h-6 @min-[56rem]/pg:leading-6", taken ? (k === "R" ? "bg-accent-2/40 font-semibold text-fg" : "bg-fg/20 font-semibold text-fg") : "bg-surface-3/50")}>
                   {taken ? k : <span className="sr-only">—</span>}
                 </td>
               );
@@ -211,9 +224,9 @@ function SkillOrder({ entry }: { entry: TimelinePlayerView | null }) {
 function Runes({ page }: { page: RunePage | null }) {
   if (!page) return <Unavailable>Rune page not stored for this game</Unavailable>;
   const rune = (r: RunePage["primary"][number], big = false) => (
-    <li key={r.name} className="flex min-w-0 items-center gap-2">
+    <li key={r.name} className={cn("flex min-w-0 items-center gap-2", big ? "@min-[56rem]/pg:[--icon-size:1.5rem]" : "@min-[56rem]/pg:[--icon-size:1.375rem]")}>
       <IconImg icon={r} size={big ? 20 : 18} rounded="rounded-full" className="bg-black/35" />
-      <span className={cn("min-w-0 truncate text-xs leading-5 @max-[17rem]/pp:whitespace-normal @max-[17rem]/pp:[overflow-wrap:anywhere]", big ? "font-semibold text-fg" : "text-fg-muted")}>{r.name}</span>
+      <span className={cn("min-w-0 truncate text-xs leading-5 @max-[17rem]/pp:whitespace-normal @max-[17rem]/pp:[overflow-wrap:anywhere] @min-[56rem]/pg:text-sm @min-[56rem]/pg:leading-6", big ? "font-semibold text-fg" : "text-fg-muted")}>{r.name}</span>
     </li>
   );
   const tree = (icon: RunePage["primaryTree"], fallback: string) => (
@@ -234,7 +247,7 @@ function Runes({ page }: { page: RunePage | null }) {
         {tree(page.secondaryTree, "Secondary")}
         <ul className="space-y-0.5">{page.secondary.map((r) => rune(r))}</ul>
         {page.shards.length ? (
-          <span className="flex items-center gap-1 pt-1" role="group" aria-label="Stat shards" data-testid="rune-shards">
+          <span className="flex items-center gap-1 pt-1 @min-[56rem]/pg:[--icon-size:1.125rem]" role="group" aria-label="Stat shards" data-testid="rune-shards">
             {page.shards.map((r, i) => (
               <IconImg key={i} icon={r} size={16} rounded="rounded-full" className="bg-black/35" />
             ))}
@@ -267,7 +280,8 @@ export function ParticipantPanels({ panel, onPanel, result, entry, page }: { pan
   const layer = (k: PanelKey) => cn("min-w-0 [grid-area:1/1]", shown !== k && "invisible");
   return (
     // Named by the view shown, without a heading element: the post-game view has no headings of its own above it (axe's heading order).
-    <section aria-label={PANELS.find((p) => p.key === shown)!.label} className="@container/pp min-w-0 space-y-1.5" data-testid="participant-panels" data-panel={shown} data-timeline-missing={missing ? "" : undefined}>
+    // It fills the height its parent gives it (the post-game view's build column from 56rem), its area taking the rest.
+    <section aria-label={PANELS.find((p) => p.key === shown)!.label} className="@container/pp flex min-w-0 flex-1 flex-col gap-1.5" data-testid="participant-panels" data-panel={shown} data-timeline-missing={missing ? "" : undefined}>
       <div className="flex min-h-8 flex-wrap items-center justify-between gap-x-2 pointer-coarse:min-h-11">
         <div role="radiogroup" aria-label="Show the build path, the skill order or the runes" className={segmentedGroupClass("flex-wrap")} data-testid="panel-tabs">
           {PANELS.map((p) => (
@@ -309,8 +323,8 @@ export function ParticipantPanels({ panel, onPanel, result, entry, page }: { pan
           <InfoTip label="About the build path" testId="build-info" text={buildTip(!!tl.itemKinds, !!tl.sales)} />
         ) : null}
       </div>
-      {/* One height for the three (the taller of the skill grid and the rune page, both always laid out in one cell): switching never moves what is under it. */}
-      <div className={cn("relative grid", !page && !skills && !missing && "min-h-28")} data-testid="panel-body">
+      {/* One height for the three (at least the taller of the skill grid and the rune page, both always laid out in one cell, and whatever more its column gives it): switching never moves what is under it. */}
+      <div className={cn("relative grid flex-1 content-start", !page && !skills && !missing && "min-h-28")} data-testid="panel-body">
         <div className={layer("runes")} data-view="runes">
           <Runes page={page} />
         </div>

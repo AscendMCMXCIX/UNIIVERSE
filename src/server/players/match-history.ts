@@ -549,7 +549,9 @@ export function gameScores(d: { participants: MatchParticipantDetail[] }, record
 }
 
 /** One player's score and place from a game's final scores (gameScores), by their place in the record. */
-export function performanceOf(scores: MatchScores | "pending" | null, slot: number): CardPerformance {
+/** A game's scores as a card reads them: how many were scored, the version, and each player's score, place, MVP and ACE (MatchScores, or a copy kept with only these). */
+export type PlacedScores = Pick<MatchScores, "scored" | "version"> & { players: ReadonlyArray<{ slot: number; score: number; rank: number; mvp: boolean; ace: boolean }> };
+export function performanceOf(scores: PlacedScores | "pending" | null, slot: number): CardPerformance {
   if (scores === "pending") return { state: "pending" };
   const mine = scores?.players.find((p) => p.slot === slot);
   return scores && mine ? { state: "ok", score: mine.score, rank: mine.rank, of: scores.scored, mvp: mine.mvp, ace: mine.ace, version: scores.version } : { state: "none" };

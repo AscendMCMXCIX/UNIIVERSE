@@ -22,6 +22,7 @@ import { EncounterLinkContext, type EncounterLink } from "./post-game";
 import { GameSteps, MatchExpansion, bringBack, holdInPlace, revealOpened, type GameNav } from "./inline-match";
 import { HistorySummaryStrip } from "./history-summary";
 import { ItemRow } from "./icon-img";
+import { CARD_BUILD_WIDTH, NO_BUILD_CLASS, noBuildWords } from "./card-build";
 import { MultikillTag } from "./multikill-tag";
 import { ScoreMark, ScoreMarkEmpty, scoreWords } from "./score-mark";
 import { ChampionLoadout, LpChange, lpSpoken, MatchRail, MatchResult, matchCardClass, matchTone } from "./match-card";
@@ -63,7 +64,9 @@ const PHONE_PER = 10;
     36–50rem     five columns in one row (portrait, result line over the champion, K/D/A, figures,
                  build), placed in order, and the teams across the next row.
     from 50rem   one row (since #271): the performance score has a column of its own right after
-                 the K/D/A (25 Nov 2026), and the teams join from 65rem.
+                 the K/D/A (25 Nov 2026), and the teams join from 65rem. Until then the build sits
+                 at its own width before the chevron and the room the teams leave goes to the
+                 champion's column (its team members' names whole), not to space after the build.
   Every phone placement is written for the narrowest card and changed from 16rem, 21.375rem and
   36rem (min-width queries only, so the wider one always wins). Under 16rem (a phone at a large
   text size: 150% on most, 125% on a 320px one) the portrait, the champion and the widest K/D/A no
@@ -73,8 +76,8 @@ const PHONE_PER = 10;
 const CARD_GRID = [
   "relative grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-2 gap-y-1 px-3 py-2.5 @max-[16rem]/mh:grid-cols-[auto_minmax(0,1fr)]",
   "@min-[36rem]/mh:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] @min-[36rem]/mh:gap-x-3 @min-[36rem]/mh:gap-y-2",
-  "@min-[50rem]/mh:grid-cols-[6.75rem_auto_minmax(6rem,0.7fr)_minmax(auto,0.5fr)_2.5rem_minmax(auto,0.6fr)_minmax(auto,2fr)_auto] @min-[50rem]/mh:gap-x-2.5 @min-[50rem]/mh:py-2",
-  "@min-[54rem]/mh:grid-cols-[6.75rem_auto_minmax(6.25rem,0.7fr)_minmax(auto,0.5fr)_2.5rem_minmax(auto,0.6fr)_minmax(auto,2fr)_auto]",
+  "@min-[50rem]/mh:grid-cols-[6.75rem_auto_minmax(6rem,1.6fr)_minmax(auto,0.5fr)_2.5rem_minmax(auto,0.6fr)_auto_auto] @min-[50rem]/mh:gap-x-2.5 @min-[50rem]/mh:py-2",
+  "@min-[54rem]/mh:grid-cols-[6.75rem_auto_minmax(6.25rem,1.6fr)_minmax(auto,0.5fr)_2.5rem_minmax(auto,0.6fr)_auto_auto]",
   "@min-[65rem]/mh:grid-cols-[6.75rem_auto_minmax(6.25rem,0.7fr)_minmax(auto,0.5fr)_2.5rem_minmax(auto,0.6fr)_auto_minmax(13rem,2fr)] @min-[65rem]/mh:gap-x-2 @min-[74rem]/mh:grid-cols-[6.75rem_auto_minmax(6.25rem,0.7fr)_minmax(auto,0.5fr)_2.5rem_minmax(auto,0.6fr)_auto_minmax(13rem,2fr)_auto] @min-[74rem]/mh:gap-x-4 @min-[76rem]/mh:gap-x-5",
 ].join(" ");
 /** The portrait: row 2 (rows 2–3 from 16rem); placed in order from 36rem. */
@@ -139,7 +142,9 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
   // (and under 16rem, at a large text size, where seven do not fit across). The line beside the
   // K/D/A sizes its tracks by their items (seven 20px items, the gaps and the trinket's margin: the
   // 154px a 21.375rem list leaves beside the widest K/D/A), so nothing is squeezed or clipped.
-  const itemRow = (className: string, trinketClassName: string) => (row.record === "stored" ? <ItemRow items={row.items} size={22} stacked className={className} trinketClassName={trinketClassName} /> : <span className="text-xs text-fg-subtle">{row.record === "missing" ? "Items being collected" : "Items not provided by Riot"}</span>);
+  // A record still being collected, or one Riot no longer serves, says so in the build's place, at
+  // the build's own width from 36rem (card-build.ts), so the columns before it keep their places.
+  const itemRow = (className: string, trinketClassName: string) => (row.record === "stored" ? <ItemRow items={row.items} size={22} stacked className={className} trinketClassName={trinketClassName} /> : <span className={NO_BUILD_CLASS} data-testid="match-items-missing">{noBuildWords(row.record)}</span>);
   const build = itemRow("grid-cols-7 @max-[16rem]/mh:grid-cols-4 @min-[36rem]/mh:grid-cols-4", "order-last ml-0.5 @max-[16rem]/mh:order-none @max-[16rem]/mh:ml-0 @min-[36rem]/mh:order-none @min-[36rem]/mh:ml-0");
   const teamsId = `teams-${row.matchId}`;
   const regionId = `match-${row.matchId}-details`;
@@ -236,9 +241,9 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
             from 50rem   one row: the result column (Victory with the length, the queue, when with
                          the LP), the champion with its spells and runes from 54rem, the KDA, the
                          performance score over its place, the figures, the build, and the teams
-                         from 65rem: narrower (1280 with the sidebar open), the build keeps the
-                         teams' place and the rosters go first (UD.H1; the breakdown's scoreboard
-                         has them). The tiers' density is D8's.
+                         from 65rem: narrower (1280 with the sidebar open), the rosters go first
+                         (UD.H1; the breakdown's scoreboard has them) and their room goes to the
+                         champion's column. The tiers' density is D8's.
           The wide thresholds follow from the row's real minimum width: the KDA and figure tracks
           are never narrower than their text (minmax(auto, …), each with a floor that the widest
           real value fits, "10 / 10 / 10" and "1,234 dmg/min (45%)", so the columns stay level from
@@ -405,14 +410,14 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           </span>
           {/* The build: a phone's card's last line under 21.375rem (from there to 36rem the copy before
               the figures is shown instead), a compact block of two rows from 36rem: at the end of a two-row card's first row, and on wide cards in its own
-              column (from 50 to 65rem in the teams' place, which the breakdown's scoreboard then holds). A build that was not
+              column (from 50 to 65rem just before the chevron, the teams left to the breakdown's scoreboard). A build that was not
               recorded draws nothing (screen readers hear it; the page's data status counts these
               games), and a card from 36rem keeps the build's room, so its columns stay level with the
               cards around it. */}
           {unrecorded ? (
             <>
               {build}
-              <span className="hidden @min-[36rem]/mh:block @min-[36rem]/mh:w-[5.875rem]" />
+              <span className={cn("hidden @min-[36rem]/mh:block", CARD_BUILD_WIDTH)} />
             </>
           ) : (
             <span className={cn("flex items-center overflow-hidden", PHONE_BUILD)} data-testid="match-card-build">
@@ -432,7 +437,7 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
             )}
           </span>
           {/* The chevron: decoration (the whole card is the button), left out from 65 to 74rem, where the teams need its room. */}
-          <ChevronRight className={cn("hidden h-4 w-4 text-fg-subtle transition-transform motion-reduce:transition-none @min-[50rem]/mh:block @min-[65rem]/mh:@max-[74rem]/mh:hidden", expanded ? "rotate-90 text-fg" : "group-hover:translate-x-0.5 group-hover:text-fg")} aria-hidden />
+          <ChevronRight className={cn("hidden h-4 w-4 text-fg-subtle transition-transform motion-reduce:transition-none @min-[50rem]/mh:block @min-[65rem]/mh:@max-[74rem]/mh:hidden", expanded ? "rotate-90 text-fg" : "group-hover:translate-x-0.5 group-hover:text-fg")} aria-hidden data-testid="match-card-chevron" />
         </span>
         )}
       </div>

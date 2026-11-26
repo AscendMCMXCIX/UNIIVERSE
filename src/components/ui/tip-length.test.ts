@@ -26,7 +26,7 @@ const HARD = 40;
 const ABOUT = 25;
 
 /** Constants whose text an InfoTip shows, by name. */
-const TIP_CONSTANTS = ["MULTIKILL_HELP", "ENCOUNTERS_CAVEAT", "EDITING_HELP", "TOGETHER_CAVEAT", "RECENT_FORM_HELP", "GENERAL_RULE_TIP"];
+const TIP_CONSTANTS = ["MULTIKILL_HELP", "ENCOUNTERS_CAVEAT", "EDITING_HELP", "TOGETHER_CAVEAT", "RECENT_FORM_HELP", "GENERAL_RULE_TIP", "SCORE_METHOD", "SCORE_METHOD_NEUTRAL"];
 
 /** Texts allowed past the limits, by a fragment of their source, with the reason. */
 const ALLOWLIST: Array<{ id: string; fragment: string; reason: string }> = [

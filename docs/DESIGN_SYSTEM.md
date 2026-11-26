@@ -67,14 +67,30 @@ decorative chrome.
     off by an overflow (e2e/match-breakdown.spec.ts and the Production check count scroll containers
     and clipped elements inside it). Fewer boxes: one surface for the scoreboard, everything else on
     the open card's own background, separated by space, never a card per figure.
-    - **Layout** (the view's own width, `@container/pg`): from 56rem two columns, the player
-      inspected (22rem; 24rem from 64rem, 27rem from 80rem) beside the scoreboard; 40–56rem (a
-      tablet) one grid: the player beside Build Path | Skill Order | Runes and the lane, the
-      scoreboard across under both; under 40rem one column. The score through the game (a chart
-      under the scoreboard, about 136px of the right column) was removed on 25 Nov 2026; its room
-      went to the scoreboard's rows (36px, 32px portraits, 22px items from a 36rem scoreboard), its
-      place badges and the inspected player's score (`text-2xl` bold with its badge). The right
-      column is now shorter than the left at every desktop width, so the fit below is unchanged. Every part above the scoreboard or beside it keeps its height whoever is inspected
+    - **Layout** (the view's own width, `@container/pg`; `VIEW_GRID` in `post-game.tsx`, its four
+      parts one grid's items in reading order: the player, the build panels, the lane, the
+      scoreboard): from 56rem two columns, the player inspected (22rem; 24rem from 64rem, 27rem from
+      80rem) over Build Path | Skill Order | Runes, beside the scoreboard over the lane; 40–56rem (a
+      tablet) the player beside the build panels and the lane, the scoreboard across under both;
+      under 40rem one column. The score through the game (a chart under the scoreboard, about 136px
+      of the right column) was removed on 25 Nov 2026; its room went to the scoreboard's rows (36px,
+      32px portraits, 22px items from a 36rem scoreboard), its place badges, the inspected player's
+      score (`text-2xl` bold with its badge) and, since 26 Nov 2026 (the review: the build had got
+      none of it, and 120px of the right column stood blank), the lane, now under the scoreboard
+      (a 21rem column) with the scoreboard's notes beside it, and the build panels: their area takes
+      whatever height the scoreboard and the lane leave beside it (the build column's row is the
+      grid's flexible one), so the two columns end level and a build path of 9–11 visits shows on
+      one page (paged one row at a time before at 1440 × 900). The notes beside the lane, not over
+      it, keep the right column the scoreboard plus the lane (about 116px, less than the chart's
+      148px with its gap), so a scoreboard with possible groups, long names and wrapping notes still
+      fits 1280 × 720: with the notes over the lane, the long-names demo's tallest game read 729px
+      there (room 668). In the two columns the figures, the other figures and the three panels are
+      a step larger (the figures `text-lg`, the other figures `text-xs`, the build's items 26px, the
+      skill grid's cells 24px, the runes 22–24px with `text-sm` names). Measured on the demo (MID's
+      six newest games): the build column and the lane both end 527–555px under the view's top at
+      1280 × 720 and 1440 × 900 (583–614px at 1920 × 1080), the panels' area 143–187px (the skill
+      grid and the rune page 122–125px), the card and its game 602–630px at 1280 × 720 (651px for
+      MID's third game before, below). Every part above the scoreboard or beside it keeps its height whoever is inspected
       (fixed lines, truncation, reserved rows: the loadout row 56px, the six figures, the other
       figures' grid with every row always drawn, the panels' area, the lane's four rows), so the rows
       never move when another player is chosen (asserted ±1px).
@@ -136,10 +152,11 @@ decorative chrome.
       skill grid and the rune page are laid out in one grid cell, the one not chosen invisible, so the
       area is as tall as the taller of the two (109px at 1280–1440, 119px at 1920, 137px at 2560, 146px
       at 3440; the constant area was 112px at 1440, 124px at 1920 and 154px at 3440), and the build
-      path is laid over it. Both have one
-      shape for every player, so inspecting another moves nothing. A one-row build path still leaves
-      the rest of the area empty (73px at 1440), the price of switching never moving the lane under
-      it. The build path is a wrapping timeline in
+      path is laid over it; from a 56rem view (two columns) the area also takes the height beside
+      it (Layout, above), and the build path's pages are laid out again when that height changes.
+      Both have one shape for every player, so inspecting another moves nothing. Under 56rem a
+      one-row build path still leaves the rest of the area empty, the price of switching never
+      moving the lane under it. The build path is a wrapping timeline in
       game order, each shop visit its items over its game time, a completed item ringed, a
       consumable or ward smaller, a sold item faded with a minus (and each in words for screen
       readers), one (i) in place of the legend; a path too long for the area is split into pages of
@@ -155,7 +172,8 @@ decorative chrome.
       team first, each team's band (its side and result in words, its kills, gold, towers, dragons
       and barons) and five rows on one grid, so K/D/A, the build, CS over damage and the score over
       its place badge sit at the same x on both teams; every row 36px (two lines; 32px until 25 Nov
-      2026) from a 30rem scoreboard,
+      2026) from a 30rem scoreboard, as tall while the scores wait for the timeline as once they
+      show (the stand-in and the score over its badge both 32px; e2e/match-breakdown.spec.ts),
       two lines on a phone (the name, the K/D/A and the score; the build, the rank and CS with
       damage; from 17.5rem to 21rem, a 320–360px phone, the score beside the K/D/A so the second
       line has the row's width), everything wrapping whole under 17.5rem. The rank is text with its tier's crest, no
@@ -169,10 +187,12 @@ decorative chrome.
       differ. Solo/Duo unless marked Flex.", or the Flex wording in a Flex game) and a check's state
       when it is running or could not ask for everyone; "Possible groups" with its (i) ("Players
       frequently seen together in earlier games. Not confirmed premades.") only where a side has
-      one; the date and patch, the bookmark and OP.GG.
+      one; the date and patch, the bookmark and OP.GG. From a 56rem view (since 26 Nov 2026) the
+      notes sit beside the lane under the scoreboard, right-aligned and wrapping in their cell
+      (the date and the patch each kept whole), instead of a line over the lane.
     - **Removed on 24 Nov 2026** (the owner's brief, §3–§7; the Production check asserts each stays
       gone): the "Compare with" select, the comparison table and the chart's second line; the
-      written why and the trend word under the name (`reasonText` and `trendOf` stay in the domain);
+      written why and the trend word under the name (`reasonText` stays in the domain; `trendOf` went with the score through the game on 25 Nov 2026);
       "Excellent"; each team's mean on a split bar and the ten score tiles (the rows carry every
       score and place); the build path's sideways row and its legend; the skill grid's sentence
       ("Maxed Q → E", the points taken); the sentences under the scoreboard (the ranks' lead, "not

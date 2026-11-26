@@ -56,9 +56,17 @@ under the budget. To check: Data jobs' tick prints yesterday's egress and its la
   games, which have no timeline, 10.2 KB, **1.7 KB a game** (2.8 KB a game sent as objects, before
   the arrays). Real PUUIDs are longer than the demo's (78 characters: about 0.5 KB more a game) and
   a stored lane timeline adds about 3–4 KB (above), so a default page of 20 real games is about
-  45–125 KB, and each "Show more" (20 more games) as much again. Against 120 MB a day that is about
-  1,000 default views for the whole budget; the page's other reads (compositions, names) are
-  unchanged.
+  45–125 KB. Against 120 MB a day that is about 1,000 default views for the whole budget; the
+  page's other reads (compositions, names) are unchanged. **"Show more"** renders the whole page
+  again with 20 more games (`?limit=` up to 500), and a render scores every game it shows, so each
+  instance keeps the scores it worked out for 15 minutes (at most 1,000 games; a game waiting for
+  its timeline keeps its trimmed record and asks again for the timeline only): on the same
+  instance the nth "Show more" reads only its 20 new games (45–125 KB), and the games kept cost the
+  members' PUUID lookup alone (measured: 0.5 KB a render on the demo, against 10.2 KB for its six
+  games read cold; its first three, then all six with three kept, read 5.6 KB each time). A fresh
+  instance, or one past the 15 minutes, reads every shown game once: at `?limit=500` about 1.1–3.1
+  MB (1–2.5% of the day's budget). Without the kept scores, the nth "Show more" read 20·(n+1)
+  games.
 - **Smaller timeline answer (Vercel to the browser):** an opened game's timeline answer no longer
   carries every player's kill, death and assist times or CS at every frame (only the score through
   the game, removed, read them): about 10–20 KB less a game, not database egress (the stored row is

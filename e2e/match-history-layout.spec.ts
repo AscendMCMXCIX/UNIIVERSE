@@ -263,7 +263,7 @@ test("a wide card's figures end before the next column, the teams keep their nam
       if (size.width >= 1000) expect(c.build, `${at}: the build is drawn`).toBe(true);
       if (size.width >= 1000) expect(c.items, `${at}: six items and the trinket`).toBe(7);
       if (size.width === 1280) {
-        expect(c.teams, `${at}: the build in the teams' place`).toBeNull();
+        expect(c.teams, `${at}: no teams (the game's scoreboard has them)`).toBeNull();
         expect(c.height, `${at}: D8's density, unchanged`).toBeLessThanOrEqual(106);
       }
       if (c.teams === null) continue;
@@ -274,6 +274,28 @@ test("a wide card's figures end before the next column, the teams keep their nam
     }
     const lefts = cards.map((c) => c.teams).filter((x): x is number => x !== null);
     if (lefts.length) expect(Math.max(...lefts) - Math.min(...lefts), `${size.width}px: the teams start at the same place on every card`).toBeLessThanOrEqual(1);
+    // Without the teams (50–65rem: 1280 with the sidebar open, 860 without), the room they leave goes
+    // to the champion's column, not to blank after the build (review of 26 Nov 2026: about 150px
+    // stood empty there while the champion's column sat at its 6.25rem floor and the line of team
+    // members in the game was cut early): the build sits at the row's end, one column gap before
+    // the chevron, and the champion's column is well past its floor (256px at 1280, the measure of
+    // 26 Nov 2026), so a line naming a team member or two keeps them whole.
+    if (size.width === 1280 || size.width === 860) {
+      const room = await page.getByTestId("match-card").evaluateAll((els) =>
+        els.map((card) => {
+          const build = card.querySelector('[data-testid="match-card-build"]')!.getBoundingClientRect();
+          const chevron = card.querySelector('[data-testid="match-card-chevron"]')!.getBoundingClientRect();
+          const grid = card.querySelector('[data-testid="match-card-grid"]')!;
+          const gap = parseFloat(getComputedStyle(grid).columnGap);
+          const champion = parseFloat(getComputedStyle(grid).gridTemplateColumns.split(" ")[2]!);
+          return { after: chevron.left - build.right - gap, champion: champion / parseFloat(getComputedStyle(document.documentElement).fontSize) };
+        }),
+      );
+      for (const [i, r] of room.entries()) {
+        expect(r.after, `${size.width}px, card ${i}: the build one gap before the chevron`).toBeLessThanOrEqual(1);
+        expect(r.champion, `${size.width}px, card ${i}: the champion's column takes the teams' room (rem)`).toBeGreaterThanOrEqual(size.width === 1280 ? 14 : 9);
+      }
+    }
 
     // Real games go further than the demo's (its deaths stop at 9): the widest K/D/A, three
     // two-digit numbers, fits the KDA column's floor, so that card stays level with the others;

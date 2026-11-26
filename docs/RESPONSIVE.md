@@ -733,9 +733,13 @@ tabs anywhere.
 
 A Match History card from 50 to 65rem of list (61rem until 25 Nov 2026, when the performance score
 took a column of its own after the K/D/A; 1280 with the sidebar open: a 60rem list) shows the
-build (the six items and the trinket, 22px) in the teams' place, and the rosters go first (UD.H1;
-S6c, 20 Nov 2026: the card showed no build there); the open game's scoreboard has the rosters. The
-card stays 90px (D8's density is unchanged), and from 65rem it shows both again. Team Matches'
+build (the six items and the trinket, 22px) at its own width before the chevron, and the rosters
+go first (UD.H1; S6c, 20 Nov 2026: the card showed no build there); the open game's scoreboard has
+the rosters. The room they leave goes to the champion's column (since 26 Nov 2026: its team
+members' names whole, not about 150px of blank after the build). The card stays 90px (D8's density
+is unchanged), and from 65rem it shows both again. A card whose items are being collected, or that
+Riot no longer serves, says so at the build's own width (5.875rem, wrapping), so its score keeps the
+column of every other card. Team Matches'
 open game has Previous and Next (the footer's, by Match History's rules: they replace `?match=`, the
 new card's header keeps its y within 1px, they are disabled at the ends and say "Game 5 of 6:
 Defeat on Ornn"); Back or Close lands on the last game viewed, with the focus on its card. A
