@@ -139,8 +139,8 @@ that lost, and that a card's or a Team Matches member's MVP is on a won game and
 Branding never changes) on a gold wash with a gold ring, **ACE** the same in the fixed violet
 (`--color-violet`), any other place ("2nd" … "10th") restrained, the secondary text on a faint
 neutral wash. MVP and ACE replace the ordinal; the ordinal stays in its words ("MVP: highest score on
-the winning team, 1st of 10"). One shape at every size (a pill, the same height and minimum width
-whatever it says). **Why** names at most two components that lifted the score most and the one that held
+the winning team, 1st of 10"). One shape at every size (a pill of one fixed height and width per
+size whatever it says, so a score beside its badge starts at one x down a column). **Why** names at most two components that lifted the score most and the one that held
 it back most, each only beyond ±0.35 (its share of the weighted mean, in words: "Stood out: strong
 vision, high kill participation. Held back by many deaths.").
 

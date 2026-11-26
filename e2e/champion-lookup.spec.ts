@@ -988,3 +988,49 @@ test("phones at 320, 375, 390 and 430, at 100% and 200% text: nothing wider than
   await page.goto("/lookup?champion=Heimerdinger&haste=20");
   await expectNoSeriousAxe(page, "a phone");
 });
+
+test("a narrow cell's series wraps between values only: no line starts with \"/\", each \"/\" ends the line of the value before it, and the seconds' \"s\" stays with the last value, at 320 and 375 (one column under the other), 390 and 412 (side by side) and at 200% text", async ({ page }, info) => {
+  test.skip(!isPhone(info.project.name), "the phone");
+  test.setTimeout(180_000);
+  // "13 / 12 / 11 / 10" then "/ 9 s", and "Mana 60 / 60 / 60" then "/ 60 / 60", on 390 and 412px phones (the owner's review of 25 Nov 2026).
+  for (const [width, height, root] of [[320, 568, 100], [375, 667, 100], [390, 844, 100], [412, 915, 100], [390, 844, 200]] as const) {
+    await page.setViewportSize({ width, height });
+    for (const path of ["/lookup?champion=AurelionSol&champion2=Nunu", "/lookup?champion=LeeSin&haste=40&champion2=Udyr&haste2=10", "/lookup?champion=Ahri&champion2=Zed"]) {
+      await page.goto(path);
+      await ready(page);
+      if (root !== 100) await page.addStyleTag({ content: `html { font-size: ${root}% !important; }` });
+      await page.evaluate(() => document.fonts.ready);
+      const where = `${path} at ${width}px, ${root}%`;
+      const m = await page.evaluate(() => {
+        const bad: string[] = [];
+        let narrow = 0;
+        let wrapped = 0;
+        for (const line of document.querySelectorAll<HTMLElement>('[data-testid="lookup-base"], [data-testid="lookup-hasted"], [data-testid="lookup-cost"][data-cost="per-rank"]')) {
+          const seps = [...line.querySelectorAll<HTMLElement>(":scope > [data-rank-separator]")];
+          // A row in columns has no separators drawn (each rank under its heading): only narrow rows say "/".
+          if (!line.getBoundingClientRect().width || !seps.length || getComputedStyle(seps[0]!).display === "none") continue;
+          narrow++;
+          const values = [...line.querySelectorAll<HTMLElement>(":scope > [data-rank]")].map((v) => v.getBoundingClientRect());
+          if (new Set(values.map((v) => Math.round(v.top))).size > 1) wrapped++;
+          const what = `${line.dataset.testid} ${line.dataset.values}`;
+          seps.forEach((sep, i) => {
+            const text = sep.firstChild!;
+            const at = text.textContent!.indexOf("/");
+            const range = document.createRange();
+            range.setStart(text, at);
+            range.setEnd(text, at + 1);
+            // On the line of the value before it: a "/" that starts a line sits a line below that value.
+            if (Math.abs(range.getBoundingClientRect().top - values[i]!.top) > 3) bad.push(`${what}: the "/" after rank ${i + 1} starts a line`);
+          });
+          const unit = line.querySelector<HTMLElement>(":scope > [data-rank-unit]");
+          if (unit && Math.abs(unit.getBoundingClientRect().top - values.at(-1)!.top) > 3) bad.push(`${what}: the "s" on a line of its own`);
+        }
+        return { narrow, wrapped, bad };
+      });
+      expect(m.narrow, `${where}: narrow rows to read`).toBeGreaterThan(0);
+      expect(m.bad, where).toEqual([]);
+      // The side-by-side columns and the large text wrap these series, so the rule is exercised, not met by one-line rows.
+      if (width >= 390) expect(m.wrapped, `${where}: some series wrap`).toBeGreaterThan(0);
+    }
+  }
+});

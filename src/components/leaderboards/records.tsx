@@ -321,6 +321,12 @@ const KIND_HEAD: Record<MultikillKey, { short: string; word: string; spoken: str
   quadra: { short: "4×", word: "Quadras", spoken: "quadra kills" },
   penta: { short: "5×", word: "Pentas", spoken: "pentakills" },
 };
+/** The score legend's three parts: the score, then what it means. */
+const LEGEND: ReadonlyArray<readonly [string, string]> = [
+  ["Below 100", "below typical"],
+  ["100", "typical"],
+  ["Above 100", "above typical"],
+];
 const KIND_WORDS: Record<MultikillKey, [string, string]> = { double: ["double", "doubles"], triple: ["triple", "triples"], quadra: ["quadra", "quadras"], penta: ["penta", "pentas"] };
 
 const MK_HEADS = (
@@ -370,19 +376,18 @@ export function Multikills({ records, player, champions, className }: { records:
             ))}
           </DataGroup>
         ) : null}
-        {/* How to read a score, always in view, right under the table. */}
-        <p className={cn("flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-0.5 py-1.5 text-xs text-fg-muted", ROW_PAD_X)} data-testid="multikill-score-legend" data-counting-rule={board.rule} data-counting-shown={board.ruleShown}>
-          <span>
-            <span className="font-medium text-fg">Below 100</span> below typical
-          </span>
-          <span>
-            <span className="font-medium text-fg">100</span> typical
-          </span>
-          <span>
-            <span className="font-medium text-fg">Above 100</span> above typical
-          </span>
+        {/* How to read a score, always in view, right under the table: its three parts each whole. On the table (from 26rem) one
+            line, each part's words together and the parts wrapping as wholes; on a phone's board, where the three do not fit one
+            line, three columns spread across the row (the first at its start, the last at its end), each score over its meaning ("Below 100" over "below typical"), rather than two parts on a
+            line and the third alone under them (the owner's review of 25 Nov 2026). The games counted take their own line there. */}
+        <p className={cn("grid min-w-0 grid-cols-[repeat(3,auto)] items-start justify-between gap-x-3 gap-y-1 py-1.5 text-xs text-fg-muted @min-[26rem]/list:flex @min-[26rem]/list:flex-wrap @min-[26rem]/list:items-baseline @min-[26rem]/list:justify-start @min-[26rem]/list:gap-y-0.5", ROW_PAD_X)} data-testid="multikill-score-legend" data-counting-rule={board.rule} data-counting-shown={board.ruleShown}>
+          {LEGEND.map(([score, meaning]) => (
+            <span key={score} className="flex min-w-0 flex-col @min-[26rem]/list:block @min-[26rem]/list:whitespace-nowrap" data-testid="multikill-legend-part">
+              <span className="font-medium text-fg">{score}</span> {meaning}
+            </span>
+          ))}
           {records.multikillShort ? (
-            <span className="ml-auto text-fg-subtle" data-testid="multikill-short">
+            <span className="col-span-full justify-self-end text-fg-subtle @min-[26rem]/list:ml-auto" data-testid="multikill-short">
               {records.multikillShort}
             </span>
           ) : null}
@@ -487,12 +492,14 @@ function MultikillRowItem({ r, p, tie, board, champions }: { r: MultikillRow; p:
         <MemberCell look={p.look} name={p.name} avatar={false} you={r.you} readName={!linked} nameHref={p.profileHref ?? undefined} nameTestId="board-member-name" nameClassName="*:wrap-break-word" className="min-w-0" />
         <RoleTip role={r.role} />
       </span>
-      {/* A phone's line of words under the name: the games and every kind (the table's columns say these from 26rem). */}
+      {/* A phone's line of words under the name: the games and every kind (the table's columns say these from 26rem). It wraps
+          between items only, each whole, and each "·" ends the line of the item before it, never starting the next ("· 2 pentas"
+          started a line until the owner's review of 25 Nov 2026). */}
       <span aria-hidden className="col-[2/4] row-[2/3] flex min-w-0 flex-wrap gap-x-1.5 self-start text-xs tabular-nums text-fg-muted @max-[15rem]/list:col-[1/-1] @max-[15rem]/list:row-[3/4] @min-[26rem]/list:hidden" data-testid="multikill-words">
         {words.map((w, i) => (
-          <span key={i} className="whitespace-nowrap">
-            {i ? <span className="text-fg-subtle">· </span> : null}
+          <span key={i} className="whitespace-nowrap" data-word="">
             {w}
+            {i < words.length - 1 ? <span className="text-fg-subtle"> ·</span> : null}
           </span>
         ))}
       </span>

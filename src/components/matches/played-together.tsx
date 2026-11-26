@@ -79,9 +79,12 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
   const champ = (id: string) => champions[id] ?? { id, name: id, portraitUrl: "" };
   const narrowed = (filters.season !== currentSeason ? 1 : 0) + (filters.queue !== "all" ? 1 : 0) + (!filters.saved && filters.min !== 2 ? 1 : 0) + (filters.with.length ? 1 : 0);
   return (
-    // The list under the header stays at the ordinary width, left-aligned, however wide Team's page is:
-    // more room never makes a game's row longer (docs/STANDARDS.md, Page layout).
-    <div className="max-w-[var(--content-max)] space-y-4" data-testid="played-together">
+    // The filters and the list take Team's whole column (--content-wide, centred by the page as every
+    // Team section is), so they start under the first tab and end under the team's name, with the
+    // same margin either side of the room beside the sidebar, open or folded (the owner's review of
+    // 25 Nov 2026: at 80rem, left-aligned, the list ended far short of its tabs at 1920 folded, 2560
+    // and 3440). docs/STANDARDS.md, Page layout.
+    <div className="space-y-4" data-testid="played-together">
       {/* From md, once the filters have scrolled away: Filters and Bookmarked at the pinned tabs' end (ui/page-toolbar.tsx). */}
       <PageToolbar label="Matches controls" land="[data-testid=together-card]">
         <FiltersControl />
@@ -267,7 +270,9 @@ function TogetherSummaryPanel({ summary: s, players, champ }: { summary: Togethe
   no score): at the end of the role's line on a phone and two to a row beside the open sidebar, where
   the name's line has no room to spare; stacked at the row's end where the row also shows the CS and
   damage (a tablet, one to a row), as a scoreboard row shows its player's. The members go two to a row once their column is 34rem wide (a
-  tablet's card, or the four columns at about 70rem); both teams sit beside them on wide cards, as
+  tablet's card, or the four columns at about 70rem), and three once it is 60rem (Team's whole 100rem
+  column, from about 1800px with the sidebar open: each row still 19rem, so its CS and damage show,
+  and a score never sits a third of the card away from its member); both teams sit beside them on wide cards, as
   in a player's Match History, and under them otherwise. The bookmark is a small control in the
   card's corner. The whole card opens the game under it, as in Match History (TogetherCardFrame);
   names and the bookmark keep their own action.
@@ -319,7 +324,7 @@ function TogetherCard({ g, p, champions, teams, scores }: { g: TogetherListGame;
           ) : null}
         </div>
         <div className="@container/members min-w-0">
-          <ul className="grid gap-x-5 gap-y-1.5 @min-[34rem]/members:grid-cols-2">
+          <ul className="grid gap-x-5 gap-y-1.5 @min-[34rem]/members:grid-cols-2 @min-[60rem]/members:grid-cols-3">
             {g.members.map((m) => {
               const pl = p(m.playerId);
               const c = champ(m.championId);

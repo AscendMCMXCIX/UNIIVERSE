@@ -662,6 +662,13 @@ test("the season records: seven cells in one panel, each opening its game; the m
   await expect(page.getByTestId("multikill-most")).toHaveCount(0);
   // The columns from a 26rem board (sentence case, never label-caps); a phone's rows say the same in words.
   const tableRem = await page.getByTestId("records-multikills").evaluate((b) => b.clientWidth / parseFloat(getComputedStyle(document.documentElement).fontSize));
+  // On the table (from 26rem) the legend's three parts read as one line from its start, each whole, 12px apart (never spread
+  // across the board); a phone's board sets them as three columns (the phone test).
+  if (tableRem >= 26) {
+    const parts = await page.getByTestId("multikill-legend-part").evaluateAll((els) => els.map((e) => ({ top: e.getBoundingClientRect().top, left: e.getBoundingClientRect().left, right: e.getBoundingClientRect().right, height: e.getBoundingClientRect().height, line: parseFloat(getComputedStyle(e).lineHeight) })));
+    for (const p of parts) expect(p.height, "each part whole on one line").toBeLessThanOrEqual(p.line + 1);
+    if (Math.max(...parts.map((p) => p.top)) - Math.min(...parts.map((p) => p.top)) <= 1) for (let i = 1; i < parts.length; i++) expect(parts[i]!.left - parts[i - 1]!.right, "packed from the start, 12px apart").toBeLessThanOrEqual(13);
+  }
   if (tableRem >= 26) {
     await expect(page.getByTestId("multikill-heads")).toBeVisible();
     const heads = (await page.getByTestId("multikill-heads").innerText()).split(/\s+/).filter(Boolean);
@@ -947,10 +954,24 @@ test("on a phone: one column, the index of the sections below Recent form jumpin
     expect(words.y, "the words under the name and the score").toBeGreaterThanOrEqual(Math.max(name.y + name.height, score.y + score.height) - 2);
     expect(score.x, "the score at the row's end").toBeGreaterThan(name.x + name.width - 1);
     expect(score.height, "a 44px Score on a touch screen").toBeGreaterThanOrEqual(44);
-    await expect(row.getByTestId("multikill-words")).toHaveText(/^\d+ games?(·\s?\d+ (doubles?|triples?|quadras?|pentas?))*$/);
+    await expect(row.getByTestId("multikill-words")).toHaveText(/^\d+ games?(\s?·\s?\d+ (doubles?|triples?|quadras?|pentas?))*$/);
+    // The line wraps between its items only, each whole, and no line starts with "·": each "·" ends the item before it ("· 2
+    // pentas" started a line until the owner's review of 25 Nov 2026).
+    const items = await row.locator("[data-testid=multikill-words] [data-word]").evaluateAll((els) => els.map((e) => ({ text: (e.textContent ?? "").replace(/\s+/g, " ").trim(), lines: new Set([...e.getClientRects()].map((r) => Math.round(r.top))).size })));
+    for (const [i, w] of items.entries()) {
+      expect(w.lines, `"${w.text}" whole on one line`).toBe(1);
+      expect(w.text, "no item starts with a separator").not.toMatch(/^·/);
+      if (i < items.length - 1) expect(w.text, "its separator at its end").toMatch(/·$/);
+    }
     // The table's cells are not drawn on a phone.
     await expect(row.getByTestId("multikill-kind").first()).toBeHidden();
   }
+  // The score legend's three parts, each whole, side by side in three columns on a phone (each score over its meaning), never two
+  // on a line and the third alone under them (the owner's review of 25 Nov 2026); the games counted after them.
+  const parts = await page.getByTestId("multikill-legend-part").evaluateAll((els) => els.map((e) => ({ text: (e.textContent ?? "").replace(/\s+/g, " ").trim(), top: e.getBoundingClientRect().top, left: e.getBoundingClientRect().left, right: e.getBoundingClientRect().right })));
+  expect(parts.map((p) => p.text)).toEqual(["Below 100 below typical", "100 typical", "Above 100 above typical"]);
+  expect(Math.max(...parts.map((p) => p.top)) - Math.min(...parts.map((p) => p.top)), "the three parts on one row").toBeLessThanOrEqual(1);
+  expect(parts[0]!.right <= parts[1]!.left && parts[1]!.right <= parts[2]!.left, "side by side, apart").toBe(true);
   await noOverflow(page);
 });
 

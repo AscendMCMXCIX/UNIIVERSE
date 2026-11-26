@@ -77,7 +77,8 @@
     opened, shows the same score and place on its scoreboard's row for the player. Since 25 Nov 2026:
     each card's place badge says its place in its colour (MVP gold on a won game, ACE violet on a lost
     one, other places neutral), the score keeps one place from card to card (a wide card's column at
-    one x, else under the K/D/A), and on Team Matches every member row shows its score and badge (or
+    one x, else under the K/D/A), every badge is one width whatever it says (so a score beside it
+    starts at one x: the visual review of 25 Nov 2026), and on Team Matches every member row shows its score and badge (or
     the dash), each place once in a game, MVP only on a won game and ACE only on a lost one. States,
     scores, places, colours compared in the page and positions only.
   - multikills (25 Nov 2026, scripts/multikill-facts.mjs): at every width, the multikill table says what

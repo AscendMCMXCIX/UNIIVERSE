@@ -61,6 +61,8 @@ export function readCardScores() {
       place: badge?.getAttribute("data-placement") ?? null,
       placeRank: num(badge?.getAttribute("data-rank")),
       tone: toneOf(badge),
+      // Its width in px (one per size whatever it says since the review of 25 Nov 2026, so a score beside it starts at one x).
+      badgeWidth: badge ? Math.round(badge.getBoundingClientRect().width * 10) / 10 : null,
       // Where the score sits: the wide card's column (its left edge), or under the K/D/A on a narrow card; the quiet dash counts where there is no score.
       slots: slot ? 1 : 0,
       column: cell ? Math.round(cell.getBoundingClientRect().left) : null,
@@ -110,6 +112,12 @@ export function cardScoreVerdicts({ kind, cards, opened }) {
   const notUnder = cards.filter((c) => c.column === null && c.underKda === false).map((c) => c.index);
   const missing = cards.filter((c) => c.slots !== 1).map((c) => c.index);
   out.push({ name: `${kind}: the score keeps one place on every card (its own column on a wide card, under the K/D/A on a narrow one, a quiet dash without a score)`, status: !cards.length ? "WARN" : spread <= 1 && !notUnder.length && !missing.length ? "PASS" : "FAIL", detail: { cards: cards.length, columns: columns.length, spread, notUnder, missing } });
+  // One badge width whatever it says (MVP and ACE as wide as "5th"), so a score beside its badge starts at one x from card to card
+  // (the review of 25 Nov 2026: MVP and ACE grew past the pill's minimum width). Within half a pixel; WARN with no badge to measure.
+  const widths = cards.filter((c) => c.state === "ok" && typeof c.badgeWidth === "number").map((c) => c.badgeWidth);
+  const widthSpread = widths.length ? Math.round((Math.max(...widths) - Math.min(...widths)) * 10) / 10 : 0;
+  const kinds = new Set(cards.filter((c) => c.state === "ok" && typeof c.badgeWidth === "number").map((c) => c.place));
+  out.push({ name: `${kind}: one place badge width whatever it says, so a score beside its badge starts at one x`, status: !widths.length ? "WARN" : widthSpread <= 0.5 ? "PASS" : "FAIL", detail: { badges: widths.length, kinds: [...kinds].sort(), widths: [...new Set(widths)].sort((a, b) => a - b), spread: widthSpread } });
   return out;
 }
 

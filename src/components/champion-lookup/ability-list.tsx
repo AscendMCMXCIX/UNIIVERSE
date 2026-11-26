@@ -209,7 +209,13 @@ function Chip({ chip }: { chip: MechanicChip }) {
   );
 }
 
-/** One line of the rank grid: its label ("base", the resource) and one value per rank, a column each, or " / " between them on a narrow row. */
+/**
+ * One line of the rank grid: its label ("base", the resource) and one value per rank, a column each,
+ * or " / " between them on a narrow row. There the line wraps between values only, each "/" kept at
+ * the end of the line it follows (a no-break space before it, a breaking one after), so no line of a
+ * series starts with "/"; the seconds' "s" is held to the last value the same way, and the label to
+ * the first (nothing breaks between them).
+ */
 function RankLine({ form, label, srLabel, values, unit, tone, testId, extra }: { form: Form; label: string; srLabel?: string; values: readonly number[]; unit: "s" | string; tone: "primary" | "base" | "cost"; testId: string; extra?: Record<string, string> }) {
   const seconds = unit === "s";
   return (
@@ -221,8 +227,8 @@ function RankLine({ form, label, srLabel, values, unit, tone, testId, extra }: {
       {values.map((v, i) => (
         <React.Fragment key={i}>
           {i > 0 ? (
-            <span aria-hidden className={form.cellOnly}>
-              {" / "}
+            <span aria-hidden className={form.cellOnly} data-rank-separator="">
+              {"\u00a0/ "}
             </span>
           ) : null}
           <span className={cn("whitespace-nowrap tabular-nums", form.value)} data-rank={i + 1}>
@@ -234,7 +240,7 @@ function RankLine({ form, label, srLabel, values, unit, tone, testId, extra }: {
       ))}
       {/* Seconds after the last value on a narrow row; a cost's resource is its label already. */}
       {seconds ? (
-        <span aria-hidden className={cn("font-normal text-fg-muted", form.cellOnly)}>
+        <span aria-hidden className={cn("font-normal text-fg-muted", form.cellOnly)} data-rank-unit="">
           {"\u00a0s"}
         </span>
       ) : null}

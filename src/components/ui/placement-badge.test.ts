@@ -52,6 +52,18 @@ describe("PlacementBadge", () => {
     expect(render({ placement: place(1, { mvp: true }), testId: "participant-mvp" })).toMatch(/data-testid="participant-mvp" data-placement="mvp" data-rank="1" data-of="10"/);
   });
 
+  it("has one fixed width per size, never a minimum one, so a score beside it starts at one x down a column (the owner's review of 25 Nov 2026: \"7.1 MVP\" sat 4px left of \"4.5 5th\")", () => {
+    const widths: Record<string, string> = { row: "w-9", card: "w-10", header: "w-10" };
+    for (const size of ["row", "card", "header"] as const) {
+      for (const p of [place(1, { mvp: true }), place(1, { ace: true }), place(3), place(10)]) {
+        const classes = classOf(render({ placement: p, size }));
+        expect(classes, `${size} ${placementWord(p)}`).toContain(widths[size]);
+        expect(classes.filter((c) => /^(min-w-|px-)/.test(c)), `${size} ${placementWord(p)}: no minimum width or side padding to widen it`).toEqual([]);
+        expect(classes).toContain("justify-center");
+      }
+    }
+  });
+
   it("speaks for itself, or stays silent where the words around it already say the place", () => {
     const spoken = render({ placement: place(1, { mvp: true }) });
     expect(spoken).toContain('<span aria-hidden="true">MVP</span><span class="sr-only">MVP: highest score on the winning team, 1st of 10</span>');

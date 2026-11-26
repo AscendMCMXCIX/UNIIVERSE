@@ -69,25 +69,44 @@ function Figure({ label, value, sub, testId }: { label: string; value: string; s
   );
 }
 
+/** Items of a line that wraps between them only (the space after each, outside them): each whole ("0 quadra"), its " ·" inside it (no break in a nowrap item), so the dot ends the line it ends and never starts the next. */
+const SEP = " ·";
+
 /**
- * The kills and the four multikills, on one line: each count with its word, "*" where only some of
- * the games are counted so far and "not counted yet" where none is (never a zero for unknown).
+ * The kills and the four multikills, on one line where it fits: each count with its word, "*" where
+ * only some of the games are counted so far and "not counted yet" where none is (never a zero for
+ * unknown). Where the line wraps (a phone, a tablet's sheet), it wraps between items only: "0 quadra"
+ * and "0 penta" stay whole and every "·" ends its line (the owner's review of 25 Nov 2026: "… · 0
+ * quadra · 0" / "penta").
  */
 function KillsLine({ f }: { f: RoleFigures }) {
   const p = f.performance;
   const m = f.multikills;
   const partial = (done: number, of: number) => (done < of ? "*" : "");
   const kills = p.totalKills === null ? "—" : `${formatCount(p.totalKills)}${partial(p.detailedGames, f.selected.games)}`;
-  const multi = !m || !m.games ? null : !m.counted ? "not counted yet" : `${MULTIKILL_KINDS.map((k) => `${formatCount(m[k.key])} ${MULTIKILL_SHORT[k.key].toLowerCase()}`).join(" · ")}${partial(m.counted, m.games)}`;
+  const kinds = !m || !m.games ? null : !m.counted ? null : MULTIKILL_KINDS.map((k) => `${formatCount(m[k.key])} ${MULTIKILL_SHORT[k.key].toLowerCase()}`);
+  const multi = !m || !m.games ? null : !m.counted ? ["not counted yet"] : kinds!.map((w, i) => (i === kinds!.length - 1 ? `${w}${partial(m.counted, m.games)}` : w));
   const some = (p.totalKills !== null && p.detailedGames < f.selected.games) || (!!m && m.counted > 0 && m.counted < m.games);
   return (
     <p className="text-sm tabular-nums text-fg-muted" data-testid="champion-preview-kills">
-      Kills <span className="font-semibold text-fg">{kills}</span>
-      {multi ? (
-        <>
-          {" · "}Multikills <span className="text-fg">{multi}</span>
-        </>
-      ) : null}
+      <span className="whitespace-nowrap" data-kills-item="">
+        Kills <span className="font-semibold text-fg">{kills}</span>
+        {multi ? SEP : null}
+      </span>
+      {multi ? " " : null}
+      {multi
+        ? multi.map((w, i) => (
+            <React.Fragment key={i}>
+              {/* The label stays with the first kind ("Multikills 2 double"). */}
+              <span className="whitespace-nowrap" data-kills-item="">
+                {i === 0 ? "Multikills " : null}
+                <span className="text-fg">{w}</span>
+                {i < multi.length - 1 ? SEP : null}
+              </span>
+              {i < multi.length - 1 ? " " : null}
+            </React.Fragment>
+          ))
+        : null}
       {some ? <span className="sr-only"> (* from some of the games only: {m ? multikillCoverage(m).label.toLowerCase() : "the rest still loading"})</span> : null}
     </p>
   );
@@ -139,12 +158,15 @@ function Figures({ f, role, champion }: { f: RoleFigures; role: Role | null; cha
 
 /**
  * Every position the champion was played in, most games first: one choice switches the whole preview
- * to it. Each says what a list icon's tooltip says, for every pointer (a touch screen has no hover):
- * the position and its games ("Top 22"), and under them its win rate and record ("50% · 11W 11L",
- * the win rate quiet under 5 games). Its accessible name says the same in words.
+ * to it. With two or more, each says what a list icon's tooltip says, for every pointer (a touch
+ * screen has no hover): the position and its games ("Top 22"), and under them its win rate and record
+ * ("50% · 11W 11L", the win rate quiet under 5 games). With one, the figures right under it are that
+ * position's, so it shows the position alone (the owner's review of 25 Nov 2026: "Support 9 / 56% ·
+ * 5W 4L" sat right above "56% / 9 games · 5W 4L"). Its accessible name says the record in words either way.
  */
 function Positions({ row, role, onRole, champion }: { row: ChampionRow; role: Role | null; onRole: (role: Role) => void; champion: string }) {
   if (!row.roles.length) return null;
+  const several = row.roles.length > 1;
   return (
     <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
       <span className="label-text" id={`positions-${row.championId}`}>
@@ -160,19 +182,21 @@ function Positions({ row, role, onRole, champion }: { row: ChampionRow; role: Ro
                 <span className="inline-flex items-center gap-1.5">
                   <RoleIcon role={r.role} decorative className="h-4 w-4" />
                   {ROLE_LABELS[r.role]}
-                  <span className="text-xs tabular-nums">{formatCount(r.games)}</span>
+                  {several ? <span className="text-xs tabular-nums">{formatCount(r.games)}</span> : null}
                 </span>
-                <span className="pl-5.5 text-xs font-normal tabular-nums" data-testid="champion-preview-role-record">
-                  <span className={cn(small && "text-fg-subtle")}>{percent(r.wins / r.games, 0)}</span>
-                  <span className={on ? "text-fg-muted" : "text-fg-subtle"}> · {record(r.wins, r.games)}</span>
-                </span>
+                {several ? (
+                  <span className="pl-5.5 text-xs font-normal tabular-nums" data-testid="champion-preview-role-record">
+                    <span className={cn(small && "text-fg-subtle")}>{percent(r.wins / r.games, 0)}</span>
+                    <span className={on ? "text-fg-muted" : "text-fg-subtle"}> · {record(r.wins, r.games)}</span>
+                  </span>
+                ) : null}
               </span>
             </button>
           );
         })}
       </div>
       <span id={`positions-${row.championId}-what`} className="sr-only">
-        The positions {champion} was played in, with the games, win rate and record in each.
+        {several ? `The positions ${champion} was played in, with the games, win rate and record in each.` : `The one position ${champion} was played in, with its games, win rate and record.`}
       </span>
     </div>
   );
@@ -190,9 +214,11 @@ export function PreviewContent({ playerId, isOwn, row, role, vs, champ, data, on
   const pane = chrome === "pane";
   return (
     <div id="champion-preview" className="@container/detail flex flex-col gap-4" data-testid="champion-preview-content" data-champion={row.championId} data-role={role ?? ""}>
-      <header className={cn("flex items-start gap-3", pane && "sticky top-[calc(var(--bar-top)+var(--tabs-top))] z-[2] -mx-5 border-b border-border/70 bg-surface px-5 pb-3 pt-4")} data-testid="champion-preview-header">
+      {/* In the sheet (its controls are the window's), the identity goes under the portrait where less than 10rem is left beside
+          it (a 320px phone at 200% text), rather than squeeze "Mastery 167K" past the sheet's edge. */}
+      <header className={cn("flex items-start gap-3", pane ? "sticky top-[calc(var(--bar-top)+var(--tabs-top))] z-[2] -mx-5 border-b border-border/70 bg-surface px-5 pb-3 pt-4" : "flex-wrap")} data-testid="champion-preview-header">
         <ChampionPortrait champion={me} size="md" className="h-12 w-12 shrink-0 rounded-lg ring-1 ring-border-strong/60" />
-        <div className="min-w-0 flex-1">
+        <div className={cn("min-w-0", pane ? "flex-1" : "grow basis-40")}>
           {pane ? (
             <h2 id={titleId} tabIndex={-1} className="text-lg font-semibold leading-tight text-fg outline-none focus-visible:outline-2 focus-visible:outline-accent">
               <span className="sr-only">Champion: </span>
@@ -206,8 +232,13 @@ export function PreviewContent({ playerId, isOwn, row, role, vs, champ, data, on
               </span>
             ) : null}
             {row.mastery?.points ? (
-              <span className="whitespace-nowrap" data-testid="champion-preview-mastery">
-                Mastery <span className="font-semibold tabular-nums text-fg">{formatCompactCount(row.mastery.points)}</span> <span className="text-fg-subtle">all positions</span>
+              // Two whole pieces, "Mastery 167K" and "all positions": at a large text size on a narrow phone they wrap between
+              // them rather than run past the sheet's edge (one unbreakable piece was cut at 320px and 200%).
+              <span data-testid="champion-preview-mastery">
+                <span className="whitespace-nowrap">
+                  Mastery <span className="font-semibold tabular-nums text-fg">{formatCompactCount(row.mastery.points)}</span>
+                </span>{" "}
+                <span className="whitespace-nowrap text-fg-subtle">all positions</span>
               </span>
             ) : null}
             {many ? (
