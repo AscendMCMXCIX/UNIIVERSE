@@ -13,7 +13,9 @@ import { RIOT_POSITION_TO_ROLE, type Role } from "@/domain/roles";
     draft games (Normal Draft, Ranked Solo/Duo, Ranked Flex, Clash) that a current team member
     played, remakes left out, by Riot's position. Not a sample of all League players.
   - The patch: the game's current patch; where the champion has fewer than MIN_SECTION_GAMES games
-    in a role on it, the previous patch is added and the words say so. Never an older patch alone.
+    in a role on it, the previous patch is added and the words say so. Never an older patch as the
+    current one: where the current patch has no game yet, the words name the previous patch alone
+    ("patch 26.21, none yet on 26.22"), never a range.
   - Each part counts its own games: runes and spells every record, stat shards only records kept
     from 20 Nov 2026, items and the skill order only games with the player's timeline.
   - Near-identical choices count as one (a family): the same core items in another order, the same

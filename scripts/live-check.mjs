@@ -1327,10 +1327,14 @@ async function championLookupFacts(page, kind) {
   await page.keyboard.press("Escape");
   await page.keyboard.press("Escape");
   // Compare: Jinx beside the first, read on the aligned board; Swap, read; then ✕ on the first column
-  // (Jinx, after the swap), which leaves the first champion alone again, read.
+  // (Jinx, after the swap), which leaves the first champion alone again, read. A step that does not
+  // finish is read as itself (judged, and named as the one that stopped); the steps after it never
+  // ran and are not judged (a ✕ never pressed leaves the page as it was before Compare).
   let dual;
   let swapped;
   let removed;
+  let step = "compare";
+  let stopped;
   try {
     await page.getByTestId("lookup-add").click({ timeout: 5_000 });
     await page.getByTestId("lookup-picker-search").fill("jinx");
@@ -1338,18 +1342,22 @@ async function championLookupFacts(page, kind) {
     await page.locator('[data-panel="2"][data-champion="Jinx"]:not([aria-busy])').waitFor({ timeout: 20_000 });
     await page.locator('[data-panel="2"] [data-testid="lookup-builds-view"]').waitFor({ timeout: 20_000 }).catch(() => {});
     dual = await page.evaluate(readChampionLookup);
+    step = "swap";
     await page.getByTestId("lookup-swap").click({ timeout: 5_000 });
     await page.locator('[data-panel="1"][data-champion="Jinx"]').waitFor({ timeout: 20_000 });
     await page.waitForFunction(() => new URLSearchParams(location.search).get("champion") === "Jinx", null, { timeout: 20_000 });
     swapped = await page.evaluate(readChampionLookup);
+    step = "remove";
     await page.locator('[data-panel="1"] [data-testid="lookup-remove"]').click({ timeout: 5_000 });
     await page.waitForFunction(() => !new URLSearchParams(location.search).has("champion2"), null, { timeout: 20_000 });
     await page.locator('[data-testid="lookup-panel"][data-panel="2"]').waitFor({ state: "detached", timeout: 20_000 });
     removed = await page.evaluate(readChampionLookup);
   } catch {
-    dual = dual ?? (await page.evaluate(readChampionLookup));
-    swapped = swapped ?? (dual ? await page.evaluate(readChampionLookup) : undefined);
-    removed = removed ?? (swapped ? await page.evaluate(readChampionLookup) : undefined);
+    stopped = step;
+    const read = await page.evaluate(readChampionLookup).catch(() => undefined);
+    if (read && step === "compare") dual = read;
+    else if (read && step === "swap") swapped = read;
+    else if (read) removed = read;
   }
   // Matchup Intel's old address: one redirect, to Champion Intel with its enemy.
   await page.goto(`${base}/resources/matchups?champion=Riven&vs=Mordekaiser`, { waitUntil: "domcontentloaded" });
@@ -1357,7 +1365,7 @@ async function championLookupFacts(page, kind) {
   const legacy = await page.evaluate(readChampionLookup);
   // The patch /api/health names (read at the start against production; a local run asks once here).
   const healthPatch = report.health ? report.health.patch : healthPatchNow();
-  for (const v of championLookupVerdicts({ kind, champion: "Ahri", at, wide, hastedRead, all, search, dual, swapped, removed, legacy, healthPatch })) check("champion-lookup", v.name, v.status, v.detail);
+  for (const v of championLookupVerdicts({ kind, champion: "Ahri", at, wide, hastedRead, all, search, dual, swapped, removed, stopped, legacy, healthPatch })) check("champion-lookup", v.name, v.status, v.detail);
 }
 
 /**

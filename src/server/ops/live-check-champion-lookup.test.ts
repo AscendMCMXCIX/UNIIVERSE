@@ -23,7 +23,7 @@ const AT: ChampionLookupRead = {
   passiveDash: "—",
   passive: "No cooldown in Riot's data—",
   passiveHasted: false,
-  rule: "iCooldowns at a haste use Riot's rule: base × 100 / (100 + haste). It applies only where Riot's data gives a cooldown. Ultimate haste isn't counted.",
+  rule: "iCooldowns at a haste use Riot's rule: base × 100 / (100 + haste), only where Riot's data gives one. Ultimate haste isn't counted.",
   limit: "AbilitiesiMechanics are named from the words of Riot's descriptions. Riot's data has no damage values or scaling, and no cooldown for passives (—).",
   range: "550",
   mechanics: 7,
@@ -42,13 +42,13 @@ const AT: ChampionLookupRead = {
   buildsLine: "From 143 games in the team's matches · patch 26.23 · all ranks · Draft and Ranked",
   buildsFew: "",
   buildsParts: [
-    { part: "runes", state: "shown", win: "54%", pick: "61%", pictures: 6, text: "" },
-    { part: "shards", state: "shown", win: "52%", pick: "40%", pictures: 3, text: "" },
-    { part: "spells", state: "shown", win: "53%", pick: "88%", pictures: 2, text: "" },
-    { part: "skills", state: "shown", win: "55%", pick: "70%", pictures: 0, text: "" },
-    { part: "start", state: "shown", win: "52%", pick: "64%", pictures: 2, text: "" },
-    { part: "boots", state: "shown", win: "51%", pick: "45%", pictures: 1, text: "" },
-    { part: "core", state: "few", win: "", pick: "", pictures: 0, text: "Too few recorded yet (18 games)" },
+    { part: "runes", state: "shown", win: "54%", pick: "61%", pictures: 8, trees: 2, text: "" },
+    { part: "shards", state: "shown", win: "52%", pick: "40%", pictures: 3, trees: 0, text: "" },
+    { part: "spells", state: "shown", win: "53%", pick: "88%", pictures: 2, trees: 0, text: "" },
+    { part: "skills", state: "shown", win: "55%", pick: "70%", pictures: 0, trees: 0, text: "" },
+    { part: "start", state: "shown", win: "52%", pick: "64%", pictures: 2, trees: 0, text: "" },
+    { part: "boots", state: "shown", win: "51%", pick: "45%", pictures: 1, trees: 0, text: "" },
+    { part: "core", state: "few", win: "", pick: "", pictures: 0, trees: 0, text: "Too few recorded yet (18 games)" },
   ],
   buildsLevel: null,
   buildsIdentity: false,
@@ -107,7 +107,25 @@ describe("Champion Intel's Production check facts", () => {
     expect(failed({ swapped: { ...SWAPPED, champion: "Ahri", secondChampion: "Jinx" } })).toHaveLength(1);
     expect(failed({ removed: { ...REMOVED, panels: 2 } })).toEqual(["desktop: ✕ on the first column leaves the second champion alone, as the first, its haste with it"]);
     expect(failed({ removed: { ...REMOVED, url: "/lookup?champion=Ahri" } })).toHaveLength(1);
-    expect(run({ swapped: undefined, removed: undefined }).some((v) => v.name.includes("Swap") || v.name.includes("first column"))).toBe(false);
+    expect(run({ swapped: undefined, removed: undefined }).some((v) => v.name.includes("Swap exchanges") || v.name.includes("✕ on the first column leaves"))).toBe(false);
+  });
+
+  it("name the step of Compare that did not finish, judge it on what the page showed, and never judge the steps after it", () => {
+    const steps = "desktop: Compare, Swap and ✕ on the first column each finished (a step that did not is named; the steps after it are not judged)";
+    const swapFact = "desktop: Swap exchanges the two champions, each with its own haste, in the address";
+    const removeFact = "desktop: ✕ on the first column leaves the second champion alone, as the first, its haste with it";
+    expect(run().find((v) => v.name === steps)?.status).toBe("PASS");
+    // Compare never opened: the page is Ahri alone, at the very address ✕ would have left. Read as Compare's step (fails); Swap and ✕ not judged, never a PASS for a ✕ never pressed.
+    const neverCompared = run({ dual: { ...REMOVED }, swapped: undefined, removed: undefined, stopped: "compare" });
+    expect(neverCompared.find((v) => v.name === steps)).toMatchObject({ status: "FAIL", detail: { stopped: "compare" } });
+    expect(neverCompared.some((v) => v.name === swapFact || v.name === removeFact)).toBe(false);
+    expect(neverCompared.filter((v) => v.status === "FAIL").map((v) => v.name)).toContain("desktop: a second champion sits beside the first at 1440 × 900, both in the address, the five abilities of each on the screen");
+    // Swap did not finish: Swap's own fact fails on the unswapped page; ✕ is not judged (no FAIL charged to it).
+    const swapStuck = run({ swapped: { ...DUAL }, removed: undefined, stopped: "swap" });
+    expect(swapStuck.filter((v) => v.status === "FAIL").map((v) => v.name).sort()).toEqual([steps, swapFact].sort());
+    expect(swapStuck.some((v) => v.name === removeFact)).toBe(false);
+    // ✕ did not finish: its own fact on the page as it was.
+    expect(failed({ removed: { ...SWAPPED }, stopped: "remove" }).sort()).toEqual([steps, removeFact].sort());
   });
 
   it("hold the champion's name whole and the haste rule and Riot's limits in their ⓘ", () => {
@@ -120,18 +138,25 @@ describe("Champion Intel's Production check facts", () => {
 
   it("hold the builds to a member's view: shown with their source line and every part, or the honest line naming the current patch; never a player's identity", () => {
     const shown = "desktop: the builds and runes are shown to a member who may see teammates' statistics: the builds, or the line that the patch has too few games yet";
-    const line = "desktop: the builds' source line says the games, the team's matches, the current patch (the previous one added only where it says so), all ranks and the queues";
+    const line = "desktop: the builds' source line says the games, the team's matches, the current patch (the previous one added, or counted alone while the current has none, only where it says so), all ranks and the queues";
+    const trees = "desktop: the runes draw both trees: the primary's before its keystone, the secondary's before its runes";
     const parts = "desktop: each part of the builds shows its choice as icons with its win rate and pick rate, or says why there is none";
     const honest = "desktop: the builds' honest line names the current patch: no build made up from too few games";
     const identity = "desktop: the builds name no player: no Riot ID or account id in them, one champion or two";
     const level = "desktop: Compare: each champion's builds on one row after R, level in both columns";
-    for (const name of [shown, line, parts, identity, level]) expect(run().find((v) => v.name === name)?.status, name).toBe("PASS");
+    for (const name of [shown, line, parts, trees, identity, level]) expect(run().find((v) => v.name === name)?.status, name).toBe("PASS");
+    // The primary tree left out (or the secondary): the runes' trees fail; judged only where the runes are shown.
+    expect(failed({ at: { ...AT, buildsParts: AT.buildsParts.map((r) => (r.part === "runes" ? { ...r, trees: 1 } : r)) } })).toEqual([trees]);
+    expect(run({ at: { ...AT, buildsParts: AT.buildsParts.map((r) => (r.part === "runes" ? { ...r, state: "few", win: "", pick: "", pictures: 0, trees: 0, text: "Too few recorded yet (12 games)" } : r)) } }).some((v) => v.name === trees)).toBe(false);
     // No section, or one that could not be read.
     expect(failed({ at: { ...AT, buildsStatus: null } })).toEqual([shown]);
     expect(failed({ at: { ...AT, buildsStatus: "unavailable" } })).toEqual([shown]);
     // The previous patch added is said; an older patch alone, or another patch, is not this one.
     expect(failed({ at: { ...AT, buildsLine: "From 31 games in the team's matches · patches 26.22–26.23 · all ranks · Ranked" } })).toEqual([]);
     expect(failed({ at: { ...AT, buildsLine: "From 31 games in the team's matches · patch 26.22 · all ranks · Ranked" } })).toEqual([line]);
+    // No game yet on the current patch: the previous patch alone, said as that, names the current one.
+    expect(failed({ at: { ...AT, buildsLine: "From 31 games in the team's matches · patch 26.22, none yet on 26.23 · all ranks · Ranked" } })).toEqual([]);
+    expect(failed({ at: { ...AT, buildsLine: "From 31 games in the team's matches · patch 26.21, none yet on 26.22 · all ranks · Ranked" } })).toEqual([line]);
     expect(failed({ at: { ...AT, buildsLine: "From 31 games · patch 26.23" } })).toEqual([line]);
     // A part with no figures, no icons, or missing.
     expect(failed({ at: { ...AT, buildsParts: AT.buildsParts.map((r) => (r.part === "runes" ? { ...r, win: "" } : r)) } })).toEqual([parts]);

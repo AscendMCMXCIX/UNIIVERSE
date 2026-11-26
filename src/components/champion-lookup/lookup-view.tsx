@@ -5,7 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowLeftRight, Columns2, LayoutGrid } from "lucide-react";
 import type { ChampionChoice } from "@/domain/champion-lookup/types";
 import type { LookupChampion } from "@/domain/champion-lookup/view";
-import { alignedStats, listedStats, rankColumns } from "@/domain/champion-lookup/board";
+import { columnStats, rankColumns } from "@/domain/champion-lookup/board";
 import { clampHaste } from "@/domain/champion-lookup/haste";
 import { SLOTS } from "@/domain/champion-lookup/types";
 import type { Role } from "@/domain/roles";
@@ -33,15 +33,19 @@ import { useRecentLookups } from "./recent";
   window of every champion, or Compare) is built on the server: until it arrives, its column says
   what is loading and is out of reach. A haste, and a builds section's role, change the page here at
   once, with no request.
-  Swap and ✕ show their result at once too, while the address catches up. "/" opens the window for
-  the champion whose column holds the focus (else the first).
+  Swap and ✕ show their result at once too, while the address catches up; while any change is on
+  its way they wait (aria-disabled, so the focus stays on them), and a champion chosen for the other
+  column meanwhile keeps the one still loading. What is typed or chosen here while the page's own
+  change is on its way (a haste, a role) stays when it arrives. "/" opens the window for the
+  champion whose column holds the focus (else the first).
 
   Compare (the owner's request of 25 Nov 2026) is one board: a narrow column of the slots' keys,
   then each champion's column, a subgrid of the board's ten rows (header, facts, the abilities'
-  heading, P, Q, W, E, R, builds, base statistics), so every row of the two champions lines up,
-  side by side at every width from a phone up; only where the board is under 17rem (a small phone at
-  a large text size) the two columns stack. Two neutral references: no colour or word says which
-  value is better, no difference is computed.
+  heading, P, Q, W, E, R, the builds' twelve rows, base statistics), so every row of the two
+  champions lines up, side by side from a 390px phone up; only where the board is under 22rem (a
+  phone of 375px or less, or a large text size) the two columns stack, so no name breaks inside a
+  word. Two neutral references: no colour or word says which value is better, no difference is
+  computed.
 */
 
 type Which = 0 | 1;
@@ -55,21 +59,10 @@ function columnKeys(a: string | null, b: string | null): [string, string] {
   return [first, second === first ? `${second}~2` : second];
 }
 
-/** A column's base statistics as it lists them: its own (one champion), or aligned with the other's row by row (Compare). */
-function statLinesOf(own: LookupChampion | null, other: LookupChampion | null, both: boolean, side: Which): StatLine[] {
-  if (!both) return listedStats(own?.facts).map((row) => ({ key: row.key, label: row.label, row }));
-  const rows = side === 0 ? alignedStats(own?.facts, other?.facts) : alignedStats(other?.facts, own?.facts);
-  return rows.map((r) => {
-    const mine = side === 0 ? r.a : r.b;
-    const theirs = side === 0 ? r.b : r.a;
-    return { key: r.key, label: (mine ?? theirs)!.label, row: mine };
-  });
-}
-
 /** Compare's narrow first column: each ability row's slot key, level with both champions' rows (drawn; each row's heading names its slot). */
 function KeyColumn({ builds }: { builds: boolean }) {
   return (
-    <div aria-hidden className="col-start-1 row-span-full hidden grid-rows-subgrid @min-[17rem]/board:grid" data-testid="lookup-key-column">
+    <div aria-hidden className="col-start-1 row-span-full hidden grid-rows-subgrid @min-[22rem]/board:grid" data-testid="lookup-key-column">
       <span className="row-start-2 border-b border-border" />
       <span className="row-start-3 border-b border-border" />
       {SLOTS.map((slot, i) => (
@@ -77,7 +70,7 @@ function KeyColumn({ builds }: { builds: boolean }) {
           <SlotKey slot={slot} />
         </span>
       ))}
-      {builds ? <span className="row-start-9 border-b border-border" /> : null}
+      {builds ? <span className="row-start-9 row-span-12 border-b border-border" /> : null}
     </div>
   );
 }
@@ -115,22 +108,29 @@ export function LookupView({
   // False on the server and while the page hydrates, then true: the page says when its controls answer.
   const ready = React.useSyncExternalStore(subscribeNothing, () => true, () => false);
   const [pending, startTransition] = React.useTransition();
-  const [target, setTarget] = React.useState<{ which: Which; champion: ChampionChoice } | null>(null);
+  // The champion each column is loading (chosen from its name or Compare), while a change is on its way.
+  const [targets, setTargets] = React.useState<Partial<Record<Which, ChampionChoice>>>({});
   const [hastes, setHastes] = React.useState<[number, number]>([clampHaste(initialHaste), clampHaste(initialHaste2)]);
-  // An address opened from elsewhere (a link, the browser's own navigation) brings its own hastes.
-  const [seen, setSeen] = React.useState<[number, number]>([initialHaste, initialHaste2]);
-  if (seen[0] !== initialHaste || seen[1] !== initialHaste2) {
-    setSeen([initialHaste, initialHaste2]);
-    setHastes([clampHaste(initialHaste), clampHaste(initialHaste2)]);
-  }
-  // Each builds section's role (the page's state, like the hastes); an address from elsewhere brings its own.
+  // Each builds section's role (the page's state, like the hastes).
   const [roleA, roleB] = initialRoles ?? [null, null];
   const [roles, setRoles] = React.useState<[Role | null, Role | null]>([roleA, roleB]);
-  const [seenRoles, setSeenRoles] = React.useState<[Role | null, Role | null]>([roleA, roleB]);
-  if (seenRoles[0] !== roleA || seenRoles[1] !== roleB) {
-    setSeenRoles([roleA, roleB]);
-    setRoles([roleA, roleB]);
+  // The page as the server sent it: champions, hastes and roles. When it changes, an address opened
+  // from elsewhere (a link, the browser's own navigation) brings its own hastes and roles; the
+  // address this page itself sent (`sent`: Swap, ✕, a champion chosen) keeps what was typed or chosen
+  // here while it was on its way (a haste typed during a swap is not undone when the swap arrives).
+  const arrived = `${lookup?.champion.id ?? ""}|${second?.champion.id ?? ""}|${initialHaste}|${initialHaste2}|${roleA ?? ""}|${roleB ?? ""}`;
+  const [seen, setSeen] = React.useState(arrived);
+  const [sent, setSent] = React.useState<string | null>(null);
+  if (seen !== arrived) {
+    setSeen(arrived);
+    if (sent !== arrived) {
+      setHastes([clampHaste(initialHaste), clampHaste(initialHaste2)]);
+      setRoles([roleA, roleB]);
+    }
+    setSent(null);
   }
+  /** The page this page's own change will arrive as (the key `arrived` will have). */
+  const sentKey = (a: string | null, b: string | null, h: readonly [number, number], r: readonly [Role | null, Role | null]) => `${a ?? ""}|${b ?? ""}|${h[0]}|${b ? h[1] : 0}|${r[0] ?? ""}|${b ? (r[1] ?? "") : ""}`;
   const [picking, setPicking] = React.useState<Which | null>(null);
   // Compare's two statistics folds, open or closed together.
   const [statsOpen, setStatsOpen] = React.useState(false);
@@ -140,17 +140,22 @@ export function LookupView({
   // Swap and ✕ show their result at once, while the address catches up: each holds the page's
   // champions as they were when it was pressed, and stops applying once the page has new ones.
   const propsKey = `${lookup?.champion.id ?? ""}|${second?.champion.id ?? ""}|${initialHaste}|${initialHaste2}`;
-  const [removed, setRemoved] = React.useState<{ which: Which; key: string } | null>(null);
+  // ✕ keeps the champion that stays as its place among the page's own (`keep`: 0 for `lookup`, 1
+  // for `second`), taken from the order shown when it was pressed, swapped or not.
+  const [removed, setRemoved] = React.useState<{ keep: Which; key: string } | null>(null);
   const [swapped, setSwapped] = React.useState<string | null>(null);
-  const removing = removed && removed.key === propsKey ? removed.which : null;
+  const keeping = removed && removed.key === propsKey ? removed.keep : null;
   const swapping = swapped === propsKey && pending;
   const base: Array<{ look: LookupChampion | null; builds: React.ReactNode }> = [
     { look: lookup, builds: builds?.first ?? null },
     { look: second, builds: builds?.second ?? null },
   ];
-  const order: Array<{ look: LookupChampion | null; builds: React.ReactNode }> = removing === 0 ? [base[1]!, { look: null, builds: null }] : removing === 1 ? [base[0]!, { look: null, builds: null }] : swapping ? [base[1]!, base[0]!] : base;
+  const order: Array<{ look: LookupChampion | null; builds: React.ReactNode }> = keeping !== null ? [base[keeping]!, { look: null, builds: null }] : swapping ? [base[1]!, base[0]!] : base;
   const first = order[0]!.look?.champion.id ?? null;
   const secondId = order[1]!.look?.champion.id ?? null;
+  // The champion each column will show: the one it is loading, else its own.
+  const loadingOf = (which: Which) => (pending ? (targets[which] ?? null) : null);
+  const meant: [string | null, string | null] = [loadingOf(0)?.id ?? first, loadingOf(1)?.id ?? secondId];
   const openerRef = React.useRef<HTMLElement | null>(null);
   // A column is out of reach (inert) while its champion loads, and the whole page while the window is
   // open: the focus goes to the chosen champion's name once it has arrived and the window has closed
@@ -164,50 +169,57 @@ export function LookupView({
     return () => window.cancelAnimationFrame(frame);
   }, [pending, picking]);
 
-  /** Builds the champion chosen for a column on the server; false when nothing changes (the same champion, or none known). */
+  /**
+   * Builds the champion chosen for a column on the server; false when nothing changes (the champion
+   * the column already shows or is loading, or none known). The other column keeps the champion it
+   * shows, or the one it is still loading.
+   */
   const go = (which: Which, id: string): boolean => {
     const c = byId.get(id);
-    if (!c) return false;
-    const current = which === 0 ? first : secondId;
-    if (id === current && !pending) return false;
+    if (!c || id === meant[which]) return false;
     setRemoved(null);
     setSwapped(null);
-    setTarget({ which, champion: c });
-    const nextHastes: [number, number] = which === 1 && !secondId ? [hastes[0], 0] : hastes;
-    if (which === 1 && !secondId) setHastes(nextHastes);
+    setTargets((now) => (pending ? { ...now, [which]: c } : { [which]: c }));
+    const nextHastes: [number, number] = which === 1 && !meant[1] ? [hastes[0], 0] : hastes;
+    if (which === 1 && !meant[1]) setHastes(nextHastes);
     // A new champion's builds open on their own default role.
     const nextRoles: [Role | null, Role | null] = which === 0 ? [null, roles[1]] : [roles[0], null];
     setRoles(nextRoles);
-    const a = which === 0 ? id : first;
-    const b = which === 1 ? id : secondId;
+    const a = which === 0 ? id : meant[0];
+    const b = which === 1 ? id : meant[1];
+    setSent(sentKey(a, b, nextHastes, nextRoles));
     startTransition(() => router.replace(intelHref({ id: a, haste: nextHastes[0], role: nextRoles[0] }, b ? { id: b, haste: nextHastes[1], role: nextRoles[1] } : null), { scroll: false }));
     return true;
   };
 
-  /** ✕ on either column: the other stays, as the first, with its own haste. */
+  /** ✕ on either column: the other stays, as the first, with its own haste. Waits while a change is on its way. */
   const remove = (which: Which) => {
-    if (!first || !secondId) return;
+    if (pending || !first || !secondId) return;
     const stays = which === 0 ? hastes[1] : hastes[0];
     const href = withoutHref({ id: first, haste: hastes[0], role: roles[0] }, { id: secondId, haste: hastes[1], role: roles[1] }, which);
-    setRemoved({ which, key: propsKey });
+    const nextRoles: [Role | null, Role | null] = [which === 0 ? roles[1] : roles[0], null];
+    // The column shown second is `lookup` when the two are shown swapped.
+    setRemoved({ keep: swapping ? which : which === 0 ? 1 : 0, key: propsKey });
     setSwapped(null);
-    setTarget(null);
+    setTargets({});
     setHastes([stays, 0]);
-    setRoles([which === 0 ? roles[1] : roles[0], null]);
+    setRoles(nextRoles);
+    setSent(sentKey(which === 0 ? secondId : first, null, [stays, 0], nextRoles));
     // The focus goes to the champion that stays, once the address has caught up.
     focusAfter.current = 0;
     startTransition(() => router.replace(href, { scroll: false }));
   };
 
-  /** Swap: the two champions change places, each with its own haste and its open folds. */
+  /** Swap: the two champions change places, each with its own haste and its open folds. Waits while a change is on its way. */
   const swap = () => {
-    if (!first || !secondId) return;
+    if (pending || !first || !secondId) return;
     const href = swappedHref({ id: first, haste: hastes[0], role: roles[0] }, { id: secondId, haste: hastes[1], role: roles[1] });
     setSwapped(propsKey);
     setRemoved(null);
-    setTarget(null);
+    setTargets({});
     setHastes([hastes[1], hastes[0]]);
     setRoles([roles[1], roles[0]]);
+    setSent(sentKey(secondId, first, [hastes[1], hastes[0]], [roles[1], roles[0]]));
     startTransition(() => router.replace(href, { scroll: false }));
   };
 
@@ -245,7 +257,8 @@ export function LookupView({
     return () => window.removeEventListener("keydown", onKey);
   }, [first, secondId]);
 
-  const loadingWords = pending && target ? `Loading ${target.champion.name}…` : "";
+  const loadingNames = ([0, 1] as const).map(loadingOf).filter((c): c is ChampionChoice => !!c).map((c) => c.name);
+  const loadingWords = loadingNames.length ? `Loading ${loadingNames.join(" and ")}…` : "";
   const recentChoices = recent.map((id) => byId.get(id)).filter((c): c is ChampionChoice => !!c);
   function openPicker(which: Which, opener: HTMLElement) {
     openerRef.current = opener;
@@ -253,10 +266,10 @@ export function LookupView({
   }
   const columnFor = (which: Which): { look: LookupChampion | null; shown: ChampionChoice | null; loading: boolean; builds: React.ReactNode } => {
     const own = order[which]!;
-    const loading = pending && target?.which === which;
-    // Each column's builds read and set that column's role.
-    const builds = own.builds ? <BuildsRoleProvider value={{ role: roles[which], setRole: (r) => setRoles((now) => (which === 0 ? [r, now[1]] : [now[0], r])) }}>{own.builds}</BuildsRoleProvider> : null;
-    return { look: own.look, shown: loading ? target!.champion : (own.look?.champion ?? null), loading, builds };
+    const target = loadingOf(which);
+    // Each column's builds read and set that column's role, and know whether they sit on Compare's rows.
+    const builds = own.builds ? <BuildsRoleProvider value={{ role: roles[which], setRole: (r) => setRoles((now) => (which === 0 ? [r, now[1]] : [now[0], r])), compare: !!order[1 - which]!.look || !!loadingOf((1 - which) as Which) }}>{own.builds}</BuildsRoleProvider> : null;
+    return { look: own.look, shown: target ?? own.look?.champion ?? null, loading: !!target, builds };
   };
   const one = columnFor(0);
   const two = columnFor(1);
@@ -264,7 +277,10 @@ export function LookupView({
   const keys = columnKeys(one.shown?.id ?? null, two.shown?.id ?? null);
 
   const ranks: [number, number] = [rankColumns(one.look?.abilities), rankColumns(two.look?.abilities)];
-  const statLines: [StatLine[], StatLine[]] = [statLinesOf(one.look, two.look, both, 0), statLinesOf(two.look, one.look, both, 1)];
+  // Each column's statistics (none for a champion whose statistics are not stored), aligned in Compare.
+  const statLines: [StatLine[], StatLine[]] = [columnStats(one.look?.facts, two.look?.facts, both), columnStats(two.look?.facts, one.look?.facts, both)];
+  // Compare: the other column's "Changed since" mark, whose room a column without one keeps.
+  const changedTwins: [string | null, string | null] = both ? [statLines[1].length ? (two.look?.facts?.statsChangedSincePatch ?? null) : null, statLines[0].length ? (one.look?.facts?.statsChangedSincePatch ?? null) : null] : [null, null];
   const mode = both ? "compare" : "single";
 
   return (
@@ -282,7 +298,8 @@ export function LookupView({
             Compare
           </button>
         ) : both ? (
-          <button type="button" onClick={swap} disabled={pending} aria-label={`Swap ${one.shown!.name} and ${two.shown!.name}`} className={toolbarButtonClass(false, "disabled:cursor-not-allowed disabled:text-fg-disabled")} data-testid="lookup-swap">
+          // aria-disabled while a change is on its way, never `disabled`: a disabled button would drop the focus of the keyboard that pressed it.
+          <button type="button" onClick={swap} aria-disabled={pending || undefined} aria-label={`Swap ${one.shown!.name} and ${two.shown!.name}`} className={toolbarButtonClass(false, "aria-disabled:cursor-not-allowed aria-disabled:text-fg-disabled aria-disabled:hover:border-border-control aria-disabled:hover:text-fg-disabled")} data-testid="lookup-swap">
             <ArrowLeftRight className="h-4 w-4" aria-hidden />
             Swap
           </button>
@@ -298,7 +315,7 @@ export function LookupView({
       </p>
       {one.shown ? (
         <div className="@container/board panel-depth overflow-hidden rounded-panel border border-border bg-surface" data-testid="lookup-board" data-layout={both ? "compare" : "single"}>
-          <div className={both ? "grid grid-cols-1 @min-[17rem]/board:grid-cols-[2.25rem_minmax(0,1fr)_minmax(0,1fr)] @min-[17rem]/board:grid-rows-[repeat(10,auto)]" : undefined}>
+          <div className={both ? "grid grid-cols-1 @min-[22rem]/board:grid-cols-[2.25rem_minmax(0,1fr)_minmax(0,1fr)] @min-[22rem]/board:grid-rows-[repeat(21,auto)]" : undefined}>
             {both ? <KeyColumn builds={!!(one.builds || two.builds)} /> : null}
             <ChampionPanel
                 key={keys[0]}
@@ -311,8 +328,10 @@ export function LookupView({
                 onHaste={(h) => setHastes((now) => [h, now[1]])}
                 onChange={(e) => openPicker(0, e.currentTarget)}
                 onRemove={both ? () => remove(0) : undefined}
+                removeWaits={pending}
                 ranks={ranks[0]}
                 statLines={statLines[0]}
+                changedTwin={changedTwins[0]}
                 builds={one.builds}
                 statsOpen={both ? statsOpen : undefined}
                 onStatsToggle={both ? setStatsOpen : undefined}
@@ -329,8 +348,10 @@ export function LookupView({
                 onHaste={(h) => setHastes((now) => [now[0], h])}
                 onChange={(e) => openPicker(1, e.currentTarget)}
                 onRemove={() => remove(1)}
+                removeWaits={pending}
                 ranks={ranks[1]}
                 statLines={statLines[1]}
+                changedTwin={changedTwins[1]}
                 builds={two.builds}
                 statsOpen={statsOpen}
                 onStatsToggle={setStatsOpen}

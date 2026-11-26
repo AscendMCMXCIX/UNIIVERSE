@@ -39,7 +39,17 @@ test("a champion with enough games: its builds and runes as icon rows, each with
   for (const name of PARTS) await expect(part(page, name), name).toHaveAttribute("data-state", "shown");
   // Icons, not lists of names: every part but the skill order draws Riot's pictures (or a stand-in).
   for (const name of PARTS.filter((p) => p !== "skills")) expect(await part(page, name).getByTestId("lookup-build-choice").locator("img, [role=img]").count(), name).toBeGreaterThan(0);
-  await expect(part(page, "skills").getByTestId("lookup-build-choice").getByRole("img")).toHaveAttribute("aria-label", /^Skill order: [QWE], then [QWE], then [QWE]\. First points [QWER], [QWER], [QWER]\.$/);
+  // The skill order's family is its max order; the first points shown are the most common among its games, said so.
+  await expect(part(page, "skills").getByTestId("lookup-build-choice").getByRole("img")).toHaveAttribute("aria-label", /^Skill order: [QWE], then [QWE], then [QWE]\. First points most often [QWER], [QWER], [QWER]\.$/);
+  await expect(part(page, "skills").getByTestId("lookup-build-choice")).toContainText(/most often first [QWER] [QWER] [QWER]/);
+  // The rune page: both trees drawn, each named (the primary's before its keystone, the secondary's before its runes), and said to be the commonest page of its keystone and secondary tree.
+  const runes = part(page, "runes").getByTestId("lookup-build-choice");
+  await expect(runes.getByTestId("lookup-build-tree")).toHaveCount(2);
+  await expect(runes.locator('[data-tree="primary"] [data-testid="lookup-build-tree"]').locator("img, [role=img]")).toHaveCount(1);
+  await expect(runes.locator('[data-tree="secondary"] [data-testid="lookup-build-tree"]').locator("img, [role=img]")).toHaveCount(1);
+  expect(await runes.locator("img, [role=img]").count()).toBe(8);
+  await expect(runes).toContainText("The most common page with this keystone and secondary tree:");
+  await expect(part(page, "core").getByTestId("lookup-build-choice")).toContainText("In their most common order:");
   await expect(part(page, "core").getByTestId("lookup-build-choice").locator("img")).toHaveCount(3);
   for (const name of PARTS.filter((p) => p !== "full")) {
     await expect(part(page, name).getByTestId("lookup-build-win"), name).toHaveText(/^\d{1,3}%$/);
@@ -55,7 +65,8 @@ test("each ⓘ says one thing in plain words, by keyboard and by touch", async (
   const win = part(page, "runes").getByTestId("lookup-build-win");
   if (info.project.name === "phone") await win.tap();
   else await win.focus();
-  await expect(page.getByTestId("lookup-build-win-bubble")).toHaveText(/^Won \d+% of the \d+ games with this rune page; \d+% of the \d+ games with a full rune page recorded made it\.$/);
+  // Counted by keystone and secondary tree (the page shown is their commonest), said so: never "this rune page".
+  await expect(page.getByTestId("lookup-build-win-bubble")).toHaveText(/^Won \d+% of the \d+ games with this keystone and secondary tree; \d+% of the \d+ games with a full rune page recorded made it\.$/);
   if (info.project.name === "phone") await page.mouse.click(5, 5);
   else await win.blur();
   const where = builds(page).getByTestId("lookup-build-where");
@@ -86,8 +97,15 @@ test("the highest win rate is another view, offered only where a common choice w
   expect(after).not.toEqual(before);
   // Never a small sample: the highest win rate's choice was made in at least 20 games.
   expect(Number(await part(page, "core").getAttribute("data-games"))).toBeGreaterThanOrEqual(20);
+  // The full build's ⓘ names the core it starts from in this view: the one with the highest win rate, not the most common.
+  const fullTip = part(page, "full").getByTestId("lookup-build-full");
+  await fullTip.focus();
+  await expect(page.getByTestId("lookup-build-full-bubble")).toHaveText(/^The core items with the highest win rate, then /);
+  await fullTip.blur();
   await mode.getByRole("radio", { name: "Most common" }).click();
   await expect(view).toHaveAttribute("data-mode", "common");
+  await part(page, "full").getByTestId("lookup-build-full").focus();
+  await expect(page.getByTestId("lookup-build-full-bubble")).toHaveText(/^The most common core items, then /);
   // One build where the two agree: no second view at all.
   await page.goto("/lookup?champion=Nasus");
   await ready(page);
@@ -129,7 +147,9 @@ test("a champion with enough games in two roles: the role is chosen here, kept i
   await expect(builds(page)).toHaveAttribute("data-role", "SUPPORT");
 });
 
-test("Compare: each champion's builds on one row after R, side by side and level; Swap keeps each role with its champion", async ({ page }, info) => {
+test("Compare: each champion's builds after R, side by side and level part by part (whatever each heading holds); Swap keeps each role with its champion", async ({ page }, info) => {
+  // Side by side from a 390px phone (the phone project's 375px stacks the two columns).
+  if (info.project.name === "phone") await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/lookup?champion=Thresh&champion2=Leona&role2=ADC");
   await ready(page);
   await expect(builds(page, 1)).toHaveAttribute("data-status", "shown");
@@ -137,11 +157,34 @@ test("Compare: each champion's builds on one row after R, side by side and level
   const slots = page.getByTestId("lookup-builds");
   await expect(slots).toHaveCount(2);
   const [a, b] = await slots.evaluateAll((els) => els.map((e) => e.getBoundingClientRect()).map((r) => ({ top: Math.round(r.top), height: Math.round(r.height), left: Math.round(r.left) })));
-  if (info.project.name !== "phone") {
-    expect(Math.abs(a!.top - b!.top), "the two builds rows level").toBeLessThanOrEqual(1);
-    expect(Math.abs(a!.height - b!.height), "the two builds rows the same height").toBeLessThanOrEqual(1);
-    expect(b!.left).toBeGreaterThan(a!.left);
-  }
+  expect(Math.abs(a!.top - b!.top), "the two builds rows level").toBeLessThanOrEqual(1);
+  expect(Math.abs(a!.height - b!.height), "the two builds rows the same height").toBeLessThanOrEqual(1);
+  expect(b!.left).toBeGreaterThan(a!.left);
+  // Thresh's heading holds the view switch, Leona's the role switch, their source lines wrap differently:
+  // every part's row still sits level with the other champion's, and each group's headings too.
+  const tops = () =>
+    page.evaluate(() =>
+      [1, 2].map((n) => {
+        const view = document.querySelector(`[data-testid="lookup-panel"][data-panel="${n}"] [data-testid="lookup-builds-view"]`)!;
+        const top = (el: Element | null) => (el ? Math.round(el.getBoundingClientRect().top) : null);
+        return {
+          parts: Object.fromEntries([...view.querySelectorAll('[data-testid="lookup-build-part"]')].map((r) => [r.getAttribute("data-part"), top(r)])),
+          heads: [...view.querySelectorAll('[data-testid="lookup-build-head"]')].map(top),
+          source: top(view.querySelector('[data-testid="lookup-build-source"]')),
+        };
+      }),
+    );
+  const level = async (where: string) => {
+    const [one, two] = await tops();
+    for (const p of ["runes", "shards", "spells", "skills", "start", "boots", "core"]) expect(Math.abs(one!.parts[p]! - two!.parts[p]!), `${where}: ${p} level in both columns`).toBeLessThanOrEqual(1);
+    one!.heads.forEach((h, i) => expect(Math.abs(h! - two!.heads[i]!), `${where}: group ${i + 1}'s headings level`).toBeLessThanOrEqual(1));
+    expect(Math.abs(one!.source! - two!.source!), `${where}: the source lines level`).toBeLessThanOrEqual(1);
+  };
+  await level("most common");
+  // The other view changes Thresh's rows only: still level.
+  await builds(page, 1).getByTestId("lookup-build-mode").getByRole("radio", { name: "Highest win rate" }).click();
+  await expect(builds(page, 1)).toHaveAttribute("data-mode", "highest");
+  await level("highest win rate");
   // Below the five abilities of their own column.
   const rBottom = await page.locator('[data-testid="lookup-panel"][data-panel="1"] [data-testid="lookup-ability"][data-slot="R"]').evaluate((e) => e.getBoundingClientRect().bottom);
   expect(a!.top).toBeGreaterThanOrEqual(rBottom - 1);

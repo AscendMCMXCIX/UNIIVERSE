@@ -35,6 +35,9 @@ describe("base statistics at Data Dragon 16.22.1", () => {
     expect(ahri.find((s) => s.key === "hp")).toEqual({ key: "hp", label: "Health", base: 590, growth: 104, growthUnit: "" });
     expect(ahri.find((s) => s.key === "attackspeed")).toEqual({ key: "attackspeed", label: "Attack speed", base: 0.668, growth: 2.2, growthUnit: "%" });
     expect(ahri.find((s) => s.key === "mp")).toMatchObject({ label: "Mana", base: 418, growth: 25 });
+    // "5 s" kept on one line (a no-break space), so a narrow column never leaves "s" alone on the next.
+    expect(ahri.find((s) => s.key === "hpregen")!.label).toBe("Health regen per 5\u00a0s");
+    expect(ahri.find((s) => s.key === "mpregen")!.label).toBe("Mana regen per 5\u00a0s");
     expect(ahri.find((s) => s.key === "attackrange")).toMatchObject({ base: 550, growth: null });
     expect(statRows(records.find((r) => r.championId === "Thresh")!.facts).find((s) => s.key === "armor")!.growth).toBeNull();
     expect(statRows(records.find((r) => r.championId === "Zed")!.facts).find((s) => s.key === "mp")).toMatchObject({ label: "Energy", base: 200, growth: null });

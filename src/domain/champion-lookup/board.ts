@@ -53,6 +53,35 @@ export function alignedStats(a: LookupFacts | null | undefined, b: LookupFacts |
   return order.map((key) => ({ key, a: left.find((s) => s.key === key) ?? null, b: right.find((s) => s.key === key) ?? null }));
 }
 
+/**
+ * One row of a column's base statistics as the column lists it: the statistic, its label, this
+ * champion's numbers (null: none in its data) and, in Compare, the other column's label where it
+ * words the row otherwise (`twin`: "Mana" beside "Energy"), whose room the row keeps (drawn
+ * invisibly), so the two columns' rows wrap alike and stay level.
+ */
+export interface ColumnStat {
+  key: StatKey;
+  label: string;
+  row: StatRow | null;
+  twin?: string;
+}
+
+/**
+ * A column's base statistics: one champion's own (listedStats), or in Compare aligned with the
+ * other champion's row by row (alignedStats: a statistic only the other has shows "—" here). None
+ * at all where this champion has no statistics stored (a record from before rules format 4, or
+ * Riot's that failed the schema): a column of "—" would say the champion has none of them, while
+ * they are only not stored yet.
+ */
+export function columnStats(own: LookupFacts | null | undefined, other: LookupFacts | null | undefined, compare: boolean): ColumnStat[] {
+  if (!own) return [];
+  if (!compare) return listedStats(own).map((row) => ({ key: row.key, label: row.label, row }));
+  return alignedStats(own, other).map((r) => {
+    const label = (r.a ?? r.b)!.label;
+    return r.b && r.b.label !== label ? { key: r.key, label, row: r.a, twin: r.b.label } : { key: r.key, label, row: r.a };
+  });
+}
+
 /** One mechanic an ability's description names, as its chip on the row. */
 export interface MechanicChip {
   kind: string;

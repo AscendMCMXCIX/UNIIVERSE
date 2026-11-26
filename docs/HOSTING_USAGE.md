@@ -29,13 +29,19 @@ instance (a per-instance cache would miss on every cold instance), keyed by the 
 window, the abilities' ranks, the item data's version and the rules' format; a page view inside the
 six hours reads nothing for them. About eleven members opening 20 champions a day, each counted at
 most four times: under 1 MB of egress a day, against the 120 MB budget; a few seconds of database
-time. The Production check opens Ahri and Jinx: at most two statements a run (and none within six
-hours of another). Vercel Active CPU: choosing and drawing the parts, a few milliseconds a view. The
+time. The Production check opens Ahri and Jinx, then Matchup Intel's old address, which lands on
+Mordekaiser and reads his builds like any champion's: at most three statements a run (and none
+within six hours of another). Vercel Active CPU: choosing and drawing the parts, a few milliseconds a view. The
 section streams in after the abilities, so the page's first answer does not wait for it. No job, no
 table, no Riot request.
 
-**If it ever weighs.** Read the statement's line in Data health's egress table (`SELECT
-match_details`, the `champion-builds` shape); a derived per-player table filled as games arrive
+**If it ever weighs.** Read the statement's line in the egress counts: a Data jobs run of `db-usage`
+lists the day's 25 largest shapes with their label and sample (`appEgress.topToday`,
+`topYesterday`), and `egress` the five largest. The builds' statement is labelled `with
+riot_accounts <hash>` (the egress shape names a statement by its first word and the first table it
+reads, here the team's accounts in its first `WITH`), its sample starting "WITH mem AS MATERIALIZED (
+SELECT ra.puuid FROM riot_accounts ra JOIN players"; `src/server/champion-builds/query.test.ts` holds
+the label to these words. A derived per-player table filled as games arrive
 would make the read smaller still, at the cost of a migration with its grants block and its own
 erasure step (the design's rejected alternative, kept for a future population source).
 

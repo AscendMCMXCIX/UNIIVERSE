@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import abilityFixture from "@/server/riot/fixtures/champion-abilities.fixture.json";
 import { MECHANIC_GROUPS } from "./mechanics";
-import { alignedStats, listedStats, mechanicChips, rankColumns } from "./board";
+import { alignedStats, columnStats, listedStats, mechanicChips, rankColumns } from "./board";
 import { lookupChampion } from "./view";
 import type { DdragonChampionAbilities } from "./types";
 
@@ -52,6 +52,28 @@ describe("the base statistics", () => {
     // The same champion twice: every row on both sides.
     expect(alignedStats(view("Ahri").facts, view("Ahri").facts).every((r) => r.a && r.b)).toBe(true);
     expect(alignedStats(null, null)).toEqual([]);
+  });
+
+  it("give each column its own list, aligned in Compare, the other's label kept where it words a row otherwise", () => {
+    const [ahri, zed, garen] = [view("Ahri").facts, view("Zed").facts, view("Garen").facts];
+    expect(columnStats(ahri, null, false).map((s) => s.key)).toEqual(listedStats(ahri).map((s) => s.key));
+    // Mana beside Energy: each column its own label, the other's as its twin (the room both rows keep).
+    expect(columnStats(ahri, zed, true).find((s) => s.key === "mp")).toMatchObject({ label: "Mana", twin: "Energy" });
+    expect(columnStats(zed, ahri, true).find((s) => s.key === "mp")).toMatchObject({ label: "Energy", twin: "Mana" });
+    expect(columnStats(ahri, zed, true).find((s) => s.key === "hp")).not.toHaveProperty("twin");
+    // A statistic only the other has: its label, no numbers ("—" on the page).
+    expect(columnStats(garen, ahri, true).find((s) => s.key === "mp")).toEqual({ key: "mp", label: "Mana", row: null });
+    expect(columnStats(garen, ahri, true).map((s) => s.key)).toEqual(columnStats(ahri, garen, true).map((s) => s.key));
+  });
+
+  it("give a column whose champion has no statistics stored none at all, alone or in Compare: never a column of \"—\"", () => {
+    const ahri = view("Ahri").facts;
+    expect(columnStats(null, ahri, true)).toEqual([]);
+    expect(columnStats(undefined, ahri, true)).toEqual([]);
+    expect(columnStats(null, null, false)).toEqual([]);
+    // The other column keeps its own table.
+    expect(columnStats(ahri, null, true).map((s) => s.key)).toEqual(listedStats(ahri).map((s) => s.key));
+    expect(columnStats(ahri, null, true).every((s) => s.row !== null && !s.twin)).toBe(true);
   });
 });
 

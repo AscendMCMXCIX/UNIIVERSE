@@ -36,15 +36,21 @@ export const PART_LABELS: Record<BuildPartKey | "full", string> = {
   full: "Full build",
 };
 
-/** What one game of each part is, in a sentence ("the 87 games with this rune page"). */
+/**
+ * What one game of each part is, in a sentence ("the 87 games with this keystone and secondary
+ * tree"): what was counted together, so a figure never claims more than it counts. A rune choice is
+ * its keystone and secondary tree (its minor runes vary; the row shows the most common page), core
+ * items are the three in any order (the row shows their most common order), a skill order is the
+ * order the skills were maxed in (its first points vary; the row says the most common).
+ */
 const PART_NOUN: Record<BuildPartKey, { choice: string; recorded: string }> = {
-  runes: { choice: "this rune page", recorded: "with a full rune page recorded" },
+  runes: { choice: "this keystone and secondary tree", recorded: "with a full rune page recorded" },
   shards: { choice: "these stat shards", recorded: "with stat shards recorded" },
   spells: { choice: "these summoner spells", recorded: "with summoner spells recorded" },
   skills: { choice: "this skill order", recorded: "with a skill order recorded" },
   start: { choice: "these starting items", recorded: "with starting items recorded" },
   boots: { choice: "this choice of boots", recorded: "with boots or three items recorded" },
-  core: { choice: "these core items", recorded: "with three items completed and recorded" },
+  core: { choice: "these core items in any order", recorded: "with three completed items recorded" },
 };
 
 const pct = (x: number) => percent(x, 0);
@@ -59,13 +65,19 @@ export function queueWords(queues: readonly number[]): string {
 
 export const QUEUE_TIP = "Normal Draft, Ranked Solo/Duo, Ranked Flex and Clash games count. Swiftplay, Quickplay, Blind Pick and ARAM do not.";
 
-/** "patch 26.22", or "patches 26.21–26.22" with the previous patch added. */
-export function patchWords(b: Pick<RoleBuilds, "patches">): string {
-  return b.patches.length > 1 ? `patches ${b.patches.at(-1)}–${b.patches[0]}` : `patch ${b.patches[0]}`;
+/**
+ * "patch 26.22", or "patches 26.21–26.22" with the previous patch added; where the current patch has
+ * no game yet (the first days of a patch), the previous patch alone, said as that: "patch 26.21, none
+ * yet on 26.22", never a range that would put the current patch in the sample.
+ */
+export function patchWords(b: Pick<RoleBuilds, "patches" | "currentGames">): string {
+  if (b.patches.length < 2) return `patch ${b.patches[0]}`;
+  return b.currentGames > 0 ? `patches ${b.patches.at(-1)}–${b.patches[0]}` : `patch ${b.patches[1]}, none yet on ${b.patches[0]}`;
 }
 
 export function patchTip(b: Pick<RoleBuilds, "patches" | "games" | "currentGames">): string {
   if (b.patches.length < 2) return `Only games on the current patch, ${b.patches[0]}.`;
+  if (b.currentGames === 0) return `Patch ${b.patches[0]} has no games yet, so only the ${games(b.games)} on ${b.patches[1]} are counted.`;
   return `Patch ${b.patches[0]} has ${games(b.currentGames)} so far, fewer than ${MIN_SECTION_GAMES}, so the ${formatCount(b.games - b.currentGames)} on ${b.patches[1]} are counted too.`;
 }
 
@@ -80,7 +92,7 @@ export function gamesTip(b: Pick<RoleBuilds, "games" | "timelineGames" | "teamGa
 }
 
 /** The whole source line in words ("From 143 games in the team's matches · patch 26.23 · all ranks · Draft and Ranked"), as the section shows it. */
-export function sourceWords(b: Pick<RoleBuilds, "games" | "patches" | "queues">): string {
+export function sourceWords(b: Pick<RoleBuilds, "games" | "patches" | "currentGames" | "queues">): string {
   return `${gamesWords(b)} in the team's matches · ${patchWords(b)} · all ranks · ${queueWords(b.queues)}`;
 }
 
@@ -100,12 +112,16 @@ export function partEmptyWords(state: "few" | "varied", total: number): string {
   return state === "few" ? `Too few recorded yet (${games(total)})` : `No common choice in ${games(total)}`;
 }
 
-/** The full build, a composition: each later item's own share. */
-export function fullTip(f: FullBuildValue): string {
+/**
+ * The full build, a composition: each later item's own share. `highest`: the "Highest win rate"
+ * view, whose full build starts from the core items with the highest win rate, not the most common.
+ */
+export function fullTip(f: FullBuildValue, highest = false): string {
   const fourth = `${pct(f.fourth.games / f.fourth.total)} of ${games(f.fourth.total)}`;
+  const core = highest ? "The core items with the highest win rate" : "The most common core items";
   return f.fifth
-    ? `The most common core items, then the items most often bought fourth (${fourth}) and fifth (${pct(f.fifth.games / f.fifth.total)} of ${formatCount(f.fifth.total)}) after them.`
-    : `The most common core items, then the item most often bought fourth after them (${fourth}).`;
+    ? `${core}, then ${highest ? "those" : "the items"} most often bought fourth (${fourth}) and fifth (${pct(f.fifth.games / f.fifth.total)} of ${formatCount(f.fifth.total)}) after them.`
+    : `${core}, then the item most often bought fourth after them (${fourth}).`;
 }
 
 /** The empty section, honestly: the current patch has too few games of this champion in any role. */
@@ -125,6 +141,12 @@ export const FULL_EMPTY_WORDS = "No common fourth item yet";
 export const NO_BOOTS = "No boots";
 /** For a screen reader, beside a row the "Highest win rate" view changed. */
 export const DIFFERS_WORDS = "(not the most common)";
+/** For a screen reader, before a rune choice's icons: its minor runes are the commonest page of its keystone and secondary tree. */
+export const RUNE_PAGE_WORDS = "The most common page with this keystone and secondary tree:";
+/** For a screen reader, before the core items' icons: the three are counted in any order. */
+export const CORE_ORDER_WORDS = "In their most common order:";
+/** Beside a skill order's keys, before its first three points: the most common among the games maxing in that order ("most often first Q E W"). */
+export const FIRST_POINTS_WORDS = "most often first";
 
 /** The role switch's name. */
 export function roleSwitchLabel(championName: string): string {

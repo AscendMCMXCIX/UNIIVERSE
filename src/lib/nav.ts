@@ -105,7 +105,7 @@ export const TEAM_SECTIONS: NavLink[] = [
  * CHAMPION INTEL (Champion Lookup until the owner's request of 24 Nov 2026, at the same address), a
  * destination of its own (the owner's request of 23 Nov 2026, in Matchup Intel's
  * place), for every signed-in account: choose any champion and read its abilities, base cooldowns
- * and those cooldowns at an ability haste, with its costs, key mechanics and base statistics, one
+ * and those cooldowns at an ability haste, with its costs, mechanics and base statistics, one
  * champion or two side by side (docs/CHAMPION_INTEL.md), at /lookup?champion=<id>&haste=<n>.
  * Matchup Intel's address, /resources/matchups with any of its parameters, leads here (its page
  * redirects, carrying one champion). Not the personal Matchups (a player's own games against an

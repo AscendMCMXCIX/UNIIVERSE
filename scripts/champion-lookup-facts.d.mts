@@ -38,7 +38,8 @@ export interface ChampionLookupRead {
   buildsStatus: string | null;
   buildsLine: string;
   buildsFew: string;
-  buildsParts: Array<{ part: string; state: string; win: string; pick: string; pictures: number; text: string }>;
+  /** Each part's row; `trees`: the rune page's tree icons drawn (two where the runes are shown). */
+  buildsParts: Array<{ part: string; state: string; win: string; pick: string; pictures: number; trees: number; text: string }>;
   /** Compare: the two builds slots level; null with fewer than two. */
   buildsLevel: boolean | null;
   buildsIdentity: boolean;
@@ -72,6 +73,8 @@ export function championLookupVerdicts(input: {
   dual?: ChampionLookupRead;
   swapped?: ChampionLookupRead;
   removed?: ChampionLookupRead;
+  /** The step of Compare, Swap and ✕ that did not finish; undefined: all finished. */
+  stopped?: "compare" | "swap" | "remove";
   legacy: Pick<ChampionLookupRead, "url" | "champion" | "heading">;
   healthPatch?: string | null;
 }): Verdict[];
