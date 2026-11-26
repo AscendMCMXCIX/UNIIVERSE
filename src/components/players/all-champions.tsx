@@ -380,12 +380,13 @@ const defaultDir = (key: SortKey): Dir => (key === "champion" ? "asc" : "desc");
 const masteryText = (n: number | null | undefined) => (n == null ? "—" : formatCompactCount(n));
 
 /**
- * My Profile → All Champions: every champion in the filtered games (season, mode, role played,
- * account), configured or not. Search by name; click any column heading to sort (again to reverse);
- * phones get a Sort by control. The first twenty, then the rest one click away. The pools on Overview stay the main view; this is for
- * exploring. A champion opens its preview (champion-preview.tsx) in the same scope: a compact panel
- * docked beside the list (the shared Peek; a sheet on a touch phone), so the list never moves; it
- * lives in the URL, so it can be linked, and Back closes it.
+ * My Profile → All Champions: one row per champion in the filtered games (season, mode, role played,
+ * account), configured or not, with the icon of every position it was played in (champion-roles.tsx).
+ * Search by name or position; click any column heading to sort (again to reverse); phones get a Sort
+ * by control. The first twenty, then the rest one click away. The pools on Overview stay the main
+ * view; this is for exploring. A champion opens its preview (champion-preview.tsx) in the same scope,
+ * in a position it was played in: a pane beside the narrowed list on a computer (no row moves, nothing
+ * covers the list), a sheet on a phone; it lives in the URL, so it can be linked, and Back closes it.
  */
 export function AllChampions({ data, basePath, championsById, playerId, isOwn, initialPreview, initialPairing, status, refresh, firstRows = FIRST }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion>; playerId: string; /** The viewer's own profile: the preview says "you". */ isOwn: boolean; /** The server's render of a linked preview (?champion=), so it opens without a request. */ initialPreview?: ChampionPreviewData | null; initialPairing?: PairingGamesData | null; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null; /** The rows shown before Show all (FIRST; smaller only for a browser test on the demo, server/demo/test-hooks.ts). */ firstRows?: number }) {
   const [query, setQuery] = React.useState("");
