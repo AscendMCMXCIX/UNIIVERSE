@@ -171,11 +171,14 @@ function RecentChampions({ last, champ, fewer }: { last: RecentForm["last"]; cha
     [more(3), "hidden board-at-mid:board-below-short:inline"],
     [more(RECENT_CHAMPIONS_SHOWN), "hidden board-at-short:inline"],
   ];
+  // The heading on a 16px line and 4px over the list (25 Nov 2026): the sentence-case label is 12px on desktops where
+  // the capitals were 11px, and with four rows a member whose Ranked progress card is taller ran 2px past a 1440 × 900
+  // window; these 4px keep the Overview on one screen (home-layout.spec, "profile Overview on one screen").
   return (
     <div className="hidden min-[90rem]:@min-[68rem]/ov:block" data-testid="recent-form-champions">
       <FitChampions
         total={rows.length}
-        heading={<h3 className="label-text">Champions in these games</h3>}
+        heading={<h3 className="label-text leading-4">Champions in these games</h3>}
         cssMore={
           more(2) ? (
             <p className="text-xs text-fg-subtle" data-testid="recent-form-champions-more">
@@ -184,7 +187,7 @@ function RecentChampions({ last, champ, fewer }: { last: RecentForm["last"]; cha
           ) : null
         }
       >
-        <ul className="mt-1.5 divide-y divide-border/60">
+        <ul className="mt-1 divide-y divide-border/60">
           {rows.map((c, i) => (
             <li key={c.id} className={cn("flex min-w-0 items-center gap-2.5 py-1", CHAMPION_ROW_FOLD(i, fewer))} data-champion={c.id} data-ov-rank={i + 1}>
               <span aria-hidden className="inline-flex">
