@@ -725,11 +725,14 @@ const peek = usePeek({ param: "player", ids, initial: searchParams.get("player")
 - **Touch:** a tap opens it; any tap closes it (on the ⓘ, the bubble or elsewhere) and that tap does
   nothing else; scrolling closes it.
 - **Placement:** above, else below, 8px inside the screen, never over its trigger; where neither side
-  has room, a small sheet at the screen's far edge with the same text. Never a bubble that scrolls.
+  has room for the body-size bubble (large text on a small phone), the compact bubble (12px, up to
+  18rem, the size before 25 Nov 2026; `tipStep`), and only where that has no room either, a small
+  sheet at the screen's far edge with the same text. Never a bubble that scrolls.
 - **Text:** one concept in plain words, one or two short sentences, at most about 25 words
   (`tip-length.test.ts`; STANDARDS, "Tooltips"), in the page's words, no needless maths or
   thresholds. Since 25 Nov 2026 the bubble's text is the body size (14px, `text-sm`; 12px before),
-  in a bubble up to 20rem wide (18rem before), so a tip of 25 words keeps about four lines. Essential
+  in a bubble up to 20rem wide (18rem before), so a tip of 25 words keeps about four lines, wherever
+  it fits beside its trigger (see Placement). Essential
   information is visible without it; a detailed breakdown is the shared breakdown popover, never a
   giant bubble. A tip on a text trigger (children) can wrap a badge or a chip, as the LP and
   the Best chip on a match card, Setup incomplete, Riot accounts' Main and Alt and "Changed since the
@@ -999,7 +1002,7 @@ With #216 (the navigation session; the full wording is in RESPONSIVE.md → Shel
       account card and the Add button's row: `AccountsSkeleton`, 20 Nov 2026), and a profile opened from
       outside it as its band, tabs and section. Leaderboards and Team Matches had theirs.
     - *The 12px floor* (UD.X5): `text-2xs` is 12px on desktops (lg), 11px on phones and tablets,
-      one token for every use (globals.css); uppercase labels (and `label-caps`) keep 11px. The game cards of Match History and Team Matches
+      one token for every use (globals.css); uppercase labels keep 11px (the retired `label-caps` did too). The game cards of Match History and Team Matches
       took it in Release 11 after a measured pass at 1024, 1280, 1366, 1440, 1536, 1920 and 2560: no new wrap,
       the build whole, heights +1px at most. Where the card holds the build and the teams (a 61–70rem list,
       1366 and 1440 with the sidebar open) its columns stay 10px apart (16px from 70rem), which gives the

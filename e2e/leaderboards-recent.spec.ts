@@ -485,12 +485,34 @@ test("the data status ends the scope line, and never takes a line of its own", a
   await open(page, BOARDS);
   await expect(page.getByTestId("scope-label").getByTestId("leaderboards-status")).toHaveCount(1);
   test.skip(info.project.name !== "phone", "the narrow widths are the phone's");
-  for (const width of [320, 375]) {
+  // Since 25 Nov 2026 the line reads "N active players ⓘ · Season ⓘ" (the owner's Leaderboards requirements: the
+  // active players and the records' season), so the status no longer always fits on the count's line: it ends the
+  // season's line instead, the two taking the next line together where they do not fit beside the count (a phone with
+  // the status in words, "Syncing", as another spec's sync leaves it; a larger text size). The count's ⓘ stays with it.
+  for (const [width, root] of [[320, 100], [375, 100], [320, 200], [375, 200]] as const) {
+    const at = `${width}px at ${root}%`;
     await page.setViewportSize({ width, height: 667 });
-    const count = (await page.getByTestId("scope-count").boundingBox())!;
-    const status = (await page.getByTestId("leaderboards-status").boundingBox())!;
-    expect(Math.abs(count.y + count.height / 2 - (status.y + status.height / 2)), `${width}px: the ⓘ on the count's line`).toBeLessThanOrEqual(6);
+    await page.evaluate((size) => { document.documentElement.style.fontSize = size; }, `${root}%`);
+    await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
+    const f = await page.evaluate(() => {
+      const box = (sel: string) => document.querySelector(sel)!.getBoundingClientRect();
+      const count = box("[data-testid=scope-count]");
+      const tip = box("[data-testid=scope-tip]");
+      const season = box("[data-testid=records-season-label], [data-testid=records-season]");
+      const status = box("[data-testid=leaderboards-status]");
+      const mid = (r: DOMRect) => r.top + r.height / 2;
+      return {
+        tipWithCount: Math.abs(mid(tip) - mid(count)) <= 6,
+        // Beside the season (on a line it shares with it), after it, never on a line alone.
+        withSeason: status.top < season.bottom && status.bottom > season.top,
+        afterSeason: status.left >= season.right - 0.5,
+        inside: status.right <= document.documentElement.clientWidth + 0.5,
+        sideways: document.documentElement.scrollWidth - document.documentElement.clientWidth,
+      };
+    });
+    expect(f, at).toEqual({ tipWithCount: true, withSeason: true, afterSeason: true, inside: true, sideways: 0 });
   }
+  await page.evaluate(() => { document.documentElement.style.fontSize = ""; });
 });
 
 test("while it loads, the page shows the board's shape at the page's own width", async ({ page }, info) => {

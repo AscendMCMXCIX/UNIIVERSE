@@ -163,10 +163,11 @@
    "small": 0
   },
   "p-accounts@se1-150": {
-   "screens": 1.67,
-   "frame": 0.4,
-   "frameScrolled": 0.14,
-   "small": 0
+   "screens": 2.07,
+   "frame": 0.45,
+   "frameScrolled": 0.16,
+   "small": 0,
+   "why": "26 Nov 2026: measured on a page wider than the phone until then. A Riot account's row was as wide as its Riot ID (364px at 320px and 150%), so the phone's layout viewport grew to it and the page was measured zoomed out (1.54 screens, the frame 0.39), its overflow unseen (counted against innerWidth, which grew with it). The row now fits (its Riot ID wraps, its controls under it where they leave too little room), and overflow is counted against the screen: measured 2.03, the frame 0.44 and 0.15 scrolled."
   },
   "me@se1-150": {
    "screens": 1.02,

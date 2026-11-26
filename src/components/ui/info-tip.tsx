@@ -25,6 +25,17 @@ export function placeTip(anchor: { left: number; top: number; bottom: number; wi
   return { side: "sheet", edge: (anchor.top + anchor.bottom) / 2 > viewport.height / 2 ? "top" : "bottom" };
 }
 
+/**
+ * What an open bubble does with placeTip's answer: it lands there; or, where neither side has room
+ * for it at the body text size (large text on a small phone), it is drawn compact first (12px, as
+ * every bubble was before 25 Nov 2026, in a bubble up to 18rem wide) and placed again; only where the
+ * compact bubble has no room either does it open as the sheet. The body size stays wherever it fits.
+ */
+export function tipStep(target: ReturnType<typeof placeTip>, compact: boolean): "land" | "compact" | "sheet" {
+  if (target.side !== "sheet") return "land";
+  return compact ? "sheet" : "compact";
+}
+
 /** How long a mouse rests on a trigger before its bubble opens (none on keyboard focus or a tap). */
 export const HOVER_OPEN_MS = 150;
 /** How long after the pointer leaves both the trigger and its bubble the bubble closes (the way across the gap). */
@@ -94,7 +105,8 @@ export function restsAfterMovingOnto(trigger: { contains(other: Node | null): bo
  *   button under it. Scrolling closes it.
  * - **Escape** closes the bubble alone, never the window or the list it sits in.
  * - **Placement** (placeTip): above, else below, 8px inside the screen, never over its own trigger;
- *   where neither side has room, a small sheet at the screen's far edge with the same text. Never a
+ *   where neither side has room at the body text size, the compact bubble (tipStep), and only where
+ *   that has none either, a small sheet at the screen's far edge with the same text. Never a
  *   bubble that scrolls inside itself. Drawn in a layer above the page, or inside the window the
  *   trigger sits in (tipHost), and placed again at every frame while that window moves (landAt,
  *   moving).
@@ -110,6 +122,8 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
   const [pos, setPos] = React.useState<{ left: number; top: number; side: "top" | "bottom" } | null>(null);
   // Where neither side has room: a sheet at this edge of the screen, until it closes.
   const [sheet, setSheet] = React.useState<"top" | "bottom" | null>(null);
+  // Drawn compact (tipStep): the body-size bubble had room on neither side. Until it closes.
+  const [compact, setCompact] = React.useState(false);
   // Where the open bubble is drawn, chosen as it opens (tipHost).
   const [host, setHost] = React.useState<HTMLElement | null>(null);
   const trigger = React.useRef<HTMLButtonElement>(null);
@@ -138,6 +152,9 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
     const landed = b.getBoundingClientRect();
     // The screen as fixed positioning sees it, the box the tip is placed in (lib/screen.ts).
     const target = placeTip(t.getBoundingClientRect(), landed, screenBox());
+    const next = tipStep(target, b.dataset.compact === "true");
+    // Drawn compact, then placed again (the layout effect below, before it is shown).
+    if (next === "compact") return setCompact(true);
     if (target.side === "sheet") {
       setSheet(target.edge);
       return;
@@ -150,7 +167,7 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
 
   React.useLayoutEffect(() => {
     if (open) place();
-  }, [open, place]);
+  }, [open, compact, place]);
 
   const show = React.useCallback((viaTap = false) => {
     clearTimers();
@@ -159,6 +176,7 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
       if (!was) {
         setPos(null);
         setSheet(null);
+        setCompact(false);
         setHost(tipHost(trigger.current));
       }
       return true;
@@ -343,8 +361,10 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
                 sheetOpen
                   ? cn("inset-x-0 px-safe-4 py-3 text-sm leading-normal motion-safe:fade-in", sheet === "bottom" ? "bottom-0 rounded-t-[1.25rem] border-b-0 pb-safe-4" : "top-0 rounded-b-[1.25rem] border-t-0 pt-safe-4")
                   : cn(
-                      // The body text size (25 Nov 2026, the owner's readability request: 12px before), a line about as long as it was.
-                      "w-max max-w-[min(20rem,calc(100%-16px))] rounded-md px-3 py-2 text-sm leading-snug motion-safe:animate-[fade-in_100ms_ease-out]",
+                      "w-max rounded-md leading-snug motion-safe:animate-[fade-in_100ms_ease-out]",
+                      // The body text size (25 Nov 2026, the owner's readability request: 12px before), a line about as long as it was;
+                      // compact (12px, as before) only where that has room on neither side of the trigger (tipStep).
+                      compact ? "max-w-[min(18rem,calc(100%-16px))] px-2.5 py-1.5 text-xs" : "max-w-[min(20rem,calc(100%-16px))] px-3 py-2 text-sm",
                       // The 6px between the bubble and its trigger belongs to the bubble, so a pointer crossing it stays in one visit.
                       "before:absolute before:inset-x-0 before:h-1.5 before:content-['']",
                       pos?.side === "bottom" ? "before:bottom-full" : "before:top-full",
@@ -352,6 +372,7 @@ export function InfoTip({ text, className, label, children, testId = "info-tip",
               )}
               data-testid={`${testId}-bubble`}
               data-sheet={sheet ?? undefined}
+              data-compact={compact || undefined}
               onPointerDown={(e) => e.stopPropagation()}
               onPointerEnter={(e) => {
                 if (e.pointerType === "mouse") stay();

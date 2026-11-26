@@ -194,7 +194,7 @@ phones and a tablet, and at 200% text.
 | Card Studio's parts | 11px uppercase `fg-subtle` titles | 14px `fg` headings; Undo and Reset `fg-muted` | headings of the studio's parts |
 | Disabled controls | opacities from 30% to 70% across 25 places; a disabled segment `fg-subtle` at 60% | one look: `fg-disabled`, the not-allowed cursor, no hover; a filled button on the neutral fill | "disabled" read differently on every page |
 | Zero counts (role segments, Resources' index) | `fg-subtle` at 60% (3:1, under AA) | plain `fg-subtle` | a zero is not disabled |
-| InfoTip bubble | 12px in an 18rem bubble | 14px in a 20rem bubble | the body size, about the same number of lines |
+| InfoTip bubble | 12px in an 18rem bubble | 14px in a 20rem bubble (12px in 18rem only where that has no room beside its trigger) | the body size, about the same number of lines |
 | Tips | Recent form 31 words with four thresholds; the rank's tip 38 words, three concepts; the Riot credential's legend of three states; Social links' 44-word help | 25, about 20, one state, 27 words (docs/HELP_TEXT.md, "25 Nov 2026") | one concept a tip, plain words |
 
 Kept, and why: Team Overview's card face (approved: its capitals, sizes and colours as they were,

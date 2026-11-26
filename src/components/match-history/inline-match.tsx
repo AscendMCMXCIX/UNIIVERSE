@@ -101,7 +101,7 @@ export interface GameNav {
   go: (matchId: string) => void;
 }
 
-const STEP = "inline-flex h-9 items-center gap-1 rounded-lg px-2.5 text-xs font-medium text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:pointer-events-none disabled:opacity-40 pointer-coarse:h-11";
+const STEP = "inline-flex h-9 items-center gap-1 rounded-lg px-2.5 text-xs font-medium text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:text-fg-disabled disabled:hover:bg-transparent disabled:hover:text-fg-disabled pointer-coarse:h-11";
 
 /**
  * After Previous or Next the pressed button is in the new game (the old one closed with it): the

@@ -37,3 +37,25 @@ describe("the preview's answers (cacheFor, answerFrom)", () => {
     expect(await answerFrom(cache, "gwen", async () => ok("asked"))).toEqual(ok("asked"));
   });
 });
+
+describe("closing the preview leaves the list where the reader is (keepListPlace)", () => {
+  it("the list's entry restores no scroll while the preview's entry is on top of it; the preview's keeps the browser's own; closing gives the list's back", async () => {
+    const { keepListPlace } = await import("./preview-data");
+    // The History API's scroll restoration belongs to the current entry: the list's until the push, the preview's after it.
+    const entries: Array<{ mode: ScrollRestoration }> = [{ mode: "auto" }];
+    const history = {
+      get scrollRestoration() {
+        return entries.at(-1)!.mode;
+      },
+      set scrollRestoration(mode: ScrollRestoration) {
+        entries.at(-1)!.mode = mode;
+      },
+    };
+    const restore = keepListPlace(history, () => entries.push({ mode: history.scrollRestoration }));
+    expect(entries.map((e) => e.mode), "the list's entry manual, the preview's the browser's own").toEqual(["manual", "auto"]);
+    // Back over the preview's entry: the list's is current again, and gets the browser's restoration back once the preview has closed.
+    entries.pop();
+    restore();
+    expect(entries.map((e) => e.mode)).toEqual(["auto"]);
+  });
+});

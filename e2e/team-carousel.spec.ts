@@ -247,6 +247,41 @@ test.describe("phones", () => {
     expectOneCard(await view(page), "MID", "after quick presses");
   });
 
+  test("a key pressed as the carousel comes to rest moves on from that card: the rest heard after it never stops the move", async ({ page }) => {
+    await page.goto("/team");
+    await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");
+    await lineupAtRest(page);
+    const dots = page.getByTestId("lineup-indicator").getByRole("tab");
+    await expect(dots.nth(0)).toHaveAttribute("aria-selected", "true");
+    // The next → is pressed at the very moment the move to Jungle ends: heard first (as the page's
+    // capture), before the track itself hears that rest. That rest once placed the cards round Jungle
+    // and set the track's scroll, which stopped the move to Mid: the track stayed on Jungle, the
+    // focus on Mid's dot (seen under load in the full suite: ← from the first dot left the focus on it).
+    await page.evaluate(() => {
+      const track = document.querySelector<HTMLElement>("[data-testid=lineup-overview]")!;
+      const jungle = track.querySelector<HTMLElement>("[data-testid=lineup-row-JUNGLE]")!;
+      const centred = () => {
+        const t = track.getBoundingClientRect();
+        const r = jungle.getBoundingClientRect();
+        return Math.abs(r.left + r.width / 2 - (t.left + t.width / 2)) < 1;
+      };
+      const onEnd = (e: Event) => {
+        if (e.target !== track || !centred()) return;
+        document.removeEventListener("scrollend", onEnd, true);
+        document.activeElement!.dispatchEvent(new KeyboardEvent("keydown", { key: "ArrowRight", bubbles: true, cancelable: true }));
+        (window as unknown as { __pressedAtRest: boolean }).__pressedAtRest = true;
+      };
+      document.addEventListener("scrollend", onEnd, true);
+    });
+    await dots.nth(0).focus();
+    await page.keyboard.press("ArrowRight");
+    await expect.poll(() => page.evaluate(() => (window as unknown as { __pressedAtRest?: boolean }).__pressedAtRest === true), { message: "the second → pressed as the move to Jungle ended" }).toBe(true);
+    await expect(dots.nth(2)).toBeFocused();
+    await expect.poll(() => offCentre(page.getByTestId("lineup-row-MID")), { message: "the move to Mid went on to its end" }).toBeLessThanOrEqual(0.5);
+    await expect(dots.nth(2)).toHaveAttribute("aria-selected", "true");
+    expectOneCard(await view(page), "MID", "after a key pressed at rest");
+  });
+
   test("Edit lineup works on any card of the carousel, and its sheet keeps its arrow keys; a turned card stays turned while the carousel moves", async ({ page }) => {
     await page.goto("/team");
     await expect(page.getByTestId("lineup-overview")).toHaveAttribute("data-ready", "true");

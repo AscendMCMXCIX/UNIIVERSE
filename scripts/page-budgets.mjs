@@ -154,7 +154,12 @@ export async function measure(page) {
       }
       content = dialog.getBoundingClientRect().height + extra;
     }
-    return { screens: Math.round((content / h) * 100) / 100, overflow: Math.max(0, doc.scrollWidth - innerWidth), small: small.length, smallNames: small.slice(0, 12) };
+    // Sideways overflow against the screen's own width (the root's clientWidth): on a phone the layout
+    // viewport grows to a page wider than the screen (innerWidth with it), so measured against
+    // innerWidth such a page read 0, and its height was measured against a zoomed-out screen (Riot
+    // accounts at 320 x 568 and 150%, 26 Nov 2026: a 364px-wide page counted 1.54 screens for 2.03).
+    const overflow = Math.max(0, doc.scrollWidth - doc.clientWidth, innerWidth - doc.clientWidth);
+    return { screens: Math.round((content / h) * 100) / 100, overflow, small: small.length, smallNames: small.slice(0, 12) };
   });
   return { ...rest, frame: atRest, frameScrolled: scrolled };
 

@@ -171,7 +171,7 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
 }
 
 /** Previous and Next under a phone's game: 44px at every text size (a finger's target; in rem they grew to 88px at 200%). */
-const NAV_BUTTON = "inline-flex h-[44px] min-w-[44px] shrink-0 items-center justify-center gap-1 rounded-lg px-3 text-sm font-medium text-fg transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent disabled:pointer-events-none disabled:opacity-40 @max-[17rem]/mdnav:px-1";
+const NAV_BUTTON = "inline-flex h-[44px] min-w-[44px] shrink-0 items-center justify-center gap-1 rounded-lg px-3 text-sm font-medium text-fg transition-colors hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent disabled:cursor-not-allowed disabled:text-fg-disabled disabled:hover:bg-transparent @max-[17rem]/mdnav:px-1";
 /** A step's word: shown where the row has room for both words and the position, else for screen readers only. */
 const NAV_WORD = "@max-[17rem]/mdnav:sr-only";
 
