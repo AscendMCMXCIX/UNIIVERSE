@@ -57,7 +57,9 @@ decorative chrome.
   name a mechanic in Riot's description underlined in `accent` (and listed, never colour alone)
   (docs/CHAMPION_INTEL.md).
 - **Match History** is a finished, successful experience. Do not restyle it for novelty. Change it
-  only for a bug, an accessibility fix or a product decision.
+  only for a bug, an accessibility fix or a product decision. The owner's requirements of 25 Nov 2026
+  (§1) were one: the performance score's own place on every collapsed card, one place badge across
+  the site, the score on Team → Matches' member rows, and the score through the game removed.
   - **The post-game view (the owner's directive of 19 Nov 2026, §5; redrawn at the owner's brief of
     24 Nov 2026, §1–§8).** An open game is one integrated post-game screen (`post-game.tsx`), the same
     under a card and in the match window, with nothing in it scrolling: no sideways build path, no
@@ -66,10 +68,13 @@ decorative chrome.
     and clipped elements inside it). Fewer boxes: one surface for the scoreboard, everything else on
     the open card's own background, separated by space, never a card per figure.
     - **Layout** (the view's own width, `@container/pg`): from 56rem two columns, the player
-      inspected (22rem; 24rem from 64rem, 27rem from 80rem) beside the scoreboard and the score
-      through the game; 40–56rem (a tablet) one grid: the player beside Build Path | Skill Order |
-      Runes and the lane, the score through the game under those, the scoreboard across; under 40rem
-      one column. Every part above the scoreboard or beside it keeps its height whoever is inspected
+      inspected (22rem; 24rem from 64rem, 27rem from 80rem) beside the scoreboard; 40–56rem (a
+      tablet) one grid: the player beside Build Path | Skill Order | Runes and the lane, the
+      scoreboard across under both; under 40rem one column. The score through the game (a chart
+      under the scoreboard, about 136px of the right column) was removed on 25 Nov 2026; its room
+      went to the scoreboard's rows (36px, 32px portraits, 22px items from a 36rem scoreboard), its
+      place badges and the inspected player's score (`text-2xl` bold with its badge). The right
+      column is now shorter than the left at every desktop width, so the fit below is unchanged. Every part above the scoreboard or beside it keeps its height whoever is inspected
       (fixed lines, truncation, reserved rows: the loadout row 56px, the six figures, the other
       figures' grid with every row always drawn, the panels' area, the lane's four rows), so the rows
       never move when another player is chosen (asserted ±1px).
@@ -117,12 +122,13 @@ decorative chrome.
       profile name, else the Riot name), champion and role, with "Back to …" while another player is
       inspected; the loadout as the client draws it (a 56px portrait with its level, spells and runes
       two by two, the six items two rows of three with the trinket beside the first, in inset
-      slots) with the performance score beside it in two fixed lines (the score with MVP or ACE, then
-      "3rd of 10" and one (i) that says how the score is worked out) and the line an icon names
-      itself in; six figures in aligned columns (K/D/A, CS, gold, damage, vision, KP; each of the
+      slots) with the performance score beside it in two fixed lines (the score, bold, with its place
+      badge, then "3rd of 10" and one (i) that says how the score is worked out and that it is
+      UNIIVERSE's own, not OP.GG's) and the line an icon names itself in; six figures in aligned columns (K/D/A, CS, gold, damage, vision, KP; each of the
       player's figures once in the view); the other recorded figures as a grid of three groups of
       aligned rows, **Combat** (taken, mitigated, CC), **Utility** (heal + shield, wards cleared,
-      control wards) and **Objectives** (damage, turrets), ordered by role (a support's utility first,
+      control wards) and **Objectives** (damage, turrets), their labels in sentence case
+      (`label-text`, 25 Nov 2026, as are the six figures' and the lane table's), ordered by role (a support's utility first,
       a jungler's objectives, everyone else's combat), "—" where the record lacks a figure and "0"
       where it recorded none (`src/lib/format.ts` for every number). **Build Path | Skill Order |
       Runes** (`segmentedGroupClass`, radios: the view still has no tabs) over one area of one height
@@ -148,7 +154,8 @@ decorative chrome.
     - **The scoreboard** (`scoreboard.tsx`, `Scoreboard`): both teams as one component, the player's
       team first, each team's band (its side and result in words, its kills, gold, towers, dragons
       and barons) and five rows on one grid, so K/D/A, the build, CS over damage and the score over
-      its place sit at the same x on both teams; every row 32px (two lines) from a 30rem scoreboard,
+      its place badge sit at the same x on both teams; every row 36px (two lines; 32px until 25 Nov
+      2026) from a 30rem scoreboard,
       two lines on a phone (the name, the K/D/A and the score; the build, the rank and CS with
       damage; from 17.5rem to 21rem, a 320–360px phone, the score beside the K/D/A so the second
       line has the row's width), everything wrapping whole under 17.5rem. The rank is text with its tier's crest, no
@@ -162,8 +169,7 @@ decorative chrome.
       differ. Solo/Duo unless marked Flex.", or the Flex wording in a Flex game) and a check's state
       when it is running or could not ask for everyone; "Possible groups" with its (i) ("Players
       frequently seen together in earlier games. Not confirmed premades.") only where a side has
-      one; the date and patch, the bookmark and OP.GG. Under it the inspected player's score through
-      the game, one line (docs/PERFORMANCE_SCORE.md, "The chart").
+      one; the date and patch, the bookmark and OP.GG.
     - **Removed on 24 Nov 2026** (the owner's brief, §3–§7; the Production check asserts each stays
       gone): the "Compare with" select, the comparison table and the chart's second line; the
       written why and the trend word under the name (`reasonText` and `trendOf` stay in the domain);
@@ -176,6 +182,11 @@ decorative chrome.
       notes and the gold curve stay removed (23 Nov 2026, docs/MATCH_NOTES.md). The open card's
       header with Previous, Next and Close and the one history rule (Back closes the game, however
       many games were stepped through) are unchanged.
+    - **Removed on 25 Nov 2026** (the owner's requirements, §1; the Production check asserts it stays
+      gone): the score through the game, its heading, its (i), its chart and its "not available"
+      line, and with them the timeline score's code (`timelineScores`, its damping and priors, the
+      trend words `trendOf`; docs/PERFORMANCE_SCORE.md). The open card's header now shows its card's
+      score and badge.
   - **Density (owner decision D8, approved 8 Nov 2026, built 18 Nov):** denser cards that keep the
     statistics, champions, ranks, LP and every interaction readable. The card follows the list's
     own width (`@container/mh`), in three tiers:
@@ -190,22 +201,36 @@ decorative chrome.
       figures and the build in one row, both teams under them. The champion's name has its whole
       box (the role takes the next line when both do not fit), so even a 36rem list keeps "Nunu &
       Willump" whole;
-    - **the wide card** (from 50rem), one row of about 100px, unchanged.
-  - **The performance score on the card (Release 17, 24 Nov 2026; docs/PERFORMANCE_SCORE.md, "Where
-    it shows"):** one small mark, `ScoreMark` (`components/match-history/score-mark.tsx`): "3.5 ·
-    9th" at the smallest text size (`text-2xs`), the score in `fg`, the separator in `fg-subtle` and
-    the place in `fg-muted`, then MVP in the emphasis colour (`accent-2`, filled and ringed) or ACE
-    ringed in `fg`, the looks of the scoreboard's `RankChip`; its words for a screen reader are
-    `scoreWords`' ("Performance score 3.5, 9th of 10, MVP"), also in the card's label (no native
-    title: how many were scored is said, not hovered). Exported for the scoreboard's use too (with `MVP_TONE` and `ACE_TONE`). Where it sits: a
-    line under the K/D/A's ratio on a phone's and a two-row card, the K/D/A and the ratio set
-    `leading-tight` there and a multikill under it drawn `dense` (no taller than its text), so a card
-    without a multikill keeps its height and one with a multikill grows about 5px (measured at 375,
-    390 and 768: 0px on cards without one, +5.2px with one); with the build on a wide card, beside it
-    while the build keeps the teams' 13rem (50–61rem) and under it from 61rem (beside the teams' five
-    lines), 0px at 1280 and 1440. At the end of the phone's result line it was tried and dropped: the
-    line wrapped on 13 of 95 demo cards at 375px, 27 at 360px and 66 at 320px. A card without a score
-    draws nothing (its label says why).
+    - **the wide card** (from 50rem), one row of about 100px, unchanged in height; since 25 Nov 2026
+      the performance score has a column of its own (2.5rem) right after the K/D/A, the teams join
+      from a 65rem list (61rem before), the chevron is left out from 65 to 74rem and the 16px and
+      20px gaps start at 74 and 76rem (70 and 72rem before), so beside the open sidebar 1366 keeps
+      its teams (258px, 2 of 10 names cut on the demo's longest roster) and 1440 widens them
+      (320px). The K/D/A's floor is 6em (6.25em before: "10 / 10 / 10" is 5.71em).
+  - **The performance score on the card** (Release 17; its own place at the owner's request of 25 Nov
+    2026, §1, OP.GG's hierarchy as the reference, not its looks; docs/PERFORMANCE_SCORE.md, "Where it
+    shows"): `ScoreMark` (`components/match-history/score-mark.tsx`), the score bold in `fg` with the
+    shared place badge (`PlacementBadge`, below). A wide card gives it a column of its own right
+    after the K/D/A, the score (`text-xl`, the card's largest figure) over the badge, centred, at one
+    x on every card (the Production check and e2e/match-score.spec.ts assert ±1px); a phone's and a
+    two-row card give it a line of its own directly under the K/D/A and its ratio, the score
+    (`text-md`) beside the badge, right-aligned on a phone and left-aligned on a two-row card. A card
+    without a score keeps the place with a quiet dash (`ScoreMarkEmpty`, `match-score-empty`, hidden
+    from screen readers). Its words for a screen reader are `scoreWords`' ("Performance score 3.5,
+    9th of 10, MVP"), also in the card's label. Heights (measured 25 Nov 2026 on the demo, against
+    `main` 3aab01b): a phone's card 117.5px (114.5 before), +3px; a two-row card unchanged where its
+    figures set the row (117.5px), a multikill under the score +5px; the wide card unchanged (102px).
+  - **The place badge** (`PlacementBadge`, `components/ui/placement-badge.tsx`, 25 Nov 2026): the one
+    mark for a place everywhere one shows (the cards, the open card's header, the inspected player,
+    every scoreboard row, Team → Matches' member rows). MVP: `--color-gold` text on a gold 15% wash
+    with a gold ring, bold; ACE: the same in `--color-violet`; any other place: `fg-muted` on a faint
+    `fg` wash, no ring. Both colours are the fixed rarity tokens, never `accent-2`, which Branding
+    changes. MVP and ACE replace the ordinal ("MVP", not "1st MVP"); the ordinal stays in the
+    accessible name ("MVP: highest score on the winning team, 1st of 10"). Sizes by prop (`row` 16px,
+    `card` 20px, `header` 20px with 12px text), one shape and one minimum width per size whatever it
+    says. Hook-free and server-safe (Team → Matches renders it on the server). Contrast (worked out from the
+    tokens): on `surface` gold 8.3:1, violet 6.6:1, the ordinal 9.6:1; on the selected row's
+    `surface-3` 6.4, 5.1 and 7.3:1.
   - Read in the order drawn: a card's parts and the header's come in the page in the order they
     are drawn. A phone's card has its own copies of the result line (its first line) and of the
     build (beside the champion), placed where they are read; only one copy is ever displayed.

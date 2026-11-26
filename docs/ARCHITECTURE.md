@@ -382,8 +382,9 @@ request is a game's match timeline, once per game, when a section that needs it 
   Order | Runes in `participant-panels.tsx`, and the lane against *their* lane opponent). Each row
   carries the performance score (`src/domain/performance-score.ts`, docs/PERFORMANCE_SCORE.md),
   computed in the browser from the record and the timeline already loaded
-  (`performance-inputs.ts`), with the score through the game (`score-chart.tsx`) and a comparison
-  with a second player (`performance-panel.tsx`). `DetailParticipant` gained each player's
+  (`performance-inputs.ts`), with the score through the game (`score-chart.tsx`, removed with its
+  calculations on 25 Nov 2026) and a comparison with a second player (`performance-panel.tsx`,
+  removed on 24 Nov 2026). `DetailParticipant` gained each player's
   `runePage`, `laneOpponentSlot` and `win` and the healing, shielding, mitigation, time dead and
   plates figures, from the row the view already read.
   **Release 17 (24 Nov 2026):** `performance-inputs.ts` moved to `src/domain/` (the old path

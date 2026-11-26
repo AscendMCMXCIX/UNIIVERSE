@@ -217,7 +217,7 @@ function Runes({ page }: { page: RunePage | null }) {
     </li>
   );
   const tree = (icon: RunePage["primaryTree"], fallback: string) => (
-    <span className="flex min-w-0 items-center gap-1.5 text-2xs font-semibold uppercase leading-4 tracking-label text-fg-subtle">
+    <span className="label-text flex min-w-0 items-center gap-1.5 leading-4">
       <IconImg icon={icon} size={14} rounded="rounded-full" />
       <span className="min-w-0 [overflow-wrap:anywhere]">{icon?.name ?? fallback}</span>
     </span>

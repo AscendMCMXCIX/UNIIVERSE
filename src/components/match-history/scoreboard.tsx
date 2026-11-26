@@ -117,7 +117,7 @@ function TeamTable({ team, champ, groups, laneSlot, rankOf, queueId, checking, m
       {/* The team's band: its side and result in words (never the colour alone), then its totals, each number brighter than its word. One line, as tall on both teams. */}
       <header className={cn(first && "rounded-t-panel", "flex min-h-6 flex-wrap items-center justify-between gap-x-3 px-2.5 text-xs leading-4", team.side === "blue" ? "bg-blue/10" : "bg-red/10")}>
         <span className="flex items-baseline gap-1.5">
-          <span className={cn("text-2xs font-semibold uppercase tracking-label", team.side === "blue" ? "text-blue" : "text-red")}>{team.side === "blue" ? "Blue side" : "Red side"}</span>
+          <span className={cn("text-xs font-semibold", team.side === "blue" ? "text-blue" : "text-red")}>{team.side === "blue" ? "Blue side" : "Red side"}</span>
           <span className="font-semibold text-fg" data-testid="team-result">
             {team.win ? "Victory" : "Defeat"}
           </span>

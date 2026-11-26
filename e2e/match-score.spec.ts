@@ -9,9 +9,14 @@ import { closeGame, openGame } from "./match-history";
   docs/PERFORMANCE_SCORE.md). On the demo every card of the first page is read, then each game is
   opened and its scoreboard's row for the player compared. Several demo games have no stored
   timeline; without a Riot key nothing is fetched, so the opened game scores them on the record
-  alone, and so does the card. One mark shows on a card at every width, and a card's height is
-  unchanged by it (the cards' heights are held in match-history-layout.spec.ts).
+  alone, and so does the card. One mark shows on a card at every width (the cards' heights are held
+  in match-history-layout.spec.ts). Since the owner's requirements of 25 Nov 2026 the score has a
+  place of its own (a column right after the K/D/A on a wide card, directly under the K/D/A on a
+  narrow one), bold in the primary colour, with the shared place badge: MVP gold, ACE violet, other
+  places restrained; the open card's header keeps it.
 */
+
+const ordinal = (n: number) => `${n}${n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th"}`;
 
 test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
@@ -39,6 +44,8 @@ async function cardScore(card: Locator): Promise<CardScore> {
   const marks = card.locator("[data-testid=match-score]:visible");
   if (state !== "ok") {
     await expect(marks).toHaveCount(0);
+    // The score's place is kept, with a quiet dash.
+    await expect(card.locator("[data-testid=match-score-empty]:visible")).toHaveCount(1);
     return { state, score: null, rank: null, mvp: false, ace: false };
   }
   await expect(marks, "one mark at a time").toHaveCount(1);
@@ -49,9 +56,11 @@ async function cardScore(card: Locator): Promise<CardScore> {
   expect(Number(await row.getAttribute("data-rank"))).toBe(rank);
   const mvp = (await mark.getAttribute("data-mvp")) === "true";
   const ace = (await mark.getAttribute("data-ace")) === "true";
-  // What it shows: "3.5 · 9th", MVP or ACE after it; what it says: the score, the place of how many, MVP or ACE.
-  const shown = (await mark.locator("[aria-hidden]").innerText()).replace(/\s+/g, " ").trim();
-  expect(shown).toMatch(new RegExp(`^${score.toFixed(1).replace(".", "\\.")} · ${rank}(st|nd|rd|th)${mvp ? " MVP" : ace ? " ACE" : ""}$`));
+  // What it shows: "3.5" and its place badge ("9th", or MVP or ACE in its place); what it says: the score, the place of how many, MVP or ACE.
+  await expect(mark.getByTestId("score-value")).toHaveText(score.toFixed(1));
+  await expect(mark.getByTestId("match-placement")).toHaveText(mvp ? "MVP" : ace ? "ACE" : ordinal(rank));
+  await expect(mark.getByTestId("match-placement")).toHaveAttribute("data-placement", mvp ? "mvp" : ace ? "ace" : "place");
+  await expect(card.locator("[data-testid=match-score-empty]:visible")).toHaveCount(0);
   await expect(mark.locator(".sr-only")).toHaveText(new RegExp(`^Performance score ${score.toFixed(1).replace(".", "\\.")}, ${rank}(st|nd|rd|th) of (9|10)${mvp ? ", MVP" : ace ? ", ACE" : ""}$`));
   await expect(row).toHaveAttribute("aria-label", new RegExp(`performance score ${score.toFixed(1).replace(".", "\\.")}, ${rank}(st|nd|rd|th) of (9|10)${mvp ? ", MVP" : ace ? ", ACE" : ""}[,.]`));
   return { state, score, rank, mvp, ace };
@@ -81,6 +90,12 @@ test("every card of the first page shows the opened game's performance score and
     const breakdown = await openGame(card);
     const opened = await openedScore(breakdown);
     expect(before, `card ${i + 1}: the opened game's score and place`).toEqual(opened);
+    // The open card's header keeps the card's score and place (a phone's window has its own header).
+    const header = page.locator("li[data-expanded] [data-testid=match-header-score]");
+    if (before.state === "ok" && (await page.locator("li[data-expanded]").count())) {
+      await expect(header).toHaveAttribute("data-score", String(before.score));
+      await expect(header).toHaveAttribute("data-rank", String(before.rank));
+    } else await expect(header).toHaveCount(0);
     // The panel says the same where it shows the player inspected.
     if (opened.state === "ok") {
       const value = breakdown.getByTestId("performance-value");
@@ -94,36 +109,87 @@ test("every card of the first page shows the opened game's performance score and
   expect(seen.marks, "MVP and ACE marked where they apply").toBeGreaterThan(0);
 });
 
-test("the mark is quiet: the smallest text, the place in grey, MVP in the emphasis colour and ACE ringed, inside the card", async ({ page }) => {
-  await openHistory(page, "TOP");
+test("the score is prominent and keeps one place: bold in the primary colour, its own column after the K/D/A on a wide card, under the K/D/A on a narrow one; MVP gold, ACE violet, other places restrained", async ({ page }) => {
+  await openHistory(page, "MID");
   const marks = page.locator("[data-testid=match-score]:visible");
   await expect(marks.first()).toBeVisible();
-  const facts = await marks.evaluateAll((els) =>
-    els.map((el) => {
-      const card = el.closest("[data-testid=match-card]")!.getBoundingClientRect();
-      const r = el.getBoundingClientRect();
-      const chip = el.querySelector("[aria-hidden] > span:nth-child(4)");
-      return { size: parseFloat(getComputedStyle(el).fontSize), inside: r.left >= card.left && r.right <= card.right && r.top >= card.top && r.bottom <= card.bottom, height: r.height, chip: chip ? { text: chip.textContent, ring: getComputedStyle(chip).boxShadow !== "none" } : null };
-    }),
-  );
-  const kda = parseFloat(await page.getByTestId("match-kda").first().evaluate((e) => getComputedStyle(e).fontSize));
-  for (const f of facts) {
-    expect(f.size, "the smallest text size").toBeLessThanOrEqual(12);
-    expect(f.size).toBeLessThan(kda);
-    expect(f.inside, "inside its card").toBe(true);
-    expect(f.height).toBeLessThanOrEqual(18);
-    if (f.chip) {
-      expect(["MVP", "ACE"]).toContain(f.chip.text);
-      expect(f.chip.ring, "ringed").toBe(true);
+  const facts = await page.getByTestId("match-card").evaluateAll((cards) => {
+    const probe = (token: string) => {
+      const el = document.createElement("span");
+      el.style.color = `var(${token})`;
+      document.body.append(el);
+      const c = getComputedStyle(el).color;
+      el.remove();
+      return c;
+    };
+    const [fg, gold, violet, muted] = ["--color-fg", "--color-gold", "--color-violet", "--color-fg-muted"].map(probe);
+    const shown = (card: Element, sel: string) => [...card.querySelectorAll(sel)].find((e) => e.getBoundingClientRect().width > 0) ?? null;
+    return cards.map((card) => {
+      const c = card.getBoundingClientRect();
+      const mark = shown(card, "[data-testid=match-score]");
+      const slot = mark ?? shown(card, "[data-testid=match-score-empty]");
+      const kda = card.querySelector("[data-testid=match-kda]")!;
+      const kdaCol = kda.parentElement!.getBoundingClientRect();
+      const cell = shown(card, "[data-testid=match-score-cell]");
+      const figures = card.querySelector("[data-testid=match-figures]")!.getBoundingClientRect();
+      const value = mark?.querySelector("[data-testid=score-value]") ?? null;
+      const badge = mark?.querySelector("[data-testid=match-placement]") ?? null;
+      const s = slot!.getBoundingClientRect();
+      const colour = (e: Element | null) => {
+        if (!e) return null;
+        const x = getComputedStyle(e).color;
+        return x === gold ? "gold" : x === violet ? "violet" : x === muted ? "muted" : x === fg ? "fg" : x;
+      };
+      return {
+        inside: s.left >= c.left && s.right <= c.right && s.top >= c.top && s.bottom <= c.bottom,
+        cell: cell ? { left: cell.getBoundingClientRect().left, right: cell.getBoundingClientRect().right } : null,
+        kdaRight: kdaCol.right,
+        kdaBottom: kda.getBoundingClientRect().bottom,
+        kdaLeft: kdaCol.left,
+        figuresLeft: figures.left,
+        slot: { top: s.top, left: s.left, right: s.right },
+        value: value ? { size: parseFloat(getComputedStyle(value).fontSize), weight: Number(getComputedStyle(value).fontWeight), colour: colour(value) } : null,
+        kdaSize: parseFloat(getComputedStyle(kda).fontSize),
+        badge: badge ? { kind: badge.getAttribute("data-placement"), text: badge.textContent, colour: colour(badge), ring: getComputedStyle(badge).boxShadow !== "none", height: badge.getBoundingClientRect().height } : null,
+      };
+    });
+  });
+  expect(facts.length).toBeGreaterThan(5);
+  const wide = facts.some((f) => f.cell);
+  for (const [i, f] of facts.entries()) {
+    const at = `card ${i}`;
+    expect(f.inside, `${at}: inside its card`).toBe(true);
+    if (f.value) {
+      // Bold, in the primary colour, never the smallest text: the largest figure of its column on a wide card.
+      expect(f.value.weight, `${at}: bold`).toBeGreaterThanOrEqual(700);
+      expect(f.value.colour, `${at}: the primary colour`).toBe("fg");
+      expect(f.value.size, `${at}: not the smallest text`).toBeGreaterThanOrEqual(15);
+      if (f.cell) expect(f.value.size, `${at}: on a wide card, at least the K/D/A's size`).toBeGreaterThanOrEqual(f.kdaSize);
+    }
+    if (f.badge) {
+      expect(f.badge.colour, `${at}: ${f.badge.kind}`).toBe(f.badge.kind === "mvp" ? "gold" : f.badge.kind === "ace" ? "violet" : "muted");
+      expect(f.badge.ring, `${at}: a ring on MVP and ACE only`).toBe(f.badge.kind !== "place");
+      if (f.badge.kind === "mvp") expect(f.badge.text).toBe("MVP");
+      if (f.badge.kind === "ace") expect(f.badge.text).toBe("ACE");
+    }
+    if (wide) {
+      // A column of its own: after the K/D/A's, before the figures'.
+      expect(f.cell, `${at}: the score's column`).not.toBeNull();
+      expect(f.cell!.left, `${at}: after the K/D/A`).toBeGreaterThanOrEqual(f.kdaRight - 0.5);
+      expect(f.cell!.right, `${at}: before the figures`).toBeLessThanOrEqual(f.figuresLeft + 0.5);
+    } else {
+      // Directly under the K/D/A, in its column.
+      expect(f.slot.top, `${at}: under the K/D/A`).toBeGreaterThanOrEqual(f.kdaBottom - 0.5);
+      expect(Math.min(f.slot.right, f.kdaRight) - Math.max(f.slot.left, f.kdaLeft), `${at}: in the K/D/A's column`).toBeGreaterThan(0);
     }
   }
-  // Where it is: under the K/D/A on a phone's and a two-row card (lists under 50rem); with the build on a wide card.
-  const first = marks.first();
-  if ((page.viewportSize()?.width ?? 0) < 1024) {
-    const card = first.locator("xpath=ancestor::*[@data-testid='match-card']");
-    const kda = (await card.getByTestId("match-kda").boundingBox())!;
-    const box = (await first.boundingBox())!;
-    expect(box.y, "under the K/D/A").toBeGreaterThanOrEqual(kda.y + kda.height);
-    expect(Math.min(box.x + box.width, kda.x + kda.width) - Math.max(box.x, kda.x), "in the K/D/A's column").toBeGreaterThan(0);
-  } else await expect(first.locator("xpath=ancestor::*[@data-testid='match-card-build']")).toHaveCount(1);
+  // The same place on every card of the list: one x for the column on wide cards (±1px).
+  if (wide) {
+    const lefts = facts.map((f) => f.cell!.left);
+    expect(Math.max(...lefts) - Math.min(...lefts), "the score's column level from card to card").toBeLessThanOrEqual(1);
+  }
+  // One badge height whatever it says.
+  const heights = facts.flatMap((f) => (f.badge ? [Math.round(f.badge.height)] : []));
+  expect(new Set(heights).size, "one badge height").toBe(1);
+  expect(facts.some((f) => f.badge?.kind === "mvp") && facts.some((f) => f.badge?.kind === "ace"), "MVP and ACE both on the demo's first page").toBe(true);
 });

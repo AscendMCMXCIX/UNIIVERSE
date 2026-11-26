@@ -202,7 +202,7 @@ const cardGeometry = (els: Element[]) =>
     // The figures' column (the CS and damage sit in a line of their own inside it on a narrow phone).
     let next = cs.closest('[data-testid="match-figures"]')!.nextElementSibling;
     while (next && !inRow(next)) next = next.nextElementSibling;
-    // From 50 to 61rem of list (1280 with the sidebar open) the build takes the teams' place (S6c, UD.H1): no teams drawn there.
+    // From 50 to 65rem of list (1280 with the sidebar open) the build takes the teams' place (S6c, UD.H1): no teams drawn there.
     const shown = (e: Element | null) => !!e && box(e).width > 0;
     const teams = card.querySelector('[data-testid="match-teams"]');
     const build = card.querySelector('[data-testid="match-card-build"]');
@@ -237,7 +237,7 @@ test("a wide card's figures end before the next column, the teams keep their nam
     const cards = await page.getByTestId("match-card").evaluateAll(cardGeometry);
     expect(cards.length).toBeGreaterThan(1);
     if (size.width === 1366) {
-      // With the build and the teams both on the card (a 61–70rem list), the columns keep 10px apart
+      // With the build and the teams both on the card (a 65–74rem list, the chevron left out), the columns keep 10px apart
       // so the teams have the room the 12px floor needs (Release 11): with 16px gaps 8 of the
       // first card's 10 names were cut here, at 12px.
       // Demo Mid's first game has the longer names.

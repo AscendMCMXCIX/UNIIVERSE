@@ -154,10 +154,12 @@ export function readTogetherScores() {
     index,
     result: game.getAttribute("data-result"),
     members: [...game.querySelectorAll("[data-testid=together-member]")].map((m) => {
-      const mark = m.querySelector("[data-testid=together-score]");
+      // A row has two places for its mark (the end of the role's line, or a column at the row's end): one is shown.
+      const shown = [...m.querySelectorAll("[data-testid=together-score], [data-testid=together-score-empty]")].filter((e) => e.getClientRects().length > 0 && getComputedStyle(e).visibility !== "hidden");
+      const mark = shown.find((e) => e.getAttribute("data-testid") === "together-score") ?? null;
       const badge = mark?.querySelector("[data-testid=together-placement]") ?? null;
       return {
-        slots: m.querySelectorAll("[data-testid=together-score], [data-testid=together-score-empty]").length,
+        slots: shown.length,
         scored: !!mark,
         markScore: num(mark?.getAttribute("data-score")),
         markRank: num(mark?.getAttribute("data-rank")),

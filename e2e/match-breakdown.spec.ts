@@ -74,8 +74,8 @@ const openedFit = (page: Page) =>
   });
 
 /** The removed parts, by their test ids, and their words. */
-const REMOVED_PARTS = "[data-testid^=post-game-note], [data-testid^=notes-], [data-testid^=fold-], [data-testid=post-game-folds], [data-testid=gold-chart], [data-testid=performance-compare], [data-testid=performance-compare-table], [data-testid=performance-why], [data-testid=performance-trend], [data-testid=performance-teams], [data-testid=performance-strip], [data-testid=performance-tile], [data-testid=build-legend], [data-testid=build-row], [data-testid=score-chart-legend], [data-testid=inspected-jump], [data-testid=more-fold], [data-testid=performance-fold]";
-const REMOVED_WORDS = ["Went well", "Went wrong", "Focus next", "Gold over the game", "Build and skill order", "No comparison", "Compare with", "Stood out", "Held back", "Ranks around the time of this game", "not enough recorded history", "no other players to assess", "inferred from", "skill points in this game", "Maxed "];
+const REMOVED_PARTS = "[data-testid^=post-game-note], [data-testid^=notes-], [data-testid^=fold-], [data-testid=post-game-folds], [data-testid=gold-chart], [data-testid=performance-compare], [data-testid=performance-compare-table], [data-testid=performance-why], [data-testid=performance-trend], [data-testid=performance-teams], [data-testid=performance-strip], [data-testid=performance-tile], [data-testid=build-legend], [data-testid=build-row], [data-testid=score-chart-legend], [data-testid=inspected-jump], [data-testid=more-fold], [data-testid=performance-fold], [data-testid=performance], [data-testid=performance-chart-area], [data-testid=performance-chart-info], [data-testid=performance-timeline-missing], [data-testid=score-chart], [data-testid=score-chart-table]";
+const REMOVED_WORDS = ["Went well", "Went wrong", "Focus next", "Gold over the game", "Build and skill order", "No comparison", "Compare with", "Stood out", "Held back", "Ranks around the time of this game", "not enough recorded history", "no other players to assess", "inferred from", "skill points in this game", "Maxed ", "Score through the game", "About the score through the game"];
 
 test("while the timeline loads, the view passes axe, and it says when the timeline has answered", async ({ page }) => {
   await openHistory(page, "TOP");
@@ -286,7 +286,6 @@ test("a game with a timeline reads its lane at 10:00 and 15:00, says nothing mis
     const lane = breakdown.getByTestId("post-game-lane");
     if ((await breakdown.getAttribute("data-timeline")) === "ok" && (await lane.getAttribute("data-state")) === "clear") {
       await expect(breakdown.getByTestId("panel-timeline-missing")).toHaveCount(0);
-      await expect(breakdown.getByTestId("performance-timeline-missing")).toHaveCount(0);
       const ten = await lane.locator("tbody tr").evaluateAll((rows) => rows.map((r) => r.querySelectorAll("td")[0]?.textContent?.trim()));
       expect(ten.some((c) => c !== "—"), "a figure at 10:00").toBe(true);
       // The game's requests settle (its record, the timeline, the groups and the rank check): the timeline once.
@@ -371,7 +370,7 @@ async function openGameWithTimeline(page: Page, want: boolean, tries = 8) {
   throw new Error(`no demo game ${want ? "with" : "without"} a timeline among the newest ${tries}`);
 }
 
-test("every player has a performance score 0–10 beside their row, one MVP and one ACE; the player inspected shows theirs with its place, its (i) and the score through the game", async ({ page }) => {
+test("every player has a performance score 0–10 beside their row with one place badge, one MVP (gold, the winning team) and one ACE (violet, the losing team); the player inspected shows theirs with its place and its (i); the score through the game is gone", async ({ page }) => {
   await openHistory(page, "MID");
   const { breakdown } = await openGameWithTimeline(page, true);
   const scores = breakdown.locator("[data-testid=participant-score][data-score]");
@@ -400,14 +399,35 @@ test("every player has a performance score 0–10 beside their row, one MVP and 
   const n = Number(await row.getAttribute("data-rank"));
   const ordinal = `${n}${n % 10 === 1 && n % 100 !== 11 ? "st" : n % 10 === 2 && n % 100 !== 12 ? "nd" : n % 10 === 3 && n % 100 !== 13 ? "rd" : "th"}`;
   await expect(mine.getByTestId("performance-rank")).toHaveText(`${ordinal} of 10`);
-  // One (i) on the score, saying how it is worked out (docs/PERFORMANCE_SCORE.md).
-  await expect(mine.getByTestId("performance-info")).toHaveAccessibleName("About the performance score");
-  // The score through the game: one line, points every five minutes and the end, its figures in a table for screen readers.
-  const chart = breakdown.getByTestId("performance").getByTestId("score-chart");
-  await expect(chart).toBeVisible();
-  await expect(chart).toHaveAttribute("data-series", "1");
-  expect(Number(await chart.getAttribute("data-points"))).toBeGreaterThanOrEqual(3);
-  await expect(chart.getByTestId("score-chart-table").locator("tbody tr").last().locator("th")).toHaveText(/^End \(\d+:\d\d\)$/);
+  // Its place badge, the shared one: MVP or ACE in place of the ordinal, the ordinal otherwise.
+  const badge = mine.getByTestId("performance-mark");
+  const word = (await row.getAttribute("data-mvp")) ? "MVP" : (await row.getAttribute("data-ace")) ? "ACE" : ordinal;
+  await expect(badge.locator("[aria-hidden]")).toHaveText(word);
+  // One (i) on the score, saying how it is worked out and that it is UNIIVERSE's own score, not another site's.
+  const info = mine.getByTestId("performance-info");
+  await expect(info).toHaveAccessibleName("About the performance score");
+  await expect(info).toHaveAccessibleDescription(/^UNIIVERSE's own score, not OP\.GG's/);
+  // Every row's badge: one look per kind (the fixed gold and violet tokens; other places the secondary text), the same size on every row.
+  const looks = await breakdown.locator("[data-testid=participant-score] [data-placement]").evaluateAll((els) => {
+    const probe = (token: string) => {
+      const el = document.createElement("span");
+      el.style.color = `var(${token})`;
+      document.body.append(el);
+      const c = getComputedStyle(el).color;
+      el.remove();
+      return c;
+    };
+    const [gold, violet, muted] = [probe("--color-gold"), probe("--color-violet"), probe("--color-fg-muted")];
+    return els.map((e) => ({ kind: e.getAttribute("data-placement"), colour: getComputedStyle(e).color === gold ? "gold" : getComputedStyle(e).color === violet ? "violet" : getComputedStyle(e).color === muted ? "muted" : getComputedStyle(e).color, h: Math.round(e.getBoundingClientRect().height), text: e.textContent }));
+  });
+  expect(looks).toHaveLength(10);
+  for (const l of looks) expect(l.colour, `${l.kind}: ${l.text}`).toBe(l.kind === "mvp" ? "gold" : l.kind === "ace" ? "violet" : "muted");
+  expect(new Set(looks.map((l) => l.h)).size, "one height for every badge").toBe(1);
+  expect(looks.filter((l) => l.kind === "mvp").map((l) => l.text)).toEqual(["MVP"]);
+  expect(looks.filter((l) => l.kind === "ace").map((l) => l.text)).toEqual(["ACE"]);
+  // The score through the game is gone: no chart, no heading, no (i).
+  await expect(breakdown.locator("[data-testid=performance], [data-testid=score-chart], [data-testid=performance-chart-info]")).toHaveCount(0);
+  expect(await breakdown.innerText()).not.toMatch(/score through the game/i);
   // Never the other site's name for its score.
   expect(await breakdown.innerText()).not.toMatch(/OP Score/i);
 });
@@ -503,9 +523,8 @@ test("Build Path, Skill Order and Runes: one segmented control over one fixed ar
   await expect(p2.getByTestId("rune-page")).toBeVisible();
   const runesArea = await p2.getByTestId("panel-body").evaluate((b) => b.getBoundingClientRect().height - b.querySelector("[data-testid=rune-page]")!.getBoundingClientRect().height);
   expect(runesArea, "no band under the rune page").toBeLessThanOrEqual(1);
-  await showGamePage(none.breakdown, "player");
-  await expect(none.breakdown.getByTestId("performance-timeline-missing")).toBeVisible();
-  // Its final scores still stand, from the record.
+  // Its final scores still stand, from the record (and no chart says the timeline is missing: it is gone).
+  await expect(none.breakdown.getByTestId("performance-timeline-missing")).toHaveCount(0);
   await expect(none.breakdown.locator("[data-testid=participant-score][data-score]")).toHaveCount(10);
 });
 
@@ -569,7 +588,6 @@ test("a press on any scoreboard row inspects that player at once, with nothing f
         panels: y(bd.querySelector("[data-testid=participant-panels]")),
         body: y(bd.querySelector("[data-testid=panel-body]")),
         lane: y(bd.querySelector("[data-testid=post-game-lane]")),
-        chart: y(bd.querySelector("[data-testid=performance]")),
         height: Math.round(bd.getBoundingClientRect().height),
       };
     });

@@ -33,6 +33,8 @@ export interface ScoreSource {
 const rowsOf = <T,>(result: unknown): T[] => ((result as { rows?: T[] }).rows ?? (result as T[])) as T[];
 const json = <T,>(v: unknown): T => (typeof v === "string" ? JSON.parse(v) : v) as T;
 
+/** Each player's fields the score and the member's place read, in the order the query sends them. */
+const PART_FIELDS = ["puuid", "teamId", "win", "championId", "removed", "position", "teamPosition", "individualPosition", "kills", "deaths", "assists", "cs", "gold", "damage", "damageTaken", "vision", "wardsPlaced"] as const;
 /** The extra figures the score reads (domain/performance-inputs ScoreParticipant.stats). */
 const SCORE_STATS = ["damageMitigated", "wardsKilled", "objectiveDamage", "turretTakedowns", "ccSeconds", "teamHealing", "teamShielding"] as const;
 
@@ -45,55 +47,53 @@ export async function loadScoreSources(db: Db, matchIds: readonly string[]): Pro
   const ids = [...new Set(matchIds)];
   const out = new Map<string, ScoreSource>();
   if (!ids.length) return out;
-  const stats = sql.raw(SCORE_STATS.map((k) => `'${k}', p->'stats'->'${k}'`).join(", "));
+  // Arrays, not objects: the keys would cost more than the figures. A key Riot did not send is null.
+  const fields = sql.raw([...PART_FIELDS.map((k) => `p->'${k}'`), ...SCORE_STATS.map((k) => `p->'stats'->'${k}'`)].join(", "));
   const result = await db.execute(sql`
     SELECT md.match_id, md.queue_id, md.game_duration,
-           (SELECT jsonb_agg(jsonb_build_object('teamId', t->'teamId', 'win', t->'win', 'champion', t->'objectives'->'champion')) FROM jsonb_array_elements(md.teams) t) AS teams,
-           (SELECT jsonb_agg(jsonb_strip_nulls(jsonb_build_object(
-                     'puuid', p->'puuid', 'teamId', p->'teamId', 'win', p->'win', 'championId', p->'championId', 'removed', p->'removed',
-                     'position', p->'position', 'teamPosition', p->'teamPosition', 'individualPosition', p->'individualPosition',
-                     'kills', p->'kills', 'deaths', p->'deaths', 'assists', p->'assists', 'cs', p->'cs', 'gold', p->'gold',
-                     'damage', p->'damage', 'damageTaken', p->'damageTaken', 'vision', p->'vision', 'wardsPlaced', p->'wardsPlaced',
-                     'stats', jsonb_strip_nulls(jsonb_build_object(${stats})))) ORDER BY s.ord)
-            FROM jsonb_array_elements(md.participants) WITH ORDINALITY AS s(p, ord)) AS participants
+           (SELECT json_agg(json_build_array(t->'teamId', t->'win', t->'objectives'->'champion')) FROM jsonb_array_elements(md.teams) t) AS teams,
+           (SELECT json_agg(json_build_array(${fields}) ORDER BY s.ord) FROM jsonb_array_elements(md.participants) WITH ORDINALITY AS s(p, ord)) AS participants
     FROM match_details md
     WHERE md.match_id IN (${sql.join(ids.map((id) => sql`${id}`), sql`, `)})`);
-  type Part = Partial<MatchParticipantDetail> & { stats?: MatchParticipantDetail["stats"] };
+  const num = (v: unknown) => (typeof v === "number" ? v : null);
+  const str = (v: unknown) => (typeof v === "string" ? v : null);
   for (const r of rowsOf<{ match_id: string; queue_id: number | null; game_duration: number; teams: unknown; participants: unknown }>(result)) {
-    const teams = json<Array<{ teamId: number; win?: boolean; champion?: number }> | null>(r.teams) ?? [];
-    const parts = json<Part[] | null>(r.participants) ?? [];
+    const teams = json<Array<[number, boolean | null, number | null]> | null>(r.teams) ?? [];
+    const parts = json<unknown[][] | null>(r.participants) ?? [];
     out.set(r.match_id, {
       queueId: r.queue_id === null ? null : Number(r.queue_id),
       gameDuration: Number(r.game_duration),
-      teams: teams.map((t) => ({ teamId: Number(t.teamId), win: t.win, objectives: (typeof t.champion === "number" ? { champion: t.champion } : {}) as Record<string, number> })),
-      participants: parts.map(
-        (p): MatchParticipantDetail => ({
-          puuid: p.puuid ?? "",
+      teams: teams.map(([teamId, win, champion]) => ({ teamId: Number(teamId), win: typeof win === "boolean" ? win : undefined, objectives: (typeof champion === "number" ? { champion } : {}) as Record<string, number> })),
+      participants: parts.map((row): MatchParticipantDetail => {
+        const v = Object.fromEntries(PART_FIELDS.map((k, i) => [k, row[i]])) as Record<(typeof PART_FIELDS)[number], unknown>;
+        const stats = Object.fromEntries(SCORE_STATS.flatMap((k, i) => (typeof row[PART_FIELDS.length + i] === "number" ? [[k, row[PART_FIELDS.length + i]]] : [])));
+        return {
+          puuid: str(v.puuid) ?? "",
           name: null,
-          teamId: Number(p.teamId),
-          championId: p.championId ?? null,
+          teamId: Number(v.teamId),
+          championId: str(v.championId),
           championKey: 0,
           champLevel: null,
-          position: p.position ?? null,
-          ...(typeof p.teamPosition === "string" ? { teamPosition: p.teamPosition } : {}),
-          ...(typeof p.individualPosition === "string" ? { individualPosition: p.individualPosition } : {}),
-          win: p.win === true,
-          kills: p.kills ?? 0,
-          deaths: p.deaths ?? 0,
-          assists: p.assists ?? 0,
-          cs: p.cs ?? null,
-          gold: p.gold ?? null,
-          damage: p.damage ?? null,
-          damageTaken: p.damageTaken ?? null,
-          vision: p.vision ?? null,
-          wardsPlaced: p.wardsPlaced ?? null,
+          position: str(v.position),
+          ...(typeof v.teamPosition === "string" ? { teamPosition: v.teamPosition } : {}),
+          ...(typeof v.individualPosition === "string" ? { individualPosition: v.individualPosition } : {}),
+          win: v.win === true,
+          kills: num(v.kills) ?? 0,
+          deaths: num(v.deaths) ?? 0,
+          assists: num(v.assists) ?? 0,
+          cs: num(v.cs),
+          gold: num(v.gold),
+          damage: num(v.damage),
+          damageTaken: num(v.damageTaken),
+          vision: num(v.vision),
+          wardsPlaced: num(v.wardsPlaced),
           items: null,
           spells: null,
           runes: null,
-          ...(p.stats && Object.keys(p.stats).length ? { stats: p.stats } : {}),
-          ...(p.removed === true ? { removed: true as const } : {}),
-        }),
-      ),
+          ...(Object.keys(stats).length ? { stats } : {}),
+          ...(v.removed === true ? { removed: true as const } : {}),
+        };
+      }),
     });
   }
   return out;

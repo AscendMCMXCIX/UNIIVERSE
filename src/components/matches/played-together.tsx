@@ -262,9 +262,11 @@ function TogetherSummaryPanel({ summary: s, players, champ }: { summary: Togethe
   game mode and date), the members who played it with what they played and how it went, then both
   teams in full. Each member is one row: the champion's portrait with the member's picture as a
   badge on its corner, the name with the K/D/A (and the game's largest multikill) right after it,
-  then the role and champion, and at the row's end their performance score with its place (the
-  shared mark of Match History's cards: MVP gold, ACE violet, any other place restrained; a quiet
-  dash where the game has no score). The members go two to a row once their column is 34rem wide (a
+  then the role and champion, and their performance score with its place (the shared mark of Match
+  History's cards: MVP gold, ACE violet, any other place restrained; a quiet dash where the game has
+  no score): at the end of the role's line on a phone and two to a row beside the open sidebar, where
+  the name's line has no room to spare; stacked at the row's end where the row also shows the CS and
+  damage (a tablet, one to a row), as a scoreboard row shows its player's. The members go two to a row once their column is 34rem wide (a
   tablet's card, or the four columns at about 70rem); both teams sit beside them on wide cards, as
   in a player's Match History, and under them otherwise. The bookmark is a small control in the
   card's corner. The whole card opens the game under it, as in Match History (TogetherCardFrame);
@@ -324,6 +326,9 @@ function TogetherCard({ g, p, champions, teams, scores }: { g: TogetherListGame;
               const kda = m.kills === null ? "—" : `${m.kills}/${m.deaths}/${m.assists}`;
               const extra = `${m.cs ?? "—"} CS${m.damage ? ` · ${(m.damage / 1000).toFixed(1)}k dmg` : ""}`;
               const role = m.role && m.role in ROLE_LABELS ? (m.role as Role) : null;
+              // The member's score and place, the same as their own Match History card and the opened game: one of two places in the row is shown (below).
+              const s = scores[m.playerId];
+              const mark = (layout: "stack" | "inline") => (s?.state === "ok" ? <ScoreMark score={s} layout={layout} value="sm" badge="row" className={layout === "stack" ? "w-full" : undefined} testId="together-score" badgeTestId="together-placement" /> : <ScoreMarkEmpty layout={layout} value="sm" badge="row" className={layout === "stack" ? "w-full" : undefined} testId="together-score-empty" />);
               return (
                 <li key={m.playerId} className="@container/member flex min-w-0 items-center gap-2.5" data-testid="together-member" data-player-id={m.playerId}>
                   {/* The champion (36px), the member's picture a 16px badge on its corner. */}
@@ -366,13 +371,12 @@ function TogetherCard({ g, p, champions, teams, scores }: { g: TogetherListGame;
                         </span>
                         {extra}
                       </span>
+                      {/* The score and place at the end of this line where the row has no CS and damage (a phone, two to a row beside the open sidebar): the name's line keeps its room. */}
+                      <span className="ml-auto flex shrink-0 sm:@min-[19rem]/member:hidden">{mark("inline")}</span>
                     </span>
                   </span>
-                  {/* The score and place, the same as the member's own Match History card and the opened game. */}
-                  {(() => {
-                    const s = scores[m.playerId];
-                    return s?.state === "ok" ? <ScoreMark score={s} layout="inline" className="self-center" testId="together-score" badgeTestId="together-placement" /> : <ScoreMarkEmpty layout="inline" className="self-center" testId="together-score-empty" />;
-                  })()}
+                  {/* Where it has them, the score over its place at the row's end, as a scoreboard row shows its player's. */}
+                  <span className="-ml-1 hidden w-9 shrink-0 self-center sm:@min-[19rem]/member:flex">{mark("stack")}</span>
                 </li>
               );
             })}

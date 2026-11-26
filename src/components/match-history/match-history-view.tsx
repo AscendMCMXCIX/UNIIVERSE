@@ -373,10 +373,10 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
             </span>
             <span className={cn("block text-xs tabular-nums", row.perfect ? "text-good" : "text-fg-muted")}>{ratio}</span>
             {/* The performance score and place directly under the K/D/A on a phone's and a two-row card (a wide card gives them the next column). */}
-            <span className="mt-0.5 flex justify-end @max-[16rem]/mh:mt-0 @min-[36rem]/mh:justify-start @min-[50rem]/mh:hidden">{scoreMark("inline")}</span>
+            <span className="flex justify-end @min-[36rem]/mh:justify-start @min-[50rem]/mh:hidden">{scoreMark("inline")}</span>
             {/* The game's largest multikill, quietly (see MultikillTag), no taller than its text under the score on a phone's and a two-row card. */}
             {row.multikill ? (
-              <span className="mt-0.5 flex flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5 @min-[36rem]/mh:justify-start">
+              <span className="flex flex-wrap items-center justify-end gap-x-1.5 gap-y-0.5 @min-[36rem]/mh:justify-start @min-[50rem]/mh:mt-0.5">
                 <MultikillTag size={row.multikill} dense className="@min-[50rem]/mh:leading-tight" />
               </span>
             ) : null}
