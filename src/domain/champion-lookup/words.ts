@@ -8,6 +8,7 @@ import type { Slot } from "./types";
   timer, no "ready at" (words.test.ts).
 */
 
+/** Each slot's name as a screen reader hears it beside the ability's name (the slot's key tile is drawn, not read). */
 export const SLOT_NAMES: Record<Slot, string> = { P: "Passive", Q: "Q", W: "W", E: "E", R: "R" };
 
 /** What an ability with no cooldown number says in its place: a short line, and where it helps, a second one. */
@@ -37,14 +38,26 @@ export function cooldownWords(cooldown: CooldownDisplay): { line: string; more: 
   return { line: w.line, more: more || null };
 }
 
-/** The rule's line under the abilities: the formula, and what it leaves out. */
-export const HASTE_RULE_WORDS = "At a haste: base × 100 / (100 + haste), Riot's general rule, applied only where Riot's data gives the cooldown. Ultimate haste isn't counted.";
+/**
+ * The haste rule, said once per champion in the ⓘ beside its haste field (25 Nov 2026: a short tip
+ * instead of a line under the board): the formula, where it applies, what it leaves out.
+ */
+export const HASTE_RULE_WORDS = "Cooldowns at a haste use Riot's rule: base × 100 / (100 + haste). It applies only where Riot's data gives a cooldown. Ultimate haste isn't counted.";
 
-/** Said once under the abilities: what Riot's published data does not hold, so the page never shows it. */
-export const DATA_LIMIT_WORDS = "Riot's published data has no damage values or scaling for abilities, so none are shown: a description names the damage type where Riot's words do.";
+/**
+ * What the abilities' figures and chips come from and what Riot's data does not hold, in the ⓘ
+ * beside the abilities' heading: the chips are words of Riot's descriptions; no damage values or
+ * scaling; no passive cooldown, which the row marks with a dash.
+ */
+export const DATA_LIMIT_WORDS = "Mechanics are named from the words of Riot's descriptions. Riot's data has no damage values or scaling, and no cooldown for passives (—).";
 
-/** Where the key mechanics come from, said beside them. */
-export const MECHANICS_SOURCE_WORDS = "Named in Riot's own ability descriptions, found by fixed word rules: open an ability to read Riot's sentence.";
+/**
+ * The base statistics' ⓘ: what the two numbers are, and the attack damage placeholder where Riot's
+ * data gives it no growth (statRows), so a missing growth is never read as none in the game.
+ */
+export function statsTipWords(noAttackDamageGrowth: boolean): string {
+  return `Riot's numbers at level 1 and per level; attack speed grows by a share of its base.${noAttackDamageGrowth ? " Attack damage has no growth in Riot's data." : ""}`;
+}
 
 /** What Riot changed in an ability in its last patch, as the opened row says it; null when nothing is known. */
 export function changedWords(changed: { sincePatch: string | null; text: boolean; cooldown: boolean; cost: boolean } | null | undefined): string | null {

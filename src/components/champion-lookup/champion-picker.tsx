@@ -12,12 +12,12 @@ import { searchChampions } from "./search";
 
 /*
   Champion Intel's window of every champion (docs/CHAMPION_INTEL.md, "Choosing a champion"),
-  opened by a champion's name (to change it), by Add champion, and by All champions beside the
+  opened by a champion's name (to change it), by Compare, and by All champions beside the
   search where no champion is chosen: the whole screen on a phone, a centred window wider up
   (DetailModal "standard", as tall as its content: the grid grows with it and the window's body
   scrolls). A search field first, 16px so a phone never zooms into it, that filters as you type;
   with nothing typed, the champions looked up lately on this device, then every champion on the
-  roster. Enter takes the first match; ArrowDown goes into the grid, whose arrows move between
+  roster, every name whole under its portrait. Enter takes the first match; ArrowDown goes into the grid, whose arrows move between
   portraits; Escape clears what was typed before it closes the window. A task dialog: no history
   entry of its own (DESIGN_SYSTEM.md §7).
 */
@@ -30,7 +30,7 @@ function RecentRow({ choices, selected, onPick }: { choices: readonly ChampionCh
   if (!choices.length) return null;
   return (
     <section aria-labelledby={id} data-testid="lookup-picker-recent">
-      <h3 id={id} className="label-caps mb-2">
+      <h3 id={id} className="mb-2 text-sm font-semibold text-fg">
         Recent
       </h3>
       <ul className="flex flex-wrap gap-2">
@@ -40,13 +40,13 @@ function RecentRow({ choices, selected, onPick }: { choices: readonly ChampionCh
               type="button"
               onClick={() => onPick(c.id)}
               aria-pressed={selected === c.id}
-              className={cn("flex min-h-11 min-w-0 max-w-full items-center gap-2 rounded-md border bg-surface py-1 pl-1 pr-3 text-left text-sm font-medium transition-colors hover:border-border-strong hover:text-fg", selected === c.id ? "border-accent/60 text-fg" : "border-border text-fg-muted")}
+              className={cn("flex min-h-11 min-w-0 max-w-full items-center gap-2 rounded-md border bg-surface py-1 pl-1 pr-3 text-left text-sm font-medium text-fg transition-colors hover:border-border-strong", selected === c.id ? "border-accent/60" : "border-border")}
               data-champion={c.id}
             >
               <span aria-hidden className="shrink-0">
                 <ChampionPortrait champion={portraitOf(c)} size="sm" />
               </span>
-              <span className="min-w-0 [overflow-wrap:anywhere]">{c.name}</span>
+              <span className="min-w-0 break-words">{c.name}</span>
             </button>
           </li>
         ))}
@@ -58,7 +58,7 @@ function RecentRow({ choices, selected, onPick }: { choices: readonly ChampionCh
 /** What the grid shows while the window opens (its portraits render once the motion is over), in the grid's own columns. */
 function GridSkeleton() {
   return (
-    <div className="grid grid-cols-[repeat(auto-fill,minmax(4.75rem,1fr))] gap-1" aria-hidden>
+    <div className="grid grid-cols-[repeat(auto-fill,minmax(6rem,1fr))] gap-1" aria-hidden>
       {Array.from({ length: 18 }, (_, i) => (
         <div key={i} className="h-24 animate-pulse rounded-lg bg-surface-2" />
       ))}
@@ -82,7 +82,7 @@ function PickerBody({ champions, selected, recent, inputRef, onPick }: { champio
   const grid = (list: PickerChampion[]) => (
     <div ref={gridRef}>
       {/* ArrowUp (or ArrowLeft) from the first portraits goes back to the search, which is this window's, not the grid's. */}
-      <ChampionGrid champions={list} toolbar={false} maxHeight="auto" selectedIds={selectedIds} onPick={pick} onExitTop={() => inputRef.current?.focus()} testId="lookup-picker-grid" />
+      <ChampionGrid champions={list} toolbar={false} maxHeight="auto" selectedIds={selectedIds} onPick={pick} onExitTop={() => inputRef.current?.focus()} testId="lookup-picker-grid" wholeNames />
     </div>
   );
   return (
@@ -158,8 +158,8 @@ function PickerBody({ champions, selected, recent, inputRef, onPick }: { champio
           <div className="space-y-5">
             <RecentRow choices={recent} selected={selected} onPick={pick} />
             <section aria-label="All champions" className="space-y-2">
-              <h3 className="label-caps" data-testid="lookup-picker-all-title">
-                All champions <span className="font-normal normal-case tracking-normal">· {all.length}</span>
+              <h3 className="text-sm font-semibold text-fg" data-testid="lookup-picker-all-title">
+                All champions <span className="font-normal text-fg-muted">· {all.length}</span>
               </h3>
               {champions.length ? grid(all) : <p className="text-sm text-fg-muted">The champion list arrives with the first game-data update.</p>}
             </section>
@@ -170,7 +170,7 @@ function PickerBody({ champions, selected, recent, inputRef, onPick }: { champio
   );
 }
 
-/** The window of every champion, for Champion Intel: a champion's name (to change it), Add champion, and All champions where none is chosen. */
+/** The window of every champion, for Champion Intel: a champion's name (to change it), Compare, and All champions where none is chosen. */
 export function ChampionPickerWindow({ champions, selected, recent, onPick, onClose, title = "All champions" }: { champions: readonly ChampionChoice[]; selected: string | null; recent: readonly ChampionChoice[]; onPick: (id: string) => void; onClose: () => void; title?: string }) {
   const inputRef = React.useRef<HTMLInputElement>(null);
   return (

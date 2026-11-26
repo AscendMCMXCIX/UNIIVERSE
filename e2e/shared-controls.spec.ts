@@ -143,7 +143,7 @@ test("Champion Intel and Settings: no boxed group", async ({ page }) => {
   await page.goto("/lookup", { waitUntil: "networkidle" });
   const a = await accentOf(page);
   await expectAllFlat(page, a, "Champion Intel");
-  // Two champions: on a phone and a tablet the switcher of the two is a segmented group, flat too.
+  // Two champions: one aligned board (no switcher since 25 Nov 2026); nothing boxed there either.
   await page.goto("/lookup?champion=Ahri&champion2=Jinx", { waitUntil: "networkidle" });
   await expectAllFlat(page, a, "Champion Intel, two champions");
   await page.goto("/settings", { waitUntil: "networkidle" });

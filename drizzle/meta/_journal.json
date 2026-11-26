@@ -477,6 +477,13 @@
       "when": 1795518145343,
       "tag": "0068_retire_meta_trends_rest",
       "breakpoints": true
+    },
+    {
+      "idx": 69,
+      "version": "7",
+      "when": 1795659089846,
+      "tag": "0069_match_details_champions",
+      "breakpoints": true
     }
   ]
 }

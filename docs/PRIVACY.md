@@ -47,7 +47,7 @@ Deactivating, deleting and archiving are different actions, and none of them is 
 | Notes others wrote | Whole-word mentions of their names, Riot names and Riot IDs (3 characters or more) become "[removed]"; the rest of each note stays. This includes the private text other players kept in the retired Ranked Development: review learning points and adjustments, session focus and closing notes, objective titles and explanations, and If–Then plans. |
 | Admin activity | Entries keep what happened. Their name becomes **"Erased member"** as actor or target, and matching details become "[removed]". Since 19 Nov 2026, every entry about them by id (done to their account, profile or Riot account, by anyone, themselves included) loses every text in its details, whatever it says (numbers and yes/no values stay), so a detail naming them as they were called before a rename cannot survive. An entry they only made, about another member or a setting, keeps its details apart from values that name them: what access they gave someone else stays that person's record. **Forward only:** entries left by erasures made before that keep what those erasures left. Their ids were removed then, so neither a later erasure nor re-applying the records (`erasure-reconcile`, Personal data → Re-apply records) finds them by id; clearing them would need a one-off over the entries named "Erased member", which waits for the owner (the overhaul plan's OD21, with a read-only count first). |
 | Job logs | Their Riot IDs are taken out of `job_runs` and `data_refresh_status`. Newer sync lines name an account only as `account 1a2b3c4d`. Run records are deleted after 60 days (the daily `integrity` job, in bounded batches). |
-| Caches | Team, public page, leaderboards, public pictures and banners, proficiency and lookup caches, and the lanes Matchups keeps, are cleared on this server instance (`src/server/privacy/after-erasure.ts`); other instances follow within their cache times. |
+| Caches | Team, public page, leaderboards, public pictures and banners, proficiency and lookup caches, and the lanes Matchups keeps, are cleared on this server instance (`src/server/privacy/after-erasure.ts`); other instances follow within their cache times. Champion Intel's build totals, kept in Next's data cache that every instance shares, are dropped at once (`forgetChampionBuilds`), so the next page counts them again without the erased person's games. |
 
 It then records:
 - **An erasure record** (`privacy_erasures`): a random reference and keyed tokens of the account, profile, Riot account ids, PUUIDs and Riot IDs. Never the identifiers themselves.
@@ -144,6 +144,28 @@ The owner approved OD9 on 23 Nov 2026. The notice's "Account activity log" row s
 - A change that changes nothing records nothing.
 - Permanent removal replaces the person's name in the log with "Erased member", as before.
 - Tests: `tests/db/member-admin.test.ts` ("the permission hierarchy").
+
+## Champion Intel's build totals (25 Nov 2026)
+
+The owner's request of 25 Nov 2026 ("Recommended builds and runes") added a use of the stored match
+records and timelines, said in the notice's match-records row (`PRIVACY_UPDATED` 26 November 2026):
+Champion Intel counts what players chose on a champion (runes, stat shards, summoner spells,
+starting items, boots, completed items, skill order) and how often those games were won, over every
+player on that champion in the stored draft games a current team member played (both teams).
+docs/CHAMPION_INTEL.md, "Builds and runes", has the rules.
+
+- **Totals only.** One statement per champion counts inside the database; only counts leave it (a
+  value, its games, its wins, how many were a team member's own). No PUUID, name, Riot ID or match
+  id is read into the app or shown, and nothing about any one player is kept
+  (`tests/db/champion-builds.test.ts` checks the answer).
+- **Who sees it.** Members who may see teammates' statistics (`view-teammate-stats`, the default
+  access): the team members' own games are among the counts, and a champion only one member plays
+  would show that member's choices and results. A personal-use profile's own games are never
+  counted (only matches a current team member played are), and the section is not shown to it.
+- **Nothing new is stored.** The counts are kept up to six hours in Next's data cache (shared by the
+  server's instances), dropped at once by an erasure; no table holds them.
+- **Erased people** are already out of the records and timelines (`removed`, timeline entries
+  deleted), and the counts skip a removed place.
 
 ## Prepared, not active: high-elo statistics (OD4)
 

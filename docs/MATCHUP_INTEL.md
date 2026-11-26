@@ -4,6 +4,11 @@
 request of 23 Nov 2026: "The owner no longer wants a champion-vs-champion strategy system, curated
 matchup briefings, suggested builds, rune recommendations or matchup evidence").
 
+The owner's request of 25 Nov 2026 asked again for builds and runes, as statistics: Champion Intel
+shows, per champion, the builds observed in the team's stored matches with their win and pick rates
+(docs/CHAMPION_INTEL.md, "Builds and runes"). It is not a matchup system: no champion-vs-champion
+evidence, briefing or verdict came back.
+
 Matchup Intel (16–23 Nov 2026) was a static reference at `/resources/matchups` for two champions
 chosen by hand, your champion and the enemy, in five roles: the enemy's abilities and base cooldowns
 from Riot's Data Dragon, curated briefings for three pairs and checked notes for six champions

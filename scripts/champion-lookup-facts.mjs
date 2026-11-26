@@ -7,10 +7,15 @@
   One page load of an ordinary champion (Ahri: her Q has a cooldown Riot's data gives) at the check's
   1440 × 900 and again with the window made 1920 × 1080; then, with no further request, 20 typed in
   the haste field, one ability's row opened, and the window of every champion opened from the
-  champion's name and searched. Then Add champion with Jinx (one request: the page builds the second
-  champion on the server), read at 1440 × 900, and removed again. Then Matchup Intel's old address,
-  which must land here carrying its enemy. Read in the page only: counts, true or false, px,
-  numbers and the page's own fixed words; no name but champions' and abilities'.
+  champion's name and searched. Then Compare with Jinx (one request: the page builds the second
+  champion on the server), read at 1440 × 900 on the aligned board; Swap (one request), read; and ✕
+  on the first column (one request), which leaves Ahri alone again. Each read also takes the
+  champion's builds and runes (counted in the team's stored matches, streamed in after the
+  abilities): whether they show, the source line, each part's choice with its win and pick rate or
+  why there is none, or the honest line that the patch has too few games; and that no Riot ID or
+  account id is anywhere in them. Then Matchup Intel's old address, which must land here carrying
+  its enemy. Read in the page only: counts, true or false,
+  px, numbers and the page's own fixed words; no name but champions' and abilities'.
 */
 
 /** What the page shows, read in the page at its current size (Playwright's evaluate: self-contained). */
@@ -24,6 +29,16 @@ export function readChampionLookup() {
   const q = rows.find((r) => r.getAttribute("data-slot") === "Q");
   const p = rows.find((r) => r.getAttribute("data-slot") === "P");
   const boxes = shown.map((s) => s.getBoundingClientRect());
+  // Compare's aligned board: each slot's row of the two columns at the same top (within a pixel).
+  const rowTop = (n, slot) => document.querySelector(`[data-testid="lookup-panel"][data-panel="${n}"] [data-testid="lookup-ability"][data-slot="${slot}"]`)?.getBoundingClientRect().top ?? null;
+  const levels = ["P", "Q", "W", "E", "R"].map((slot) => [rowTop(1, slot), rowTop(2, slot)]);
+  // A champion's name shown whole: nothing cut, on one line (the Range's boxes on one top), at this size.
+  const nameWhole = (el) => {
+    const r = document.createRange();
+    r.selectNodeContents(el);
+    const tops = new Set([...r.getClientRects()].filter((x) => x.width > 0).map((x) => Math.round(x.top)));
+    return el.scrollWidth <= el.clientWidth + 1 && tops.size <= 1;
+  };
   return {
     size: `${innerWidth}x${innerHeight}`,
     innerHeight,
@@ -41,23 +56,63 @@ export function readChampionLookup() {
     qHasted: values(q?.querySelector('[data-testid="lookup-hasted"]')),
     qOpen: !!q?.querySelector("details[open]"),
     qDescription: text(q?.querySelector('[data-testid="lookup-description"]')).length,
+    // The passive: why Riot's data gives no cooldown (its row's reason), the quiet dash shown, its words for a screen reader.
+    passiveKind: p?.getAttribute("data-cooldown") ?? null,
+    passiveDash: text(p?.querySelector('[data-testid="lookup-dash"]')),
     passive: text(p?.querySelector('[data-testid="lookup-no-number"]')),
     passiveHasted: !!p?.querySelector('[data-testid="lookup-hasted"]'),
-    rule: text(document.querySelector('[data-testid="lookup-rule"]')),
-    // The key mechanics: Riot's attack range (a record from rules format 4 on), and the kinds Riot's descriptions name.
+    // The haste rule (the ⓘ beside the first champion's haste field) and what Riot's data does not hold (the abilities' ⓘ).
+    rule: text(panel?.querySelector('[data-testid="lookup-rule"]')),
+    limit: text(panel?.querySelector('[data-testid="lookup-data-limit"]')),
+    // The champion's facts: Riot's attack range (a record from rules format 4 on); and the chips of what Riot's descriptions name.
     range: text(panel?.querySelector('[data-testid="lookup-range"]')),
     mechanics: panel?.querySelectorAll('[data-testid="lookup-mechanic"]').length ?? 0,
+    // Each ability's slot key, a tile of its own: in the row (one champion) or in Compare's column of keys.
+    slotKeys: [...document.querySelectorAll('[data-testid="lookup-slot-key"]')].filter((k) => k.offsetParent !== null).map((k) => text(k)).join(""),
+    namesCut: shown.filter((s) => { const n = s.querySelector('[data-testid="lookup-name"]'); return n && !nameWhole(n); }).length,
     // The essential part of every panel shown: its haste field and its five rows.
     lastBottom: Math.round(Math.max(0, ...shown.flatMap((s) => [...s.querySelectorAll('[data-testid="lookup-ability"]')].map((r) => r.getBoundingClientRect().bottom)))),
     hasteBottom: Math.round(Math.max(0, ...shown.map((s) => s.querySelector('[data-testid="lookup-haste"]')?.getBoundingClientRect().bottom ?? 0))),
     panels: shown.length,
     sideBySide: boxes.length === 2 && Math.abs(boxes[0].top - boxes[1].top) <= 1 && Math.abs(boxes[0].width - boxes[1].width) <= 1,
+    rowsLevel: shown.length === 2 && levels.every(([a, b]) => a !== null && b !== null && Math.abs(a - b) <= 1),
     // Elements in the page's main part that scroll on their own.
     scrollers: [...document.querySelectorAll("main *")].filter((e) => /(auto|scroll)/.test(getComputedStyle(e).overflowY) && e.scrollHeight > e.clientHeight + 1).length,
     // Words a game-integrity rule refuses, and "verified", anywhere in the page's main text.
     timerWords: /\b(timer|countdown|ready at|ready in|verified)\b/i.test(text(document.querySelector("main"))),
     url: location.pathname + location.search,
+    secondChampion: panels.find((p) => p.getAttribute("data-panel") === "2")?.getAttribute("data-champion") ?? null,
+    // The first champion's builds and runes: "shown", "few", "unavailable", or null (no section).
+    ...readBuilds(panel),
+    // Compare: the two champions' builds slots on one row (level within a pixel); null with fewer than two.
+    buildsLevel: (() => {
+      const slots = shown.map((s) => s.querySelector('[data-testid="lookup-builds"]')).filter(Boolean).map((e) => e.getBoundingClientRect());
+      return slots.length === 2 ? Math.abs(slots[0].top - slots[1].top) <= 1 && Math.abs(slots[0].height - slots[1].height) <= 1 : null;
+    })(),
+    // A Riot ID ("Name#TAG") or an account id (a long unbroken token) anywhere in the builds sections, text or attributes.
+    buildsIdentity: [...document.querySelectorAll('[data-testid="lookup-builds"]')].some((el) => {
+      const said = [el.textContent ?? "", ...[...el.querySelectorAll("*")].flatMap((e) => [...e.attributes].map((a) => a.value))].join(" ");
+      return /#[A-Za-z0-9]{2,5}\b/.test(said) || /[A-Za-z0-9_-]{60,}/.test(said);
+    }),
   };
+
+  /** The builds section of a column: its state, its source line, the honest line, and each part's row. */
+  function readBuilds(column) {
+    const view = column?.querySelector('[data-testid="lookup-builds-view"]') ?? null;
+    return {
+      buildsStatus: view?.getAttribute("data-status") ?? null,
+      buildsLine: view?.querySelector('[data-testid="lookup-build-source"]')?.getAttribute("data-line") ?? "",
+      buildsFew: text(view?.querySelector('[data-testid="lookup-build-few"]')),
+      buildsParts: [...(view?.querySelectorAll('[data-testid="lookup-build-part"]') ?? [])].map((r) => ({
+        part: r.getAttribute("data-part") ?? "",
+        state: r.getAttribute("data-state") ?? "",
+        win: text(r.querySelector('[data-testid="lookup-build-win"]')),
+        pick: text(r.querySelector('[data-testid="lookup-build-pick"]')),
+        pictures: r.querySelectorAll('[data-testid="lookup-build-choice"] img, [data-testid="lookup-build-choice"] [role=img]').length,
+        text: text(r.querySelector('[role="cell"]')),
+      })),
+    };
+  }
 }
 
 /** The window of every champion, read in the page once it is open (and after a search typed in it). */
@@ -84,11 +139,12 @@ function publicPatch(patch) {
  * What the check asserts: the page read at 1440 × 900 (`at`) and 1920 × 1080 (`wide`), after 20 typed
  * in the haste field and the Q's row opened (`hastedRead`), the window of every champion open (`all`)
  * and searched for "ahr" (`search`), a second champion added (`dual`, at 1440 × 900; undefined: not
- * judged), Matchup Intel's old address opened (`legacy`), and /api/health's patch (`healthPatch`,
+ * judged), the two swapped (`swapped`) and the first column's ✕ pressed (`removed`; each undefined:
+ * not judged), Matchup Intel's old address opened (`legacy`), and /api/health's patch (`healthPatch`,
  * Data Dragon's numbering; undefined: not compared). Each fact: its name, PASS, FAIL or WARN, and what
  * was found.
  */
-export function championLookupVerdicts({ kind, champion, at, wide, hastedRead, all, search, dual, legacy, healthPatch }) {
+export function championLookupVerdicts({ kind, champion, at, wide, hastedRead, all, search, dual, swapped, removed, legacy, healthPatch }) {
   const out = [];
   const fact = (name, ok, detail) => out.push({ name: `${kind}: ${name}`, status: ok ? "PASS" : "FAIL", detail });
   const warn = (name, detail) => out.push({ name: `${kind}: ${name}`, status: "WARN", detail });
@@ -102,8 +158,11 @@ export function championLookupVerdicts({ kind, champion, at, wide, hastedRead, a
     fact("the abilities' patch is /api/health's, or the line says which patch the game is on", !!game && (shown === game || behind === game), { shown, game, behind });
   }
   if (at.slots === "") warn(`${champion}'s abilities are not on the page (not stored yet, or not readable): the page says so`, { slots: at.slots });
-  else fact("five abilities, Passive to R, each with its icon, its name and a cooldown line (numbers, or why there are none)", at.slots === "PQWER" && at.complete === 5, { slots: at.slots, complete: at.complete });
-  fact("the passive says Riot's data gives it no cooldown, and gets no haste", at.passive.startsWith("No cooldown in Riot's data") && !hastedRead.passiveHasted, { passive: at.passive, hasted: hastedRead.passiveHasted });
+  else {
+    fact("five abilities, Passive to R, each with its icon, its name and a cooldown line (numbers, or why there are none)", at.slots === "PQWER" && at.complete === 5, { slots: at.slots, complete: at.complete });
+    fact("each ability's slot key is a tile of its own, P to R", at.slotKeys === "PQWER", { keys: at.slotKeys });
+  }
+  fact("the passive shows a quiet dash for the cooldown Riot's data does not give (said in words to a screen reader), and gets no haste", at.passiveKind === "passive-not-in-ddragon" && at.passiveDash === "—" && at.passive.includes("No cooldown in Riot's data") && !hastedRead.passiveHasted, { kind: at.passiveKind, dash: at.passiveDash, hasted: hastedRead.passiveHasted });
   if (at.qKind !== "per-rank") warn(`${champion}'s Q has no cooldown in Riot's data on this patch (${at.qKind}): the haste fact is not judged`, { q: at.qKind });
   else {
     const want = at.qBase.map((b) => hasted(b, 20));
@@ -111,12 +170,13 @@ export function championLookupVerdicts({ kind, champion, at, wide, hastedRead, a
   }
   fact("an ability's row opens to Riot's description", hastedRead.qOpen && hastedRead.qDescription > 0, { open: hastedRead.qOpen, description: hastedRead.qDescription });
   if (at.slots !== "") {
-    if (at.mechanics > 0) fact("the key mechanics name what Riot's descriptions name", true, { mechanics: at.mechanics });
-    else warn("no key mechanics from Riot's descriptions on this patch", { mechanics: at.mechanics });
-    if (/^\d[\d,]*$/.test(at.range)) fact("the key mechanics give Riot's attack range", true, { range: at.range });
+    if (at.mechanics > 0) fact("the abilities' chips name what Riot's descriptions name", true, { mechanics: at.mechanics });
+    else warn("no mechanics from Riot's descriptions on this patch", { mechanics: at.mechanics });
+    if (/^\d[\d,]*$/.test(at.range)) fact("the champion's facts give Riot's attack range", true, { range: at.range });
     else warn("no attack range: the stored abilities are from before rules format 4 (the next game-data update reads them)", { range: at.range });
   }
-  fact("the rule's line says the formula and what it leaves out, and what Riot's data does not hold", /base × 100 \/ \(100 \+ haste\)/.test(at.rule) && /Ultimate haste isn't counted/.test(at.rule) && /no damage values or scaling/.test(at.rule), { rule: at.rule });
+  fact("the haste field's ⓘ says the formula and what it leaves out; the abilities' ⓘ what Riot's data does not hold", /base × 100 \/ \(100 \+ haste\)/.test(at.rule) && /Ultimate haste isn't counted/.test(at.rule) && /no damage values or scaling/.test(at.limit), { rule: at.rule, limit: at.limit });
+  fact("the champion's name is whole, on one line, at 1440 × 900 and 1920 × 1080", at.namesCut === 0 && wide.namesCut === 0, { cut: at.namesCut, wide: wide.namesCut });
   const overBy = (r) => r.scrollHeight - r.innerHeight;
   fact("one screen at 1440 × 900: the haste and the five abilities on it, folded, nothing scrolling inside", at.size === "1440x900" && at.lastBottom > 0 && at.lastBottom <= at.innerHeight && at.hasteBottom <= at.innerHeight && at.scrollers === 0, { lastBottom: at.lastBottom, hasteBottom: at.hasteBottom, innerHeight: at.innerHeight, scrollers: at.scrollers });
   fact("one screen at 1920 × 1080, no page scroll", wide.size === "1920x1080" && overBy(wide) <= 1, { overBy: overBy(wide), size: wide.size });
@@ -124,7 +184,30 @@ export function championLookupVerdicts({ kind, champion, at, wide, hastedRead, a
   fact('its search finds a champion as typed ("ahr": Ahri first)', search.first === "Ahri" && /champions? found$/.test(search.found), { first: search.first, found: search.found });
   if (dual !== undefined) {
     fact("a second champion sits beside the first at 1440 × 900, both in the address, the five abilities of each on the screen", dual.panels === 2 && dual.sideBySide && /[?&]champion2=Jinx(&|$)/.test(dual.url) && dual.lastBottom > 0 && dual.lastBottom <= dual.innerHeight && dual.hasteBottom <= dual.innerHeight, { panels: dual.panels, sideBySide: dual.sideBySide, url: dual.url, lastBottom: dual.lastBottom, innerHeight: dual.innerHeight });
+    fact("Compare is one aligned board: each ability's row of the two champions level, the names whole, nothing scrolling inside", dual.rowsLevel && dual.namesCut === 0 && dual.scrollers === 0, { rowsLevel: dual.rowsLevel, namesCut: dual.namesCut, scrollers: dual.scrollers });
   }
+  if (swapped !== undefined) {
+    fact("Swap exchanges the two champions, each with its own haste, in the address", swapped.champion === "Jinx" && swapped.secondChampion === champion && /^\/lookup\?champion=Jinx&champion2=[^&]+&haste2=20$/.test(swapped.url), { champion: swapped.champion, second: swapped.secondChampion, url: swapped.url });
+  }
+  if (removed !== undefined) {
+    fact("✕ on the first column leaves the second champion alone, as the first, its haste with it", removed.panels === 1 && removed.champion === champion && /^\/lookup\?champion=[^&]+&haste=20$/.test(removed.url), { panels: removed.panels, champion: removed.champion, url: removed.url });
+  }
+  // Builds and runes, counted in the team's stored matches (docs/CHAMPION_INTEL.md, "Builds and runes"):
+  // the check signs in as a member with the default access, which may see teammates' statistics.
+  const game = publicPatch(healthPatch ?? null) ?? /patch (\d+\.\d+)/.exec(at.source)?.[1] ?? null;
+  fact("the builds and runes are shown to a member who may see teammates' statistics: the builds, or the line that the patch has too few games yet", at.buildsStatus === "shown" || at.buildsStatus === "few", { status: at.buildsStatus });
+  if (at.buildsStatus === "shown") {
+    const m = /^From \d[\d,]* games? in the team's matches · (?:patch (\d+\.\d+)|patches \d+\.\d+–(\d+\.\d+)) · all ranks · (?:Draft|Ranked|Clash)(?:(?:, | and )(?:Ranked|Clash))*$/.exec(at.buildsLine);
+    const newest = m?.[1] ?? m?.[2] ?? null;
+    fact("the builds' source line says the games, the team's matches, the current patch (the previous one added only where it says so), all ranks and the queues", !!m && (game === null || newest === game), { line: at.buildsLine, game });
+    const ok = (r) => (r.state === "shown" ? (r.part === "full" || (/^\d{1,3}%$/.test(r.win) && /^\d{1,3}%$/.test(r.pick))) && (r.part === "skills" || r.pictures > 0) : r.text.length > 0);
+    const parts = at.buildsParts.map((r) => r.part);
+    fact("each part of the builds shows its choice as icons with its win rate and pick rate, or says why there is none", at.buildsParts.length >= 7 && at.buildsParts.every(ok) && ["runes", "shards", "spells", "skills", "start", "boots", "core"].every((p) => parts.includes(p)), { parts: at.buildsParts.map((r) => `${r.part}:${r.state}`) });
+  } else if (at.buildsStatus === "few") {
+    fact("the builds' honest line names the current patch: no build made up from too few games", /^Not enough games on patch \d+\.\d+ in the team's matches yet$/.test(at.buildsFew) && (game === null || at.buildsFew.includes(`patch ${game} `)) && at.buildsParts.length === 0, { line: at.buildsFew, game });
+  }
+  fact("the builds name no player: no Riot ID or account id in them, one champion or two", !at.buildsIdentity && !(dual?.buildsIdentity ?? false), { at: at.buildsIdentity, dual: dual?.buildsIdentity ?? null });
+  if (dual !== undefined && dual.buildsLevel !== null) fact("Compare: each champion's builds on one row after R, level in both columns", dual.buildsLevel === true, { level: dual.buildsLevel });
   fact("Matchup Intel's old address lands on Champion Intel, carrying its enemy (vs)", legacy.url === "/lookup?champion=Mordekaiser" && legacy.champion === "Mordekaiser" && legacy.heading === "Champion Intel", { url: legacy.url, champion: legacy.champion });
   fact("no timer, countdown, ready time or \"verified\" anywhere on the page", !at.timerWords && !hastedRead.timerWords, null);
   return out;

@@ -151,8 +151,9 @@ export function ChampionSearch({ champions, onPick, inputRef, className }: { cha
                   <span aria-hidden className="shrink-0">
                     <ChampionPortrait champion={{ id: c.id, name: c.name, portraitUrl: c.portrait }} size="xs" />
                   </span>
-                  <span className="min-w-0 truncate font-medium text-fg">{c.name}</span>
-                  <span className="min-w-0 truncate text-xs text-fg-subtle max-sm:hidden">{c.title}</span>
+                  {/* The name whole (it wraps between words only where it must); Riot's title, the supplement, gives way first. */}
+                  <span className="min-w-0 break-words font-medium text-fg">{c.name}</span>
+                  <span className="min-w-0 shrink-[999] truncate text-xs text-fg-muted max-sm:hidden">{c.title}</span>
                 </li>
               ))
             : null}
