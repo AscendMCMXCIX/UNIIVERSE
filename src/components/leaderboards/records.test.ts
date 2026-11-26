@@ -178,8 +178,8 @@ describe("the season records", () => {
 
   it("say each record in a few words in a two-line cell (the full label stays its name), in full in a phone's three-line cell", () => {
     // In a two-line cell (record-two) the short label shows and the full one is read; elsewhere the full one shows.
-    expect(rows["damage-per-minute"]).toContain('<span class="record-two:hidden">Most damage per minute</span><span class="hidden record-two:inline" aria-hidden="true">Damage per min</span><span class="sr-only hidden record-two:inline">Most damage per minute</span>');
-    expect(RECORD_SHORT).toEqual({ kills: "Most kills", assists: "Most assists", "damage-per-minute": "Damage per min", "cs-per-minute": "CS per min", "vision-per-minute": "Vision per min", kda: "Best KDA", "win-streak": "Win streak" });
+    expect(rows["damage-per-minute"]).toContain('<span class="record-two:hidden">Most damage per minute</span><span class="hidden record-two:inline" aria-hidden="true">Damage/min</span><span class="sr-only hidden record-two:inline">Most damage per minute</span>');
+    expect(RECORD_SHORT).toEqual({ kills: "Most kills", assists: "Most assists", "damage-per-minute": "Damage/min", "cs-per-minute": "CS/min", "vision-per-minute": "Vision/min", kda: "Best KDA", "win-streak": "Win streak" });
     // A qualifier is read out, not drawn, in a two-line cell under 24rem (the ⓘ says what they count).
     expect(rows["damage-per-minute"]).toMatch(/record-two:@max-\[24rem\]\/list:sr-only" data-testid="record-qualifier"/);
   });

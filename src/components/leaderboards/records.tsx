@@ -71,7 +71,7 @@ const RECORDS_TIP = `Records among players active in the last ${LEADERBOARD_ACTI
             the phone and no word is squeezed beside the picture.
     two     (record-two: a 36rem cell, or any cell from a 59rem page, the desktop's one-screen board,
             Release 16) picture · text · figure · chevron, two lines beside a 36px picture, 44px: the
-            record in a few words (RECORD_SHORT, "Damage per min": the full label is its name) and,
+            record in a few words (RECORD_SHORT, "Damage/min": the full label is its name; the units' own short form since 26 Nov 2026, as "Damage per min" filled a 1366 × 768 cell with nothing to spare and a browser that sets text a hair wider wrapped it, the page 11px past the window) and,
             in a cell of 24rem or more, its qualifier (read out in a narrower one: the records' ⓘ says
             what they count); the holder and the champion, with your best after them ("Your best 9");
             the value over its unit at the right, across both lines. The game's role, K/D/A and date

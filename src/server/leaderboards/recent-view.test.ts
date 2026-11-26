@@ -163,9 +163,9 @@ describe("Records & achievements' display fields", () => {
     expect(records("bo").records.map((r) => [r.label, r.short])).toEqual([
       ["Most kills in a game", "Most kills"],
       ["Most assists in a game", "Most assists"],
-      ["Most damage per minute", "Damage per min"],
-      ["Most CS per minute", "CS per min"],
-      ["Most vision per minute", "Vision per min"],
+      ["Most damage per minute", "Damage/min"],
+      ["Most CS per minute", "CS/min"],
+      ["Most vision per minute", "Vision/min"],
       ["Best KDA in a game", "Best KDA"],
       ["Longest win streak", "Win streak"],
     ]);

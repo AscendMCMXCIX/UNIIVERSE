@@ -71,7 +71,7 @@ export interface FormView {
 export interface RecordView {
   id: SeasonRecordId;
   label: string;
-  /** The label in a few words for the desktop board's two-line cell ("Damage per min"); `label` stays its accessible name. Display only (RECORD_SHORT). */
+  /** The label in a few words for the desktop board's two-line cell ("Damage/min"); `label` stays its accessible name. Display only (RECORD_SHORT). */
   short: string;
   definition: string;
   /** What counts, in a few words on the record's row ("15+ min games"); null when the name says it all. Display only (RECORD_QUALIFIERS). */
@@ -283,9 +283,9 @@ export const RECORD_QUALIFIERS: Readonly<Record<SeasonRecordId, string | null>> 
 export const RECORD_SHORT: Readonly<Record<SeasonRecordId, string>> = {
   kills: "Most kills",
   assists: "Most assists",
-  "damage-per-minute": "Damage per min",
-  "cs-per-minute": "CS per min",
-  "vision-per-minute": "Vision per min",
+  "damage-per-minute": "Damage/min",
+  "cs-per-minute": "CS/min",
+  "vision-per-minute": "Vision/min",
   kda: "Best KDA",
   "win-streak": "Win streak",
 };
