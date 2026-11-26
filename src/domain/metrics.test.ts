@@ -18,4 +18,12 @@ describe("metric glossary", () => {
     expect(Object.keys(METRICS).sort()).toEqual([...shown].sort());
     expect(metricTooltip("games-on-record")).not.toMatch(/on the champion/);
   });
+
+  it("says the recent count can hold older games: whole patch, queue and role groups last played in the 30 days (R7 review C3)", () => {
+    const tip = metricTooltip("recent-games");
+    expect(tip).toMatch(/during the last 30 days/);
+    expect(tip).toMatch(/some can be older/);
+    // Plain words: not "counted by each …" (read as a split the page never shows) nor "counted whole" (jargon).
+    expect(tip).not.toMatch(/counted (by|whole)/);
+  });
 });

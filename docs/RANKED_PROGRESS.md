@@ -69,7 +69,8 @@ Compact, in Profile Overview (`ranked-progress.tsx`): at the top of the right-ha
   ("Name#TAG · 2026 Season 3 · rank recorded since 14 Oct 2026"): two short sentences, about 20
   words. Until 25 Nov 2026 the tip also held the 30-day change's path ("From Gold III 47 LP to Gold IV
   97 LP") and "The record is Riot's count for the ranked year"; the owner's readability request (one
-  concept a tip) left them to the change beside the rank and the record line's "· 2026 (Riot)". The card itself leads with the two figures it is for, the current
+  concept a tip) left them to the change beside the rank and the record line's "· 2026 (Riot)" (the year at
+  every width; "(Riot)" from a 21rem card, read out on a phone's narrower one). The card itself leads with the two figures it is for, the current
   rank and the 30-day change, on one row (the UX review of Release 13, owner item B3: the card had
   kept every figure in view and read as busy); on a touch phone both stay above its Fold, with the
   win-loss record and win rate under the rank.

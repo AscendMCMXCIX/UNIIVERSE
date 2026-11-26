@@ -20,7 +20,7 @@ export const METRICS = {
     unit: "label",
   },
   "recent-games": {
-    tip: "Recent games on this champion, counted by each patch, queue and role they played it in over the last 30 days.",
+    tip: "Games on this champion from each patch, queue and role they played it in during the last 30 days, so some can be older.",
     title: "Recent games",
     unit: "games",
   },

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "./test";
+import { openDataStatus } from "./data-status";
 import { optionsOf, pick } from "./select";
 import { AxeBuilder } from "@axe-core/playwright";
 
@@ -54,7 +55,12 @@ test("Overview: the multikill totals as figures of their own, from the same game
   await expect(strip).toHaveAttribute("data-coverage", "complete");
   await expect(page.getByTestId("data-status")).toHaveCount(0);
   await expect(page.getByTestId("data-refresh")).toHaveCount(1);
-  await expect(page.getByTestId("data-refresh").locator("[data-part=multikills]")).toHaveCount(0);
+  // Its breakdown (the ⓘ opens it) has no multikills part.
+  const status = await openDataStatus(page);
+  await expect(status.locator("[data-part]").first()).toBeVisible();
+  await expect(status.locator("[data-part=multikills]")).toHaveCount(0);
+  await page.keyboard.press("Escape");
+  await expect(status).toHaveCount(0);
   // The season card's multikills line: each kind with its total ("Double 33 · Triple 3 · Quadra 1 ·
   // Penta 0", PLAN S8a); screen readers hear the full names. Total kills is under the KDA.
   await expect(strip.getByTestId("stat-total-kills")).toHaveCount(0);
@@ -195,13 +201,11 @@ test("partial counts are said once, in the page's status (the ⓘ), and in each 
   await expect(info).toHaveAccessibleName("Data status: Partial data");
   const games = await seasonGames(page);
   await expect(strip.getByRole("heading", { name: /^Multikills/ })).toHaveText(new RegExp(`^Multikills \\(counted in \\d+ of ${games} games\\)$`));
-  if (page.viewportSize()!.width < 768) await info.tap();
-  else await info.hover();
-  const bubble = page.getByTestId("data-refresh-info-bubble");
-  await expect(bubble).toBeVisible();
-  await expect(bubble).toContainText("Partial data");
+  // The ⓘ opens the breakdown (beside it, or a sheet on a phone), headed by the state.
+  const bubble = await openDataStatus(page);
+  await expect(bubble.getByRole("heading", { name: "Partial data" })).toBeVisible();
   const part = bubble.locator("[data-part=multikills]");
-  const headline = (await part.locator(":scope > span").first().textContent())!;
+  const headline = (await part.getByTestId("data-refresh-part").textContent())!.trim();
   const [, counted, of] = /^Multikills counted in (\d+) of (\d+) games$/.exec(headline) ?? [];
   expect(Number(of)).toBe(games);
   expect(Number(counted)).toBeGreaterThan(0);
@@ -210,6 +214,7 @@ test("partial counts are said once, in the page's status (the ⓘ), and in each 
   await expect(part).toContainText(/still being counted .* not complete yet/);
   await expect(part).toContainText(/\d+ games? (is|are) no longer available from Riot/);
   await page.keyboard.press("Escape");
+  await expect(bubble).toHaveCount(0);
   // The totals still show, from the games that have them, and the section fits the screen.
   for (const [key] of KINDS) await expect(strip.getByTestId(`multikill-${key}`)).toBeVisible();
   const box = (await strip.boundingBox())!;

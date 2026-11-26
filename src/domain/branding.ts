@@ -175,7 +175,10 @@ export function contrastRatio(a: string, b: string): number {
 }
 
 export interface ContrastCheck {
+  /** The colour it checks (several checks share one: body and quiet text on a surface). */
   key: keyof BrandColours;
+  /** What it checks, in words ("Quiet text on panels"): unique, so it names the check (and keys its row). */
+  what: string;
   ratio: number;
   /** Below this the colours are refused. */
   minimum: number;
@@ -204,7 +207,7 @@ export function checkContrast(c: BrandColours): ContrastCheck[] {
   ];
   return checks.map(([key, fg, back, minimum, what]) => {
     const ratio = Math.round(contrastRatio(fg, back) * 10) / 10;
-    return { key, ratio, minimum, ok: ratio >= minimum, message: `${what}: ${ratio}:1${ratio >= minimum ? "" : ` (needs ${minimum}:1)`}` };
+    return { key, what, ratio, minimum, ok: ratio >= minimum, message: `${what}: ${ratio}:1${ratio >= minimum ? "" : ` (needs ${minimum}:1)`}` };
   });
 }
 

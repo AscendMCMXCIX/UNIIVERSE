@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "./test";
+import { openDataStatus } from "./data-status";
 
 /*
   THE SAME PAGE ON EVERY DEVICE. The test browser normally shares the server's language, time zone
@@ -37,11 +38,9 @@ test.describe("a browser in another time zone and language", () => {
     await settle(page, profile);
     await expect(page.getByTestId("ranked-tracking")).toContainText(DATE);
     await expect(page.getByTestId("ranked-progress")).not.toContainText(US_DATE);
-    // Leaderboards' freshness is behind its ⓘ, in words that need no date ("3h ago").
+    // Leaderboards' freshness is behind its ⓘ (its breakdown), in words that need no date ("3h ago").
     await settle(page, "/leaderboards");
-    await page.getByTestId("leaderboards-status-info").hover();
-    await expect(page.getByTestId("leaderboards-status-info-bubble")).toBeVisible();
-    await expect(page.getByTestId("leaderboards-status-info-bubble")).not.toContainText(US_DATE);
+    await expect(await openDataStatus(page, "leaderboards-status")).not.toContainText(US_DATE);
   });
 });
 
@@ -53,10 +52,9 @@ test.describe("a device whose clock is days off", () => {
     await page.clock.setFixedTime(new Date(Date.now() + 3 * 24 * 60 * 60_000));
     const profile = await profileOf(page);
     for (const path of [profile, `${profile}/champions`, `${profile}/matches`, `${profile}/matches?view=encounters`, `${profile}/accounts`, "/leaderboards", "/matches", "/players", "/team"]) await settle(page, path);
-    // The status ⓘ keeps its times.
+    // The status ⓘ's breakdown keeps its times.
     await settle(page, "/leaderboards");
-    await page.getByTestId("leaderboards-status-info").hover();
-    await expect(page.getByTestId("leaderboards-status-info-bubble")).toContainText(/ago|just now/);
+    await expect(await openDataStatus(page, "leaderboards-status")).toContainText(/ago|just now/);
   });
 });
 

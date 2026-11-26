@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "./test";
+import { openDataStatus } from "./data-status";
 import { cardOf, expandedOf, openGame, opensFullScreen, pastGameHeader, showGamePage } from "./match-history";
 import { createMember } from "./member-account";
 import { pagerFold, pagerItems, pagerRem } from "../src/components/match-history/pager";
@@ -421,10 +422,9 @@ test("a build that was not recorded draws nothing on its card, and the page says
     }
   }
   // The page says it once, in its data status.
-  const infoTip = page.getByTestId("data-refresh-info");
-  if (isPhone(page)) await infoTip.tap();
-  else await infoTip.hover();
-  await expect(page.getByTestId("data-refresh-info-bubble").locator('[data-part="note"]')).toContainText("Items of 3 games on this page were not recorded");
+  await expect((await openDataStatus(page)).locator('[data-part="note"]')).toContainText("Items of 3 games on this page were not recorded");
+  await page.keyboard.press("Escape");
+  await expect(page.getByTestId("data-refresh-details")).toHaveCount(0);
   expect(await overflow(page)).toBeLessThanOrEqual(1);
 });
 

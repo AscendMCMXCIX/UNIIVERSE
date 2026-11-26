@@ -487,7 +487,8 @@ of one family, so they never compete:
 draws its words and icon in `fg-disabled`, keeps the not-allowed cursor and takes no hover. A
 filled `Button` keeps a fill, the neutral `surface-2`, not its accent; an outlined one a quiet
 `border` edge; a `Switch` a flat track with the knob in the disabled tone (its side still says on or
-off); a menu item, a select's option and the window steps (‹ ›) the same tone. Never a
+off), its label in the disabled tone and its description, often why it is off, in readable `fg-subtle`;
+a Card Studio slider's readout (an `<output>`, not the control, which axe checks) `fg-subtle` too; a menu item, a select's option and the window steps (‹ ›) the same tone. Never a
 half-transparent control: opacities from 30% to 70% across 25 places read differently on every
 page. `opacity` stays for a picture that dims as a whole (an avatar button, a lineup choice with the
 player's picture, a native range input the browser draws) and for a busy part while a choice loads
@@ -731,8 +732,9 @@ const peek = usePeek({ param: "player", ids, initial: searchParams.get("player")
   in a bubble up to 20rem wide (18rem before), so a tip of 25 words keeps about four lines. Essential
   information is visible without it; a detailed breakdown is the shared breakdown popover, never a
   giant bubble. A tip on a text trigger (children) can wrap a badge or a chip, as the LP and
-  the Best chip on a match card, Setup incomplete, Riot accounts' Main and Alt, the experience label
-  in the champion data panel and "Changed since the check" do.
+  the Best chip on a match card, Setup incomplete, Riot accounts' Main and Alt and "Changed since the
+  check" do. (The experience label in the champion data panel and the data status's ⓘ open the shared
+  breakdown on a press since the release's review, 25 Nov 2026: their texts held up to six concepts.)
 - **Not a `title`:** a native title explains nothing (`title-use.test.ts`). It names an icon-only
   control or mark, or shows a cut value whole; anything else is an InfoTip, visible text or
   sr-only words.
@@ -764,6 +766,13 @@ How a figure was worked out, one press from the figure itself: for what is too l
   The sheet keeps the focus inside until it closes, as every sheet does.
 - **Content** drawn only while open, from the figure's own data (the breakdown never works the figure out
   again): plain sections with a heading each (no boxes inside boxes), the arithmetic in tabular numerals.
+- **A status or a label as the trigger** (`bare`, 25 Nov 2026 review): the caller draws the trigger in the
+  line's own size, with the same press, names and forms. The data status's ⓘ (`DataStatusNote`: the word
+  as the heading, each part with its dot and why, the times, this visit's Refresh; "Data status: Partial
+  data"; an InfoTip before, up to six concepts in a bubble) and the experience label in Riot data
+  (`TierWhy`: the label as the heading, the tier's rule, then the estimate's notes; 44px on touch through
+  `touch-target`, the table's rows keep their height). An ⓘ that opens a breakdown takes a press, not a
+  hover: its pointer is the hand, not the help cursor of an InfoTip.
 
 ### Unfold
 

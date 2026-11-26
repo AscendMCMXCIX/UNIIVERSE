@@ -196,8 +196,9 @@ test("a mouse that moved onto an ⓘ while the page hydrated, and rests on it, o
   const profile = await teammateProfile(page);
   // The page drawn (its styles load) with its code held back, so nothing on it listens yet but the
   // head's script. A move then was lost: React replays a pointer's coming in once the ⓘ has
-  // hydrated, never its moves, and the bubble stayed shut until the pointer moved again (the
-  // status ⓘ hovered as soon as a profile had loaded).
+  // hydrated, never its moves, and the bubble stayed shut until the pointer moved again (the data
+  // status's ⓘ, an InfoTip until 25 Nov 2026, hovered as soon as a profile had loaded; the first of
+  // the profile's ⓘs here).
   const held: Route[] = [];
   let release = false;
   await page.route(/\/_next\/static\/chunks\/.+\.js(\?|$)/, async (route) => {
@@ -205,14 +206,15 @@ test("a mouse that moved onto an ⓘ while the page hydrated, and rests on it, o
     else held.push(route);
   });
   await page.goto(profile, { waitUntil: "commit" });
-  const tip = page.getByTestId("data-refresh-info");
+  const tip = page.locator("main [data-testid=info-tip]").first();
   await expect(tip).toBeVisible();
+  await tip.scrollIntoViewIfNeeded();
   const box = (await tip.boundingBox())!;
   const spot = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   await page.mouse.move(spot.x, spot.y);
   await page.waitForTimeout(300);
   expect(held.length, "the page's code is held back").toBeGreaterThan(0);
-  const bubble = page.getByTestId("data-refresh-info-bubble");
+  const bubble = page.getByTestId("info-tip-bubble");
   const bubbles = page.locator("[role=tooltip]");
   await expect(bubbles).toHaveCount(0);
   // The code runs; the pointer stays where it is.
@@ -241,7 +243,8 @@ test("a mouse that moved onto an ⓘ while React listened and the ⓘ had yet to
   // React then queues the mouse's coming in onto the ⓘ, and replays it once the ⓘ has hydrated,
   // after the ⓘ has opened its bubble for the resting mouse.
   // That replayed coming in must start no new visit, else the move after Escape opens the bubble
-  // again. This is the state in which multikills.spec.ts lost its hover of the status ⓘ on a tablet.
+  // again. This is the state in which multikills.spec.ts lost its hover of the status ⓘ on a tablet
+  // (an InfoTip until 25 Nov 2026; the first of the profile's ⓘs here).
   // With all of the page's code held (the test above), nothing listens as the mouse moves and
   // nothing is replayed, so that test passes whether a replayed coming in starts a new visit or not.
   await page.addInitScript(() => {
@@ -249,7 +252,7 @@ test("a mouse that moved onto an ⓘ while React listened and the ⓘ had yet to
     const w = window as Window & { __tipReplays?: number };
     w.__tipReplays = 0;
     const onOver = (e: PointerEvent) => {
-      if (!e.isTrusted && (e.target as Element | null)?.closest?.("[data-testid=data-refresh-info]")) w.__tipReplays = (w.__tipReplays ?? 0) + 1;
+      if (!e.isTrusted && (e.target as Element | null)?.closest?.("main [data-testid=info-tip]")) w.__tipReplays = (w.__tipReplays ?? 0) + 1;
     };
     w.addEventListener("pointerover", onOver, true);
   });
@@ -262,8 +265,9 @@ test("a mouse that moved onto an ⓘ while React listened and the ⓘ had yet to
     else await route.fulfill({ response, body });
   });
   await page.goto(profile, { waitUntil: "commit" });
-  const tip = page.getByTestId("data-refresh-info");
+  const tip = page.locator("main [data-testid=info-tip]").first();
   await expect(tip).toBeVisible();
+  await tip.scrollIntoViewIfNeeded();
   // React keeps a node's props on it once it has hydrated it.
   const hydrated = () => tip.evaluate((el) => Object.keys(el).some((k) => k.startsWith("__reactProps$")));
   // React marks the document it hydrates as it starts listening to it.
@@ -273,7 +277,7 @@ test("a mouse that moved onto an ⓘ while React listened and the ⓘ had yet to
   const spot = { x: box.x + box.width / 2, y: box.y + box.height / 2 };
   await page.mouse.move(spot.x, spot.y);
   await page.waitForTimeout(300);
-  const bubble = page.getByTestId("data-refresh-info-bubble");
+  const bubble = page.getByTestId("info-tip-bubble");
   const bubbles = page.locator("[role=tooltip]");
   await expect(bubbles).toHaveCount(0);
   expect(await hydrated(), "the ⓘ has yet to hydrate").toBe(false);
