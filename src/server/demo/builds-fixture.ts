@@ -111,7 +111,8 @@ export async function applyDemoBuilds(db: Db): Promise<void> {
   if (!records.length) return;
   const timelines = new Map((await db.select({ matchId: matchTimelines.matchId, participants: matchTimelines.participants }).from(matchTimelines).where(inArray(matchTimelines.matchId, records.map((r) => r.matchId)))).map((t) => [t.matchId, t.participants]));
 
-  const seat = (r: (typeof records)[number], champion: string, positions: Set<string>) => r.participants.find((p) => p.championId === champion && positions.has(p.position ?? "") && !p.removed);
+  // Every player on the champion in those positions (the demo can put it on both sides of one game).
+  const seats = (r: (typeof records)[number], champion: string, positions: Set<string>) => r.participants.filter((p) => p.championId === champion && positions.has(p.position ?? "") && !p.removed);
   const version = (patch: string) => `${patch}.1`;
   const patchOf = new Map<string, string>();
   const rewrite = new Map<string, Map<string, DemoBuild>>();
@@ -127,39 +128,45 @@ export async function applyDemoBuilds(db: Db): Promise<void> {
   let wins = 0;
   let losses = 0;
   for (const r of records) {
-    const p = seat(r, "Thresh", SUPPORT);
-    if (!p) continue;
+    const found = seats(r, "Thresh", SUPPORT);
+    if (!found.length) continue;
     patchOf.set(r.matchId, current.id);
-    const timed = timelines.get(r.matchId)?.some((t) => t.puuid === p.puuid) ?? false;
-    let build = THRESH_COMMON;
-    if (timed && !members.has(p.puuid) && (p.win ? wins < WINNING_WINS : losses < WINNING_LOSSES)) {
-      build = THRESH_WINNING;
-      if (p.win) wins += 1;
-      else losses += 1;
+    for (const p of found) {
+      const timed = timelines.get(r.matchId)?.some((t) => t.puuid === p.puuid) ?? false;
+      let build = THRESH_COMMON;
+      if (timed && !members.has(p.puuid) && (p.win ? wins < WINNING_WINS : losses < WINNING_LOSSES)) {
+        build = THRESH_WINNING;
+        if (p.win) wins += 1;
+        else losses += 1;
+      }
+      give(r.matchId, p.puuid, build);
     }
-    give(r.matchId, p.puuid, build);
   }
   // Nasus in top: NASUS_GAMES games on the current patch, one build.
   let nasus = 0;
   for (const r of records) {
-    const p = seat(r, "Nasus", TOP);
-    if (!p || nasus >= NASUS_GAMES) continue;
+    const found = seats(r, "Nasus", TOP);
+    if (!found.length || nasus >= NASUS_GAMES) continue;
     nasus += 1;
     patchOf.set(r.matchId, current.id);
-    give(r.matchId, p.puuid, NASUS);
+    for (const p of found) give(r.matchId, p.puuid, NASUS);
   }
   // Leona in support and in the bot lane: a few games on the current patch, the rest on the previous one.
   if (previous) {
     const taken = { support: 0, bot: 0 };
     for (const r of records) {
-      const role = seat(r, "Leona", SUPPORT) ? "support" : seat(r, "Leona", BOT) ? "bot" : null;
-      if (!role) continue;
-      const p = (seat(r, "Leona", SUPPORT) ?? seat(r, "Leona", BOT))!;
+      const support = seats(r, "Leona", SUPPORT);
+      const found = [...support, ...seats(r, "Leona", BOT)];
+      if (!found.length) continue;
+      const role = support.length ? "support" : "bot";
       if (!patchOf.has(r.matchId)) patchOf.set(r.matchId, taken[role] < LEONA_CURRENT[role] ? current.id : previous);
       if (patchOf.get(r.matchId) === current.id) taken[role] += 1;
-      give(r.matchId, p.puuid, LEONA);
+      for (const p of found) give(r.matchId, p.puuid, LEONA);
     }
   }
+
+  // A Nasus in a game moved for another champion plays Nasus's build too (every moved game's builds are the fixture's).
+  for (const r of records) if (patchOf.has(r.matchId)) for (const p of seats(r, "Nasus", TOP)) if (!rewrite.get(r.matchId)?.has(p.puuid)) give(r.matchId, p.puuid, NASUS);
 
   for (const r of records) {
     const patch = patchOf.get(r.matchId);
