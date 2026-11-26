@@ -16,6 +16,8 @@ export interface ChampionPreviewRead {
   winRate?: string;
   /** Where it is (desktop): a pane beside the list, no window, within the screen's width, the list's card and the row's name clear of it. */
   pane?: { pane: boolean; window: boolean; within: boolean; besideList: boolean; nameClear: boolean };
+  /** One scrolling surface (desktop, the pane): the pane is a scroll box, the scroll boxes in main whose content overflows, and the pane's header (with Close) on screen. */
+  scrolling?: { scrollBox: boolean; scrollers: number; head: boolean } | null;
   loading?: boolean;
   noOpponents?: boolean;
   answered?: boolean;

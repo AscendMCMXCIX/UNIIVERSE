@@ -20,3 +20,18 @@ export const CHAMPIONS_FIRST_TEST_COOKIE = "uniiverse-test-champions-first";
 export function championsFirstForTest(cookie: string | null | undefined): number | null {
   return demoTestHooksAllowed() && typeof cookie === "string" && /^(1[0-9]|[1-9])$/.test(cookie) ? Number(cookie) : null;
 }
+
+/*
+  BROWSER TESTS ONLY: the preview's lane opponents offer their search from four opponents
+  (domain/champion-preview OPPONENT_SEARCH_FROM), and the demo's champions meet at most three in a
+  position that has a second position beside it. A test names a smaller threshold ("2") so a search
+  typed in one position and a switch to another can be tested on the demo's data. Read only on the
+  in-memory demo.
+*/
+
+export const OPPONENT_SEARCH_TEST_COOKIE = "uniiverse-test-opponent-search-from";
+
+/** The opponents from which the preview offers its search, for a browser test's cookie (1–3); null anywhere but the in-memory demo, or for any other value. */
+export function opponentSearchFromForTest(cookie: string | null | undefined): number | null {
+  return demoTestHooksAllowed() && typeof cookie === "string" && /^[1-3]$/.test(cookie) ? Number(cookie) : null;
+}

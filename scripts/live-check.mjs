@@ -1339,7 +1339,8 @@ async function allChampions(page, log, kind, playerId) {
   // All Champions' preview (25 Nov 2026, the owner's request: no panel over the table): on the
   // desktop a pane beside the list, the list narrowing to its champions (each name where it was,
   // ±1px, every row's top, the page not scrolled), the pane within the screen and clear of the list,
-  // no window; Escape and Back close it. On the tablet (an upright one: no room for both side by
+  // no window, and the page the one thing that scrolls (the pane no scroll box; the review of 25 Nov
+  // 2026); Escape and Back close it. On the tablet (an upright one: no room for both side by
   // side) and the phone it is a sheet, and Back closes it.
   const open = page.getByTestId("open-champion").first();
   if (await open.count()) {
@@ -1358,7 +1359,12 @@ async function allChampions(page, log, kind, playerId) {
         const p = pane.getBoundingClientRect();
         const card = document.querySelector("[data-testid=all-champions-table]")?.getBoundingClientRect();
         const name = li.querySelector("[data-open-champion]")?.getBoundingClientRect();
-        return { found: true, window: !!document.querySelector("dialog[open]"), within: p.left >= -0.5 && p.right <= innerWidth + 0.5 && p.top < innerHeight, besideList: !!card && card.right <= p.left + 0.5, nameClear: !!name && name.right <= p.left, sideways: document.documentElement.scrollWidth - innerWidth > 1 };
+        // One scrolling surface (the 25 Nov 2026 review): the pane no scroll box of its own, nothing inside main scrolling.
+        const scrolls = (el) => {
+          const st = getComputedStyle(el);
+          return /(auto|scroll)/.test(st.overflowY + st.overflowX) && (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1);
+        };
+        return { found: true, window: !!document.querySelector("dialog[open]"), within: p.left >= -0.5 && p.right <= innerWidth + 0.5 && p.top < innerHeight, besideList: !!card && card.right <= p.left + 0.5, nameClear: !!name && name.right <= p.left, sideways: document.documentElement.scrollWidth - innerWidth > 1, scrollBox: /(auto|scroll)/.test(getComputedStyle(pane).overflowY), scrollers: [...document.querySelectorAll("main *")].filter(scrolls).length };
       });
     if (kind === "desktop") {
       const after = { x: await names(), y: await page.evaluate(() => scrollY), rows: await rowTops() };
@@ -1369,7 +1375,7 @@ async function allChampions(page, log, kind, playerId) {
         pane = await paneFacts();
         await shot(page, `${kind}-champion-preview`);
         await axe(page, kind, "champion-preview", "[data-testid=champion-preview]");
-        pass("all-champions", `${kind}: the preview opens in a pane beside the list (no window, within the screen, the list and the row's name clear of it, nothing wider than the screen)`, pane.found && !pane.window && pane.within && pane.besideList && pane.nameClear && !pane.sideways, pane);
+        pass("all-champions", `${kind}: the preview opens in a pane beside the list (no window, within the screen, the list and the row's name clear of it, nothing wider than the screen, no scroll box of its own and nothing scrolling inside the page)`, pane.found && !pane.window && pane.within && pane.besideList && pane.nameClear && !pane.sideways && !pane.scrollBox && pane.scrollers === 0, pane);
         await page.keyboard.press("Escape");
       }
       const escaped = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
@@ -1482,7 +1488,8 @@ async function championPreviewFacts(page, kind) {
  * often plays each champion in one position, and opening another teammate's pages would refresh that
  * teammate's Riot data when it is due (the profile's layout does), so the first row is copied
  * instead, its line holding one to five position icons (copies of its own, as the screen draws them:
- * 24px controls with a mouse, 14px marks on a touch screen) and an "In pool" tag (a
+ * 24px controls with a mouse, 14px marks 2px apart on a touch screen, which since the 25 Nov 2026
+ * review fit five and "In pool" in the tablet table's narrowest champion column) and an "In pool" tag (a
  * copy of one from the list, or drawn with the tag's classes from
  * src/components/players/all-champions.tsx when no row has one). Each copy goes into the list beside
  * the row, so it takes the rows' columns, and is removed in the same step, before anything is drawn.

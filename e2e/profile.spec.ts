@@ -394,8 +394,12 @@ test("All Champions on tablets and computers: one compact row per champion for e
   // The table's columns start at a 44rem list: a 752px tablet, or a 1024px computer with the
   // sidebar open, leaves exactly that. Each row's position icons and "In pool" keep one line.
   await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: baseURL! }]);
-  const widths = test.info().project.name === "tablet" ? [768, 752] : [1440, 1024];
-  for (const name of ["Demo ADC", "Demo Support"]) {
+  const tablet = test.info().project.name === "tablet";
+  const widths = tablet ? [768, 752] : [1440, 1024];
+  // On the touch tablet also a champion of five positions beside "In pool" (Demo Sub (Top)'s Sion):
+  // its 14px marks keep one line in the table's narrowest champion column (the 25 Nov 2026 review).
+  // A mouse's 24px buttons do not fit five there (1024px with the sidebar open): "In pool" takes the next line, as documented.
+  for (const name of tablet ? ["Demo ADC", "Demo Support", "Demo Sub (Top)"] : ["Demo ADC", "Demo Support"]) {
     await page.setViewportSize({ width: widths[0]!, height: 900 });
     await page.goto("/players");
     const href = await playerEntry(page, name).first().getAttribute("href");

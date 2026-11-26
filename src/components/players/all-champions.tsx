@@ -21,7 +21,7 @@ import { useAddressItem } from "@/components/ui/address-item";
 import { isTyping, modalOpen, useWindowPosture } from "@/components/ui/posture";
 import { PreviewWindow, SiblingSteps, type PreviewSiblings } from "@/components/ui/preview-window";
 import { PreviewContent, selectionFor, usePreviewAddress, usePreviewData, type ListScope } from "./champion-preview";
-import { RoleIcons, roleFigures } from "./champion-roles";
+import { RoleIcons, roleFigures, roleMarkAt } from "./champion-roles";
 import { MatchDetailModal } from "@/components/match-history/match-detail";
 import { MULTIKILL_KINDS, compareMultikills, multikillCoverage, rarestMultikill, type MultikillCounts, type MultikillSummary } from "@/domain/multikills";
 import { MULTIKILL_HELP, MULTIKILL_SHORT } from "./multikill-summary";
@@ -311,11 +311,14 @@ const isClient = () => true;
 const notClient = () => false;
 
 /**
- * The least width of the section for the list and the preview side by side (the list's 17.25rem, the
- * gap, a 24rem preview); narrower (a large text size on a tablet), the preview opens as the sheet.
- * The same width as the pane's CSS, which keeps it from a narrower section before hydration.
+ * The least width of the section for the list and the preview side by side (the list's 22.5rem, the
+ * 1rem gap, a 24rem preview); narrower (a large text size on a tablet), the preview opens as the sheet.
+ * The same width as the pane's CSS, which keeps it from a narrower section before hydration. The
+ * list's 22.5rem holds a row's rank, portrait, name line and figures with five 24px position buttons
+ * and "In pool" on one line (the 25 Nov 2026 review: at 20rem, 1366px with the sidebar open, "In
+ * pool" took a second line as the pane opened and every row below moved).
  */
-const PANE_ROOM_REM = 46;
+const PANE_ROOM_REM = 47.5;
 function useRoomForPane(ref: React.RefObject<HTMLElement | null>): boolean {
   const [roomy, setRoomy] = React.useState(true);
   React.useLayoutEffect(() => {
@@ -333,47 +336,98 @@ function useRoomForPane(ref: React.RefObject<HTMLElement | null>): boolean {
   return roomy;
 }
 
+/** The room the pane leaves under itself at the window's foot when it is taller than the window (px). */
+const PANE_FOOT = 12;
+
 /**
- * The pane's height: from where it stands to the window's foot (12px short of it), so its bottom is
- * always on the screen and its body, where its content is taller, is the one place that scrolls (no
- * part of it below the fold that only the page's scroll would reach). Measured as it opens, as the
- * window is resized and as the page scrolls; it only grows while the page scrolls (as the pane comes
- * up to be pinned under the section tabs), so the page's height never shrinks under the reader, and
- * the CSS's ceiling (the window less what is pinned) holds until it is measured.
+ * Where the pane stands in the page (the 25 Nov 2026 review: the page is the one thing that scrolls;
+ * the pane has no scroll box of its own). It is a sticky box in a column as tall as the list:
+ *  - where it fits the window, it is pinned under the section tabs while the page scrolls;
+ *  - where it is taller, it scrolls with the page, held between two lines: its top no lower than
+ *    under the tabs and its bottom no higher than the window's foot (sticky `top` and `bottom`, both
+ *    computed from its height). A spacer above it in the column keeps its place in the page where it
+ *    is shown, so whichever way the page then scrolls it moves with it, and it is held only at those
+ *    lines: reading down a long pane takes its bottom up into view, scrolling back takes its top
+ *    down to its place under the tabs, and nothing ever scrolls inside it. The browser moves it (CSS
+ *    sticky); this only sets the lines and the spacer when its height, the window or the list change,
+ *    and the spacer while it is held at a line.
+ * Opened, or showing another champion, its top (the champion's name, its positions, ‹ › and Close) is
+ * placed under the tabs, wherever the list is scrolled (beside a shorter list the page grows below
+ * for it, and shrinks back as it scrolls up). Its header is pinned too (the --preview-head it sets
+ * gives the scroll margin that keeps what the opponents' table brings into view clear of it).
  */
-function usePaneHeight(ref: React.RefObject<HTMLElement | null>, active: boolean) {
+function usePanePlacement(columnRef: React.RefObject<HTMLElement | null>, spacerRef: React.RefObject<HTMLElement | null>, paneRef: React.RefObject<HTMLElement | null>, listRef: React.RefObject<HTMLElement | null>, active: boolean): () => void {
+  const anchorRef = React.useRef<(() => void) | null>(null);
   React.useLayoutEffect(() => {
-    const el = ref.current;
-    if (!active || !el) return;
-    let max = 0;
+    const col = columnRef.current;
+    const gap = spacerRef.current;
+    const el = paneRef.current;
+    const list = listRef.current;
+    if (!active || !col || !gap || !el || !list) return;
+    let pinned = 0;
     let frame = 0;
-    const measure = () => {
+    const setGap = (px: number) => {
+      const next = `${Math.max(0, Math.round(px))}px`;
+      if (gap.style.height !== next) gap.style.height = next;
+    };
+    // The line it is pinned under (the CSS's: the bars and the tabs, and a margin), read with the inline lines off.
+    const readPinned = () => {
+      el.style.top = "";
+      el.style.bottom = "";
+      pinned = parseFloat(getComputedStyle(el).top) || 0;
+      const head = el.querySelector<HTMLElement>("[data-testid=champion-preview-header]");
+      const headTop = head ? parseFloat(getComputedStyle(head).top) || 0 : pinned;
+      el.style.setProperty("--preview-head", `${Math.round(headTop + (head?.offsetHeight ?? 0) + 8)}px`);
+    };
+    // How far the spacer may reach past the list's foot: placed under the tabs as it opens beside a
+    // list shorter than itself, the pane makes the page that much longer, and gives the room back as
+    // the page scrolls up and it settles beside the list (never more: no page that grows as it scrolls).
+    let extra = 0;
+    const place = (anchor = false) => {
       frame = 0;
-      const pinned = parseFloat(getComputedStyle(el).top) || 0;
-      const want = Math.floor(window.innerHeight - Math.max(el.getBoundingClientRect().top, pinned) - 12);
-      if (want > max) {
-        max = want;
-        el.style.maxHeight = `${max}px`;
-      }
+      const h = el.offsetHeight;
+      const screen = window.innerHeight;
+      // Its top no higher than where its bottom meets the window's foot (no lower than the tabs while it
+      // fits), and no lower than under the tabs.
+      el.style.top = `${Math.min(pinned, screen - PANE_FOOT - h)}px`;
+      el.style.bottom = `${screen - pinned - h}px`;
+      const colTop = col.getBoundingClientRect().top;
+      // Opened or switched: its top under the tabs; else its place in the page where it is shown now.
+      const at = anchor ? pinned - colTop : el.getBoundingClientRect().top - colTop;
+      const room = Math.max(0, list.offsetHeight - h);
+      if (anchor) extra = Math.max(0, at - room);
+      const gapPx = Math.max(0, Math.min(room + extra, at));
+      extra = Math.max(0, Math.min(extra, gapPx - room));
+      setGap(gapPx);
     };
     const onScroll = () => {
-      if (!frame) frame = requestAnimationFrame(measure);
+      if (!frame) frame = requestAnimationFrame(() => place());
     };
     const onResize = () => {
-      max = 0;
-      el.style.maxHeight = "";
-      measure();
+      readPinned();
+      place();
     };
-    measure();
+    readPinned();
+    place(true);
+    anchorRef.current = () => place(true);
+    const observer = new ResizeObserver(() => place());
+    observer.observe(el);
+    observer.observe(list);
     window.addEventListener("scroll", onScroll, { passive: true });
     window.addEventListener("resize", onResize);
     return () => {
       cancelAnimationFrame(frame);
+      observer.disconnect();
       window.removeEventListener("scroll", onScroll);
       window.removeEventListener("resize", onResize);
-      el.style.maxHeight = "";
+      anchorRef.current = null;
+      gap.style.height = "";
+      el.style.top = "";
+      el.style.bottom = "";
     };
-  }, [ref, active]);
+  }, [columnRef, spacerRef, paneRef, listRef, active]);
+  // Its top under the tabs again (for another champion: a position or an opponent chosen inside it leaves it where it is).
+  return React.useCallback(() => anchorRef.current?.(), []);
 }
 
 const defaultDir = (key: SortKey): Dir => (key === "champion" ? "asc" : "desc");
@@ -388,7 +442,7 @@ const masteryText = (n: number | null | undefined) => (n == null ? "—" : forma
  * in a position it was played in: a pane beside the narrowed list on a computer (no row moves, nothing
  * covers the list), a sheet on a phone; it lives in the URL, so it can be linked, and Back closes it.
  */
-export function AllChampions({ data, basePath, championsById, playerId, isOwn, initialPreview, initialPairing, status, refresh, firstRows = FIRST }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion>; playerId: string; /** The viewer's own profile: the preview says "you". */ isOwn: boolean; /** The server's render of a linked preview (?champion=), so it opens without a request. */ initialPreview?: ChampionPreviewData | null; initialPairing?: PairingGamesData | null; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null; /** The rows shown before Show all (FIRST; smaller only for a browser test on the demo, server/demo/test-hooks.ts). */ firstRows?: number }) {
+export function AllChampions({ data, basePath, championsById, playerId, isOwn, initialPreview, initialPairing, status, refresh, firstRows = FIRST, opponentSearchFrom }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion>; playerId: string; /** The viewer's own profile: the preview says "you". */ isOwn: boolean; /** The server's render of a linked preview (?champion=), so it opens without a request. */ initialPreview?: ChampionPreviewData | null; initialPairing?: PairingGamesData | null; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null; /** The rows shown before Show all (FIRST; smaller only for a browser test on the demo, server/demo/test-hooks.ts). */ firstRows?: number; /** The opponents from which the preview offers its search (OPPONENT_SEARCH_FROM; smaller only for a browser test on the demo). */ opponentSearchFrom?: number }) {
   const [query, setQuery] = React.useState("");
   // The table's own search: once it has gone up under the pinned tabs, the row offers a copy (PageToolbar).
   const searchRef = React.useRef<HTMLInputElement>(null);
@@ -484,7 +538,13 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   const sheet = !!selected && hydrated && (windowed || !roomy);
   const split = !!selected && !sheet;
   const paneRef = React.useRef<HTMLElement>(null);
-  usePaneHeight(paneRef, split && hydrated);
+  const paneColumnRef = React.useRef<HTMLDivElement>(null);
+  const paneSpacerRef = React.useRef<HTMLDivElement>(null);
+  const anchorPane = usePanePlacement(paneColumnRef, paneSpacerRef, paneRef, cardRef, split && hydrated);
+  // Another champion in the pane: its top (name, ‹ › and Close) under the tabs, wherever the list is scrolled.
+  React.useLayoutEffect(() => {
+    if (selectedKey) anchorPane();
+  }, [selectedKey, anchorPane]);
   const rowOf = (id: string) => cardRef.current?.querySelector<HTMLElement>(`[data-testid=top-champion][data-champion="${id}"]`) ?? null;
   const rowButton = (id: string) => rowOf(id)?.querySelector<HTMLButtonElement>("[data-open-champion]") ?? null;
   const [viaKeys, setViaKeys] = React.useState(false);
@@ -589,7 +649,9 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           const figure = (key: SortKey) => cn("hidden text-right text-sm tabular-nums @min-[44rem]:block", strong(key) ? "font-semibold text-fg" : "text-fg-muted");
           const share = gamesShare(r.games, total);
           // Narrow rows: sorted by a figure other than games or win rate, that figure replaces "In pool".
-          const narrowFigure = sorted === "champion" || sorted === "games" || sorted === "win" ? null : (summaryPairs(c, sorted).find((pair) => pair.sorted) ?? null);
+          // Not beside the pane: there a row keeps the table's line (its positions and "In pool"), so no
+          // row changes height as the pane opens, and the heading row says what the list is sorted by.
+          const narrowFigure = split || sorted === "champion" || sorted === "games" || sorted === "win" ? null : (summaryPairs(c, sorted).find((pair) => pair.sorted) ?? null);
           return (
             // A row lights up while pointed at or focused (a quiet tint; the whole row opens the champion's window).
             <li key={c.championId} data-role={c.role ?? ""} className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2 @max-[17rem]:grid-cols-[minmax(0,1fr)] transition-colors duration-150 hover:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:outline has-[[data-open-champion]:focus-visible]:outline-2 has-[[data-open-champion]:focus-visible]:-outline-offset-2 has-[[data-open-champion]:focus-visible]:outline-accent @min-[44rem]:py-1.5 md:group-data-[split]/list:py-1.5 data-[selected=true]:bg-surface-3 data-[selected=true]:hover:bg-surface-3 data-[selected=true]:has-[[data-open-champion]:focus-visible]:bg-surface-3 data-[selected=true]:before:absolute data-[selected=true]:before:inset-y-0 data-[selected=true]:before:left-0 data-[selected=true]:before:w-0.5 data-[selected=true]:before:bg-accent", !split && GRID)} data-selected={selectedKey === c.championId || undefined} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-roles={c.roles.map((x) => x.role).join(",")} data-no-role={c.noRole || undefined} data-kills={p.totalKills ?? ""} data-mastery={c.mastery?.points ?? ""} data-multikills={c.multikills?.counted ? MULTIKILL_KINDS.map((k) => c.multikills![k.key]).join(",") : ""} data-multikill-coverage={c.multikills ? multikillCoverage(c.multikills).state : ""}>
@@ -601,12 +663,19 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
                 <span className="min-w-0">
                   {/* The whole row opens the champion (the button covers it), in its most played position. */}
                   {/* The row opens the preview: the pointer says so, and the name underlines while pointed at, as the pools' cards do. */}
-                  <button type="button" onClick={(e) => chooseRef.current(c, e.detail === 0)} onPointerDown={(e) => e.pointerType === "mouse" && c.role && void previewData.preview(c.championId, c.role)} aria-controls={selectedKey === c.championId ? "champion-preview" : undefined} aria-expanded={selectedKey === c.championId} aria-current={selectedKey === c.championId || undefined} className="block max-w-full cursor-pointer truncate text-left text-md font-semibold leading-tight text-fg outline-none @max-[17rem]:whitespace-normal @max-[17rem]:break-words after:absolute after:inset-0 after:content-[''] focus-visible:underline group-hover/row:underline group-hover/row:decoration-fg-subtle group-hover/row:underline-offset-2 @min-[44rem]:text-sm md:group-data-[split]/list:text-sm" aria-label={`${ch.name}${c.role ? `, ${ROLE_LABELS[c.role]}` : ""}: preview its games and lane opponents`} data-open-champion data-testid="open-champion">
+                  <button type="button" onClick={(e) => {
+                    // A touch screen's tap on a position mark opens that position (roleMarkAt; with a mouse the icons are their own buttons, above this one).
+                    const tapped = e.detail > 0 ? roleMarkAt(e.currentTarget.closest("li"), e.clientX, e.clientY) : null;
+                    if (tapped) chooseRoleRef.current(c, tapped, false);
+                    else chooseRef.current(c, e.detail === 0);
+                  }} onPointerDown={(e) => e.pointerType === "mouse" && c.role && void previewData.preview(c.championId, c.role)} aria-controls={selectedKey === c.championId ? "champion-preview" : undefined} aria-expanded={selectedKey === c.championId} aria-current={selectedKey === c.championId || undefined} className="block max-w-full cursor-pointer truncate text-left text-md font-semibold leading-tight text-fg outline-none @max-[17rem]:whitespace-normal @max-[17rem]:break-words after:absolute after:inset-0 after:content-[''] focus-visible:underline group-hover/row:underline group-hover/row:decoration-fg-subtle group-hover/row:underline-offset-2 @min-[44rem]:text-sm md:group-data-[split]/list:text-sm" aria-label={`${ch.name}${c.role ? `, ${ROLE_LABELS[c.role]}` : ""}: preview its games and lane opponents`} data-open-champion data-testid="open-champion">
                     {ch.name}
                   </button>
-                  {/* The positions it was played in, most games first (with a mouse each opens the champion
-                      in it), then "In pool", on one line (a champion of four or five positions in the
-                      table's narrowest column lets "In pool" go under them). */}
+                  {/* The positions it was played in, most games first (each opens the champion in it: a
+                      button with a mouse, a mark a tap honours on a touch screen), then "In pool", on one
+                      line: five touch marks and "In pool" fit the table's narrowest champion column, and
+                      five mouse buttons the list beside the pane; only five or four mouse buttons in the
+                      table's narrowest column (a window of about 770–1100px) let "In pool" go under them. */}
                   <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-fg-subtle" data-testid="champion-role-line">
                     <RoleIcons row={c} champion={ch.name} active={selectedKey === c.championId ? selRole : null} onPick={(role, keys) => chooseRoleRef.current(c, role, keys)} onAhead={(role) => void previewData.preview(c.championId, role)} />
                     {/* Kept on one line, except in a list under 17rem (a large text size), where it wraps inside the phone. */}
@@ -673,7 +742,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
         }),
     [shown, champ, sorted, total, selectedKey, selRole, split, previewData],
   );
-  const contentProps = (c: ChampionRow, role: Role | null) => ({ playerId, isOwn, row: c, role, vs: address.sel?.vs ?? null, champ, data: previewData, onVs: address.setVs, onRole: address.setRole, titleId: "champion-preview-title", onMatch: game.open });
+  const contentProps = (c: ChampionRow, role: Role | null) => ({ playerId, isOwn, row: c, role, vs: address.sel?.vs ?? null, champ, data: previewData, onVs: address.setVs, onRole: address.setRole, titleId: "champion-preview-title", onMatch: game.open, searchFrom: opponentSearchFrom });
   // What the preview shows, read out as it opens or switches (polite: the focus stays where it is).
   const announce = (c: ChampionRow, role: Role | null) => {
     const fig = roleFigures(c, role)?.selected ?? c.selected;
@@ -731,10 +800,10 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
       {/* One card: its toolbar (the search, how many champions, Sort by on phones), the column
           names (each sorts, again to reverse), the rows, then the rest one click away. */}
       {/* The list, and beside it the open champion's pane (from md in a window taller than 480px, in a
-          section of 46rem or more: PANE_ROOM_REM): the list narrows to its champions, their positions,
+          section of 47.5rem or more: PANE_ROOM_REM): the list narrows to its champions, their positions,
           games and win rates (its own width then sets its layout: the card becomes the container its
           rows and toolbar read), and the pane takes the rest. */}
-      <div className={cn(split && "grid items-start gap-4 md:[@media(min-height:30.0625rem)]:@min-[46rem]:grid-cols-[minmax(20rem,min(32%,24rem))_minmax(0,1fr)]")} data-testid="all-champions-layout" data-split={split || undefined}>
+      <div className={cn(split && "grid items-start gap-4 md:[@media(min-height:30.0625rem)]:@min-[47.5rem]:grid-cols-[minmax(22.5rem,min(32%,24rem))_minmax(0,1fr)]")} data-testid="all-champions-layout" data-split={split || undefined}>
       <div ref={cardRef} className={cn("group/list relative min-w-0 rounded-card border border-border bg-surface panel-depth", split && "@container")} data-split={split || undefined} data-testid="all-champions-table">
         {data.topChampions.length ? (
           // Below 76rem the toolbar has the rows' padding, so the search lines up with the champions.
@@ -807,7 +876,19 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
                 opens: the champion, and its games and win rate at the right (the figures it shows). */}
             {split ? (
               <div className="sticky top-[calc(var(--bar-top)+var(--tabs-top))] z-[1] hidden items-center justify-between gap-4 border-b border-border/70 bg-surface px-3 md:flex" role="group" aria-label="Sort the champions" data-testid="all-champions-header">
-                {heading(COLUMNS[0]!)}
+                <span className="flex min-w-0 items-center gap-3">
+                  {heading(COLUMNS[0]!)}
+                  {/* Sorted by a figure the narrowed list does not show (KDA, mastery…): said here, once, instead of under every row. */}
+                  {sort.key !== "champion" && sort.key !== "games" && sort.key !== "win" ? (
+                    <span className="label-text inline-flex min-w-0 items-center gap-1 whitespace-nowrap" data-testid="all-champions-sorted-by">
+                      {sort.dir === "asc" ? <ArrowUp className="h-3 w-3 shrink-0" aria-hidden /> : <ArrowDown className="h-3 w-3 shrink-0" aria-hidden />}
+                      <span className="truncate">
+                        Sorted by {label}
+                        <span className="sr-only">, {sort.dir === "asc" ? "ascending" : "descending"}</span>
+                      </span>
+                    </span>
+                  ) : null}
+                </span>
                 <span className="flex items-center gap-5">
                   {heading(COLUMNS.find((c) => c.key === "games")!)}
                   {heading(COLUMNS.find((c) => c.key === "win")!)}
@@ -830,36 +911,34 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
         )}
       </div>
       {split && selected ? (
-        // The pane: pinned under the profile's section tabs while the page scrolls, reaching the window's
-        // foot (usePaneHeight), its own body the one region that scrolls when its content is taller (its
-        // heading with ‹ › and Close staying in place).
-        <aside
-          ref={paneRef}
-          className="sticky top-[calc(var(--bar-top)+var(--tabs-top)+0.75rem)] hidden max-h-[calc(100dvh_-_var(--bar-top)_-_var(--tabs-top)_-_1.5rem)] min-w-0 overflow-y-auto overscroll-contain rounded-card border border-border bg-surface panel-depth md:[@media(min-height:30.0625rem)]:@min-[46rem]:block"
-          aria-labelledby="champion-preview-title"
-          data-preview-pane
-          data-testid="champion-preview"
-        >
-          <span className="sr-only" aria-live="polite">
-            {announce(selected, selRole)}
-          </span>
-          {/* Another champion cross-fades in (120ms; at once with reduced motion). */}
-          <div key={selected.championId} className="px-5 pb-5 motion-safe:swap-in">
-            <PreviewContent
-              {...contentProps(selected, selRole)}
-              chrome="pane"
-              controls={
-                <div className="flex shrink-0 items-center gap-1" data-testid="champion-preview-controls">
-                  <SiblingSteps siblings={siblings} />
-                  <button type="button" onClick={() => closeRef.current()} className="ml-1 inline-flex h-9 items-center gap-1.5 rounded-lg border border-border-control bg-bg-elevated px-3 text-sm font-medium text-fg transition-colors duration-150 hover:border-fg-subtle hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:h-11" aria-label="Close the champion" data-testid="champion-preview-close">
-                    <X className="h-4 w-4" aria-hidden />
-                    Close
-                  </button>
-                </div>
-              }
-            />
-          </div>
-        </aside>
+        // The pane's column, as tall as the list (the grid's row): a spacer, then the pane, which the page
+        // scrolls (usePanePlacement: pinned under the section tabs while it fits the window; taller, it
+        // moves with the page between the tabs and the window's foot). Nothing in it scrolls on its own;
+        // its header (portrait, name, ‹ › and Close) stays pinned under the tabs while the pane passes.
+        <div ref={paneColumnRef} className="hidden min-w-0 self-stretch [overflow-anchor:none] md:[@media(min-height:30.0625rem)]:@min-[47.5rem]:block" data-testid="champion-preview-column">
+          <div ref={paneSpacerRef} aria-hidden data-pane-spacer />
+          <aside ref={paneRef} className="sticky top-[calc(var(--bar-top)+var(--tabs-top)+0.75rem)] min-w-0 overflow-clip rounded-card border border-border bg-surface panel-depth" aria-labelledby="champion-preview-title" data-preview-pane data-testid="champion-preview">
+            <span className="sr-only" aria-live="polite">
+              {announce(selected, selRole)}
+            </span>
+            {/* Another champion cross-fades in (120ms; at once with reduced motion). */}
+            <div key={selected.championId} className="px-5 pb-5 motion-safe:swap-in">
+              <PreviewContent
+                {...contentProps(selected, selRole)}
+                chrome="pane"
+                controls={
+                  <div className="flex shrink-0 items-center gap-1" data-testid="champion-preview-controls">
+                    <SiblingSteps siblings={siblings} />
+                    <button type="button" onClick={() => closeRef.current()} className="ml-1 inline-flex h-9 items-center gap-1.5 rounded-lg border border-border-control bg-bg-elevated px-3 text-sm font-medium text-fg transition-colors duration-150 hover:border-fg-subtle hover:bg-surface-2 focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:h-11" aria-label="Close the champion" data-testid="champion-preview-close">
+                      <X className="h-4 w-4" aria-hidden />
+                      Close
+                    </button>
+                  </div>
+                }
+              />
+            </div>
+          </aside>
+        </div>
       ) : null}
       </div>
       {rows.length && (multikillsIncomplete || killsIncomplete) ? (

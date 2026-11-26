@@ -160,3 +160,12 @@ them (docs/MATCHUPS.md has the whole behaviour).
 
 Back and Escape keep the one history rule: the preview is one entry (switching champion, position or
 opponent replaces it), and closing returns the list with its place, search, sort and filters.
+
+The review of the same day tightened it:
+
+| Before | After | Why |
+|---|---|---|
+| The pane a scroll box as tall as the window, beside the page's own scroll | No scroll box: pinned while it fits, taller it scrolls with the page between the tabs and the window's foot, its header pinned | One scrolling surface, the page's (no wheel that moves the list over one part and the pane over another) |
+| On a touch screen a tap on a position mark opened the most played position; the marks read only games | The row stays one 44px target but honours a tapped mark; the marks and the position choice say each position's games, win rate and record | The same facts and the same result for a finger as for a mouse |
+| A search typed in one position filtered the next (with no field left to clear it where the table was short) | Each position's table starts whole; a table without a field is never filtered | Never hide an opponent |
+| Five positions and "In pool" wrapped as the pane opened at 1366 with the sidebar open; a list sorted by a hidden figure put it under every row | A 22.5rem list; "Sorted by KDA" once in the heading row | No row moves as the pane opens or closes |

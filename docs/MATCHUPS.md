@@ -21,24 +21,34 @@ follows the icons when the pool of one of the row's positions holds the champion
 those positions). With a mouse each icon is a control: a tooltip on hover and keyboard focus
 ("Mid · 2 games · 50% win rate · 1W 1L", also its accessible name) and a press that opens the
 champion in that position; the champion's own name opens it in its most played position. On a touch
-screen a 44px target per icon cannot fit a compact row, so the icons are marks there (with their
-positions and games read out), the row opens the champion in its most played position and the
-preview's position choice switches it. A role filter leaves that position's games alone, so its rows
+screen a 44px target per icon cannot fit a compact row, so the icons are 14px marks 2px apart there
+and the row stays one 44px target, which reads where it was tapped (`roleMarkAt`, the 25 Nov 2026
+review): a tap on a mark (its box widened by half the gap on each side, and 6px above and below)
+opens the champion in that position, anywhere else on the row its most played position. The marks'
+text reads every position's games, win rate and record, and the preview's position choice shows
+them on screen, so a tooltip's facts never need a hover. A role filter leaves that position's games alone, so its rows
 show that one icon. Each position's own figures are sent with the row only where they differ from
 the row's (two or more positions, or a game with none), so a one-position champion's figures go once.
 
 **Where it opens.** On a computer (from 768px wide, in a window taller than 480px, where the
-section is at least 46rem: a 1024px window with the sidebar folded, 1280px with it open, an
+section is at least 47.5rem: a 1024px window with the sidebar folded, 1280px with it open, an
 1180px tablet held sideways) the
 preview is a **pane beside the list** (the owner's request of 25 Nov 2026: the docked panel of
 Release 16 lay over half the table "without purpose"). The list narrows to a column of
-`minmax(20rem, min(32%, 24rem))`: each champion's name, position icons and "In pool", and its win
-rate over its games, under a heading row of the table's height that sorts by Champion, Games or Win
-rate, so no row and no name moves as the preview opens or closes (a list sorted by a figure it no
-longer shows names that figure under each champion, as a phone's rows do). The pane takes the rest:
-pinned under the profile's section tabs while the page scrolls, as tall as the window leaves, its
-own body the one region that scrolls when its content is taller, its header (portrait, name, ‹ ›
-and a labelled **Close**) staying in place. Nothing covers the list; a click elsewhere on the page
+`minmax(22.5rem, min(32%, 24rem))` (room for five position buttons and "In pool" on one line beside
+the rank, the portrait and the figures: at 20rem, 1366px with the sidebar open, "In pool" took a
+second line as the pane opened and every row below moved): each champion's name, position icons and
+"In pool", and its win rate over its games, under a heading row of the table's height that sorts by
+Champion, Games or Win rate, so no row and no name moves as the preview opens or closes. A list
+sorted by a figure it no longer shows (KDA, mastery…) says so once in that heading row ("Sorted by
+KDA") and keeps every row's line as it was. The pane takes the rest, and **the page is the one thing
+that scrolls** (the 25 Nov 2026 review: no scroll box beside the page's): while the pane fits the
+window it is pinned under the profile's section tabs; taller, it scrolls with the page, held between
+the tabs and the window's foot (sticky lines and a spacer above it, `usePanePlacement`), so reading
+down takes its end into view and scrolling back brings its top back under the tabs, with its header
+(portrait, name, ‹ › and a labelled **Close**) pinned under the tabs while it passes. Opened, or
+showing another champion, its top is placed under the tabs wherever the list is scrolled. Nothing
+covers the list; a click elsewhere on the page
 leaves the pane open (it is part of the page, not a layer). Under 768px (the phone's frame, touch or
 mouse), in a short window, and where the section is narrower than 46rem (an upright tablet, a large
 text size) it is a **sheet** (the phone window shell, `PreviewWindow`) with the same content and ‹ ›;
@@ -52,8 +62,9 @@ its row; from Release 16 to 25 Nov 2026 a panel docked at the window's right edg
 1. **Identity:** the portrait and name (the pane's heading; the sheet's header), "In pool", the
    champion's **mastery, marked "all positions"** (Riot counts mastery per champion, never per
    position), and, for a champion of several positions or with games in none, its games in all.
-2. **Position:** every position it was played in, most games first, each with its games (the app's
-   segmented control, 44px on touch). A choice switches every figure below and the opponents at once
+2. **Position:** every position it was played in, most games first, each with its games, win rate
+   and record ("Top 22" over "50% · 11W 11L", the win rate quiet under 5 games; the same words in
+   its accessible name), the app's segmented control, 44px on touch. A choice switches every figure below and the opponents at once
    (`crole`, replaced; the opened opponent goes with the old position). Where some games record no
    position: "1 more game has no recorded position: it counts in Sion's totals only."
 3. **Figures of that position:** its win rate (coloured by `winRateTone` from 5 games) over
@@ -63,7 +74,9 @@ its row; from Release 16 to 25 Nov 2026 a panel docked at the window's right edg
    averaged over ("Averages over all 22 Top games in these filters"). No boxes: labels over figures.
 4. **Lane opponents:** ONE table of every lane opponent the champion met in that position, however
    few the games (no folds, no "more" toggles, no Best/Worst tabs): portrait and name, games, W/L,
-   win rate; a search by name from four opponents; three orders, **Most games** (ties: the most
+   win rate; a search by name from four opponents, belonging to the position it was typed in
+   (another position's table starts whole, and a table that draws no field is never filtered: a word
+   left behind never hides an opponent); three orders, **Most games** (ties: the most
    recent), **Highest win rate** and **Lowest win rate** (`src/domain/champion-preview.ts`):
    - an opponent met fewer than **3** times is a small sample: its win rate in the quiet colour
      (read out "small sample"), and the win-rate orders list it **after** the ranked opponents (3+
@@ -74,7 +87,8 @@ its row; from Release 16 to 25 Nov 2026 a panel docked at the window's right edg
 5. **An opponent's detail, without an accordion** (`vs` in the address, replaced): selecting a row
    shows, **beside the table** where the preview is at least 38rem wide (and replaces the detail when
    another row is chosen; the row again or "Clear" puts it back), or as **one step in place of the
-   table** in a narrower preview (the sheet; "All opponents" goes back, the focus following): "vs
+   table** in a narrower preview (the sheet; "All opponents" goes back, the focus following, and the
+   step's start and then the row it left from are brought into view where they are not): "vs
    Nasus" with its games, W/L and win rate, the KDA over its games with the average K/D/A
    (`pairingKda`, the games with a full record), one sentence only with at least 5 games with a
    timeline ("At 10:00 you had more gold than Nasus in 5 of 6 games with a timeline (+623 on

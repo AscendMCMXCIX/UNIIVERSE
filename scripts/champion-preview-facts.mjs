@@ -6,7 +6,9 @@
   (src/server/ops/live-check-champion-preview.test.ts). Since 25 Nov 2026 the preview is a pane
   beside the list (the list narrowing, nothing laid over it), read where it is as well as what it
   says: the position it shows (the row's most played, one of its position icons), that position's
-  record, and every lane opponent in one table.
+  record, and every lane opponent in one table; and (the 25 Nov 2026 review) that the page is the one
+  thing that scrolls: the pane is no scroll box, nothing in the page's main area scrolls, and the
+  pane's header is on screen.
 
   Read in the page only: counts, true or false and the preview's fixed words ("12 games · 7W 5L",
   "58%", "TOP"). The champion's own name is compared in the page, never returned; no player's name,
@@ -43,7 +45,17 @@ export function readChampionPreview(rowIndex) {
   const icon = icons.find((i) => i.getAttribute("data-role") === role) ?? null;
   // Where it is (since 25 Nov 2026): a pane beside the list (an aside in the page, not a window),
   // within the screen's width, the list's card and the row's name clear of it (nothing laid over them).
-  const pane = holder?.matches("aside[data-preview-pane]") ? holder.getBoundingClientRect() : null;
+  const paneEl = holder?.matches("aside[data-preview-pane]") ? holder : null;
+  const pane = paneEl ? paneEl.getBoundingClientRect() : null;
+  // One scrolling surface (25 Nov 2026 review): the page. The pane is no scroll box of its own, nothing
+  // inside the page's main area scrolls, and the pane's header (the champion, ‹ › and Close) is on screen.
+  const scrolls = (el) => {
+    const st = getComputedStyle(el);
+    return /(auto|scroll)/.test(st.overflowY + st.overflowX) && (el.scrollHeight > el.clientHeight + 1 || el.scrollWidth > el.clientWidth + 1);
+  };
+  const paneStyle = paneEl ? getComputedStyle(paneEl) : null;
+  const head = paneEl?.querySelector("[data-testid=champion-preview-header]")?.getBoundingClientRect() ?? null;
+  const close = paneEl?.querySelector("[data-testid=champion-preview-close]")?.getBoundingClientRect() ?? null;
   const card = document.querySelector("[data-testid=all-champions-table]")?.getBoundingClientRect() ?? null;
   const name = row?.querySelector("[data-open-champion]")?.getBoundingClientRect() ?? null;
   const opponents = [...content.querySelectorAll("[data-testid=champion-preview-opponent]")];
@@ -64,6 +76,7 @@ export function readChampionPreview(rowIndex) {
     record: clean(content.querySelector("[data-testid=champion-preview-record-line]")),
     winRate: clean(content.querySelector("[data-testid=champion-preview-winrate]")),
     pane: { pane: !!pane, window: !!document.querySelector("dialog[open]"), within: !!pane && pane.left >= -0.5 && pane.right <= innerWidth + 0.5 && pane.top < innerHeight, besideList: !!pane && !!card && card.right <= pane.left + 0.5, nameClear: !!pane && !!name && name.right <= pane.left },
+    scrolling: paneEl ? { scrollBox: /(auto|scroll)/.test(paneStyle.overflowY + paneStyle.overflowX), scrollers: [...document.querySelectorAll("main *")].filter(scrolls).length, head: !!head && !!close && head.top >= -0.5 && head.bottom <= innerHeight + 0.5 && close.width > 0 } : null,
     loading: !!content.querySelector("[data-testid=champion-preview-loading]"),
     noOpponents: !!content.querySelector("[data-testid=champion-preview-no-opponents]"),
     // The foot line comes only with an answer: without it (and not loading) the preview could not be loaded.
@@ -119,6 +132,7 @@ export function championPreviewVerdicts({ kind, at, step, escaped, kept }) {
   const wins = m ? Number(m[2]) : null;
   const losses = m ? Number(m[3]) : null;
   if (at.pane) fact("the preview opens in a pane beside the list (no window), within the screen, the list and the row's name clear of it", at.pane.pane && !at.pane.window && at.pane.within && at.pane.besideList && at.pane.nameClear, at.pane);
+  if (at.scrolling) fact("the page is the one thing that scrolls: the pane has no scroll box of its own, nothing inside the page's main area scrolls, and the pane's header (the champion, ‹ › and Close) is on screen", !at.scrolling.scrollBox && at.scrolling.scrollers === 0 && at.scrolling.head, at.scrolling);
   fact("the preview of the first champion with 3+ games shows that champion: its portrait, its name, and the position it was played in most (the row's first position icon, chosen in the preview)", at.sameChampion && at.portrait && at.named && ROLE_KEY.test(at.role ?? "") && !!at.position?.chosen && !!at.position?.first, { sameChampion: at.sameChampion, portrait: at.portrait, named: at.named, role: ROLE_KEY.test(at.role ?? "") ? at.role : `other words (${(at.role ?? "").length} characters)`, position: at.position });
   fact('the preview says "N games · NW NL" for that position, its icon\'s games on the row (no more than the row\'s), the wins and losses adding up', !!m && games === at.roleGames && games <= (at.rowGames ?? 0) && wins + losses === games, { record: at.record, roleGames: at.roleGames, rowGames: at.rowGames });
   const rate = /^(\d{1,3})%$/.exec(at.winRate ?? "");
