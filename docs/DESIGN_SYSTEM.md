@@ -203,10 +203,11 @@ decorative chrome.
       Willump" whole;
     - **the wide card** (from 50rem), one row of about 100px, unchanged in height; since 25 Nov 2026
       the performance score has a column of its own (2.5rem) right after the K/D/A, the teams join
-      from a 65rem list (61rem before), the chevron is left out from 65 to 74rem and the 16px and
-      20px gaps start at 74 and 76rem (70 and 72rem before), so beside the open sidebar 1366 keeps
-      its teams (258px, 2 of 10 names cut on the demo's longest roster) and 1440 widens them
-      (320px). The K/D/A's floor is 6em (6.25em before: "10 / 10 / 10" is 5.71em).
+      from a 65rem list (61rem before), the columns sit 8px apart from 65 to 74rem (10px before),
+      the chevron is left out there and the 16px and 20px gaps start at 74 and 76rem (70 and 72rem
+      before), so beside the open sidebar 1366 keeps its teams (272px, against 275 before: 3 of 10
+      names cut on the demo's longest roster once both sides' ranks are read) and 1440 widens them
+      (334px, against about 300). The K/D/A's floor is 6em (6.25em before: "10 / 10 / 10" is 5.71em).
   - **The performance score on the card** (Release 17; its own place at the owner's request of 25 Nov
     2026, §1, OP.GG's hierarchy as the reference, not its looks; docs/PERFORMANCE_SCORE.md, "Where it
     shows"): `ScoreMark` (`components/match-history/score-mark.tsx`), the score bold in `fg` with the
@@ -217,9 +218,11 @@ decorative chrome.
     (`text-md`) beside the badge, right-aligned on a phone and left-aligned on a two-row card. A card
     without a score keeps the place with a quiet dash (`ScoreMarkEmpty`, `match-score-empty`, hidden
     from screen readers). Its words for a screen reader are `scoreWords`' ("Performance score 3.5,
-    9th of 10, MVP"), also in the card's label. Heights (measured 25 Nov 2026 on the demo, against
-    `main` 3aab01b): a phone's card 117.5px (114.5 before), +3px; a two-row card unchanged where its
-    figures set the row (117.5px), a multikill under the score +5px; the wide card unchanged (102px).
+    9th of 10, MVP"), also in the card's label. Heights (measured 25 Nov 2026 on the demo, Demo ADC,
+    against `main` 3aab01b): a phone's card 118.5px (114.5 before), +4px, 129.5 with a multikill
+    (125.5), and 142.5 at 320px (138.5); a two-row card 118px (117.5), 129 with a multikill (125);
+    the wide card unchanged, 102px at 1440 and 74–76px at 1280. The iPad's page (810 × 1080) went from
+    1.6 to 1.617 screens (docs/MOBILE.md).
   - **The place badge** (`PlacementBadge`, `components/ui/placement-badge.tsx`, 25 Nov 2026): the one
     mark for a place everywhere one shows (the cards, the open card's header, the inspected player,
     every scoreboard row, Team → Matches' member rows). MVP: `--color-gold` text on a gold 15% wash

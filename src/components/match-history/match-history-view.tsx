@@ -75,7 +75,7 @@ const CARD_GRID = [
   "@min-[36rem]/mh:grid-cols-[auto_minmax(0,1fr)_auto_auto_auto] @min-[36rem]/mh:gap-x-3 @min-[36rem]/mh:gap-y-2",
   "@min-[50rem]/mh:grid-cols-[6.75rem_auto_minmax(6rem,0.7fr)_minmax(auto,0.5fr)_2.5rem_minmax(auto,0.6fr)_minmax(auto,2fr)_auto] @min-[50rem]/mh:gap-x-2.5 @min-[50rem]/mh:py-2",
   "@min-[54rem]/mh:grid-cols-[6.75rem_auto_minmax(6.25rem,0.7fr)_minmax(auto,0.5fr)_2.5rem_minmax(auto,0.6fr)_minmax(auto,2fr)_auto]",
-  "@min-[65rem]/mh:grid-cols-[6.75rem_auto_minmax(6.25rem,0.7fr)_minmax(auto,0.5fr)_2.5rem_minmax(auto,0.6fr)_auto_minmax(13rem,2fr)] @min-[74rem]/mh:grid-cols-[6.75rem_auto_minmax(6.25rem,0.7fr)_minmax(auto,0.5fr)_2.5rem_minmax(auto,0.6fr)_auto_minmax(13rem,2fr)_auto] @min-[74rem]/mh:gap-x-4 @min-[76rem]/mh:gap-x-5",
+  "@min-[65rem]/mh:grid-cols-[6.75rem_auto_minmax(6.25rem,0.7fr)_minmax(auto,0.5fr)_2.5rem_minmax(auto,0.6fr)_auto_minmax(13rem,2fr)] @min-[65rem]/mh:gap-x-2 @min-[74rem]/mh:grid-cols-[6.75rem_auto_minmax(6.25rem,0.7fr)_minmax(auto,0.5fr)_2.5rem_minmax(auto,0.6fr)_auto_minmax(13rem,2fr)_auto] @min-[74rem]/mh:gap-x-4 @min-[76rem]/mh:gap-x-5",
 ].join(" ");
 /** The portrait: row 2 (rows 2–3 from 16rem); placed in order from 36rem. */
 const PHONE_PORTRAIT = "col-[1] row-[2] @min-[16rem]/mh:row-[2/span_2] @min-[36rem]/mh:col-auto @min-[36rem]/mh:row-auto";
@@ -244,7 +244,8 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
           real value fits, "10 / 10 / 10" and "1,234 dmg/min (45%)", so the columns stay level from
           card to card; the two-row card keeps the same floors), the champion's name has 6rem
           (6.25rem from 54rem, where the longest one-word name fits) and a second line, the teams
-          keep their names (13rem), and the columns sit 10px apart until 70rem, where the wider
+          keep their names (13rem), and the columns sit 10px apart (8px from 65 to 74rem, where the
+          teams join beside the score's column and need the room) until 74rem, where the wider
           gaps fit; so no text runs under the build or the teams. The teams' five lines set the
           wide card's height (about 100px). */}
       {/* The whole card opens and closes the match's breakdown under it. The player links in the
@@ -381,8 +382,9 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
               </span>
             ) : null}
           </span>
-          {/* A wide card's performance column: the score over its place, centred in a track of one width on every card. */}
-          <span className="hidden items-center justify-center @min-[50rem]/mh:flex" data-testid="match-score-cell">
+          {/* A wide card's performance column: the score over its place, centred in a track of one width on every card;
+              drawn 4px nearer the K/D/A where the columns are 8px apart (65–74rem), so it reads with the K/D/A, not the figures. */}
+          <span className="hidden items-center justify-center @min-[50rem]/mh:flex @min-[65rem]/mh:@max-[74rem]/mh:-translate-x-1" data-testid="match-score-cell">
             {scoreMark("stack")}
           </span>
           {/* From 21.375 to 36rem the build is drawn here, under the champion beside the K/D/A and above
