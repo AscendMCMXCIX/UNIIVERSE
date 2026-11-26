@@ -167,7 +167,8 @@ describe("database migrations", () => {
       const before = await tables();
       expect(before).toEqual(expect.arrayContaining(retired));
 
-      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual([drop.tag]);
+      // (0069, applied with it, adds an index only.)
+      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual([drop.tag, "0069_match_details_champions"]);
       const after = await tables();
       expect(before.filter((t) => !after.includes(t))).toEqual(retired);
       expect(after).toEqual(before.filter((t) => !retired.includes(t)));
@@ -422,8 +423,8 @@ describe("database migrations", () => {
       const next = EMBEDDED_MIGRATIONS.find((m) => m.tag.endsWith("_retire_meta_trends_rest"))!;
       await db.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${next.tag}, ${next.hash})`);
 
-      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual([drop.tag, "0065_rank_confirmations", "0067_match_prep"]);
-      // (0067, applied with it, adds Matchup Intel's two evidence tables.)
+      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual([drop.tag, "0065_rank_confirmations", "0067_match_prep", "0069_match_details_champions"]);
+      // (0067, applied with it, adds Matchup Intel's two evidence tables; 0069 an index only.)
       expect(await tables()).toEqual([...before.filter((t) => t !== "clash_scouts" && t !== "clash_scout_accounts"), "account_match_prep", "static_digests"].sort());
       // Their indexes went with them; the team and the account that saved the scout stay.
       expect(rows(await db.execute(sql`SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname LIKE 'clash_scout%'`))).toEqual([]);
