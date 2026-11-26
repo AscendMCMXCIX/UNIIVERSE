@@ -85,8 +85,10 @@
     role icon named by the most-played position (or split, or unknown); no row taller than 72px. On
     the desktop and the tablet the first Score is opened: its breakdown's final line, 100 × (earned +
     40) ÷ (typical + 40), gives the score shown, its points per kind add up, it names the role, the
-    comparison and its levels, and it opens whole with no scrollbar of its own. Counts, scores and
-    fixed words only.
+    comparison and its levels, it opens whole with no scrollbar of its own, and on the team-wide
+    fallback none of its words speak of champions and roles; opened by Enter, Tab past its end closes
+    it and goes on after the Score, Shift+Tab closes it back on the Score. Counts, scores and fixed
+    words only.
   - records (25 Nov 2026: one dashboard, a 2 × 2 grid): on /leaderboards, at 1440, the multikills beside
     Recent form (tops within 1px, one height), the season records under Recent form with the milestones
     beside them (one height), and every record cell, at its own height (not the taller neighbour's its
@@ -97,8 +99,10 @@
     and 1920 × 1080 (the sidebar open), Leaderboards' four boards (Recent form, Multikills, Season
     records, Milestones) and a profile's Overview (Season performance and the pools, with Ranked
     progress and Recent form where drawn) end within the window; Leaderboards' multikills and milestones
-    show every row with no Show all, and a profile's pool showing fewer rows than it has says so in its
-    Show all. Positions, counts and the Show all's words only. At every width,
+    show every row with no Show all, and no board leaves a blank band (its last line within 24px of its
+    end unless its rows have grown to their cap, 3.5rem a row on average; the multikills' legend right
+    under their last row); a profile's pool showing fewer rows than it has says so in its Show all.
+    Positions, counts and the Show all's words only. At every width,
     Records & achievements' old address (/leaderboards?view=records) opens the same page, the view gone
     from its address, at the season records (in view, focused). Counts, heights and true/false only.
   - settings: the picture and display-name help name the public team page, and Settings never
@@ -163,7 +167,7 @@ import { rosterRowLines } from "./roster-lines.mjs";
 import { championLookupVerdicts, readChampionLookup, readChampionWindow } from "./champion-lookup-facts.mjs";
 import { fitVerdicts, postGameVerdicts, readFit, readInspection, readPostGame, switchVerdicts } from "./post-game-facts.mjs";
 import { championPreviewVerdicts, readChampionPreview, readChampionRows, targetRow } from "./champion-preview-facts.mjs";
-import { breakdownVerdicts, multikillVerdicts, readMultikillBoard, readMultikillBreakdown } from "./multikill-facts.mjs";
+import { breakdownKeyboardVerdicts, breakdownVerdicts, MULTIKILL_ROLE_LABEL, multikillVerdicts, readBreakdownFocus, readMultikillBoard, readMultikillBreakdown } from "./multikill-facts.mjs";
 import { cardScoreVerdicts, firstScored, readCardScores, readOpenedScore } from "./card-score-facts.mjs";
 import { oneScreenInput, oneScreenVerdicts, readOneScreen } from "./one-screen-facts.mjs";
 import { execFileSync } from "node:child_process";
@@ -1040,16 +1044,20 @@ async function recordsFacts(page, kind) {
  * with a place (none skipped, first in gold), each row's counts and its role icon's name, compact
  * rows. On the desktop and the tablet (the beside form; a phone's sheet may scroll, as a sheet does)
  * the first Score is opened and its breakdown read: the final line gives the score shown, the points
- * add up, it opens whole; then closed with Escape. A team with no ranked player is a warning, and so is
- * a score compared with the team's own games (too few other players' games).
+ * add up, it opens whole, it claims no champion and role adjustment on the team-wide fallback; then
+ * closed with Escape, and opened by Enter to check the keyboard's way out (Tab past its end goes on
+ * after the Score, Shift+Tab back to it). A team with no ranked player is a warning, and so is a score
+ * compared with the team's own games (too few other players' games).
  */
 async function multikillFacts(page, kind) {
-  const read = await page.evaluate(readMultikillBoard);
+  const read = await page.evaluate(readMultikillBoard, MULTIKILL_ROLE_LABEL);
   for (const v of multikillVerdicts({ kind, read })) check("leaderboards", v.name, v.status, v.detail);
   if (kind === "phone") return;
   const first = page.locator("[data-testid=multikill-row] [data-testid=multikill-score-open]").first();
   const rowScore = read?.rows?.[0]?.score ?? null;
   let breakdown = { present: false };
+  let forward = null;
+  let back = null;
   if (rowScore !== null && (await first.count())) {
     await first.scrollIntoViewIfNeeded();
     await first.click();
@@ -1058,9 +1066,29 @@ async function multikillFacts(page, kind) {
       .then(() => page.evaluate(readMultikillBreakdown), () => ({ present: false }));
     await page.keyboard.press("Escape");
     await page.waitForTimeout(200);
+    // The keyboard's way out (it is drawn at the page's end): opened by Enter, Tab until it closes (its ✕ is its one control), then
+    // opened again and left by Shift+Tab. Read as true or false only.
+    const panel = "[data-testid=multikill-breakdown]";
+    const openByKey = async () => {
+      await first.focus();
+      await page.keyboard.press("Enter");
+      return page.waitForFunction((s) => !!document.querySelector(s)?.contains(document.activeElement), panel, { timeout: 5_000 }).then(() => true, () => false);
+    };
+    if (breakdown.present && (await openByKey())) {
+      for (let i = 0; i < 12 && (await page.locator(panel).count()); i++) await page.keyboard.press("Tab");
+      await page.waitForTimeout(150);
+      forward = await page.evaluate(readBreakdownFocus);
+      if (await openByKey()) {
+        await page.keyboard.press("Shift+Tab");
+        await page.waitForTimeout(150);
+        back = await page.evaluate(readBreakdownFocus);
+      }
+    }
+    if (await page.locator(panel).count()) await page.keyboard.press("Escape");
     await page.evaluate(() => window.scrollTo(0, 0));
   }
   for (const v of breakdownVerdicts({ kind, read: breakdown, rowScore })) check("leaderboards", v.name, v.status, v.detail);
+  if (breakdown.present) for (const v of breakdownKeyboardVerdicts({ kind, forward, back })) check("leaderboards", v.name, v.status, v.detail);
 }
 
 /**

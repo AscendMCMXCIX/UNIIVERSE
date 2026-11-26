@@ -11,12 +11,23 @@
   address and no id leaves it.
 */
 
-/** The table as the page shows it (self-contained, for evaluate). */
-export function readMultikillBoard() {
+/**
+ * What a role icon's accessible name says (recent-view.ts, roleView): the most-played position with its
+ * share of the score's games ("Most played: Mid, 78% of 1,024 games": the count as format.ts writes
+ * it, with a thousands separator from 1,000), a split ("Split: Top and Mid, 45% each") or an unknown
+ * role. The page reads it as a pattern, handed in (readMultikillBoard runs in the page, self-contained).
+ */
+export const MULTIKILL_ROLE_LABEL = "^(Most played: (Top|Jungle|Mid|Bottom|Support), \\d{1,3}% of \\d{1,3}(,\\d{3})* games?|Split: .+, \\d{1,3}% each|Role unknown: .+)$";
+
+/** True where a role icon's accessible name says what MULTIKILL_ROLE_LABEL allows. */
+export const roleLabelNamed = (label) => new RegExp(MULTIKILL_ROLE_LABEL).test(label ?? "");
+
+/** The table as the page shows it (self-contained, for evaluate; `rolePattern` is MULTIKILL_ROLE_LABEL). */
+export function readMultikillBoard(rolePattern) {
   const board = document.querySelector("[data-testid=records-multikills]");
   if (!board) return { present: false };
   const num = (v) => (v === null || v === undefined ? null : Number(v));
-  const ROLE_LABEL = /^(Most played: (Top|Jungle|Mid|Bottom|Support), \d+% of \d+ games?|Split: .+, \d+% each|Role unknown: .+)$/;
+  const ROLE_LABEL = new RegExp(rolePattern);
   const rows = [...board.querySelectorAll("[data-testid=multikill-row]")].map((r) => {
     const role = r.querySelector("[data-testid=multikill-role]");
     const roleLabel = role ? (role.getAttribute("aria-label") ?? role.textContent ?? "").trim() : "";
@@ -50,7 +61,9 @@ export function readMultikillBoard() {
     heads: heads && heads.getBoundingClientRect().height > 0 ? heads.innerText.split(/\s+/).filter(Boolean) : null,
     basis: board.querySelector("[data-testid=multikill-basis]")?.textContent?.trim() ?? "",
     explained: !!board.querySelector("[data-testid=multikill-explain]"),
-    legend: legend ? /Below 100 below typical/.test(legend.textContent ?? "") && /\b100 typical/.test(legend.textContent ?? "") && /Above 100 above typical/.test(legend.textContent ?? "") : false,
+    // Its three parts, each its own element (their text runs together in textContent: "below typical100 typical", which a word
+    // boundary before "100" never matched, so this read false on every page until the review of 25 Nov 2026).
+    legend: legend ? ((parts) => ["Below 100 below typical", "100 typical", "Above 100 above typical"].every((w) => parts.includes(w)))([...legend.children].map((c) => (c.textContent ?? "").replace(/\s+/g, " ").trim())) : false,
     // How Riot's counters are read: the board states it as data (its words are in the breakdown, drawn only while open).
     rule: legend?.getAttribute("data-counting-rule") ?? null,
     empty: !!board.querySelector("[data-testid=multikills-empty]"),
@@ -86,6 +99,26 @@ export function readMultikillBreakdown() {
     comparison: !!panel.querySelector("[data-testid=breakdown-comparison]"),
     levels: panel.querySelectorAll("[data-testid=breakdown-levels] li").length,
     scrolls,
+    // The team-wide fallback: said plainly, and then no line may claim the score is relative to champions and roles (true or false only).
+    notAdjusted: !!panel.querySelector("[data-testid=breakdown-not-adjusted]"),
+    claimsAdjusted: /champions and roles/i.test(panel.textContent ?? ""),
+  };
+}
+
+/**
+ * Where the keyboard is after leaving the open Score breakdown (self-contained, for evaluate): whether
+ * it is still open, and whether the focus is on the first row's Score or on something after it in the
+ * page's order (true or false only).
+ */
+export function readBreakdownFocus() {
+  const trigger = document.querySelector("[data-testid=multikill-row] [data-testid=multikill-score-open]");
+  const at = document.activeElement;
+  const open = !!document.querySelector("[data-testid=multikill-breakdown]");
+  const real = !!at && at !== document.body && at !== document.documentElement;
+  return {
+    open,
+    onTrigger: !!trigger && at === trigger,
+    afterTrigger: !!trigger && real && at !== trigger && !!(trigger.compareDocumentPosition(at) & Node.DOCUMENT_POSITION_FOLLOWING),
   };
 }
 
@@ -170,5 +203,20 @@ export function breakdownVerdicts({ kind, read, rowScore }) {
   fact("the breakdown's points: each kind made × its points (2–5), adding up to the earned points", kinds, { kinds: read.kinds.length });
   fact("the breakdown names the most-played role, where typical comes from and how the games were compared", read.role && read.comparison && read.levels > 0, { role: read.role, comparison: read.comparison, levels: read.levels });
   fact("the breakdown opens whole, with no scrollbar of its own", read.scrolls === 0, { scrolls: read.scrolls });
+  // On the team-wide fallback the score is not champion- or role-adjusted: the breakdown says so, and nothing in it says otherwise.
+  fact("the breakdown claims no champion and role adjustment the score has not made", !(read.notAdjusted && read.claimsAdjusted), { notAdjusted: !!read.notAdjusted, claimsAdjusted: !!read.claimsAdjusted });
   return out;
+}
+
+/**
+ * What the check asserts about the keyboard leaving the open breakdown (readBreakdownFocus after each
+ * way out): Tab past its last control closes it and goes on after the Score (the next row), Shift+Tab
+ * out of it closes it with the focus back on the Score, as if it came right after the Score in the page
+ * (it is drawn at the page's end). Either reading null: not run (no Score, or it did not open by Enter).
+ */
+export function breakdownKeyboardVerdicts({ kind, forward, back }) {
+  const name = `${kind}: the breakdown keeps the keyboard's place: Tab past its end closes it and goes on after the Score, Shift+Tab closes it back on the Score`;
+  if (!forward || !back) return [{ name: `${kind}: skipped: the breakdown's keyboard order (no Score opened by Enter)`, status: "WARN", detail: { forward: !!forward, back: !!back } }];
+  const ok = !forward.open && forward.afterTrigger && !back.open && back.onTrigger;
+  return [{ name, status: ok ? "PASS" : "FAIL", detail: { forward: { open: forward.open, after: forward.afterTrigger }, back: { open: back.open, onScore: back.onTrigger } } }];
 }

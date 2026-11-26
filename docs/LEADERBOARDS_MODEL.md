@@ -9,8 +9,9 @@ Status: **live.** The owner approved the rules, and these boards replaced the pr
   "The page"). The rules below are unchanged.
 - **A multikill score since 23 Nov 2026 (Release 15, the owner's request):** the multikills are
   ranked by a per-game score against the same roles and champions in the same games, with double
-  kills counted; the most of each kind stays an achievement of its own (section 4 and
-  docs/TEAM_LEADERBOARDS.md, "The multikill score"). The one exception to principles 3 and 4 below.
+  kills counted; since 25 Nov 2026 the table's kinds' columns show each player's doubles, triples,
+  quadras and pentas (the "most of each" tiles went: section 4 and docs/TEAM_LEADERBOARDS.md, "The
+  multikill score"). The one exception to principles 3 and 4 below.
 - **Where the code is:**
   - `src/domain/leaderboard-recent.ts`, `src/domain/leaderboard-records.ts` and `src/domain/multikill-score.ts`;
   - the multikill score's comparison in `src/server/leaderboards/multikill-baseline.ts`;

@@ -675,6 +675,11 @@ How a figure was worked out, one press from the figure itself: for what is too l
   phone's sheet scrolls as every sheet does.
 - **Closes** on Escape (the focus back on the figure), a press outside, the focus leaving it, its ✕, or
   the figure leaving the screen. No address or history entry of its own.
+- **The keyboard keeps the figure's place** (the Popover's `portaled`): drawn at the page's end, it is
+  still read as if it came right after the figure. Tab past its last control closes it and goes on to
+  what follows the figure; Shift+Tab out of it (from its first control or the panel itself) closes it
+  with the focus back on the figure; Escape closes it wherever the focus is on the page (WCAG 2.4.3).
+  The sheet keeps the focus inside until it closes, as every sheet does.
 - **Content** drawn only while open, from the figure's own data (the breakdown never works the figure out
   again): plain sections with a heading each (no boxes inside boxes), the arithmetic in tabular numerals.
 

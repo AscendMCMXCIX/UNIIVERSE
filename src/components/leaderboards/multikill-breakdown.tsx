@@ -23,7 +23,9 @@ import type { MultikillBreakdown, MultikillRole, MultikillsView } from "@/server
     the comparison  where typical comes from and how big it is, how the games were compared (by
                     champion and role, by role, every position, or the team's own games: then said
                     plainly not to be champion- or role-adjusted), the limits (the counting rule,
-                    luck, the queues compared together), and why placements differ (two players).
+                    luck, the queues compared together), and why placements differ (two players:
+                    above typical for their champions and roles, or, on the team-wide fallback, above
+                    the team's typical results; no line claims an adjustment the score has not made).
 */
 
 /** The final line, `100 × (89 + 40) ÷ (71.3 + 40) = 116`: its terms as data attributes too (the Production check recomputes it). */
@@ -225,7 +227,7 @@ export function MultikillBreakdownBody({ breakdown, board, champions }: { breakd
         </Section>
         <Section title="Why placements differ" testId="breakdown-example">
           <p>
-            Player A earns 80 points where 60 are typical: 100 × (80 + 40) ÷ (60 + 40) = 120. Player B earns 160 where 150 are typical: 100 × (160 + 40) ÷ (150 + 40) = 105. A places higher with fewer points: what counts is how far each is above typical for their champions and roles.
+            Player A earns 80 points where 60 are typical: 100 × (80 + 40) ÷ (60 + 40) = 120. Player B earns 160 where 150 are typical: 100 × (160 + 40) ÷ (150 + 40) = 105. A places higher with fewer points: what counts is how far each is above {board.source === "team" ? "the team's typical results" : "typical for their champions and roles"}.
           </p>
         </Section>
       </div>
