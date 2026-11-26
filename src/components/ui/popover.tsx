@@ -22,6 +22,10 @@ import { screenBox, screenHeight } from "@/lib/screen";
   - **Look.** `bg-elevated`, a border and a shadow, a 160ms fade with a 2px slide away from the
     trigger (popover-in, none with reduced motion). As tall as its content, up to the room under
     (or over) the trigger; then its body alone scrolls, its title and actions in place.
+  - **Beside** (`placement="side"`, the shared breakdown popover, breakdown-popover.tsx): before the
+    trigger (a figure at a row's end), or after it where there is no room before, centred on it and
+    kept inside the screen, up to the screen's whole height: a breakdown taller than the room under a
+    row in mid-screen opens whole instead of scrolling inside itself.
   - **Layer.** Fixed to the screen, in the page where its caller draws it (no portal), so what holds
     it keeps seeing a press on it as inside; where what holds it moves the box fixed positioning uses
     (a transform, a blurred sticky bar), it measures where its (0, 0) landed and corrects for it.
@@ -53,12 +57,14 @@ export interface PopoverProps {
   footer?: React.ReactNode;
   /** The panel's width class: `w-[min(34rem,calc(100%-1rem))]` for the filters (the five role segments in view). */
   widthClassName?: string;
+  /** Under (or over) the trigger, the filters' place; or beside it, with the screen's height to grow into (the shared breakdown popover). */
+  placement?: "below" | "side";
   testId?: string;
   closeTestId?: string;
   id?: string;
 }
 
-export function Popover({ anchor, onClose, title, description, children, footer, widthClassName = "w-[min(34rem,calc(100%-1rem))]", testId, closeTestId, id }: PopoverProps) {
+export function Popover({ anchor, onClose, title, description, children, footer, widthClassName = "w-[min(34rem,calc(100%-1rem))]", placement = "below", testId, closeTestId, id }: PopoverProps) {
   const ref = React.useRef<HTMLDivElement>(null);
   const titleId = React.useId();
   const descriptionId = React.useId();
@@ -76,6 +82,18 @@ export function Popover({ anchor, onClose, title, description, children, footer,
     const r = a.getBoundingClientRect();
     const { width: W, height: H } = screenBox();
     const needs = p.scrollHeight;
+    if (placement === "side") {
+      // Beside the trigger: before it where it fits, else after it, else as far as it fits inside the screen; centred on it, up to the screen's height.
+      const width = p.offsetWidth;
+      const room = Math.max(160, H - 2 * MARGIN);
+      const shown = Math.min(needs, room);
+      const before = r.left - GAP - width;
+      const left = before >= MARGIN ? before : r.right + GAP + width <= W - MARGIN ? r.right + GAP : Math.max(MARGIN, Math.min(r.left, W - MARGIN - width));
+      const top = Math.max(MARGIN, Math.min(r.top + r.height / 2 - shown / 2, H - MARGIN - shown));
+      const origin = fixedOrigin(p);
+      setPos({ top: top - origin.y, left: left - origin.x, maxHeight: room, up: false });
+      return;
+    }
     const below = H - r.bottom - GAP - MARGIN;
     const above = r.top - GAP - MARGIN;
     const up = below < needs && above > below;
@@ -87,7 +105,7 @@ export function Popover({ anchor, onClose, title, description, children, footer,
     const top = up ? r.top - GAP - shown : r.bottom + GAP;
     const origin = fixedOrigin(p);
     setPos({ top: Math.max(MARGIN, top) - origin.y, left: left - origin.x, maxHeight: room, up });
-  }, []);
+  }, [placement]);
 
   React.useLayoutEffect(() => {
     place();

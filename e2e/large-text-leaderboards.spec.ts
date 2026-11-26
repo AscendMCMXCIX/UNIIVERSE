@@ -14,9 +14,9 @@ import { expect, test, type Page } from "./test";
   it, where the name broke mid-word before ("Suppor|t" at 125% on a 375px phone, "Christopher" even
   at 100% on a 320px phone), and stays beside it where it fits. The role badge stays on its
   picture and the tie bracket off the names; no "·" ends or starts a line. The season records,
-  multikills and milestones (on the same page, after Recent form) already reflow on their own; a
-  record's qualifier there hides its "·" only when it starts a line of its own (the title's clipped
-  edge), never beside its record. The boards' ⓘ bubbles stay on the screen at 200%: the records'
+  multikills and milestones (on the same page, after Recent form) already reflow on their own (a
+  multikill row's name takes the row's whole width under 15rem); a record's qualifier there hides
+  its "·" only when it starts a line of its own (the title's clipped edge), never beside its record. The boards' ⓘ bubbles stay on the screen at 200%: the records'
   definitions, longer than a phone's screen there, scroll inside theirs.
 */
 
@@ -219,7 +219,6 @@ test("Recent form at 125% to 200% text on 320 to 393px phones: names wrap only b
   await expect(page.getByTestId("form-row").first()).toBeVisible();
   const rows = await page.getByTestId("form-row").count();
   expect(rows, "the demo's ranked rows").toBeGreaterThanOrEqual(7);
-  await expect(page.getByTestId("form-not-enough-member")).not.toHaveCount(0);
 
   // At 100% the board keeps its narrow layout: on every row the win rate beside the name, to its right.
   for (const width of [320, 375]) {
@@ -240,7 +239,7 @@ test("Recent form at 125% to 200% text on 320 to 393px phones: names wrap only b
     const at = `${width}px at ${root}%`;
     expect.soft(await sideways(page), `${at}: no sideways page scroll`).toBeLessThanOrEqual(1);
     const text = await textFacts(page, "[data-testid=form]");
-    expect.soft(text.words, `${at}: the board's words measured`).toBeGreaterThan(100);
+    expect.soft(text.words, `${at}: the board's words measured`).toBeGreaterThan(60);
     expect.soft(text.cut, `${at}: nothing cut`).toEqual([]);
     expect.soft(text.broken, `${at}: every word whole`).toEqual([]);
     // In each row (ranked or without enough games) no text runs into other text, the picture or the tie bracket; the role badge stays on the picture.
@@ -263,10 +262,10 @@ test("Recent form, your own row, at 100% to 200% text on 320 to 393px phones: \"
   test.skip(info.project.name !== "phone", "phone widths, set below");
   test.setTimeout(120_000);
   await open(page, "/leaderboards");
-  await expect(page.getByTestId("form-not-enough-member")).not.toHaveCount(0);
+  await expect(page.getByTestId("form-row").first()).toBeVisible();
   // Every row made your own, "You" put in MemberCell's line beside the name; from the third ranked
   // row on, single words of 9 to 11 letters for names (the first two keep theirs, "Demo Support"
-  // and "Demo Sub (Support)", and so do the not-enough rows).
+  // and "Demo Sub (Support)"). Nobody without a full window is listed (25 Nov 2026).
   const own = await page.evaluate((you) => {
     const words = ["Christopher", "Doublelift", "Moonlight", "Shadowfax", "Supportive"];
     const rows = [...document.querySelectorAll("[data-testid=form-row], [data-testid=form-not-enough-member]")];
@@ -284,7 +283,7 @@ test("Recent form, your own row, at 100% to 200% text on 320 to 393px phones: \"
     });
     return rows.length;
   }, YOU);
-  expect(own, "rows made your own").toBeGreaterThanOrEqual(9);
+  expect(own, "rows made your own").toBeGreaterThanOrEqual(7);
   // "You" beside its name (after it, on its first line) or under it.
   const youPlaces = () =>
     page.getByTestId("card-you").evaluateAll((badges) =>

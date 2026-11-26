@@ -80,25 +80,30 @@
     one x, else under the K/D/A), and on Team Matches every member row shows its score and badge (or
     the dash), each place once in a game, MVP only on a won game and ACE only on a lost one. States,
     scores, places, colours compared in the page and positions only.
-  - multikills (Release 15, scripts/multikill-facts.mjs): at every width, the multikill board says what
-    its score is compared with and explains it behind its ⓘ; ranked members in score order, a place
-    shared exactly on equal scores, the crown on first, provisional and too-few-games members after;
-    each row's shown counts each multikill once (its Riot counters read by the rule the ⓘ states);
-    each row's kinds in words its own counts, rarest first; the most of each kind the board's highest
-    counts; no row taller than 66px. Counts, scores and fixed words only.
-  - records (19 Nov 2026: Recent form and the season's records and achievements on one page): on
-    /leaderboards, at 1440, the season records head the column beside Recent form (their tops within
-    1px) with the multikills under them (Release 16), and every record cell, at its own height (not the
-    taller neighbour's its grid row stretches it to), is no taller than its layout allows: two lines
-    (the desktop's two-line cells) at most 52px (cells of more lines, a qualifier on a line of its own,
-    a long name, are counted, not failed; the verification account has no profile, so no cell carries
-    "Your best").
+  - multikills (25 Nov 2026, scripts/multikill-facts.mjs): at every width, the multikill table says what
+    its score is ranked by, explains it behind its ⓘ and shows how to read a score (below 100, 100,
+    above 100); nothing on Leaderboards folds (no Show all) and nothing scrolls inside the page; its
+    columns (place, player, games, the four kinds, Score) where drawn; ranked players only, in score
+    order, a place shared exactly on equal scores and none skipped, first in gold with no crown; each
+    row's Score a button that opens its breakdown; each row's counts each multikill once (its Riot
+    counters read by the rule the board states as data) and its cells and games its own counts; each
+    role icon named by the most-played position (or split, or unknown); no row taller than 72px. On
+    the desktop and the tablet the first Score is opened: its breakdown's final line, 100 × (earned +
+    40) ÷ (typical + 40), gives the score shown, its points per kind add up, it names the role, the
+    comparison and its levels, and it opens whole with no scrollbar of its own. Counts, scores and
+    fixed words only.
+  - records (25 Nov 2026: one dashboard, a 2 × 2 grid): on /leaderboards, at 1440, the multikills beside
+    Recent form (tops within 1px, one height), the season records under Recent form with the milestones
+    beside them (one height), and every record cell, at its own height (not the taller neighbour's its
+    grid row stretches it to), is no taller than its layout allows: two lines (the desktop's two-line
+    cells) at most 52px (cells of more lines, a qualifier on a line of its own, a long name, are counted,
+    not failed; the verification account has no profile, so no cell carries "Your best").
   - one screen (Release 16, scripts/one-screen-facts.mjs): on the desktop, at 1440 × 900, 1920 × 950
-    and 1920 × 1080 (the sidebar open), Leaderboards' four boards (Recent form, Season records, Multikills,
-    Milestones) and a profile's Overview (Season performance and the pools, with Ranked progress and
-    Recent form where drawn) end within the window; a board or pool showing fewer rows than it
-    has says so in its Show all, with the true numbers ("Show all 9 · 6 more"), and one showing every
-    row has none. Positions, counts and the Show all's words only. At every width,
+    and 1920 × 1080 (the sidebar open), Leaderboards' four boards (Recent form, Multikills, Season
+    records, Milestones) and a profile's Overview (Season performance and the pools, with Ranked
+    progress and Recent form where drawn) end within the window; Leaderboards' multikills and milestones
+    show every row with no Show all, and a profile's pool showing fewer rows than it has says so in its
+    Show all. Positions, counts and the Show all's words only. At every width,
     Records & achievements' old address (/leaderboards?view=records) opens the same page, the view gone
     from its address, at the season records (in view, focused). Counts, heights and true/false only.
   - settings: the picture and display-name help name the public team page, and Settings never
@@ -163,7 +168,7 @@ import { rosterRowLines } from "./roster-lines.mjs";
 import { championLookupVerdicts, readChampionLookup, readChampionWindow } from "./champion-lookup-facts.mjs";
 import { fitVerdicts, postGameVerdicts, readFit, readInspection, readPostGame, switchVerdicts } from "./post-game-facts.mjs";
 import { championPreviewVerdicts, readChampionPreview, readChampionRows, targetRow } from "./champion-preview-facts.mjs";
-import { multikillVerdicts, readMultikillBoard } from "./multikill-facts.mjs";
+import { breakdownVerdicts, multikillVerdicts, readMultikillBoard, readMultikillBreakdown } from "./multikill-facts.mjs";
 import { cardScoreVerdicts, firstScored, readCardScores, readOpenedScore, readTogetherScores, togetherScoreVerdicts } from "./card-score-facts.mjs";
 import { oneScreenInput, oneScreenVerdicts, readOneScreen } from "./one-screen-facts.mjs";
 import { execFileSync } from "node:child_process";
@@ -962,17 +967,17 @@ async function leaderboardsFacts(page, kind) {
 }
 
 /**
- * The season records (19 Nov 2026: on Leaderboards' one page, after Recent form), at 1440, as true/false,
- * counts and heights only (the cells carry names, which redact() keeps): the records level with Recent
- * form beside it, the multikills under them (Release 16), and every record cell no taller than its
+ * The season records (25 Nov 2026: on Leaderboards' one dashboard, under Recent form), at 1440, as
+ * true/false, counts and heights only (the cells carry names, which redact() keeps): the 2 × 2 grid
+ * (the multikills beside Recent form, their tops within 1px and the two one height; the records under
+ * Recent form with the milestones beside them, one height), and every record cell no taller than its
  * layout allows. On the desktop's board every cell is two lines beside its 36px picture (its record
  * over its holder and champion), at most 52px; elsewhere a narrower cell is three lines (the record,
- * the holder with the value, the game), at most 96px. A cell of more lines (a long name or champion wrapping, a qualifier on a line
- * of its own) is counted, not failed, as Recent form's rows are. Each cell is measured at its own
- * height: two cells side by side share a grid row, which each stretches to (its hairline runs the
- * row's height), so a cell's box is the taller one's; the stretch is lifted for the measure and put
- * back in the same step, before anything is drawn (else the CS cell beside a damage record of more
- * lines read as a three-line cell of its neighbour's 108px, and failed). The verification account
+ * the holder with the value, the game), at most 96px. A cell of more lines (a long name or champion
+ * wrapping, a qualifier on a line of its own) is counted, not failed, as Recent form's rows are. Each
+ * cell is measured at its own height: two cells side by side share a grid row, which each stretches
+ * to (its hairline runs the row's height), so a cell's box is the taller one's; the stretch is lifted
+ * for the measure and put back in the same step, before anything is drawn. The verification account
  * has no profile, so no cell carries "Your best".
  */
 async function recordsFacts(page, kind) {
@@ -982,7 +987,9 @@ async function recordsFacts(page, kind) {
     if (!book) return null;
     const box = (el) => el.getBoundingClientRect();
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    const form = document.querySelector("[data-testid=form-board]");
     const multikills = document.querySelector("[data-testid=records-multikills]");
+    const milestones = document.querySelector("[data-testid=records-milestones]");
     const oneLine = (el) => !el || box(el).height <= (parseFloat(getComputedStyle(el).lineHeight) || 20) + 2;
     const rows = [...book.querySelectorAll("[data-testid=season-record]")];
     // Each cell at its own height: the cell (li) set to its content's height, its row and the row's wrapper no longer filling it.
@@ -1004,33 +1011,61 @@ async function recordsFacts(page, kind) {
     lifted.forEach((el, i) => {
       [el.style.alignSelf, el.style.height] = kept[i];
     });
+    const apart = (a, b) => Math.round(Math.abs(a - b) * 10) / 10;
     return {
       cells: cells.length,
       twoLine: cells.filter((c) => c.two && c.fits).map((c) => c.h),
       threeLine: cells.filter((c) => !c.two && c.fits).map((c) => c.h),
       longer: cells.filter((c) => !c.fits).length,
-      // The records head the column beside Recent form, the multikills under them (Release 16).
-      topsApart: Math.round(Math.abs(box(book).top - box(document.querySelector("[data-testid=form-board]")).top) * 10) / 10,
-      multikillsUnder: multikills ? box(multikills).top >= box(book).bottom - 1 && Math.abs(box(multikills).left - box(book).left) <= 1 : false,
+      // The 2 × 2 grid: the rankings side by side, the achievements under them, each pair one height.
+      grid:
+        !!form && !!multikills && !!milestones
+          ? {
+              beside: box(multikills).left >= box(form).right - 1,
+              topsApart: apart(box(multikills).top, box(form).top),
+              heightsApart: apart(box(multikills).height, box(form).height),
+              underForm: box(book).top >= box(form).bottom - 1 && apart(box(book).left, box(form).left) <= 1,
+              achievementsApart: apart(box(milestones).top, box(book).top) + apart(box(milestones).bottom, box(book).bottom),
+            }
+          : null,
     };
   });
   if (!f) return pass("leaderboards", "1440: the season records are on the page", false, "no records-book");
-  pass("leaderboards", "1440: the season records beside Recent form (their tops within 1px), the multikills under them", f.multikillsUnder && f.topsApart <= 1, { under: f.multikillsUnder, topsApart: f.topsApart });
+  const g = f.grid;
+  pass("leaderboards", "1440: the 2 × 2 grid: the multikills beside Recent form (one height), the season records under Recent form with the milestones beside them (one height)", !!g && g.beside && g.topsApart <= 1 && g.heightsApart <= 1 && g.underForm && g.achievementsApart <= 2, g ?? { grid: null });
   const name = "1440: every record cell of two lines is at most 52px, of three lines at most 96px";
   if (!f.twoLine.length && !f.threeLine.length) check("leaderboards", name, "PASS", `not applicable: ${f.longer} cells of more lines`);
   else pass("leaderboards", name, Math.max(0, ...f.twoLine) <= 52 && Math.max(0, ...f.threeLine) <= 96, { cells: f.cells, twoLine: f.twoLine.length, tallestTwo: f.twoLine.length ? Math.max(...f.twoLine) : null, threeLine: f.threeLine.length, tallestThree: f.threeLine.length ? Math.max(...f.threeLine) : null, longerByDesign: f.longer });
 }
 
 /**
- * The multikill board (Release 15; scripts/multikill-facts.mjs), at every width, counts, scores and
- * the board's fixed words only (no name leaves the page): what the score is compared with, the
- * ranking by score with its places and crown, each row's kinds in words its own counts, the most of
- * each kind the board's highest counts, and compact rows. A team with no counts this season is a
- * warning, and so is a score compared with the team's own games (too few other players' games).
+ * The multikill table (25 Nov 2026; scripts/multikill-facts.mjs), at every width, counts, scores and
+ * the board's fixed words only (no name leaves the page): what the score is ranked by and how to read
+ * it, nothing folded or scrolling inside the page, the columns, the ranking of the active players
+ * with a place (none skipped, first in gold), each row's counts and its role icon's name, compact
+ * rows. On the desktop and the tablet (the beside form; a phone's sheet may scroll, as a sheet does)
+ * the first Score is opened and its breakdown read: the final line gives the score shown, the points
+ * add up, it opens whole; then closed with Escape. A team with no ranked player is a warning, and so is
+ * a score compared with the team's own games (too few other players' games).
  */
 async function multikillFacts(page, kind) {
   const read = await page.evaluate(readMultikillBoard);
   for (const v of multikillVerdicts({ kind, read })) check("leaderboards", v.name, v.status, v.detail);
+  if (kind === "phone") return;
+  const first = page.locator("[data-testid=multikill-row] [data-testid=multikill-score-open]").first();
+  const rowScore = read?.rows?.[0]?.score ?? null;
+  let breakdown = { present: false };
+  if (rowScore !== null && (await first.count())) {
+    await first.scrollIntoViewIfNeeded();
+    await first.click();
+    breakdown = await page
+      .waitForSelector("[data-testid=multikill-breakdown] [data-testid=breakdown-calculation]", { timeout: 10_000 })
+      .then(() => page.evaluate(readMultikillBreakdown), () => ({ present: false }));
+    await page.keyboard.press("Escape");
+    await page.waitForTimeout(200);
+    await page.evaluate(() => window.scrollTo(0, 0));
+  }
+  for (const v of breakdownVerdicts({ kind, read: breakdown, rowScore })) check("leaderboards", v.name, v.status, v.detail);
 }
 
 /**
@@ -1100,34 +1135,37 @@ async function recordsLandingFacts(page, kind) {
 }
 
 /**
- * Leaderboards at 2560 × 1440 (19 Nov 2026, the wide check): Recent form beside the season records, their
- * tops within 1px, every record on the first screen, and the milestones right under Recent form in its
- * column (the page's gap apart, within 1px, its edges level with Recent form's), whatever the records'
- * column beside them holds. Positions and true or false only.
+ * Leaderboards at 2560 × 1440 (25 Nov 2026, the wide check): the 2 × 2 grid, Recent form beside the
+ * multikills (their tops within 1px), every record cell shown on the first screen (seven cells: a record
+ * nobody active holds still has its cell, saying so), and the season records right under Recent form
+ * in its column (the page's gap apart, within 1px, its edges level with Recent form's), the milestones
+ * beside them. Positions, counts and true or false only.
  */
 async function dashboardFacts(page) {
   const f = await page.evaluate(() => {
     const form = document.querySelector("[data-testid=form-board]")?.getBoundingClientRect();
+    const multikills = document.querySelector("[data-testid=records-multikills]")?.getBoundingClientRect();
     const book = document.querySelector("[data-testid=records-book]")?.getBoundingClientRect();
     const milestones = document.querySelector("[data-testid=records-milestones]")?.getBoundingClientRect();
     const grid = document.querySelector("[data-testid=leaderboards-grid]");
-    if (!form || !book || !milestones || !grid) return null;
+    if (!form || !multikills || !book || !milestones || !grid) return null;
     const gap = parseFloat(getComputedStyle(grid).rowGap) || 0;
     const records = [...document.querySelectorAll("[data-testid=season-record]")].map((r) => Math.round(r.getBoundingClientRect().bottom + scrollY));
     return {
-      beside: book.left >= form.right,
-      topsApart: Math.round(Math.abs(form.top - book.top) * 10) / 10,
+      beside: multikills.left >= form.right,
+      topsApart: Math.round(Math.abs(form.top - multikills.top) * 10) / 10,
       records: records.length,
       lastRecord: Math.max(0, ...records),
       window: innerHeight,
-      underForm: Math.round((milestones.top - form.bottom - gap) * 10) / 10,
-      edges: Math.round((Math.abs(milestones.left - form.left) + Math.abs(milestones.right - form.right)) * 10) / 10,
+      underForm: Math.round((book.top - form.bottom - gap) * 10) / 10,
+      edges: Math.round((Math.abs(book.left - form.left) + Math.abs(book.right - form.right)) * 10) / 10,
+      milestonesBeside: milestones.left >= book.right && Math.abs(milestones.top - book.top) <= 1,
     };
   });
-  if (!f) return pass("wide", "2560: Leaderboards' Recent form, season records and milestones are on the page", false, "no form-board, records-book or records-milestones");
-  pass("wide", "2560: on Leaderboards, Recent form beside the season records, their tops within 1px", f.beside && f.topsApart <= 1, { beside: f.beside, topsApart: f.topsApart });
-  pass("wide", "2560: on Leaderboards, every record on the first screen", f.records === 7 && f.lastRecord <= f.window, { records: f.records, lastRecord: f.lastRecord, window: f.window });
-  pass("wide", "2560: on Leaderboards, the milestones right under Recent form, in its column", Math.abs(f.underForm) <= 1 && f.edges <= 1, { underForm: f.underForm, edges: f.edges });
+  if (!f) return pass("wide", "2560: Leaderboards' Recent form, multikills, season records and milestones are on the page", false, "no form-board, records-multikills, records-book or records-milestones");
+  pass("wide", "2560: on Leaderboards, Recent form beside the multikills, their tops within 1px", f.beside && f.topsApart <= 1, { beside: f.beside, topsApart: f.topsApart });
+  pass("wide", "2560: on Leaderboards, every record cell on the first screen", f.records === 7 && f.lastRecord <= f.window, { records: f.records, lastRecord: f.lastRecord, window: f.window });
+  pass("wide", "2560: on Leaderboards, the season records right under Recent form, in its column, the milestones beside them", Math.abs(f.underForm) <= 1 && f.edges <= 1 && f.milestonesBeside, { underForm: f.underForm, edges: f.edges, milestonesBeside: f.milestonesBeside });
 }
 
 /**

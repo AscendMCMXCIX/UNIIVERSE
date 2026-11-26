@@ -44,6 +44,12 @@ export interface LeaderboardPlayer {
   rank: CompactRank | null;
   /** Null until the member chooses a role during setup. */
   primaryRole: Role | null;
+  /**
+   * The newest successful data update of any of their accounts, in ms (sync_cursor, written on
+   * success only; a demo account's seeded time), or null: half of what makes a player active on the
+   * boards (domain/leaderboards, isActivePlayer). Server-side only: the page's view never carries it.
+   */
+  lastSyncedAt: number | null;
 }
 
 export interface LeaderboardData {
@@ -106,10 +112,18 @@ export async function loadLeaderboardData(db: Db, teamId: string): Promise<Leade
   // The newest successful read of a member account (sync_cursor is written on success only; a
   // failed attempt also moves last_sync_at), demo accounts aside: never "updated" at a time nothing was read.
   const lastSync = accounts.filter(isSyncableAccount).reduce<number>((m, a) => Math.max(m, (a.syncCursor ?? 0) * 1000), 0);
+  // Each player's newest successful read (the boards show only players read within 30 days): a
+  // syncable account's cursor, a demo account's seeded time (demo accounts are never read; they
+  // stand for an account that is up to date, as describeAccountSync says of them).
+  const syncedAt = new Map<string, number>();
+  for (const a of accounts) {
+    const at = isSyncableAccount(a) ? (a.syncCursor ?? 0) * 1000 : (a.lastSyncAt?.getTime() ?? 0);
+    if (at > 0 && a.playerId) syncedAt.set(a.playerId, Math.max(syncedAt.get(a.playerId) ?? 0, at));
+  }
   const seasons = offeredSeasons(season, games.map((g) => seasonOfPatch(g.patch)));
   const extraSince = games.reduce<number | null>((m, g) => (g.extra && (m === null || g.gameCreation < m) ? g.gameCreation : m), null);
   return {
-    players: members.map((p) => ({ id: p.id, name: p.displayName, avatarUrl: avatars[p.id] ?? null, look: cardLookFor(p), art: cardArt(p), rank: rankOf(p.id), primaryRole: p.primaryRole })),
+    players: members.map((p) => ({ id: p.id, name: p.displayName, avatarUrl: avatars[p.id] ?? null, look: cardLookFor(p), art: cardArt(p), rank: rankOf(p.id), primaryRole: p.primaryRole, lastSyncedAt: syncedAt.get(p.id) ?? null })),
     games,
     mastery,
     lineupIds: Object.values(lineup.slots).filter((id): id is string => !!id),

@@ -51,7 +51,8 @@ beforeAll(async () => {
     players.push(id);
     // Ace has a second account: some matches are stored on both.
     for (const label of i === 0 ? ["main", "smurf"] : ["main"]) {
-      const [row] = await db.insert(riotAccounts).values({ ownerType: "player", playerId: id, gameName: `${name}-${label}`, tagLine: "OCE", platform: "oc1", puuid: `puuid-${name}-${label}`, label }).returning({ id: riotAccounts.id });
+      // Read successfully the day after the last game (the boards show players read within 30 days).
+      const [row] = await db.insert(riotAccounts).values({ ownerType: "player", playerId: id, gameName: `${name}-${label}`, tagLine: "OCE", platform: "oc1", puuid: `puuid-${name}-${label}`, label, syncStatus: "ok", syncCursor: Math.floor(Date.UTC(2026, 0, 17) / 1000) }).returning({ id: riotAccounts.id });
       accounts.push(row!.id);
       playerOf.set(row!.id, id);
     }
@@ -179,9 +180,9 @@ describe("Team Leaderboards, one compact answer", () => {
       }
     }
     expect(boards).toBe(6);
-    // The page had something to compare: a ranked or provisional row, and a held record.
+    // The page had something to compare: active players, and a held record.
     const page = buildLeaderboardsView(data, { season }, null, { now });
-    expect(page.form.rows.length + page.form.notEnough.length).toBeGreaterThan(0);
+    expect(page.playerCount).toBeGreaterThan(0);
     expect(page.records.records.some((r) => r.holder)).toBe(true);
   }, 120_000);
 });

@@ -171,10 +171,10 @@ describe("team leaderboards data", () => {
     // The two views: how full they are, counts only.
     const form = steps.find((s) => s.name === "leaderboards.recent-form")!;
     expect(form.error).toBeUndefined();
-    expect(form.note).toMatch(/^\d+ full windows on \d+ places · \d+ provisional · \d+ with too few recent games$/);
+    expect(form.note).toMatch(/^\d+ full windows on \d+ places · \d+ members$/);
     const records = steps.find((s) => s.name === "leaderboards.records")!;
     expect(records.error).toBeUndefined();
-    expect(records.note).toMatch(/^\d+ games this season · \d+ of 7 records held · \d+ members on the multikill board · \d+ milestone groups$/);
+    expect(records.note).toMatch(/^\d+ games this season · \d+ of 7 records held · \d+ ranked on the multikill board · \d+ milestones$/);
     // The multikill score's comparison (the other players in the same stored records): counts only.
     const comparison = steps.find((s) => s.name === "leaderboards.multikill-baseline")!;
     expect(comparison.error).toBeUndefined();

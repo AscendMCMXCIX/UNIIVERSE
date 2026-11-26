@@ -12,8 +12,9 @@ import { syncStaticData } from "@/server/riot/static/sync";
 /*
   The Leaderboards page (Recent form, the season's records and achievements) on stored games, read
   the way the page reads them: synthetic accounts and games only, no Riot request. Seven members cover
-  every case of the rules: a lead, a gap of one win, a shared place, a provisional window that
-  never ranks above a full one, too few recent games, and games older than the 60 days.
+  every case of the rules: a lead, a gap of one win, a shared place, a provisional window and too
+  few recent games (neither listed since 25 Nov 2026), and games older than the 60 days (a player
+  with no game in 30 days is not shown at all: tests/db/leaderboards-active.test.ts has the rule).
 */
 
 let handle: DbHandle;
@@ -35,7 +36,8 @@ async function games(accountId: string, prefix: string, n: number, wins: (i: num
 }
 
 async function account(playerId: string, puuid: string, label = "main") {
-  const [row] = await handle.db.insert(riotAccounts).values({ ownerType: "player", playerId, gameName: puuid, tagLine: "TEST", platform: "euw1", puuid, label, lastSyncAt: NOW }).returning({ id: riotAccounts.id });
+  // Read successfully an hour before NOW (the cursor is written on success only): every player with a recent game is active.
+  const [row] = await handle.db.insert(riotAccounts).values({ ownerType: "player", playerId, gameName: puuid, tagLine: "TEST", platform: "euw1", puuid, label, lastSyncAt: NOW, syncStatus: "ok", syncCursor: Math.floor(NOW.getTime() / 1000) - 3600 }).returning({ id: riotAccounts.id });
   return row!.id;
 }
 
@@ -72,7 +74,7 @@ afterAll(async () => {
 });
 
 describe("Recent form on stored games", () => {
-  it("ranks the full windows by win rate, with shared places, then provisional ones, then those with too few games", async () => {
+  it("ranks the full windows by win rate, with shared places, and lists nobody else (no provisional or \"not enough\" groups)", async () => {
     const data = await loadLeaderboardData(handle.db, teamId);
     const view = buildLeaderboardsView(data, {}, id.Bo!, { now: NOW });
     const rows = view.form.rows.map((r) => [r.playerId, r.place, r.tied, r.winRate, `${r.wins}-${r.losses}`, r.status]);
@@ -81,15 +83,14 @@ describe("Recent form on stored games", () => {
       [id.Bo, 2, false, 60, "12-8", "established"],
       [id.Cy, 3, true, 50, "10-10", "established"],
       [id.Di, 3, true, 50, "10-10", "established"],
-      [id.Ed, null, false, 79, "11-3", "provisional"],
     ]);
     // A match seen from two of Ash's accounts counts once: still 20 games, not 21.
     expect(view.form.rows[0]!.games).toBe(20);
-    expect(view.form.notEnough).toEqual([
-      { playerId: id.Fi, games: 6, needed: 4, lastGame: expect.any(String) },
-      { playerId: id.Gu, games: 0, needed: 10, lastGame: expect.any(String) },
-    ]);
-    expect(view.form.notEnough[1]!.lastGame).toMatch(/2026$/);
+    // Ed (14 recent games) and Fi (6) are active but have no full window: on the page, not on this board. Gu, with no game in
+    // 30 days, is not on the page at all.
+    expect(Object.keys(view.players).sort()).toEqual([id.Ash, id.Bo, id.Cy, id.Di, id.Ed, id.Fi].sort());
+    expect(view.playerCount).toBe(6);
+    expect(view.memberCount).toBe(7);
   });
 
   it("says each gap in wins, and draw level only when one win does it", async () => {
@@ -102,14 +103,12 @@ describe("Recent form on stored games", () => {
     // Seen by Bo: "your".
     expect(buildLeaderboardsView(data, {}, id.Bo!, { now: NOW }).form.rows.find((r) => r.playerId === id.Bo)!.note).toBe("Win your next game to draw level with Ash");
     expect(note("Cy")).toBe("2 wins behind Bo");
-    expect(note("Ed")).toBe("Provisional · 14 of 20 games");
     // The same notes in parts, for the board's short gap ("Next win: 1=", "2 wins behind", "14 of 20 games").
     const gap = (name: string) => view.form.rows.find((r) => r.playerId === id[name])!.gap;
     expect(gap("Ash")).toBeNull();
     expect(gap("Bo")).toEqual({ kind: "level", place: 1 });
     expect(gap("Cy")).toEqual({ kind: "behind", wins: 2, place: 2 });
     expect(gap("Di")).toEqual({ kind: "behind", wins: 2, place: 2 });
-    expect(gap("Ed")).toEqual({ kind: "provisional", games: 14 });
   });
 
   it("names each member's main role from their window, the record's dates, and marks the viewer", async () => {
@@ -138,12 +137,13 @@ describe("The season's records and achievements on stored games", () => {
     expect(kills.yours).toMatchObject({ playerId: id.Bo, value: "5" });
     const assists = r.records.find((x) => x.id === "assists")!;
     expect(assists.holder).toMatchObject({ playerId: id.Di, value: "21" });
-    // Gu's 30 wins in a row (70+ days ago, still this season) are the longest streak; a streak opens no single game.
+    // Gu's 30 wins in a row (70+ days ago, still this season) would be the longest streak, but Gu has not played in 30 days:
+    // the record is the active players' own, Ash's 13 (it comes back to Gu with Gu's next synced game). A streak opens no single game.
     const streak = r.records.find((x) => x.id === "win-streak")!;
-    expect(streak.holder).toMatchObject({ playerId: id.Gu, value: "30", href: null, game: null });
-    expect(r.mastery).toEqual([{ playerId: id.Ash, items: [{ championId: "Riven", value: "520K points", short: "520K", milestone: "500K+", tier: 2 }], more: 0 }]);
-    // Gu's 30 games on Riven reach 25; Ash's 24 (one match on two accounts counted once) do not.
-    expect(r.championGames).toEqual([{ playerId: id.Gu, items: [{ championId: "Riven", value: "30 games", short: "30", milestone: "25+ games", tier: 1 }], more: 0 }]);
+    expect(streak.holder).toMatchObject({ playerId: id.Ash, value: "13", href: null, game: null });
+    // The milestones too: Ash's 520K mastery; Gu's 30 games on Riven are not shown while Gu is away, and Ash's 24 (one match on
+    // two accounts counted once) do not reach 25.
+    expect(r.milestones).toEqual({ items: [{ playerId: id.Ash, kind: "mastery", championId: "Riven", short: "520K", unit: "mastery", value: "520K mastery points", milestone: "500K+", tier: 2 }], more: 0 });
   });
 
   it("links nowhere on the public boards, whose links keep to the public address", async () => {

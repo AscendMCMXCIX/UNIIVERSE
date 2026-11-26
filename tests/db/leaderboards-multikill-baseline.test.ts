@@ -41,8 +41,10 @@ beforeAll(async () => {
   teamId = (await getOrCreateTeam(db)).id;
   id.Ash = (await createPlayer(db, teamId, { displayName: "Ash", primaryRole: "MID", primaryPool: ["Ahri"] })).id;
   id.Bo = (await createPlayer(db, teamId, { displayName: "Bo", primaryRole: "SUPPORT", primaryPool: ["Lulu"] })).id;
-  const [ash] = await db.insert(riotAccounts).values({ ownerType: "player", playerId: id.Ash!, gameName: "ash", tagLine: "T", platform: "euw1", puuid: "puuid-ash", label: "main" }).returning({ id: riotAccounts.id });
-  const [bo] = await db.insert(riotAccounts).values({ ownerType: "player", playerId: id.Bo!, gameName: "bo", tagLine: "T", platform: "euw1", puuid: "puuid-bo", label: "main" }).returning({ id: riotAccounts.id });
+  // Read successfully at NOW (the boards show players read within 30 days of the page's time).
+  const read = { syncStatus: "ok", syncCursor: Math.floor(NOW / 1000), lastSyncAt: new Date(NOW) } as const;
+  const [ash] = await db.insert(riotAccounts).values({ ownerType: "player", playerId: id.Ash!, gameName: "ash", tagLine: "T", platform: "euw1", puuid: "puuid-ash", label: "main", ...read }).returning({ id: riotAccounts.id });
+  const [bo] = await db.insert(riotAccounts).values({ ownerType: "player", playerId: id.Bo!, gameName: "bo", tagLine: "T", platform: "euw1", puuid: "puuid-bo", label: "main", ...read }).returning({ id: riotAccounts.id });
   const rows: Array<typeof accountMatches.$inferInsert> = [];
   const details: Array<typeof matchDetails.$inferInsert> = [];
   for (let i = 0; i < GAMES; i++) {
@@ -99,17 +101,23 @@ describe("the multikill comparison on stored records", () => {
     const data = await loadLeaderboardData(handle.db, teamId);
     const first = await loadMultikillBaseline(handle.db, teamId, data, season);
     expect(await loadMultikillBaseline(handle.db, teamId, data, season)).toBe(first);
-    const view = buildLeaderboardsView(data, {}, null, { multikillBaseline: first }).records.multikills;
+    const view = buildLeaderboardsView(data, {}, null, { multikillBaseline: first, now: new Date(NOW) }).records.multikills;
     expect(view.source).toBe("same-games");
     const ash = view.rows.find((r) => r.playerId === id.Ash)!;
     expect(ash.status).toBe("ranked");
     // Shown each multikill once, as the score counts them: Riot's nested counters (the pentakill game's double, triple and quadra included) kept apart.
     expect(ash.counts).toEqual({ double: 47, triple: 0, quadra: 0, penta: 1 });
     expect(ash.riot).toEqual({ double: 48, triple: 1, quadra: 1, penta: 1 });
-    expect(ash.kinds.map((k) => k.text)).toEqual(["1 penta", "47 doubles"]);
-    expect(ash.breakdown).toContain("1 penta (");
-    expect(ash.breakdown).toContain("47 doubles (");
-    expect(ash.breakdown).toContain("no triples (");
+    // The Score breakdown: each kind's points from those counts, the final line giving the score shown, compared within the role.
+    expect(ash.breakdown.kinds.map((k) => [k.key, k.made, k.points])).toEqual([["double", "47", "94"], ["triple", "0", "0"], ["quadra", "0", "0"], ["penta", "1", "5"]]);
+    expect(ash.breakdown.calculation.earned).toBe("99");
+    const { earned, expected, cushion, score } = ash.breakdown.calculation;
+    expect(Math.round((100 * (Number(earned) + Number(cushion))) / (Number(expected) + Number(cushion)))).toBe(Number(ash.score));
+    expect(score).toBe(ash.score);
+    expect(ash.role.label).toBe(`Most played: Mid, 100% of ${GAMES} games`);
+    expect(ash.breakdown.comparison.map((c) => c.basis)).toEqual(["role"]);
+    expect(ash.breakdown.notAdjusted).toBe(false);
+    expect(view.sourceText).toContain(`${(GAMES * 8 - 35 - 1).toLocaleString("en")} games of other players`);
     // Nothing of any other player reaches the page: no PUUID, no name.
     expect(JSON.stringify(view)).not.toMatch(/other-|puuid/);
   });
@@ -119,7 +127,7 @@ describe("the multikill comparison on stored records", () => {
     // Bo's 35 games with nested counters {9, 9, 9, 9} and Ash's pentakill game: 36 games with a triple, none out of the nested order.
     expect(await loadCountingReading(handle.db)).toEqual({ rule: "nested", shown: true, evidence: { withTriple: 36, outOfOrder: 0 } });
     const data = await loadLeaderboardData(handle.db, teamId);
-    const board = buildLeaderboardsView(data, {}, null, { multikillBaseline: await loadMultikillBaseline(handle.db, teamId, data, season) }).records.multikills;
+    const board = buildLeaderboardsView(data, {}, null, { multikillBaseline: await loadMultikillBaseline(handle.db, teamId, data, season), now: new Date(NOW) }).records.multikills;
     const ash = board.rows.find((r) => r.playerId === id.Ash)!;
     const player = (await getPlayer(handle.db, id.Ash!))!;
     const overview = await getPlayerOverview(handle.db, player, { mode: "all", now: new Date(NOW), riotConfigured: false });

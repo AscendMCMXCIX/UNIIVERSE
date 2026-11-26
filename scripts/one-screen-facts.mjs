@@ -6,8 +6,8 @@
   so a unit test can hand it any state (src/server/ops/live-check-one-screen.test.ts).
 
   Leaderboards' names whole as well (the review's M4, with the team's real names): no word drawn
-  across two lines, and each of Multikills' most-of-each tiles on one line (cut short with an
-  ellipsis where the names run long, the whole names in its title).
+  across two lines. Since 25 Nov 2026 nothing on Leaderboards folds: the multikills' rows and the
+  milestones' cells are all shown, with no Show all (the profile's pool keeps its fold).
 
   Read in the page only: positions in px, counts, true or false and the Show all's own words with
   their counts ("Show all 9 · 6 more"). No name, no address and no id leaves it: a broken word is
@@ -18,8 +18,8 @@
 export const ONE_SCREEN_SECTIONS = {
   leaderboards: [
     ["form-board", "Recent form"],
-    ["records-book", "Season records"],
     ["records-multikills", "Multikills"],
+    ["records-book", "Season records"],
     ["records-milestones", "Milestones"],
   ],
   profile: [
@@ -30,18 +30,21 @@ export const ONE_SCREEN_SECTIONS = {
   ],
 };
 
-/** The boards that show an overview with the rest behind a Show all: [board, its rows, its Show all]. */
+/**
+ * The boards whose rows are checked as all shown, or shown in part behind a Show all that says so: [board, its rows, its
+ * Show all]. Leaderboards' boards fold nothing (25 Nov 2026): every row shown and no Show all is what passes there.
+ */
 const OVERVIEWS = {
   leaderboards: [
     ["records-multikills", "multikill-row", "multikill-show-all"],
-    ["records-milestones", "milestone-member", "milestones-show-all"],
+    ["records-milestones", "milestone", "milestones-show-all"],
   ],
   profile: [["primary-pool", "pool-item", "primary-pool-fold"]],
 };
 
-/** Where the names are read whole (the words of every text drawn in it), and the tiles held to one line: leaderboards only. */
+/** Where the names are read whole (the words of every text drawn in it): leaderboards only (its most-of-each tiles, held to one line, went on 25 Nov 2026). */
 const WHOLE = {
-  leaderboards: { root: "leaderboards", tiles: "[data-testid=records-multikills] [data-testid=multikill-most-holders]" },
+  leaderboards: { root: "leaderboards", tiles: null },
   profile: null,
 };
 
@@ -76,7 +79,7 @@ export function readOneScreen(input) {
         if (new Set([...range.getClientRects()].filter((r) => r.width > 0).map((r) => Math.round(r.top))).size > 1) broken++;
       }
     }
-    const tiles = [...document.querySelectorAll(whole.tiles)].filter(shown);
+    const tiles = whole.tiles ? [...document.querySelectorAll(whole.tiles)].filter(shown) : [];
     const oneLine = tiles.filter((t) => Math.round(t.getBoundingClientRect().height / parseFloat(getComputedStyle(t).lineHeight)) <= 1 && t.getAttribute("title") === t.textContent).length;
     words = { broken, tiles: tiles.length, oneLine };
   }
@@ -124,7 +127,7 @@ export function oneScreenVerdicts({ page, size, read }) {
   }
   if (read.words) {
     const w = read.words;
-    fact("names whole: no word broken across two lines, each multikill tile's holders on one line", w.broken === 0 && w.oneLine === w.tiles, { broken: w.broken, tiles: w.tiles, oneLine: w.oneLine });
+    fact("names whole: no word broken across two lines", w.broken === 0 && w.oneLine === w.tiles, { broken: w.broken, tiles: w.tiles, oneLine: w.oneLine });
   }
   return out;
 }

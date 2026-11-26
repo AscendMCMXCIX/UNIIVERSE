@@ -11,28 +11,25 @@ import type { LeaderboardData } from "@/server/leaderboards/service";
 import { RecentForm, gapToken } from "./recent-leaderboards";
 
 /*
-  Recent form's board (the Leaderboards page's lead card) as markup, for the states the demo board never shows (it has no provisional
-  window, no You row, no shared first place nor multi-win gap): a fixture of Ash first, Bo and Cy
-  sharing second, Di (the viewer) fourth, Ed provisional at 9 of 14, and Fi and Gu without enough
-  games. The browser tests check the layout; this checks what each row says and how.
+  Recent form's board (the Leaderboards page's lead card) as markup, for the states the demo board never shows (no You row, no
+  shared first place nor multi-win gap): a fixture of Ash first, Bo and Cy sharing second, Di (the
+  viewer) fourth. Nobody without a full window is listed (25 Nov 2026: no provisional or "not
+  enough" groups; the view leaves them out, recent-view.test.ts). The browser tests check the
+  layout; this checks what each row says and how.
 */
 
-const WINDOW: FormView["window"] = { games: 20, provisionalFrom: 10, days: 60 };
-const row = (o: Partial<FormRow> & Pick<FormRow, "playerId">): FormRow => ({ place: null, tied: false, status: "established", games: 20, wins: 10, losses: 10, winRate: 50, dates: "7 Oct – 6 Nov", role: { role: "MID", games: 14 }, note: null, gap: null, you: false, ...o });
+const WINDOW: FormView["window"] = { games: 20, days: 60 };
+const row = (o: Partial<FormRow> & Pick<FormRow, "playerId" | "place">): FormRow => ({ tied: false, status: "established", games: 20, wins: 10, losses: 10, winRate: 50, dates: "7 Oct – 6 Nov", role: { role: "MID", games: 14 }, note: null, gap: null, you: false, ...o });
 const ROWS: FormRow[] = [
   row({ playerId: "ash", place: 1, wins: 13, losses: 7, winRate: 65, role: { role: "SUPPORT", games: 14 } }),
   row({ playerId: "bo", place: 2, tied: true, wins: 12, losses: 8, winRate: 60, note: "Bo draws level with Ash by winning their next game", gap: { kind: "level", place: 1 } }),
   row({ playerId: "cy", place: 2, tied: true, wins: 12, losses: 8, winRate: 60, note: "1 win behind Ash", gap: { kind: "behind", wins: 1, place: 1 } }),
   row({ playerId: "di", place: 4, wins: 11, losses: 9, winRate: 55, note: "Win your next game to draw level with Bo and Cy", gap: { kind: "level", place: 2 }, you: true }),
-  row({ playerId: "ed", status: "provisional", games: 14, wins: 9, losses: 5, winRate: 64, note: "Provisional · 14 of 20 games", gap: { kind: "provisional", games: 14 }, role: null }),
-];
-const NOT_ENOUGH: FormView["notEnough"] = [
-  { playerId: "fi", games: 6, needed: 4, lastGame: "3 Sep 2026" },
-  { playerId: "gu", games: 0, needed: 10, lastGame: null },
+  row({ playerId: "ed", place: 5, wins: 9, losses: 11, winRate: 45, note: "2 wins behind Di", gap: { kind: "behind", wins: 2, place: 4 }, role: null }),
 ];
 const NAMES: Record<string, string> = { ash: "Ash", bo: "Bo", cy: "Cy", di: "Di", ed: "Ed", fi: "Fi", gu: "Gu" };
 const players = (profiles: boolean) => (id: string): BoardPlayer => ({ id, name: NAMES[id]!, profileHref: profiles ? `/players/${id}` : null, avatarUrl: null, look: cardLookFor({ id }) });
-const render = (form: Partial<FormView> = {}, profiles = true) => renderToStaticMarkup(createElement(RecentForm, { form: { rows: ROWS, notEnough: NOT_ENOUGH, window: WINDOW, ...form }, player: players(profiles), viewer: "di" }));
+const render = (form: Partial<FormView> = {}, profiles = true) => renderToStaticMarkup(createElement(RecentForm, { form: { rows: ROWS, window: WINDOW, ...form }, player: players(profiles) }));
 
 /** Each form-row's markup, by member. */
 const rowsOf = (html: string) => Object.fromEntries([...html.matchAll(/<li [^>]*data-testid="form-row"[^>]*data-player-id="(\w+)"[\s\S]*?<\/li>/g)].map((m) => [m[1]!, m[0]]));
@@ -50,19 +47,19 @@ describe("Recent form's rows", () => {
 
   it("say each fact once: one record, dates, role, bar and name per row, ranked rows first", () => {
     expect(Object.keys(rows)).toEqual(["ash", "bo", "cy", "di", "ed"]);
+    expect(Object.keys(rows)).toEqual(["ash", "bo", "cy", "di", "ed"]);
     for (const [id, r] of Object.entries(rows)) {
       for (const testId of ["form-record", "form-dates", "form-role", "form-bar", "card-name", "form-gap", "form-place", "form-win-rate", "form-meta"]) expect(count(r, new RegExp(`data-testid="${testId}"`, "g")), `${id}: ${testId}`).toBe(1);
       expect(count(r, /data-row-link=""/g), `${id}: one link`).toBe(1);
     }
-    // The ranked rows, then the provisional strip and its row, then the last group.
-    expect(html.indexOf('data-testid="form-rows"')).toBeLessThan(html.indexOf('data-testid="form-provisional-head"'));
-    expect(html.indexOf('data-testid="form-provisional"')).toBeLessThan(html.indexOf('data-testid="form-not-enough-head"'));
-    // Its caption's "·" held to its words by no-break spaces, as the last group's.
-    expect(textOf(html, "form-provisional-head")).toBe("Provisional\u00a0·\u00a010 to 19 recent games, listed after every full window");
+    // One group: the ranking. No provisional strip, no last group of members without enough games.
+    expect(html).not.toMatch(/form-provisional|form-not-enough|Not enough recent games|Provisional/);
   });
 
-  it("first place: the crown, no gap (—) and no sentence", () => {
-    expect(rows.ash).toContain('aria-label="First place"');
+  it("first place: in gold (no crown), no gap (—) and no sentence", () => {
+    expect(rows.ash).not.toContain("First place");
+    expect(rows.ash).toMatch(/text-gold[^"]*" data-testid="form-place" data-leader="true"/);
+    for (const id of ["bo", "cy", "di", "ed"]) expect(rows[id]).not.toContain("text-gold");
     expect(textOf(rows.ash!, "form-gap")).toBe("—");
     expect(rows.ash).not.toContain("form-note");
     expect(rows.ash).toMatch(/title="Support: 14 of 20 games"/);
@@ -108,14 +105,9 @@ describe("Recent form's rows", () => {
     for (const id of ["ash", "bo", "cy", "ed"]) expect(rows[id]).not.toMatch(/bg-accent\/5|data-you|>You</);
   });
 
-  it("a provisional window: no place (–), its games as the gap, its missing games outlined in the bar", () => {
-    expect(rows.ed).toContain('<span aria-hidden="true">–</span><span class="sr-only">Provisional</span>');
-    expect(rows.ed).not.toContain("data-place=");
-    expect(textOf(rows.ed!, "form-gap")).toBe("14 of 20 games");
-    expect(textOf(rows.ed!, "form-note")).toBe("Provisional · 14 of 20 games");
-    expect(rows.ed).toMatch(/data-testid="form-bar" data-segments="20" data-filled="9" data-known="14"/);
-    expect(count(rows.ed!, /data-state="missing"/g)).toBe(6);
+  it("a window with no role recorded says so, read out", () => {
     expect(rows.ed).toContain("No role recorded");
+    expect(rows.ed).toMatch(/data-testid="form-bar" data-segments="20" data-filled="9" data-known="20"/);
   });
 
   it("reads each figure in words: the win rate, the record, the dates, the role", () => {
@@ -129,27 +121,6 @@ describe("Recent form's rows", () => {
     const nameLink = /<a [^>]*data-testid="board-member-profile"[^>]*>/.exec(rows.ash!)?.[0] ?? "";
     expect(nameLink).toContain('href="/players/ash"');
     expect(nameLink).toContain('data-prefetch="intent"');
-  });
-});
-
-describe("the board's last group: members without enough recent games", () => {
-  const html = render();
-  const members = [...html.matchAll(/<li [^>]*data-testid="form-not-enough-member" data-player-id="(\w+)"[\s\S]*?<\/li>/g)];
-
-  it("lists each with the games they need and their last game, linked to their profile", () => {
-    expect(members.map((m) => m[1])).toEqual(["fi", "gu"]);
-    const visible = (li: string) => li.replace(/<span class="sr-only">[^<]*<\/span>/g, "").replace(/<[^>]+>/g, "");
-    // The "·" held to its words by no-break spaces, so it never ends or starts a line.
-    expect(visible(members[0]![0])).toContain("Needs 4 more games\u00a0·\u00a0last game 3 Sep 2026");
-    expect(visible(members[1]![0])).toContain("Needs 10 more games\u00a0·\u00a0no games yet");
-    expect(members[0]![0]).toContain('href="/players/fi"');
-    expect(members[1]![0]).toContain('href="/players/gu"');
-    for (const [li] of members) {
-      expect(count(li, /data-testid="card-name"/g)).toBe(1);
-      expect(count(li, /data-row-link=""/g)).toBe(1);
-    }
-    expect(textOf(html, "form-not-enough-head")).toBe("Not enough recent games\u00a0·\u00a010 needed in the last 60 days");
-    expect(html).toMatch(/<ul aria-label="Not enough recent games" data-testid="form-not-enough"/);
   });
 });
 
@@ -171,14 +142,12 @@ describe("the board's markup", () => {
     expect(html).toMatch(/<span class="min-w-0 text-fg[^"]*"><span class="flex min-w-0 items-start/);
   });
 
-  it("with no window of 10 games yet: one row saying so inside the board, no headings, and the last group", () => {
+  it("with no full window yet: one row saying so inside the board, no headings", () => {
     const html = render({ rows: [] });
     const board = html.slice(html.indexOf('data-testid="form-board"'));
     expect(board).toContain('data-testid="form-empty"');
-    expect(textOf(html, "form-empty")).toBe("Nobody has 10 games in the last 60 days yet. Members appear here from their 10th recent game.");
+    expect(textOf(html, "form-empty")).toBe("No active player has 20 games in the last 60 days yet. Players appear here from their 20th recent game, while they have played in the last 30 days.");
     expect(html).not.toContain("form-heads");
-    expect(html).toContain('data-testid="form-not-enough"');
-    expect(html.indexOf('data-testid="form-empty"')).toBeLessThan(html.indexOf('data-testid="form-not-enough"'));
   });
 
   it("keeps the board's caveats behind the ⓘ in its title (no footnote under it), in two short sentences: a small sample, what the bar counts", () => {
@@ -196,7 +165,7 @@ describe("the board's markup", () => {
     expect(html).toContain('<section id="recent-form" aria-labelledby="form-board-title"');
     expect(html).toMatch(/class="[^"]*surface-lead[^"]*" data-testid="form-board"/);
     expect(html).toMatch(/<h2 id="form-board-title" class="[^"]*">(?:(?!<\/h2>)[\s\S])*Recent form<span class="sr-only">, ranked by win rate over each member&#x27;s latest 20 games<\/span>/);
-    expect(textOf(html, "form-scope")).toBe("Latest 20 games from the last 60 days · Summoner's Rift, 5 minutes or longer");
+    expect(textOf(html, "form-scope")).toBe("Latest 20 games from the last 60 days · Summoner's Rift");
     // The title row comes first, then the column headings, then the ranking.
     expect(html.indexOf('id="form-board-title"')).toBeLessThan(html.indexOf('data-testid="form-heads"'));
     expect(html.indexOf('data-testid="form-heads"')).toBeLessThan(html.indexOf('data-testid="form-rows"'));
@@ -224,11 +193,11 @@ describe("the draw-level sentence follows the viewer (PLAN §1.12)", () => {
     return { matchId: `OC1_${seq}`, playerId, championId: "Ahri", role: "MID", queueId: 420, patch: "16.20", win, gameCreation: T0 + day * DAY, durationS: 1800, kills: 4, deaths: 4, assists: 6, cs: 200, damage: 20_000, vision: 30, gold: 11_000, wardsPlaced: 10, teamKills: 20, teamDamage: 80_000, extra: null };
   };
   const games = [...Array.from({ length: 20 }, (_, i) => game("ash", 1 + i, i >= 7)), ...Array.from({ length: 20 }, (_, i) => game("bo", 1 + i, i >= 8))];
-  const person = (id: string, name: string) => ({ id, name, avatarUrl: null, look: cardLookFor({ id }), art: null, rank: null, primaryRole: null });
+  const person = (id: string, name: string) => ({ id, name, avatarUrl: null, look: cardLookFor({ id }), art: null, rank: null, primaryRole: null, lastSyncedAt: T0 + 20 * DAY });
   const data: LeaderboardData = { players: [person("ash", "Ash"), person("bo", "Bo")], games, mastery: [], lineupIds: ["ash", "bo"], currentSeason: 16, seasons: [16], lastUpdated: null, extraSince: null, rawGames: 0 };
   const noteFor = (viewer: string) => {
     const form = buildFormView(data, viewer, { now: new Date(T0 + 30 * DAY) });
-    const html = renderToStaticMarkup(createElement(RecentForm, { form, player: players(true), viewer }));
+    const html = renderToStaticMarkup(createElement(RecentForm, { form, player: players(true) }));
     return textOf(rowsOf(html).bo!, "form-note");
   };
 
