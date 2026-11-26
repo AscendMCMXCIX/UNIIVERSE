@@ -86,16 +86,15 @@ export function LeaderboardsDashboard({ view, champions, status, peekable }: { v
         {/* The members' page: on phones the sections row names it (SECTION_NAMED_TITLE); the public page keeps its title. */}
         <h1 className={cn("min-w-0 text-2xl font-semibold tracking-tight text-fg hyphens-auto [overflow-wrap:anywhere]", status && SECTION_NAMED_TITLE)}>Leaderboards</h1>
         <div className="flex min-w-0 flex-wrap items-baseline gap-x-3 gap-y-1 text-sm text-fg-muted" data-testid="scope-label">
-          {/* The count and its ⓘ as one unit, the ⓘ glued to the count's last word (no space between them, so no break):
-              where the line is too narrow for the whole count (a 320px phone at 200% text with a two-digit count) its
-              words wrap, "players ⓘ" taking the next line together, rather than the unit running past the screen. */}
-          <span className="min-w-0 max-w-full">
-            <span className="text-fg" data-testid="scope-count" data-count={view.playerCount}>
+          {/* The count and its ⓘ as one unit: the ⓘ beside the count's last line, never on a line of its own. Where the line
+              is too narrow for the whole count (a 320px phone at 200% text with a two-digit count) the count's words wrap
+              inside the unit, rather than the unit running past the screen (a break before an inline ⓘ would leave it
+              alone on the next line, so the two are flex items, the ⓘ at the foot of the count's box). */}
+          <span className="flex min-w-0 max-w-full items-end gap-x-1.5">
+            <span className="min-w-0 text-fg" data-testid="scope-count" data-count={view.playerCount}>
               {formatCount(view.playerCount)} active player{view.playerCount === 1 ? "" : "s"}
             </span>
-            <span className="ml-1.5 inline-flex align-baseline">
-              <InfoTip label="Who is shown" text={ACTIVE_TIP} testId="scope-tip" />
-            </span>
+            <InfoTip label="Who is shown" text={ACTIVE_TIP} testId="scope-tip" />
           </span>
           {/* The season of the records, the multikills and the milestones (its choice where two are offered), then the data
               status, as one unit: where the line has no room for both after the count (a phone, a status in words such as
