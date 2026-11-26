@@ -498,8 +498,11 @@ test("the data status ends the scope line, and never takes a line of its own", a
     await page.evaluate(() => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done))));
     const f = await page.evaluate(() => {
       const box = (sel: string) => document.querySelector(sel)!.getBoundingClientRect();
-      // The count's last line: its words may wrap at 200% text, the ⓘ glued to the last word.
-      const countLines = document.querySelector("[data-testid=scope-count]")!.getClientRects();
+      // The count's last line of text (its words may wrap at 200% text; the ⓘ stands beside the last line): the
+      // text's own line boxes, read with a Range (the count is a flex item, so its element has one box for all its lines).
+      const range = document.createRange();
+      range.selectNodeContents(document.querySelector("[data-testid=scope-count]")!);
+      const countLines = range.getClientRects();
       const count = countLines[countLines.length - 1]!;
       const tip = box("[data-testid=scope-tip]");
       const season = box("[data-testid=records-season-label], [data-testid=records-season]");
