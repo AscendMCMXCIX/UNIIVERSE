@@ -92,7 +92,7 @@ test("with nothing chosen: the heading, where the data comes from, the search, A
   await expect(page.getByTestId("lookup-search-input")).toBeVisible();
   await expect(page.getByTestId("lookup-browse")).toBeVisible();
   await expect(page.getByTestId("lookup-empty")).toContainText("Choose a champion");
-  // No haste, no Add champion, no old controls without a champion.
+  // No haste, no Compare, no old controls without a champion.
   await expect(page.getByTestId("lookup-haste")).toHaveCount(0);
   await expect(page.getByTestId("lookup-add")).toHaveCount(0);
   await expect(page.getByTestId("lookup-descriptions")).toHaveCount(0);
