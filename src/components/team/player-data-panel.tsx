@@ -190,10 +190,14 @@ export function PlayerDataPanel({ report, championsById, admin = false, playerNa
   );
 }
 
-/** The experience label, with why it was given (the tier's rule and the estimate's notes) one tap or hover away. */
+/**
+ * The experience label, with why it was given (the tier's rule and the estimate's notes) one tap or
+ * hover away. A finger's 44px target on a touch screen (touch-target: its band reaches past the
+ * badge, not the row's height); no row here is a link whose taps it could take.
+ */
 function TierWhy({ tier, label, notes }: { tier: ProficiencyTier; label: string; notes: string[] }) {
   return (
-    <InfoTip text={`${TIER_DESCRIPTIONS[tier]}${notes.length ? ` ${notes.join(". ")}.` : ""}`}>
+    <InfoTip className="touch-target" text={`${TIER_DESCRIPTIONS[tier]}${notes.length ? ` ${notes.join(". ")}.` : ""}`}>
       <Badge tone={TIER_TONE[tier]}>{label}</Badge>
     </InfoTip>
   );

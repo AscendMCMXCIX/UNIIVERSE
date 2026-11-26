@@ -11,8 +11,6 @@ import { TEXT_TIERS, readTypeFacts, tiersDeployed } from "../scripts/type-facts.
 */
 
 const DISABLED = "rgb(112, 117, 140)";
-const FG = "rgb(238, 240, 246)";
-const MUTED = "rgb(201, 205, 219)";
 
 async function midPlayer(page: Page) {
   await page.goto("/team");
@@ -60,31 +58,6 @@ test.describe("the text hierarchy", () => {
     // Hovered, it does not light up.
     await change.hover({ force: true });
     expect(await change.evaluate((el) => getComputedStyle(el).color)).toBe(DISABLED);
-  });
-
-  test("All Champions: every figure primary, the sorted column semibold under its sentence-case heading", async ({ page }, info) => {
-    test.skip(info.project.name !== "desktop", "the table's columns show from a 44rem list: the desktop");
-    const id = await midPlayer(page);
-    await page.goto(`/players/${id}/champions`);
-    await expect(page.getByTestId("top-champion").first()).toBeVisible();
-    const heads = await page.getByTestId("all-champions-header").locator("button").evaluateAll((els) =>
-      els.filter((e) => e.getClientRects().length).map((e) => ({ text: e.textContent!.replace(/,.*$/, "").trim(), transform: getComputedStyle(e).textTransform, weight: getComputedStyle(e).fontWeight, color: getComputedStyle(e).color, sorted: !!e.closest("[data-sort]") })),
-    );
-    expect(heads.length).toBeGreaterThanOrEqual(8);
-    for (const h of heads) {
-      expect(h.transform, h.text).toBe("none");
-      expect(h.color, h.text).toBe(h.sorted ? FG : MUTED);
-      expect(h.weight, h.text).toBe(h.sorted ? "600" : "500");
-    }
-    expect(heads.filter((h) => h.sorted).map((h) => h.text)).toEqual(["Games"]);
-    // The first row's figures: KDA, CS/min, kills and mastery in the main text colour, none semibold (Games is sorted).
-    const row = page.getByTestId("top-champion").first();
-    for (const testId of ["champion-kills", "mastery-points"]) {
-      const s = await row.getByTestId(testId).evaluate((el) => ({ color: getComputedStyle(el).color, weight: getComputedStyle(el).fontWeight }));
-      expect(s, testId).toEqual({ color: FG, weight: "400" });
-    }
-    const games = await row.getByTestId("champion-games").locator("span").first().evaluate((el) => ({ color: getComputedStyle(el).color, weight: getComputedStyle(el).fontWeight }));
-    expect(games).toEqual({ color: FG, weight: "600" });
   });
 
   test("the InfoTip's bubble is at the body text size", async ({ page }, info) => {

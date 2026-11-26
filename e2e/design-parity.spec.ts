@@ -29,8 +29,9 @@ async function toTheEnd(page: Page) {
 }
 
 const TARGETS: Target[] = [
-  // The sentence-case label (label-text) since 25 Nov 2026: the uppercase tracked label it replaced has left the profile.
-  { name: "stat label", path: (m) => m, selector: "main .label-text" },
+  // The sentence-case label (label-text) since 25 Nov 2026, the uppercase tracked label it replaced having left the
+  // profile: the pool's column names, drawn on the phone and on the desktop alike.
+  { name: "stat label", path: (m) => m, selector: "main .label-text[data-testid$='-columns']" },
   { name: "Panel", path: (m) => `${m}/champions`, selector: "[data-testid=all-champions-table]" },
   { name: "DataRow", path: () => "/players", selector: "[data-testid=player-card]" },
   { name: "badge (chip)", path: () => "/team", selector: "[data-testid=main-role-badge]" },
