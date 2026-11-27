@@ -7,6 +7,41 @@ UNIIVERSE runs on the free plans of Supabase (the Postgres database) and Vercel 
 
 This page records what caused that, what was changed, how it was measured, and how to check it again. The second pass, after egress reached 7.14 GB on 20 Oct, is the next section.
 
+## 27 Nov 2026: the multikill comparison's own table (migration 0070) and the fairness check
+
+**What changed** (docs/PERFORMANCE.md, "The multikill comparison: the players' counters in their
+own table"): the multikill score's comparison read every season record's players from TOAST storage,
+2,991 ms cold on production (26 Nov); it now reads `match_multikills`, about 200 bytes a counted
+player, kept by the database from the records.
+
+| | Before | After (estimate; the probe and `db-usage` confirm it) |
+|---|---|---|
+| Database time per cold computation | 2,991 ms, about 3,000 random page reads and a 30 MB temporary sort | about 0.1–0.25 s, the table read in sequence; 30–60 ms warm |
+| Vercel Provisioned Memory per cold computation (2 GB × wall time, waiting on the database included) | about 6 GB-s | about 0.4 GB-s |
+| Vercel Active CPU | milliseconds (waiting is not Active CPU) | the same |
+| Egress per computation | about 27 KB | the same 27 KB; recomputed more often (30-minute limit, 10 minutes after a change): under 1 MB a day realistically, 2.6 MB at worst, of the 120 MB a day |
+| Storage | — | about 10–16 MB: 9.75 MB measured for 47,880 rows (7,600 synthetic records of production's shape, heap 7.6 MB plus its key), production's count of counted players unknown here; about +150 KB a day at 75 records a day |
+| Writes | — | about nine small rows per stored record, by the trigger (within the noise of an insert: 1,000 inserts took 403 ms with it and 421 ms without, the design map) |
+
+- **The deploy:** the migration copies every stored record's players once, inside the migration's
+  transaction at the first cold start after the deploy: 1.8 s locally for 7,600 records (busy
+  shared machine), expected about 1–5 s on production. Other cold starts wait on the migration's
+  lock; the sync's inserts wait; reads do not. 0058's and 0069's indexes had the same profile.
+- **No pre-warming:** a cold computation is now a fraction of a second, the Production check opens
+  Leaderboards right after each deploy anyway, and the background tick runs in another instance,
+  whose in-memory cache the page does not share: it would only add reads.
+- **The fairness check** (`multikill-audit`, read only, by hand, never scheduled): one run reads the
+  members' season games (`readLeaderboardGames`, about 0.5–1 MB), the comparison (27 KB) and one
+  statement over `match_multikills` (530 KB on 7,600 synthetic records, about 0.5 MB expected):
+  about **1.5 MB of egress** and a few seconds of database time once, about 1–3 s of Active CPU and a
+  cold start; one Data jobs run (at least 1 billed minute), or Admin's Run check (no Actions minute).
+- **After the deploy** (CLAUDE.md §5; one Data jobs run, about 1 minute of Actions and 6 MB of
+  probe egress): `auth-audit access-audit perf-probe db-usage multikill-audit`. `auth-audit` lists
+  `0070_match_multikills`; `access-audit` finds the backup role reading the new table and the Data
+  API's roles holding nothing, and no callable function; `perf-probe`'s
+  `leaderboards.multikill-baseline` cold well under 300 ms with the same counts as 26 Nov plus new
+  games; `db-usage` gives the table's size.
+
 ## 26 Nov 2026: Champion Intel's builds and runes (one counting statement per champion, cached six hours)
 
 **What it reads.** Champion Intel's builds (docs/CHAMPION_INTEL.md, "Builds and runes") count what

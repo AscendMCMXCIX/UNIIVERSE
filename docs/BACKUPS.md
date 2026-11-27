@@ -75,6 +75,17 @@ This replaces live data, so do it only with the owner's explicit decision. Have 
 
 Never restore over the live database in place.
 
+### The multikill comparison's table (`match_multikills`, migration 0070)
+
+It is derived: the database copies it from `match_details` (trigger `match_multikills_rows`), and it is
+in every dump like any table (the backup role reads it). `pg_dump` restores the table's rows with the
+data and creates the trigger afterwards (post-data), so nothing is doubled. If a partial or data-only
+restore leaves it empty or out of step (a `--disable-triggers` data restore, a restore of
+`match_details` alone), rebuild it from the records in the SQL Editor, once:
+`DELETE FROM match_multikills; UPDATE match_details SET participants = participants;`
+(the update fires the trigger for every record: it reads every record's players once, about 1–5 s,
+and rewrites nothing else). The comparison then answers as before at its next computation.
+
 ## Backups and permanent removal
 
 Erasing someone's personal data (Admin Mode → Users & Permissions → Personal data; `docs/PRIVACY.md`) removes it from the live database at once. Copies made before the erasure still hold it:

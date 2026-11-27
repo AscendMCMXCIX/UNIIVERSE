@@ -11,7 +11,7 @@ import { runMultikillAudit } from "@/server/leaderboards/multikill-audit";
 defineJob({
   key: "multikill-audit",
   kind: "check",
-  cost: "Reads the season's stored games and the players' multikill counters once (about 1 MB from the database): run it when you need its answer.",
+  cost: "Reads the season's stored games and the players' multikill counters once (about 1.5 MB from the database): run it when you need its answer.",
   description:
     "Read-only: the multikill score against alternative models on the stored season games (role-, champion- and opportunity-adjusted, empirical-Bayes, the member's own games), with how far members' games differ, a lane-opponent placebo, split-half reliability, a bootstrap of first place and the decision rule's outcome. Anonymous aggregates only. Changes nothing.",
   defaultIntervalMinutes: null,
