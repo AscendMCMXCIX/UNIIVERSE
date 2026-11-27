@@ -17,7 +17,10 @@ import { normaliseRiotId, riotIdToken, tagged } from "./tokens";
   - "count" (Release 19, OD21's prerequisite): what "full" would change, counted and changed
     nothing: the same reads, no erasure. The identities of the accounts and profiles it would
     erase are left out of the traces it counts, as "full" erases them with their owner first, so
-    the counts equal what "full" then changes.
+    the counts equal what "full" then changes. A stray Riot account (found by an erased identity
+    on a profile that is not theirs) is not such an identity: "full" only deletes its row, and
+    finds its identity in stored games and logs afterwards like any other trace, so "count" counts
+    those traces too.
 */
 
 export interface ReconcileResult {
@@ -100,7 +103,9 @@ export async function reconcileErasures(db: Db, options: { mode: "recent" | "ful
   }
   // In count mode nothing above was erased: every identity full mode would have erased with its
   // owner (the erasure's own reading of them, memberSubject, which only reads) is not counted again
-  // as a trace below.
+  // as a trace below. The stray accounts' identities are not among them: full mode deletes only
+  // their rows above (no game, rank or log is touched), so step 2 finds and counts their traces in
+  // both modes.
   const gonePuuids = new Set<string>();
   const goneRiotIds = new Set<string>();
   if (!writes) {
@@ -108,10 +113,6 @@ export async function reconcileErasures(db: Db, options: { mode: "recent" | "ful
       const subject = await memberSubject(db, target);
       for (const p of subject.puuids) gonePuuids.add(p);
       for (const r of subject.riotIds) goneRiotIds.add(riotIdToken(r) ?? "");
-    }
-    for (const a of accountRows.filter((x) => remaining.includes(x.id))) {
-      if (a.puuid) gonePuuids.add(a.puuid);
-      goneRiotIds.add(riotIdToken(`${a.gameName}#${a.tagLine}`) ?? "");
     }
   }
   const counted = (puuid: string | null, riotId: string | null) => (puuid !== null && gonePuuids.has(puuid)) || (riotId !== null && goneRiotIds.has(riotIdToken(riotId) ?? "-"));

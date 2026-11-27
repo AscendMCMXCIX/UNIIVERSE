@@ -8,7 +8,9 @@ import {
   chiSquareUpper,
   decideMultikillAudit,
   ebScore,
+  TAU_RANGE,
   ebTau,
+  ebTauRaw,
   evaluateMultikillModels,
   ownGamesFactor,
   paceBucket,
@@ -124,6 +126,9 @@ describe("worked examples", () => {
     // The board's spread by moments, held within 0.08–0.35.
     expect(ebTau([{ P: 100, X: 100, V: 100 }, { P: 100, X: 100, V: 100 }])).toBeCloseTo(0.08, 10);
     expect(ebTau([{ P: 300, X: 100, V: 1 }, { P: 10, X: 100, V: 1 }, { P: 100, X: 100, V: 1 }])).toBeCloseTo(0.35, 10);
+    // Before the clamp (rule R4): ratios 3.0, 0.1 and 1.0 have a variance of 2.2033, less 0.0001 of chance.
+    expect(ebTauRaw([{ P: 300, X: 100, V: 1 }, { P: 10, X: 100, V: 1 }, { P: 100, X: 100, V: 1 }])).toBeCloseTo(Math.sqrt(2.2033333 - 0.0001), 5);
+    expect(ebTauRaw([{ P: 100, X: 100, V: 100 }, { P: 100, X: 100, V: 100 }])).toBe(0);
   });
 
   it("Spearman's correlation, ties sharing their rank", () => {
@@ -173,7 +178,9 @@ describe("evaluating the models on a board", () => {
     expect(e.models.M0!.meanPlaceShift).toBe(0);
     // EB models read their cushion from the board; the others keep +40.
     expect(e.models.M0eb!.tau).toBeGreaterThanOrEqual(0.08);
+    expect(e.models.M0eb!.tauRaw).not.toBeNull();
     expect(e.models.M0!.tau).toBeNull();
+    expect(e.models.M0!.tauRaw).toBeNull();
   });
 
   it("is the same on the same data (a fixed bootstrap seed)", () => {
@@ -237,6 +244,25 @@ describe("the decision rule", () => {
     expect(decideMultikillAudit(withEnv({ ...strong, alliesVsOpponents: 0.1 }, { M0: 0.6, M5: 0.2 })).rules.R2.why.join(" ")).toMatch(/allies only/);
     // A queue group far from 1 stops R1 (keep), not R2.
     expect(decideMultikillAudit(withEnv({ tauBeyondNoise: 0.01, homogeneityP: 0.6 }, { M0: 0.1, M5: 0.05 }, 1.2)).outcome).toBe("inconclusive");
+  });
+
+  it("R4 reads the board's spread before the scoring's clamp, so a spread above 0.40 meets it", () => {
+    // Members far apart (a true log spread of 0.6): the EB models score with the clamp's 0.35, but R4 sees the board's own figure.
+    const wide = evaluateMultikillModels(world(7, { skill: 0.6, lobby: 0 }).input, { draws: 0 });
+    expect(wide.models.M0eb!.tau).toBeCloseTo(TAU_RANGE[1], 10);
+    expect(wide.models.M0eb!.tauRaw).toBeGreaterThan(0.4);
+    const d = decideMultikillAudit(wide);
+    expect(d.rules.R4.met).toBe(true);
+    expect(d.rules.R4.why.join(" ")).toContain(wide.models.M0eb!.tauRaw!.toFixed(2));
+    expect(auditSummary(wide, { season: 2026, counting: "nested" }).models.M0eb).toMatchObject({ tau: 0.35, tauRaw: Math.round(wide.models.M0eb!.tauRaw! * 100) / 100 });
+    // Both sides, and the band between them, on the same board with only the spread changed.
+    const withTau = (tau: number, tauRaw: number): Evaluation => ({ ...base, models: { ...base.models, M0eb: { ...base.models.M0eb!, tau, tauRaw } } });
+    expect(decideMultikillAudit(withTau(0.35, 0.52)).rules.R4.met).toBe(true);
+    expect(decideMultikillAudit(withTau(0.35, 0.38)).rules.R4.met).toBe(false);
+    expect(decideMultikillAudit(withTau(0.2, 0.2)).rules.R4.met).toBe(false);
+    expect(decideMultikillAudit(withTau(0.08, 0.03)).rules.R4.met).toBe(true);
+    // R4 is advisory: it never makes the outcome.
+    expect(decideMultikillAudit(withTau(0.35, 0.52)).outcome).toBe(decideMultikillAudit(withTau(0.2, 0.2)).outcome);
   });
 
   it("decides nothing with fewer than five ranked members", () => {

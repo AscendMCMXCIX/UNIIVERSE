@@ -20,10 +20,14 @@
  *                       range, the rule that decided, its cues and its confidence (high, medium, low).
  *     --write           rewrites the table: rows that still match are kept as they are; a row a
  *                       reviewer confirmed ("automated review", "owner") that no longer matches is kept
- *                       too (the page hides its range until it is reviewed again); a stale
- *                       "automated draft" row is replaced by the new high-confidence draft, or dropped;
- *                       a spell with no row gets its high-confidence draft (reviewer "automated
- *                       draft"). Medium and low drafts are never written: a reviewer decides them.
+ *                       too (the page hides its range until it is reviewed again), and so is one whose
+ *                       spell is not in the file (--write never deletes a review: a wrong or partial
+ *                       file, or an older version, cannot undo one; delete such a row by hand once
+ *                       Riot has really removed the spell); a stale "automated draft" row is replaced
+ *                       by the new high-confidence draft, or dropped, and one whose spell is not in the
+ *                       file is dropped (counted, and named); a spell with no row gets its
+ *                       high-confidence draft (reviewer "automated draft"). Medium and low drafts are
+ *                       never written: a reviewer decides them. --check then runs on the new table.
  *     --date YYYY-MM-DD the date written on new rows (default: today, UTC).
  *
  * Plain Node, Data Dragon only (no wiki, no CommunityDragon): the same text hash as
@@ -233,15 +237,20 @@ function rowFrom(spell, draft, version, date) {
  * The table rewritten for a game version (see --write): matching rows kept, a confirmed row that no
  * longer matches kept (hidden on the page until reviewed again), a stale automated draft replaced by
  * the new high-confidence draft or dropped, a spell with no row given its high-confidence draft.
- * Rows for spells that are gone are dropped. Returns the table and what changed, counted.
+ * A row whose spell is not in the file: a confirmed one is kept (`keptGone`; only a person deletes a
+ * review, so a partial or older file cannot), an automated draft dropped (`droppedGone`); both named
+ * in `gone`. Returns the table and what changed, counted.
  */
 export function writeTable(table, full, date) {
   if (!/^\d{4}-\d{2}-\d{2}$/.test(date)) throw new Error(`Not a date: ${date}`);
   const { version, spells } = spellsOf(full);
   const rows = new Map((table?.rows ?? []).map((r) => [keyOf(r.champion, r.slot), r]));
   const next = [];
-  const done = { kept: 0, keptStale: 0, replaced: 0, dropped: 0, added: 0, leftForReview: 0 };
+  const done = { kept: 0, keptStale: 0, keptGone: 0, replaced: 0, dropped: 0, droppedGone: 0, added: 0, leftForReview: 0 };
+  const gone = { kept: [], dropped: [] };
+  const seen = new Set();
   for (const s of spells) {
+    seen.add(keyOf(s.champion, s.slot));
     const row = rows.get(keyOf(s.champion, s.slot));
     if (row && rowMatches(row, s)) {
       next.push(row);
@@ -263,7 +272,18 @@ export function writeTable(table, full, date) {
       done.leftForReview += 1;
     }
   }
-  return { table: { format: RANGE_TABLE_FORMAT, rows: next }, done };
+  for (const [key, row] of rows) {
+    if (seen.has(key)) continue;
+    if (row.reviewer === "automated draft") {
+      done.droppedGone += 1;
+      gone.dropped.push(key);
+    } else {
+      next.push(row);
+      done.keptGone += 1;
+      gone.kept.push(key);
+    }
+  }
+  return { table: { format: RANGE_TABLE_FORMAT, rows: next }, done, gone };
 }
 
 /** The table as committed: one row per line, in champion and slot order, so a review reads as a short diff. */
@@ -306,11 +326,14 @@ async function main(argv) {
   }
   if (args.has("--write")) {
     const date = args.get("--date") ?? new Date().toISOString().slice(0, 10);
-    const { table: next, done } = writeTable(table, full, date);
+    const { table: next, done, gone } = writeTable(table, full, date);
     await writeFile(tablePath, serialiseTable(next));
-    console.log(`Wrote ${tablePath} for Data Dragon ${full.version}: ${next.rows.length} rows.`, done);
+    console.log(`Wrote ${tablePath} for Data Dragon ${full.version}: ${next.rows.length} rows (${table.rows?.length ?? 0} before).`, done);
+    if (gone.kept.length) console.log(`  ${gone.kept.length} reviewed rows kept although their spell is not in this file (a partial or older file, or Riot removed the spell: delete a row by hand only once Riot has): ${gone.kept.join(", ")}`);
+    if (gone.dropped.length) console.log(`  ${gone.dropped.length} automated drafts dropped, their spell not in this file: ${gone.dropped.join(", ")}`);
   }
-  if (args.has("--check") || (!args.has("--draft") && !args.has("--write"))) {
+  // After --write the check always runs on the new table: what still needs a review, and rows whose spell is gone.
+  if (args.has("--check") || args.has("--write") || !args.has("--draft")) {
     const current = args.has("--write") ? JSON.parse(await readFile(tablePath, "utf8")) : table;
     const r = checkTable(current, full);
     const was = args.get("--was") ? spellsOf(JSON.parse(await readFile(resolve(args.get("--was")), "utf8"))) : null;

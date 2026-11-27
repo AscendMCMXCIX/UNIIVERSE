@@ -10,8 +10,10 @@
  *   add --max-drop 5 to change the failing drop (percentage points of resolved figures; default 5)
  *
  * Exits 1 when a champion's file cannot be read by the rules, or when the share of spells with a
- * resolved cost or cooldown (or the mechanics chips per champion) drops by more than --max-drop:
- * a format change Riot made, which docs/CHAMPION_INTEL.md "Data" says how to handle.
+ * resolved cost, the share with a resolved cooldown, or the share with either (or the mechanics
+ * chips per champion) drops by more than --max-drop: a format change Riot made, which
+ * docs/CHAMPION_INTEL.md "Data" says how to handle. Costs and cooldowns are held apart because
+ * nearly every spell's cost resolves, so a cooldown break alone barely moves the combined share.
  */
 import { readFile } from "node:fs/promises";
 import { resolve } from "node:path";
@@ -77,6 +79,8 @@ async function main(argv: string[]) {
   line("costs: not resolved (shown as none)", baseline.costs.unresolved, next.costs.unresolved);
   for (const key of [...new Set([...Object.keys(baseline.cooldowns), ...Object.keys(next.cooldowns)])].sort()) line(`cooldowns: ${key}`, baseline.cooldowns[key] ?? 0, next.cooldowns[key] ?? 0);
   line("mechanics chips", baseline.mechanicChips, next.mechanicChips);
+  line("spells with a resolved cost", baseline.resolvedCosts, next.resolvedCosts);
+  line("spells with a resolved cooldown", baseline.resolvedCooldowns, next.resolvedCooldowns);
   line("spells with a cost or cooldown", baseline.resolved, next.resolved);
   console.log("");
   console.log(`unreadable champions: ${unreadable.length}${unreadable.length ? ` (${unreadable.join(", ")})` : ""}`);
@@ -103,7 +107,7 @@ async function main(argv: string[]) {
     console.error("See docs/PATCH_MAINTENANCE.md: a format change needs the rules updated (docs/CHAMPION_INTEL.md, \"Data\").");
     process.exit(1);
   }
-  console.log("No problem: the rules read every champion, and no resolved figure dropped beyond the limit.");
+  console.log("No problem: the rules read every champion, and no resolved figure (costs, cooldowns, either, mechanics chips) dropped beyond the limit.");
 }
 
 main(process.argv.slice(2)).catch((err) => {

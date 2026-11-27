@@ -32,10 +32,16 @@ describe("Admin's static-data diff", () => {
   });
 
   it("the ability ranges: what is shown, a warning when Riot changed reviewed abilities, and abilities stored before ranges were read", () => {
-    const counts = { version: "16.23.1", shown: 89, global: 7, changedSinceReview: 0, notReviewed: 527, noRangeYet: 0 };
+    const counts = { version: "16.23.1", shown: 89, global: 7, changedSinceReview: 0, hiddenSinceReview: 0, notReviewed: 527, noRangeYet: 0 };
     expect(rangeReviewLines(counts)).toEqual([{ text: "Ability ranges at 26.23: 89 shown, 7 Global, 527 not reviewed yet.", warn: false }]);
-    expect(rangeReviewLines({ ...counts, changedSinceReview: 3 })[1]).toEqual({ text: "3 ranges are hidden until reviewed again: Riot changed those abilities.", warn: true });
-    expect(rangeReviewLines({ ...counts, changedSinceReview: 1 })[1]!.text).toBe("1 range is hidden until reviewed again: Riot changed that ability.");
+    expect(rangeReviewLines({ ...counts, changedSinceReview: 3, hiddenSinceReview: 3 })[1]).toEqual({ text: "Riot changed 3 reviewed abilities since their review: review them again. Their 3 ranges are hidden until then.", warn: true });
+    expect(rangeReviewLines({ ...counts, changedSinceReview: 1, hiddenSinceReview: 1 })[1]!.text).toBe("Riot changed 1 reviewed ability since its review: review it again. Its range is hidden until then.");
+    // Only abilities that showed a range (reach or Global) hide one: a changed self or none row showed nothing either way (the demo's Mel W at 16.22.1).
+    expect(rangeReviewLines({ ...counts, changedSinceReview: 5, hiddenSinceReview: 2 })[1]).toEqual({ text: "Riot changed 5 reviewed abilities since their review: review them again. 2 of their ranges are hidden until then.", warn: true });
+    expect(rangeReviewLines({ ...counts, changedSinceReview: 5, hiddenSinceReview: 1 })[1]!.text).toBe("Riot changed 5 reviewed abilities since their review: review them again. 1 of their ranges is hidden until then.");
+    expect(rangeReviewLines({ ...counts, changedSinceReview: 1, hiddenSinceReview: 0 })[1]).toEqual({ text: "Riot changed 1 reviewed ability since its review: review it again. It showed no range, so none is hidden.", warn: true });
+    expect(rangeReviewLines({ ...counts, changedSinceReview: 2, hiddenSinceReview: 0 })[1]!.text).toBe("Riot changed 2 reviewed abilities since their review: review them again. None of them showed a range, so none is hidden.");
+    for (const l of rangeReviewLines({ ...counts, changedSinceReview: 1, hiddenSinceReview: 0 })) expect(l.text).not.toMatch(/1 range is hidden/);
     expect(rangeReviewLines({ ...counts, version: null, notReviewed: 1_204, noRangeYet: 692 }).map((l) => l.text)).toEqual(["Ability ranges: 89 shown, 7 Global, 1,204 not reviewed yet.", "692 abilities were stored before ranges were read; the next game-data update reads them."]);
   });
 });

@@ -55,11 +55,18 @@ mkdir -p "$OUT_DIR"
 # A table that no longer exists is skipped, so the list outlives the drop.
 RETIRED="tracked_summoners region_status stat_periods stat_region_periods stat_rank_periods champion_change_points"
 
-# Tables whose row counts can change both ways within seconds (sign-ins, job runs, page-speed
-# rows, leases): rows inserted and deleted while the dump runs can put the snapshot's count outside
-# the counts read just before and just after it. For these the restore check asks that the table is
-# restored and counted, not a range. Every other table's count must lie in the range.
-CHURN="sessions auth_failures job_runs web_vitals_daily"
+# Tables whose row counts can change both ways within seconds: rows inserted and deleted while the
+# dump runs can put the snapshot's count outside the counts read just before and just after it.
+# Sign-ins (sessions, auth_failures), job runs, page-speed rows, the leases (rows of app_settings:
+# claimLease inserts one, releaseLease deletes it seconds later, src/server/jobs/background.ts) and
+# a branding upload's pieces (brand_upload_chunks: stored, then taken and deleted within seconds).
+# For these the restore check asks that the table is restored and counted, not a range. Every other
+# table's count must lie in the range.
+CHURN="sessions auth_failures job_runs web_vitals_daily app_settings brand_upload_chunks"
+# app_settings' other rows (branding, settings, stored counts) keep the range rule as "settings":
+# every row whose key is not a lease's. The lease keys are those of src/server/jobs/background.ts
+# (src/server/ops/backup-script.test.ts holds this pattern to them).
+LEASES='^(tick_lease$|account_sync:|account_refresh:|figures_catchup:)'
 
 # What must survive the round trip: the number of tables, EVERY table's row count (derived from the
 # database itself, so a table a later migration adds is counted without editing this list: Release
@@ -72,6 +79,7 @@ SELECT 'players', count(*) FROM public.players;
 SELECT 'riot_accounts', count(*) FROM public.riot_accounts;
 SELECT 'match_details', count(*) FROM public.match_details;
 SELECT 'last_known_ranks', count(*) FROM public.last_known_ranks;
+SELECT 'settings', count(*) FROM public.app_settings WHERE key !~ '$LEASES';
 SELECT 'migration', max(tag) FROM public.uniiverse_migrations;
 SELECT 'retired:' || t, (xpath('/row/c/text()', query_to_xml(format('SELECT count(*) AS c FROM public.%I', t), false, true, '')))[1]::text
   FROM unnest(string_to_array('$RETIRED', ' ')) AS t WHERE to_regclass(format('public.%I', t)) IS NOT NULL ORDER BY 1;
@@ -142,7 +150,7 @@ if [ -n "${RESTORE_SERVER_URL:-}" ]; then
   psql "$RESTORE_SERVER_URL/postgres" --no-psqlrc -q -c "DROP DATABASE $RESTORE_DB"
   # Rows can change while the dump runs, so each restored count must lie between the counts read
   # just before and just after it.
-  for key in tables teams users players riot_accounts match_details last_known_ranks; do
+  for key in tables teams users players riot_accounts match_details last_known_ranks settings; do
     b="$(value "$BEFORE" "$key")" a="$(value "$AFTER" "$key")" r="$(value "$RESTORED" "$key")"
     lo=$(( b < a ? b : a )) hi=$(( b > a ? b : a ))
     if [ -z "$r" ] || [ "$r" -lt "$lo" ] || [ "$r" -gt "$hi" ]; then echo "Restore check failed: $key restored $r, source $b..$a"; exit 1; fi
@@ -202,7 +210,7 @@ cat > "$OUT_DIR/$NAME.json" <<JSON
   "dumpSha256": "$DUMP_SHA",
   "tablesWithData": $DUMPED_TABLES,
   "newestMigration": "$(value "$AFTER" migration)",
-  "rows": { "teams": $(value "$AFTER" teams), "users": $(value "$AFTER" users), "players": $(value "$AFTER" players), "riotAccounts": $(value "$AFTER" riot_accounts), "matchDetails": $(value "$AFTER" match_details), "lastKnownRanks": $(value "$AFTER" last_known_ranks) },
+  "rows": { "teams": $(value "$AFTER" teams), "users": $(value "$AFTER" users), "players": $(value "$AFTER" players), "riotAccounts": $(value "$AFTER" riot_accounts), "matchDetails": $(value "$AFTER" match_details), "lastKnownRanks": $(value "$AFTER" last_known_ranks), "appSettingsNotLeases": $(value "$AFTER" settings) },
   "tableRows": $(printf '%s\n' "$AFTER" | awk -F'|' '$1 ~ /^row:/ { sub(/^row:/, "", $1); print $1 "\t" $2 }' | jq -Rn '[inputs | split("\t") | {(.[0]): (.[1] | tonumber)}] | add // {}'),
   "retiredTableRows": $(printf '%s\n' "$AFTER" | awk -F'|' '$1 ~ /^retired:/ { sub(/^retired:/, "", $1); print $1 "\t" $2 }' | jq -Rn '[inputs | split("\t") | {(.[0]): (.[1] | tonumber)}] | add // {}'),
   "restoreChecked": $([ -n "$RESTORED" ] && echo true || echo false),
