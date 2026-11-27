@@ -68,7 +68,8 @@ const read = (page: Page) =>
     const limit = innerHeight - pad;
     const rows = (id: string) => [...document.querySelectorAll<HTMLElement>(`[data-testid=${id}]`)].map((r) => r.getBoundingClientRect().height);
     const names = [...document.querySelectorAll<HTMLElement>("[data-testid=leaderboards-grid] [data-testid=board-member-name]")].map((n) => parseFloat(getComputedStyle(n).fontSize));
-    const small = [...document.querySelectorAll<HTMLElement>("[data-testid=leaderboards-grid] *")].filter((e) => e.childNodes.length && [...e.childNodes].some((c) => c.nodeType === 3 && /\S/.test(c.textContent ?? "")) && e.getClientRects().length && !e.closest(".sr-only") && parseFloat(getComputedStyle(e).fontSize) < 12).length;
+    // Text under the 12px floor (the ⓘ mark's letter, drawn in a 16px tile and hidden from screen readers, is a glyph, not text).
+    const small = [...document.querySelectorAll<HTMLElement>("[data-testid=leaderboards-grid] *")].filter((e) => e.childNodes.length && [...e.childNodes].some((c) => c.nodeType === 3 && /\S/.test(c.textContent ?? "")) && e.getClientRects().length && !e.closest(".sr-only, [aria-hidden=true]") && parseFloat(getComputedStyle(e).fontSize) < 12).length;
     return {
       count: Number(document.querySelector("[data-testid=scope-count]")?.getAttribute("data-count")),
       formRows: rows("form-row"),

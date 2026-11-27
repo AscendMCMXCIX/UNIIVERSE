@@ -1,7 +1,7 @@
 import { expect, test, type Page } from "./test";
 import { pick } from "./select";
 import { openTogether } from "./match-history";
-import { openFilterBar } from "./filters";
+import { closeFilterSheet, openFilterBar } from "./filters";
 import { demoSeasonLabel } from "./demo-season";
 
 /*
@@ -80,6 +80,8 @@ test("Played together lists games with two or more members on one side, with hon
   const full = "Ranked Solo/Duo allows parties of two at most, so not all of them queued together.";
   await expect(caveat).toHaveAccessibleName("Not all queued together");
   await expect(caveat).toHaveAccessibleDescription(full);
+  // A phone's filter sheet is still open over the list: closed first, as a reader would.
+  await closeFilterSheet(page);
   await caveat.click();
   await expect(page.getByTestId("together-solo-caveat-bubble")).toContainText(full);
   await page.keyboard.press("Escape");
