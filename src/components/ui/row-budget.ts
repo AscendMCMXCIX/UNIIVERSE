@@ -149,6 +149,41 @@ export function pagedListNext(prev: PagedState, next: PagedInputs, pageOfIndex: 
   return clamp(prev.page);
 }
 
+/** What a paged list follows (useFollowed): the item open now, and the one just closed while the list comes back. */
+export interface Followed {
+  open: string | null;
+  /** The item just closed, until the list has drawn its pages again. */
+  left: string | null;
+}
+
+/** The next Followed for the item open now: closing keeps the item just closed as `left`; opening another drops it. */
+export function followedNext(prev: Followed, open: string | null): Followed {
+  if (prev.open === open) return prev;
+  return { open, left: open === null ? prev.open : null };
+}
+
+/**
+ * The item a paged list follows (usePagedList's `selected`): the open one; once it closes, the one
+ * just closed, until the list has drawn its pages (`paged`), so the list comes back on the page
+ * holding it (the lane opponents: All opponents or Escape back to the grid on the page holding the
+ * opponent just left, docs/MATCHUPS.md), even where its pages are measured only then (a linked
+ * opponent: the grid was never drawn). Then it lets go, and later changes keep the page as usual.
+ */
+export function useFollowed(open: string | null, paged: boolean): string | null {
+  const [state, setState] = React.useState<Followed>({ open, left: null });
+  let current = state;
+  const next = followedNext(state, open);
+  if (next !== state) {
+    current = next;
+    setState(next);
+  }
+  const followed = current.open ?? current.left;
+  // Drawn in its pages: this render shows the page holding it (usePagedList reads it below), and it lets go, so later
+  // changes keep the page as usual (decided during render, as usePagedList's page is: never a render late).
+  if (current.left !== null && paged) setState({ ...current, left: null });
+  return followed;
+}
+
 const sameInputs = (a: PagedInputs, b: PagedInputs) =>
   a.perPage === b.perPage && a.total === b.total && a.selected === b.selected && a.selectedIndex === b.selectedIndex && a.search === b.search && Object.is(a.order, b.order) && Object.is(a.data, b.data) && Object.is(a.reset, b.reset);
 

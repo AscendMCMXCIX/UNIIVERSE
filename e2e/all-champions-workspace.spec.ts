@@ -233,6 +233,9 @@ test("one screen at the owner's eight sizes: the list, Ambessa, Ambessa with Dar
       await open(page, `${top}?champion=Ambessa&crole=TOP`, size, side);
       await expect(pane(page)).toBeVisible();
       await fits(page, `${at} A`);
+      // The list's toolbar rule and the pane's identity bar rule: one line across the gap between the cards.
+      const rules = await page.evaluate(() => [document.querySelector("[data-testid=all-champions-toolbar]"), document.querySelector("aside[data-preview-pane] [data-testid=champion-preview-header]")].map((el) => el!.getBoundingClientRect().bottom));
+      expect(Math.abs(rules[0]! - rules[1]!), `${at}: the toolbar's rule level with the identity bar's`).toBeLessThanOrEqual(1);
       await shot(page, `${at}-ambessa`);
       const before = await pane(page).boundingBox();
       await openOpponent(page, "Darius");
@@ -258,7 +261,7 @@ test("one screen at the owner's eight sizes: the list, Ambessa, Ambessa with Dar
     }
 });
 
-test("the gate's size and 1280 × 800: one screen; 1280 × 800 with the sidebar open opens the preview in the sheet over the paged list", async ({ page }) => {
+test("1366 × 736 and 1280 × 800: one screen; 1280 × 800 with the sidebar open opens the preview in the sheet over the paged list", async ({ page }) => {
   for (const side of SIDES) {
     for (const path of [top, `${top}?champion=Ambessa&crole=TOP`, `${top}?champion=Ambessa&crole=TOP&vs=Darius`, `${sub}?champion=Sion&crole=TOP&vs=Nasus`]) {
       await open(page, path, [1366, 736], side);
@@ -758,11 +761,11 @@ test("with CI's wider text: the list, Ambessa, Darius and Sion still fit, with t
   }
 });
 
-test("the flow is unchanged where the workspace does not apply: short windows, a 1280 × 720 laptop, a larger text size", async ({ page }) => {
+test("the flow is unchanged where the workspace does not apply: windows under 41rem tall, a larger text size", async ({ page }) => {
   for (const [w, h] of [
-    [1366, 700],
+    [1366, 640],
     [1440, 600],
-    [1280, 720],
+    [1280, 640],
   ] as Array<[number, number]>) {
     await page.setViewportSize({ width: w, height: h });
     await page.goto(`${BASE}${top}`, { waitUntil: "load" });
@@ -785,4 +788,324 @@ test("the flow is unchanged where the workspace does not apply: short windows, a
   await page.goto(`${BASE}${top}`, { waitUntil: "load" });
   await expect.poll(() => page.evaluate(() => !!document.querySelector("[data-workspace]"))).toBe(false);
   await expect(page.getByTestId("all-champions-more")).toBeVisible();
+});
+
+
+/*
+  Regression tests from the review of 27 Nov 2026 (each reproduced by a reviewer and a skeptic).
+*/
+
+const active = (page: Page) =>
+  page.evaluate(() => {
+    const el = document.activeElement as HTMLElement | null;
+    if (!el || el === document.body) return "body";
+    return el.dataset.opponentRow ? `cell:${el.dataset.opponentRow}` : (el.dataset.testid ?? el.getAttribute("aria-label") ?? el.tagName.toLowerCase());
+  });
+const cellIds = (page: Page) => cells(page).evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.champion!));
+
+test("an opponent left (All opponents, Escape) brings the grid back on the page holding it, its cell focused, from a later page, after ‹ › and from a link; nothing takes the focus later", async ({ page }) => {
+  test.setTimeout(240_000);
+  for (const [size, side] of [
+    [[1366, 768], "expanded"],
+    [[1920, 1080], "collapsed"],
+  ] as Array<[[number, number], Side]>) {
+    const at = cfg(size, side);
+    for (const how of ["Escape", "All opponents"] as const) {
+      await open(page, `${top}?champion=Ambessa&crole=TOP`, size, side);
+      await pane(page).getByTestId("opponents-next").click();
+      await expect.poll(async () => (await region(page, "opponents")).page).toBe(2);
+      const who = (await cellIds(page))[1]!;
+      await pane(page).locator(`[data-opponent-row="${who}"]`).focus();
+      await page.keyboard.press("Enter");
+      await expect(detailTitle(page)).toBeFocused();
+      if (how === "Escape") await page.keyboard.press("Escape");
+      else await pane(page).getByTestId("champion-preview-opponents-back").click();
+      await expect(pane(page).locator(`[data-opponent-row="${who}"]`), `${at} ${how}: back on its cell`).toBeFocused();
+      expect((await region(page, "opponents")).page, `${at} ${how}: the page it was opened from`).toBe(2);
+      // Nothing pending takes the focus later: the pager keeps it, and the search keeps every key typed.
+      await pane(page).getByTestId("opponents-pager").locator("[aria-label='Page 1']").click();
+      await expect.poll(() => active(page)).not.toMatch(/^cell:/);
+      await pane(page).getByTestId("opponents-pager").locator("[aria-label='Page 2']").click();
+      await expect.poll(async () => (await region(page, "opponents")).page).toBe(2);
+      expect(await active(page), `${at} ${how}: the pager keeps the focus`).not.toMatch(/^cell:|^body$/);
+      await pane(page).getByTestId("opponents-pager").locator("[aria-label='Page 1']").click();
+      await pane(page).getByTestId("opponent-search").click();
+      await page.keyboard.type(who.slice(0, 3).toLowerCase(), { delay: 60 });
+      await expect(pane(page).getByTestId("opponent-search"), `${at} ${how}: every key typed`).toHaveValue(who.slice(0, 3).toLowerCase());
+      await expect(pane(page).getByTestId("opponent-search")).toBeFocused();
+    }
+    // ‹ › past the page's end, then All opponents: the page holding the opponent stepped to.
+    await open(page, `${top}?champion=Ambessa&crole=TOP`, size, side);
+    const per = (await region(page, "opponents")).per;
+    await openOpponent(page, "Darius");
+    for (let i = 0; i < per; i++) await pane(page).getByTestId("champion-preview-opponent-next").click();
+    await expect(pane(page).getByTestId("sibling-position")).toContainText(`${per + 1} of 40`);
+    const stepped = (await pane(page).getByTestId("champion-preview-pairing").getAttribute("data-champion"))!;
+    await pane(page).getByTestId("champion-preview-opponents-back").click();
+    await expect(pane(page).locator(`[data-opponent-row="${stepped}"]`)).toBeFocused();
+    expect((await region(page, "opponents")).page, `${at}: ‹ › to the ${per + 1}th, then back`).toBe(2);
+    // A link to the last opponent (its grid never drawn before): back on the last page, the focus on its cell.
+    await pane(page).getByTestId("opponents-pager").locator(`[aria-label='Page ${(await region(page, "opponents")).pages}']`).click();
+    const last = (await cellIds(page)).at(-1)!;
+    const lastPage = (await region(page, "opponents")).page;
+    await open(page, `${top}?champion=Ambessa&crole=TOP&vs=${last}`, size, side);
+    await expect(detailTitle(page)).toHaveText(new RegExp(`vs\\s*`));
+    await detailTitle(page).focus();
+    await page.keyboard.press("Escape");
+    await expect(pane(page).locator(`[data-opponent-row="${last}"]`), `${at}: a linked opponent, back to its cell`).toBeFocused();
+    expect((await region(page, "opponents")).page).toBe(lastPage);
+    // A link to Darius (page 1): the cell focused once the page has measured stays focused (the same element: no remount).
+    await open(page, `${top}?champion=Ambessa&crole=TOP&vs=Darius`, size, side);
+    await page.evaluate(() => {
+      (window as unknown as { __focused: Element[] }).__focused = [];
+      document.addEventListener("focusin", (e) => (window as unknown as { __focused: Element[] }).__focused.push(e.target as Element), true);
+    });
+    await detailTitle(page).focus();
+    await pane(page).getByTestId("champion-preview-opponents-back").click();
+    await expect(pane(page).locator('[data-opponent-row="Darius"]')).toBeFocused();
+    await settled(page);
+    expect(await page.evaluate(() => (window as unknown as { __focused: Element[] }).__focused.filter((el) => (el as HTMLElement).dataset.opponentRow).every((el) => el.isConnected && el === document.activeElement)), `${at}: Darius's cell kept, never re-made`).toBe(true);
+  }
+});
+
+/** The page as the server's HTML paints it (its scripts held back), then once they have loaded and the pages settled. */
+async function firstPaintThenHydrated<T>(page: Page, path: string, [w, h]: [number, number], side: Side, read: () => Promise<T>): Promise<{ first: T; hydrated: T }> {
+  await page.setViewportSize({ width: w, height: h });
+  await page.context().addCookies([{ name: "uniiverse_sidebar", value: side, url: BASE }]);
+  let release = () => {};
+  const gate = new Promise<void>((r) => (release = r));
+  const pattern = /\/_next\/static\/chunks\/[^?]*\.js(\?.*)?$/;
+  await page.route(pattern, async (route) => {
+    await gate;
+    await route.continue().catch(() => {});
+  });
+  try {
+    await page.goto(`${BASE}${path}`, { waitUntil: "domcontentloaded" });
+    await page.evaluate(() => document.fonts.ready.then(() => undefined));
+    await page.waitForTimeout(300);
+    const first = await read();
+    release();
+    await page.waitForLoadState("load");
+    await settled(page);
+    return { first, hydrated: await read() };
+  } finally {
+    release();
+    await page.unroute(pattern);
+  }
+}
+
+/** Every drawn opponent cell, game row and champion row, by a stable name, with its box. */
+const clickables = (page: Page) =>
+  page.evaluate(() => {
+    const out: Record<string, { x: number; y: number; h: number }> = {};
+    const add = (key: string, el: Element) => {
+      const r = el.getBoundingClientRect();
+      if (r.width > 0 && r.height > 0) out[key] = { x: Math.round(r.left), y: Math.round(r.top), h: Math.round(r.height) };
+    };
+    for (const el of document.querySelectorAll<HTMLElement>("[data-testid=champion-preview-opponent] > button")) add(`opponent:${el.dataset.opponentRow}`, el);
+    document.querySelectorAll("[data-testid=champion-preview-game]").forEach((el, i) => add(`game:${i}`, el));
+    for (const el of document.querySelectorAll<HTMLElement>("[data-testid=top-champion]")) add(`champion:${el.dataset.champion}`, el);
+    return { boxes: out, height: document.documentElement.scrollHeight, window: innerHeight };
+  });
+
+test("a linked preview's first paint: no opponent, game or champion row moves when the page hydrates, and the page is never taller than the window (1280 × 800 with the sidebar open included)", async ({ page }) => {
+  test.setTimeout(240_000);
+  const cases: Array<[[number, number], Side, string]> = [
+    [[1366, 768], "expanded", `${top}?champion=Ambessa&crole=TOP`],
+    [[1366, 768], "expanded", `${top}?champion=Ambessa&crole=TOP&vs=Darius`],
+    [[1440, 900], "collapsed", `${top}?champion=Ambessa&crole=TOP`],
+    [[1920, 1080], "expanded", `${top}?champion=Ambessa&crole=TOP&vs=Darius`],
+    [[1920, 1080], "collapsed", `${top}?champion=Ambessa&crole=TOP`],
+    [[1280, 800], "expanded", `${top}?champion=Ambessa&crole=TOP`],
+    [[1340, 800], "expanded", `${top}?champion=Ambessa&crole=TOP`],
+    [[1366, 736], "expanded", `${sub}?champion=Sion&crole=TOP&vs=Nasus`],
+  ];
+  for (const [size, side, path] of cases) {
+    const at = `${cfg(size, side)} ${path.split("?")[1]}`;
+    const { first, hydrated } = await firstPaintThenHydrated(page, path, size, side, () => clickables(page));
+    expect(first.height, `${at}: the first paint is no taller than the window`).toBeLessThanOrEqual(first.window);
+    for (const [key, box] of Object.entries(first.boxes)) if (key.startsWith("champion:")) expect(box.h, `${at}: ${key}'s row at its table height`).toBeLessThanOrEqual(56);
+    const moved = Object.entries(first.boxes)
+      .filter(([key]) => hydrated.boxes[key])
+      .filter(([key, b]) => Math.abs(hydrated.boxes[key]!.x - b.x) > 1 || Math.abs(hydrated.boxes[key]!.y - b.y) > 1)
+      .map(([key, b]) => `${key} ${b.x},${b.y} → ${hydrated.boxes[key]!.x},${hydrated.boxes[key]!.y}`);
+    expect(moved, `${at}: nothing drawn at first moves at hydration`).toEqual([]);
+    expect(Object.keys(first.boxes).filter((k) => !hydrated.boxes[k]), `${at}: nothing drawn at first goes`).toEqual([]);
+  }
+});
+
+test("the pagers never change width as their pages turn: the arrows and the range stay where they are", async ({ page }) => {
+  await open(page, `${top}?champion=Ambessa&crole=TOP`, [1366, 768], "expanded");
+  for (const [region0, pager, next] of [
+    ["list", "all-champions-pager", "all-champions-next"],
+    ["opponents", "opponents-pager", "opponents-next"],
+  ] as const) {
+    const where = () =>
+      page.evaluate((pager) => {
+        const box = (sel: string) => document.querySelector(`[data-testid=${pager}] ${sel}`)!.getBoundingClientRect();
+        return { prev: Math.round(box("button[aria-label='Previous page']").left), next: Math.round(box("button[aria-label='Next page']").left), range: Math.round(box(`[data-testid=${pager}-range]`).left) };
+      }, pager);
+    const seen = [await where()];
+    const pages = (await region(page, region0)).pages;
+    expect(pages, `${region0}: several pages`).toBeGreaterThanOrEqual(4);
+    for (let p = 2; p <= pages; p++) {
+      await page.getByTestId(next).click();
+      await expect.poll(async () => (await region(page, region0)).page).toBe(p);
+      seen.push(await where());
+    }
+    for (const [i, w] of seen.entries()) expect(w, `${region0} page ${i + 1}`).toEqual(seen[0]);
+    // A second click where the first Previous was: the page before, never a page number under the pointer.
+    const prev = page.getByTestId(pager).getByRole("button", { name: "Previous page" });
+    const box = (await prev.boundingBox())!;
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    await expect.poll(async () => (await region(page, region0)).page).toBe(pages - 2);
+  }
+});
+
+test("shorter desktop windows keep the workspace with fewer rows (a laptop's browser window): the list, Ambessa, Darius and Aatrox fit; a champion of several positions with an opponent open keeps one game a column, nothing hidden", async ({ page }) => {
+  test.setTimeout(240_000);
+  for (const [size, side] of [
+    [[1366, 657], "expanded"],
+    [[1366, 657], "collapsed"],
+    [[1536, 730], "expanded"],
+    [[1600, 772], "collapsed"],
+    [[1648, 789], "expanded"],
+  ] as Array<[[number, number], Side]>) {
+    const at = cfg(size, side);
+    for (const path of [top, `${top}?champion=Ambessa&crole=TOP`, `${top}?champion=Ambessa&crole=TOP&vs=Darius`, `${top}?champion=Aatrox&crole=TOP`]) {
+      await open(page, path, size, side);
+      await fits(page, `${at} ${path.split("?")[1] ?? "list"}`);
+    }
+    // Several positions with an opponent open: the floor (one game a column); in the shortest windows the page grows by
+    // what that row lacks, and nothing is clipped, scrolls inside or is out of reach.
+    for (const path of [`${top}?champion=Aatrox&crole=TOP&vs=Darius`, `${sub}?champion=Sion&crole=TOP&vs=Nasus`]) {
+      await open(page, path, size, side);
+      const m = await measure(page);
+      const games = await region(page, "games");
+      expect(m.workspace, `${at} ${path}: the workspace`).toBe(true);
+      expect(games.per, `${at} ${path}: at least a game a column`).toBeGreaterThanOrEqual(2);
+      if (m.height > m.window) expect(games.per, `${at} ${path}: the page grows only at the floor`).toBe(2);
+      expect(m.height - m.window, `${at} ${path}: by less than a row and the bands`).toBeLessThan(64);
+      expect(m.scrollers).toEqual([]);
+      expect(m.clipped).toEqual([]);
+      expect(m.outside).toEqual([]);
+      expect(m.kda).toEqual([]);
+    }
+  }
+});
+
+test("the section's parts are spaced by a gap, not margins: an open match window, the sheet and the first paint leave the frame its full height", async ({ page }) => {
+  const layout = () =>
+    page.evaluate(() => {
+      const pad = parseFloat(getComputedStyle(document.getElementById("content")!).paddingBottom);
+      const el = document.querySelector<HTMLElement>("[data-testid=all-champions-layout]")!;
+      const cards = [...document.querySelectorAll<HTMLElement>("[data-testid=all-champions-table], aside[data-preview-pane]")].filter((c) => c.getBoundingClientRect().height > 0);
+      return { margin: parseFloat(getComputedStyle(el).marginBottom), bottoms: cards.map((c) => Math.round(c.getBoundingClientRect().bottom)), limit: Math.round(innerHeight - pad), height: document.documentElement.scrollHeight, window: innerHeight };
+    });
+  // A game's window over the pane.
+  await open(page, `${top}?champion=Ambessa&crole=TOP&vs=Mordekaiser`, [1920, 1080], "expanded");
+  const before = await layout();
+  await pane(page).getByTestId("champion-preview-game").first().click();
+  await expect(page.locator("dialog[open]")).toHaveCount(1);
+  const behind = await layout();
+  expect(behind.margin).toBe(0);
+  expect(behind.bottoms, "the cards keep the frame's foot behind the match window").toEqual(before.bottoms);
+  for (const b of behind.bottoms) expect(b).toBe(behind.limit);
+  // The sheet over the paged list (1280 × 800, the sidebar open).
+  await open(page, `${top}?champion=Ambessa&crole=TOP`, [1280, 800], "expanded");
+  await expect(page.locator("dialog[open][data-testid=champion-preview]")).toBeVisible();
+  const sheet = await layout();
+  expect(sheet.margin).toBe(0);
+  expect(sheet.bottoms, "the list reaches the frame's foot under the sheet").toEqual([sheet.limit]);
+  // The first paint with the flow's legend after the layout (a champion with multikills from some games only).
+  const { first } = await firstPaintThenHydrated(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, [1366, 736], "expanded", layout);
+  expect(first.margin).toBe(0);
+  expect(first.height).toBeLessThanOrEqual(first.window);
+});
+
+test("closing the champion after paging the list away from it: the focus on the page shown (Close, Escape, Back), never the page's body", async ({ page }) => {
+  for (const how of ["Close", "Escape", "Back"] as const) {
+    await open(page, top, [1366, 768], "expanded");
+    await rowsOnPage(page).first().getByTestId("open-champion").click();
+    await expect(pane(page)).toBeVisible();
+    await page.getByTestId("all-champions-next").click();
+    await expect.poll(async () => (await region(page, "list")).page).toBe(2);
+    await expect(listCard(page).locator('[data-champion="Ambessa"]')).toHaveCount(0);
+    if (how === "Close") await pane(page).getByTestId("champion-preview-close").click();
+    else if (how === "Escape") {
+      await page.locator("#champion-preview-title").focus();
+      await page.keyboard.press("Escape");
+    } else {
+      await pane(page).getByTestId("champion-preview-close").focus();
+      await page.goBack();
+    }
+    await expect(pane(page)).toHaveCount(0);
+    await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest("[data-testid=all-champions-table] [data-testid=top-champion]")), `${how}: a row of the page shown`).toBe(true);
+    expect((await region(page, "list")).page, `${how}: the list on its page`).toBe(2);
+  }
+});
+
+test("each opponent and game says its place on the whole list; the small-sample divider is read as the next cell's description, not as an item", async ({ page }) => {
+  await open(page, `${top}?champion=Ambessa&crole=TOP`, [1366, 768], "expanded");
+  const per = (await region(page, "opponents")).per;
+  await pane(page).getByTestId("opponents-next").click();
+  await expect.poll(async () => (await region(page, "opponents")).page).toBe(2);
+  await expect(cells(page).first()).toHaveAttribute("aria-posinset", String(per + 1));
+  await expect(cells(page).first()).toHaveAttribute("aria-setsize", "40");
+  // The win-rate order: on a page with the divider, it is hidden as an item and describes the cell after it.
+  await pane(page).getByTestId("opponent-sort-high").click();
+  for (let n = 0; n < 6 && !(await pane(page).getByTestId("champion-preview-small-divider").count()); n++) await pane(page).getByTestId("opponents-next").click();
+  const divider = pane(page).getByTestId("champion-preview-small-divider").first();
+  await expect(divider).toHaveAttribute("aria-hidden", "true");
+  const id = (await divider.getAttribute("id"))!;
+  expect(await divider.evaluate((el) => (el.nextElementSibling?.querySelector("button") as HTMLElement | null)?.getAttribute("aria-describedby"))).toBe(id);
+  const places = await pane(page)
+    .locator("[data-testid=champion-preview-opponent-list] > li:not([aria-hidden])")
+    .evaluateAll((els) => els.map((e) => [e.getAttribute("aria-posinset"), e.getAttribute("aria-setsize")]));
+  for (const [pos, size] of places) {
+    expect(Number(pos)).toBeGreaterThan(0);
+    expect(size).toBe("40");
+  }
+  // An opponent's games.
+  await pane(page).getByTestId("opponent-sort-games").click();
+  await openOpponent(page, "Darius");
+  const games = await pane(page)
+    .locator("[data-testid=champion-preview-games] > li")
+    .evaluateAll((els) => els.map((e) => `${e.getAttribute("aria-posinset")}/${e.getAttribute("aria-setsize")}`));
+  expect(games[0]).toBe("1/9");
+  expect(games.every((g) => g.endsWith("/9"))).toBe(true);
+});
+
+test("a zoom across the workspace's gate keeps the focus: an opponent's cell becomes its row in the flow and its cell again; a control that has no counterpart leaves it on an opponent", async ({ page }) => {
+  await open(page, `${top}?champion=Ambessa&crole=TOP`, [1366, 768], "expanded");
+  await pane(page).locator('[data-opponent-row="Garen"]').focus();
+  await page.setViewportSize({ width: 1242, height: 698 });
+  await expect.poll(() => page.evaluate(() => !!document.querySelector("[data-workspace]"))).toBe(false);
+  await expect.poll(() => active(page), "110% zoom: Garen's row in the flow").toBe("cell:Garen");
+  await page.setViewportSize({ width: 1366, height: 768 });
+  await settled(page);
+  await expect.poll(() => active(page), "back at 100%: Garen's cell").toBe("cell:Garen");
+  await pane(page).getByTestId("opponents-next").focus();
+  await page.setViewportSize({ width: 1242, height: 698 });
+  await expect.poll(() => page.evaluate(() => !!document.querySelector("[data-workspace]"))).toBe(false);
+  await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest("[data-testid=champion-preview-opponents]")), "the pager gone: the focus stays in the opponents").toBe(true);
+});
+
+test("the pane's ‹ › step from champion to champion and keep the focus on the arrow pressed", async ({ page }) => {
+  await open(page, top, [1366, 768], "expanded");
+  const order = await rowsOnPage(page).evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.champion!));
+  await rowsOnPage(page).first().getByTestId("open-champion").click();
+  await expect(page.getByTestId("champion-preview-content")).toHaveAttribute("data-champion", order[0]!);
+  await pane(page).getByTestId("champion-preview-next").focus();
+  for (let i = 1; i <= 3; i++) {
+    await page.keyboard.press("Enter");
+    await expect(page.getByTestId("champion-preview-content")).toHaveAttribute("data-champion", order[i]!);
+    await expect(pane(page).getByTestId("champion-preview-next"), `step ${i}: the focus on ›`).toBeFocused();
+  }
+  await page.keyboard.press("Shift+Tab");
+  await expect(pane(page).getByTestId("champion-preview-prev")).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(page.getByTestId("champion-preview-content")).toHaveAttribute("data-champion", order[2]!);
+  await expect(pane(page).getByTestId("champion-preview-prev")).toBeFocused();
 });

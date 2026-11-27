@@ -245,6 +245,7 @@ divider's slots).
 | A filter change | closed the preview | keeps the champion (and its position) open (decision O2) | "select any champion … change filters" |
 | 1280–1359px with the sidebar open | a pane with one column of opponents | the sheet over the paged list (decision O1) | one game a page for five positions otherwise |
 | K/D/A in an opponent's games | cut at 1366 with the sidebar open ("10/…") | whole in both layouts (4.25rem at least) | no clipped data |
+| A laptop's browser window (1366 × 657 in a 1366 × 768 screen; 1536 × 730 at 125%) | the long page (the gate asked 46rem, 736px; review of 27 Nov 2026) | the workspace with fewer rows (the gate asks 41rem, 656px, per band of 64px to 1920) | "at shorter desktop sizes, reduce visible row counts" |
 
 Kept: the flow everywhere else (phones, tablets, short windows, large text) byte for byte but the
 K/D/A fix; the address and history contract; every figure.

@@ -238,8 +238,11 @@ one-screen workspace, docs/RESPONSIVE.md): at 1366 × 768, 1440 × 900, 1648 × 
 the sidebar open and folded, with text 1% wider, the page never scrolls; its champions, lane opponents
 and an opponent's games are in pages of the rows that fit (`useRowBudget`, `Pager`), and its two cards
 fill the frame to the window's foot, their footers on one baseline (a workspace's panes are its frame,
-the one exception to "no card stretched"). Phones, tablets, short windows and large text keep its
-scrolling page.
+the one exception to "no card stretched"). A shorter desktop window, down to a laptop's browser
+window (41rem tall: 656px at 16px), keeps the workspace with fewer rows; below 46rem a champion of
+several positions with an opponent open keeps one game a column and the page can grow by what that row
+lacks, never hiding anything. Phones, tablets, windows under 41rem and large text keep its scrolling
+page.
 
 **A layout held to a measure keeps a margin** (Release 19, the owner's request of 26 Nov 2026). A test
 that holds a layout to the window ("one screen", "fits", a row's height) asserts at least 12px of room,

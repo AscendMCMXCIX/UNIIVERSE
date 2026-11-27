@@ -42,6 +42,15 @@ export function widestItems(pages: number): PagerItem[] {
   return pagerItems(Math.ceil(pages / 2), pages);
 }
 
+/**
+ * The items a line draws, folded or not: folded, the pages either side of the current one give way
+ * to the arrows, and where that leaves a jump between two pages that stay a "…" takes their place.
+ */
+export function lineItems(items: readonly PagerItem[], folded: boolean): PagerItem[] {
+  if (!folded) return [...items];
+  return items.flatMap((item): PagerItem[] => ("gap" in item || !item.folds ? [item] : item.jump ? [{ gap: true }] : []));
+}
+
 /** The buttons' size: 2.75rem on a touch screen (44px), 2rem with a mouse (32px, from md). */
 export const TOUCH_BUTTON_REM = 2.75;
 export const MOUSE_BUTTON_REM = 2;

@@ -57,6 +57,6 @@ export function workspaceVerdicts(input: {
   steps?: {
     opened?: { heightBefore: number; heightAfter: number; beside: boolean; rowsKept: boolean } | null;
     detail?: { heightBefore: number; heightAfter: number; steps: boolean } | null;
-    escaped?: { opponentsPageBefore: number; opponentsPage: number; closed: boolean; listPageBefore: number; listPage: number } | null;
+    escaped?: { opponentsPageBefore: number; opponentsPage: number; /** An opponent opened from the second page (2+ pages): the page before and after Escape; null with one page. */ laterPageBefore?: number | null; laterPage?: number | null; closed: boolean; listPageBefore: number; listPage: number } | null;
   } | null;
 }): Verdict[];

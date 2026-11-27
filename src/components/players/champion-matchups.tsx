@@ -18,7 +18,7 @@ import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { Pager } from "@/components/ui/pager";
 import { SiblingSteps } from "@/components/ui/preview-window";
 import { useRowBudget } from "@/components/ui/fit-rows";
-import { columnRows, pageCount, pageRange, slotPageOf, slotPages, usePagedList, type Slot } from "@/components/ui/row-budget";
+import { columnRows, pageCount, pageRange, slotPageOf, slotPages, useFollowed, usePagedList, type Slot } from "@/components/ui/row-budget";
 import { rootPx } from "@/components/ui/posture";
 import { formatCount, formatDayMonth, percent } from "@/lib/format";
 import { cn } from "@/lib/cn";
@@ -61,6 +61,15 @@ const GAMES = "grid grid-cols-[1.5rem_minmax(4.25rem,1fr)_2.25rem_5.25rem_2.75re
  * two-column region, so "Nunu & Willump" (107px) stays whole.
  */
 const OPP_CELL = "ws:grid-cols-[minmax(0,1fr)_4.75rem_3.25rem] ws:px-1.5";
+/*
+  The first paint of a linked preview (the server's HTML and the hydration render, before the page can measure): the
+  first opponents, and an opponent's first games, in the first column only, as many as fit at the smallest window of
+  the tier in every band of widths for any champion (five positions, a two-season header, a wrapped kills line, a long
+  opponent's name): 1 under board-at-mid, 4 opponents and 3 games from it. The measured page then only adds cells below
+  them and the second column, so no cell moves at hydration (docs/RESPONSIVE.md, "All Champions' workspace").
+*/
+const FIRST_PAINT_OPPONENTS = "ws:board-below-mid:[grid-template-rows:repeat(1,auto)] ws:board-below-mid:[&>li:nth-child(n+2)]:hidden ws:board-at-mid:[grid-template-rows:repeat(4,auto)] ws:board-at-mid:[&>li:nth-child(n+5)]:hidden";
+const FIRST_PAINT_GAMES = "ws:board-below-mid:[grid-template-rows:repeat(1,auto)] ws:board-below-mid:[&>li:nth-child(n+2)]:hidden ws:board-at-mid:[grid-template-rows:repeat(3,auto)] ws:board-at-mid:[&>li:nth-child(n+4)]:hidden";
 /** Two columns of opponents from this width of the region; below it one (a safety net: the pane opens only where two fit). */
 const OPP_TWO_COLUMNS_REM = 38.625;
 /** Two columns of an opponent's games from this width of the region. */
@@ -114,14 +123,72 @@ export function Matchups({ playerId, isOwn, me, role, vs, champ, data, onVs, onM
   const detailId = `opponent-${playerId.slice(0, 8)}-detail`;
   // What the region holds, for the Production check (scripts/champion-preview-facts.mjs).
   const state = !role ? "no-position" : !preview ? (answer?.status === "not-found" ? "not-found" : "loading") : !all.length ? "none" : "answered";
+  const carried = useFocusAcrossLayouts(layout);
   if (layout === "workspace")
     return (
       <WorkspaceMatchups
-        {...{ playerId, isOwn, me, role, vs, champ, data, onVs, onMatch, titleId, searchable, sort, setSort, query, setQuery, all, arranged, open, detailId, state, answer, paged, perColumnCap }}
+        {...{ playerId, isOwn, me, role, vs, champ, data, onVs, onMatch, titleId, searchable, sort, setSort, query, setQuery, all, arranged, open, detailId, state, answer, paged, perColumnCap, carried }}
         preview={preview}
       />
     );
   return <FlowMatchups {...{ playerId, isOwn, me, role, vs, champ, data, onVs, onMatch, titleId, searchable, sort, setSort, query, setQuery, all, arranged, open, detailId, state, answer }} preview={preview} />;
+}
+
+/** What was focused in the pane's opponents: the same control in the other layout is found by it. */
+interface FocusMark {
+  el: Element;
+  row: string | null;
+  id: string | null;
+  testId: string | null;
+}
+const OPPONENTS_IN_PANE = "[data-preview-pane] [data-testid=champion-preview-opponents]";
+
+/**
+ * The workspace and the flow are two layouts of the opponents (WorkspaceMatchups, FlowMatchups): a
+ * zoom or a resize across the workspace's gate replaces one by the other, and with it the control the
+ * reader had focused. Its counterpart in the new layout takes the focus (the same opponent's row, the
+ * same heading or control), else the first opponent drawn, else the pane's heading: never the page's
+ * body (a keyboard's or a screen reader's place kept across the switch).
+ */
+function useFocusAcrossLayouts(layout: "workspace" | "flow"): React.RefObject<FocusMark | null> {
+  const last = React.useRef<FocusMark | null>(null);
+  React.useEffect(() => {
+    const onFocus = (e: FocusEvent) => {
+      const el = e.target instanceof Element ? e.target : null;
+      if (!el?.closest(OPPONENTS_IN_PANE)) return;
+      last.current = { el, row: el.closest<HTMLElement>("[data-opponent-row]")?.dataset.opponentRow ?? null, id: el.id || null, testId: el.closest<HTMLElement>("[data-testid]")?.dataset.testid ?? null };
+    };
+    document.addEventListener("focusin", onFocus);
+    return () => document.removeEventListener("focusin", onFocus);
+  }, []);
+  const was = React.useRef(layout);
+  React.useLayoutEffect(() => {
+    if (was.current === layout) return;
+    was.current = layout;
+    const mark = last.current;
+    const at = document.activeElement;
+    // Only where the switch took the focus with it (the element it was on is gone, the focus on the body).
+    if (!mark || mark.el.isConnected || (at && at !== document.body)) return;
+    const region = document.querySelector<HTMLElement>(OPPONENTS_IN_PANE);
+    if (!region) return;
+    const drawn = (el: HTMLElement | null | undefined): el is HTMLElement => !!el && el.getClientRects().length > 0;
+    const candidates = [
+      mark.row ? region.querySelector<HTMLElement>(`[data-opponent-row="${CSS.escape(mark.row)}"]`) : null,
+      mark.id ? document.getElementById(mark.id) : null,
+      mark.testId ? region.querySelector<HTMLElement>(`[data-testid="${CSS.escape(mark.testId)}"]`) : null,
+      region.querySelector<HTMLElement>("[data-testid=champion-preview-pairing] h4"),
+      region.querySelector<HTMLElement>("[data-opponent-row]"),
+      document.getElementById("champion-preview-title"),
+    ];
+    for (const el of candidates) {
+      const target = el && !el.matches("button, a[href], input, [tabindex]") ? el.querySelector<HTMLElement>("button, a[href], input, [tabindex]") : el;
+      if (!drawn(target)) continue;
+      target.focus({ preventScroll: true });
+      if (document.activeElement === target) return;
+    }
+  }, [layout]);
+  // The workspace's grid draws its first column only until it has measured its pages: it takes the opponent's cell once drawn (WorkspaceMatchups).
+  return last;
 }
 
 interface SharedProps {
@@ -308,9 +375,11 @@ function NoMatch({ query }: { query: string }) {
 }
 
 /** The quiet line before the small samples in the win-rate orders; in the workspace a cell-high slot of its own. */
-function SmallDivider({ workspace = false }: { workspace?: boolean }) {
+function SmallDivider({ workspace = false, id }: { workspace?: boolean; id?: string }) {
   return (
-    <li className={cn("border-t border-border/60 px-2 pb-1 pt-2 text-xs text-fg-subtle", workspace && "ws:flex ws:min-h-9 ws:items-center ws:px-1.5 ws:py-0")} data-testid="champion-preview-small-divider">
+    // The workspace's: hidden from screen readers as an item (the cells say their place on the whole list, and a divider
+    // counted as one would make it wrong), its words the description of the cell after it.
+    <li id={id} aria-hidden={workspace || undefined} className={cn("border-t border-border/60 px-2 pb-1 pt-2 text-xs text-fg-subtle", workspace && "ws:flex ws:min-h-9 ws:items-center ws:px-1.5 ws:py-0")} data-testid="champion-preview-small-divider">
       Fewer than {OPPONENT_MIN_GAMES} games: not ranked by win rate
     </li>
   );
@@ -348,7 +417,7 @@ const rangeWords = (noun: string, from: number, to: number, total: number) => `$
  * columns and its pages, or an opponent's detail in its place; the region's footer at the card's foot
  * (the coverage and the pager, or the link to Matchup Intel and the games' pager).
  */
-function WorkspaceMatchups({ isOwn, me, role, vs, champ, data, onVs, onMatch, titleId, searchable, sort, setSort, query, setQuery, all, arranged, open, detailId, state, answer, preview, paged = false, perColumnCap = null }: SharedProps & { paged?: boolean; perColumnCap?: number | null }) {
+function WorkspaceMatchups({ isOwn, me, role, vs, champ, data, onVs, onMatch, titleId, searchable, sort, setSort, query, setQuery, all, arranged, open, detailId, state, answer, preview, paged = false, perColumnCap = null, carried }: SharedProps & { paged?: boolean; perColumnCap?: number | null; carried?: React.RefObject<FocusMark | null> }) {
   const regionRef = React.useRef<HTMLElement>(null);
   const toolbarRef = React.useRef<HTMLDivElement>(null);
   const headsRef = React.useRef<HTMLDivElement>(null);
@@ -360,6 +429,7 @@ function WorkspaceMatchups({ isOwn, me, role, vs, champ, data, onVs, onMatch, ti
   });
   const hintId = `${titleId}-opponents-hint`;
   const rangeId = `${titleId}-opponents-range`;
+  const dividerId = `${titleId}-opponents-divider`;
   const twoColumns = useWideAs(regionRef, OPP_TWO_COLUMNS_REM, paged);
   const columns: 1 | 2 = twoColumns ? 2 : 1;
   const grid = !!preview && !!role && all.length > 0 && !open;
@@ -374,16 +444,19 @@ function WorkspaceMatchups({ isOwn, me, role, vs, champ, data, onVs, onMatch, ti
     key: [all.length, me.id, role, query, sort, columns, arranged.rows.length],
     cap: perColumnCap,
   });
-  // The rows a column shows: the last measured while the grid gives way to an opponent's games, so
-  // its page follows the opponent stepped to and comes back as it was.
+  // The rows a column shows: the last measured while the grid gives way to an opponent's games (useRowBudget keeps it),
+  // so its page follows the opponent stepped to and comes back as it was.
   const perColumn = paged ? budget : null;
   const perPage = perColumn === null ? null : perColumn * columns;
   const divider = sort === "games" ? null : arranged.divider;
   const pages = React.useMemo(() => (perPage === null ? null : slotPages(arranged.rows, perPage, divider)), [arranged.rows, perPage, divider]);
+  // The opponent the pages follow: the open one, then the one just left until the grid is drawn in its pages again, so All
+  // opponents and Escape come back on the page holding it (also after a linked opponent, whose grid was never measured).
+  const followed = useFollowed(vs, pages !== null);
   const firstRow = (slots: ReadonlyArray<Slot<OpponentTally>> | undefined) => slots?.find((x): x is Extract<Slot<OpponentTally>, { kind: "row" }> => x.kind === "row")?.index ?? 0;
   const lastRow = (slots: ReadonlyArray<Slot<OpponentTally>> | undefined) => [...(slots ?? [])].reverse().find((x): x is Extract<Slot<OpponentTally>, { kind: "row" }> => x.kind === "row")?.index ?? 0;
   const { page, go } = usePagedList(
-    { perPage, total: arranged.rows.length, selected: vs, selectedIndex: vs ? arranged.rows.findIndex((o) => o.championId === vs) : -1, search: query, order: sort, data: data.scopeKey, reset: role },
+    { perPage, total: arranged.rows.length, selected: followed, selectedIndex: followed ? arranged.rows.findIndex((o) => o.championId === followed) : -1, search: query, order: sort, data: data.scopeKey, reset: role },
     pages ? { pageOfIndex: (i) => slotPageOf(pages, i), firstOf: (p) => firstRow(pages[p - 1]), pages: pages.length } : undefined,
   );
   const slots = pages ? (pages[page - 1] ?? []) : null;
@@ -409,14 +482,22 @@ function WorkspaceMatchups({ isOwn, me, role, vs, champ, data, onVs, onMatch, ti
       if (!at || at === document.body || !!at.closest("[data-preview-pane]")) focusCell.current = left;
     }
   }, [vs, detailId]);
+  // Mounted by a switch from the flow (a zoom, a resize) that took the focus from an opponent's row: its cell takes it
+  // back once the grid has drawn it (useFocusAcrossLayouts focuses the nearest drawn control meanwhile).
+  React.useLayoutEffect(() => {
+    const mark = carried?.current;
+    const at = document.activeElement;
+    if (mark?.row && !mark.el.isConnected && (!at || at === document.body)) focusCell.current = mark.row;
+  }, [carried]);
+  // A cell to focus once it is drawn (a key that turned the page, the grid back from an opponent). Done once it has the
+  // focus, or once the grid is drawn in its pages without it (never later: a pending cell would take the focus from
+  // whatever the reader does next, a pager button or the search being typed in).
   React.useLayoutEffect(() => {
     const id = focusCell.current;
     if (!id) return;
     const cell = listRef.current?.querySelector<HTMLButtonElement>(`[data-opponent-row="${CSS.escape(id)}"]`);
-    if (cell) {
-      cell.focus({ preventScroll: true });
-      focusCell.current = null;
-    }
+    cell?.focus({ preventScroll: true });
+    if ((cell && document.activeElement === cell) || pages !== null || !grid) focusCell.current = null;
   });
   const pick = (id: string) => {
     focusTitle.current = vs !== id;
@@ -454,7 +535,8 @@ function WorkspaceMatchups({ isOwn, me, role, vs, champ, data, onVs, onMatch, ti
 
   const onPage = slots ? slots.length : 0;
   const rowsHere = slots ? columnRows(onPage, perColumn ?? 1, columns) : 2;
-  const secondColumn = slots ? columns === 2 && onPage > rowsHere : arranged.rows.length + (divider !== null ? 1 : 0) > 2;
+  // The second column (its head, the hairline) only once the pages are drawn: the first paint fills the first column only.
+  const secondColumn = !!slots && columns === 2 && onPage > rowsHere;
   const range = slots ? { from: firstRow(slots) + 1, to: lastRow(slots) + 1 } : null;
   const onePage = !pages || pages.length <= 1;
 
@@ -525,7 +607,7 @@ function WorkspaceMatchups({ isOwn, me, role, vs, champ, data, onVs, onMatch, ti
     body = (
       <div className="ws:mt-2">
         {/* One head per column, as the cells (read out by each cell's own words): the second only where that column has cells. */}
-        <div ref={headsRef} className={cn("grid gap-x-4", slots ? (columns === 2 ? "grid-cols-2" : "grid-cols-1") : "grid-cols-1 ws:grid-cols-2 [&>:nth-child(2)]:hidden ws:[&>:nth-child(2)]:grid")} aria-hidden data-testid="champion-preview-opponent-heads">
+        <div ref={headsRef} className={cn("grid gap-x-4", slots ? (columns === 2 ? "grid-cols-2" : "grid-cols-1") : "grid-cols-1 ws:grid-cols-2")} aria-hidden data-testid="champion-preview-opponent-heads">
           {[0, 1].slice(0, secondColumn ? 2 : 1).map((c) => (
             <div key={c} className={cn(ROWS, OPP_CELL, "border-b border-border/60 px-2 pb-1.5")} data-testid="champion-preview-opponent-head">
               <span className="label-text">Opponent</span>
@@ -542,9 +624,9 @@ function WorkspaceMatchups({ isOwn, me, role, vs, champ, data, onVs, onMatch, ti
             aria-describedby={`${hintId} ${rangeId}`}
             onKeyDown={onGridKey}
             className={cn(
-              slots ? cn("relative grid grid-flow-col gap-x-4", columns === 2 ? "grid-cols-2" : "grid-cols-1") : "flex flex-col ws:relative ws:grid ws:grid-flow-col ws:grid-cols-2 ws:gap-x-4 ws:[grid-template-rows:repeat(2,auto)] ws:[&>li:nth-child(n+5)]:hidden",
-              // A hairline down the middle of the gap between the columns: a rule, not a box.
-              secondColumn && columns === 2 && "ws:before:absolute ws:before:inset-y-0 ws:before:left-1/2 ws:before:w-px ws:before:bg-border/60",
+              slots ? cn("relative grid grid-flow-col gap-x-4", columns === 2 ? "grid-cols-2" : "grid-cols-1") : cn("flex flex-col ws:relative ws:grid ws:grid-flow-col ws:grid-cols-2 ws:gap-x-4", FIRST_PAINT_OPPONENTS),
+              // A hairline down the middle of the gap between the columns: a rule, not a box (drawn with the second column).
+              slots && secondColumn && columns === 2 && "ws:before:absolute ws:before:inset-y-0 ws:before:left-1/2 ws:before:w-px ws:before:bg-border/60",
             )}
             style={slots ? { gridTemplateRows: `repeat(${rowsHere}, auto)` } : undefined}
             data-testid="champion-preview-opponent-list"
@@ -554,14 +636,17 @@ function WorkspaceMatchups({ isOwn, me, role, vs, champ, data, onVs, onMatch, ti
             data-pages={pages ? pages.length : undefined}
             data-total={total}
           >
-            {slots
-              ? slots.map((x, n) => (x.kind === "divider" ? <SmallDivider key={`divider-${n}`} workspace /> : <OpponentRow key={x.item.championId} o={x.item} them={champ(x.item.championId)} selected={vs === x.item.championId} controls={detailId} onPick={() => pick(x.item.championId)} workspace strongGames={sort === "games"} />))
-              : arranged.rows.map((o, i) => (
-                  <React.Fragment key={o.championId}>
-                    {arranged.divider === i ? <SmallDivider workspace /> : null}
-                    <OpponentRow o={o} them={champ(o.championId)} selected={vs === o.championId} controls={detailId} onPick={() => pick(o.championId)} workspace strongGames={sort === "games"} />
-                  </React.Fragment>
-                ))}
+            {/* One structure in both (each cell keyed by its opponent, the divider by its own key): the cells the first paint
+                drew are the same elements once the pages are measured, so a focused one keeps its focus. Each cell says
+                its place on the whole list (aria-posinset of aria-setsize: only one page is in the page); the divider is
+                drawn for the eye and read out as the description of the cell after it. */}
+            {(slots ?? arranged.rows.flatMap((o, i): Slot<OpponentTally>[] => (arranged.divider === i ? [{ kind: "divider" }, { kind: "row", item: o, index: i }] : [{ kind: "row", item: o, index: i }]))).map((x, n, all) =>
+              x.kind === "divider" ? (
+                <SmallDivider key={`divider-${n}`} workspace id={`${dividerId}-${n}`} />
+              ) : (
+                <OpponentRow key={x.item.championId} o={x.item} them={champ(x.item.championId)} selected={vs === x.item.championId} controls={detailId} onPick={() => pick(x.item.championId)} workspace strongGames={sort === "games"} place={{ at: x.index + 1, of: total }} describedBy={all[n - 1]?.kind === "divider" ? `${dividerId}-${n - 1}` : undefined} />
+              ),
+            )}
           </ul>
         ) : (
           <NoMatch query={query} />
@@ -635,15 +720,16 @@ function WorkspaceMatchups({ isOwn, me, role, vs, champ, data, onVs, onMatch, ti
   );
 }
 
-function OpponentRow({ o, them, selected, controls, onPick, workspace = false, strongGames = false }: { o: OpponentTally; them: PortraitChampion; selected: boolean; controls: string; onPick: () => void; workspace?: boolean; strongGames?: boolean }) {
+function OpponentRow({ o, them, selected, controls, onPick, workspace = false, strongGames = false, place, describedBy }: { o: OpponentTally; them: PortraitChampion; selected: boolean; controls: string; onPick: () => void; workspace?: boolean; strongGames?: boolean; /** Its place on the whole list (the workspace's pages draw one page). */ place?: { at: number; of: number }; /** The small-sample divider before it (the workspace's). */ describedBy?: string }) {
   const rate = o.wins / o.games;
   const small = smallSample(o);
   return (
-    <li data-testid="champion-preview-opponent" data-champion={o.championId} data-games={o.games} data-small={small || undefined}>
+    <li data-testid="champion-preview-opponent" data-champion={o.championId} data-games={o.games} data-small={small || undefined} aria-posinset={place?.at} aria-setsize={place?.of}>
       <button
         type="button"
         aria-pressed={selected}
         aria-controls={selected ? controls : undefined}
+        aria-describedby={describedBy}
         onClick={onPick}
         className={cn(
           ROWS,
@@ -695,9 +781,9 @@ function usePairing(me: PortraitChampion, them: PortraitChampion, role: Role, is
 }
 
 /** One game's row: the result, K/D/A, CS, the gold at 10:00 and the date; it opens the game's window. */
-function GameRow({ g, onMatch }: { g: PairingGamesData["games"][number]; onMatch: (matchId: string) => void }) {
+function GameRow({ g, onMatch, place }: { g: PairingGamesData["games"][number]; onMatch: (matchId: string) => void; /** Its place among the opponent's games (the workspace's pages draw one page). */ place?: { at: number; of: number } }) {
   return (
-    <li>
+    <li aria-posinset={place?.at} aria-setsize={place?.of}>
       <button type="button" onClick={() => onMatch(g.matchId)} className={cn(GAMES, "min-h-8 w-full rounded-md px-1 text-left text-sm tabular-nums transition-colors duration-150 hover:bg-surface-2 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent pointer-coarse:min-h-11")} data-testid="champion-preview-game">
         <span className={cn("font-semibold", g.win ? "text-good" : "text-bad")}>
           <span aria-hidden>{g.win ? "W" : "L"}</span>
@@ -741,7 +827,7 @@ function PairingDetail({ id, me, them, o, role, isOwn, data, onMatch, onBack, ba
       <header className="flex items-center gap-3">
         <ChampionPortrait champion={them} size="sm" className="h-10 w-10 shrink-0 rounded-lg" />
         <div className="min-w-0 flex-1">
-          <h4 id={`${id}-title`} className="text-base font-semibold text-fg">
+          <h4 id={`${id}-title`} tabIndex={-1} className="text-base font-semibold text-fg outline-none focus-visible:outline-2 focus-visible:outline-accent">
             <span className="font-normal text-fg-muted">vs </span>
             {them.name}
           </h4>
@@ -852,7 +938,7 @@ function WorkspacePairing({ id, me, them, o, role, isOwn, data, onMatch, onBack,
         }
       : null;
   const rows = perPage === null ? 2 : columnRows(shown.length, perColumn ?? 1, columns);
-  const secondColumn = perPage === null ? games.length > 2 : columns === 2 && shown.length > rows;
+  const secondColumn = perPage !== null && columns === 2 && shown.length > rows;
   const rate = o.wins / o.games;
   const small = smallSample(o);
   return (
@@ -904,7 +990,7 @@ function WorkspacePairing({ id, me, them, o, role, isOwn, data, onMatch, onBack,
           )
         ) : games.length ? (
           <div>
-            <div ref={headsRef} className={cn("grid gap-x-4", perPage === null ? "grid-cols-1 ws:grid-cols-2 [&>:nth-child(2)]:hidden ws:[&>:nth-child(2)]:grid" : columns === 2 ? "grid-cols-2" : "grid-cols-1")} aria-hidden>
+            <div ref={headsRef} className={cn("grid gap-x-4", perPage === null ? "grid-cols-1 ws:grid-cols-2" : columns === 2 ? "grid-cols-2" : "grid-cols-1")} aria-hidden>
               {[0, 1].slice(0, secondColumn ? 2 : 1).map((c) => (
                 <GamesHead key={c} />
               ))}
@@ -914,8 +1000,8 @@ function WorkspacePairing({ id, me, them, o, role, isOwn, data, onMatch, onBack,
               aria-label={`${them.name}: ${plural(games.length, "game")}`}
               aria-describedby={`${id}-games-range`}
               className={cn(
-                perPage === null ? "flex flex-col ws:relative ws:grid ws:grid-flow-col ws:grid-cols-2 ws:gap-x-4 ws:[grid-template-rows:repeat(2,auto)] ws:[&>li:nth-child(n+5)]:hidden" : cn("relative grid grid-flow-col gap-x-4", columns === 2 ? "grid-cols-2" : "grid-cols-1"),
-                secondColumn && columns === 2 && "ws:before:absolute ws:before:inset-y-0 ws:before:left-1/2 ws:before:w-px ws:before:bg-border/60",
+                perPage === null ? cn("flex flex-col ws:relative ws:grid ws:grid-flow-col ws:grid-cols-2 ws:gap-x-4", FIRST_PAINT_GAMES) : cn("relative grid grid-flow-col gap-x-4", columns === 2 ? "grid-cols-2" : "grid-cols-1"),
+                perPage !== null && secondColumn && columns === 2 && "ws:before:absolute ws:before:inset-y-0 ws:before:left-1/2 ws:before:w-px ws:before:bg-border/60",
               )}
               style={perPage === null ? undefined : { gridTemplateRows: `repeat(${rows}, auto)` }}
               data-testid="champion-preview-games"
@@ -925,8 +1011,8 @@ function WorkspacePairing({ id, me, them, o, role, isOwn, data, onMatch, onBack,
               data-pages={perPage === null ? undefined : pages}
               data-total={games.length}
             >
-              {shown.map((g) => (
-                <GameRow key={g.matchId} g={g} onMatch={onMatch} />
+              {shown.map((g, n) => (
+                <GameRow key={g.matchId} g={g} onMatch={onMatch} place={{ at: (perPage === null ? 0 : (page - 1) * perPage) + n + 1, of: games.length }} />
               ))}
             </ul>
           </div>

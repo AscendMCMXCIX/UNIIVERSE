@@ -45,7 +45,7 @@ const GAMES = { ...walkSummary(pages(9, 18, () => 1)), record: 9 };
 const STEPS = {
   opened: { heightBefore: 900, heightAfter: 900, beside: true, rowsKept: true },
   detail: { heightBefore: 900, heightAfter: 900, steps: true },
-  escaped: { opponentsPageBefore: 1, opponentsPage: 1, closed: true, listPageBefore: 1, listPage: 1 },
+  escaped: { opponentsPageBefore: 1, opponentsPage: 1, laterPageBefore: 2, laterPage: 2, closed: true, listPageBefore: 1, listPage: 1 },
 };
 const run = (over: Partial<Parameters<typeof workspaceVerdicts>[0]> = {}) => workspaceVerdicts({ size: "1440 × 900", read: READ, list: LIST, opponents: OPPONENTS, games: GAMES, steps: STEPS, ...over });
 const failed = (over: Partial<Parameters<typeof workspaceVerdicts>[0]> = {}) => run(over).filter((v) => v.status === "FAIL").map((v) => v.name.replace(/^1440 × 900: /, ""));
@@ -111,6 +111,14 @@ describe("All Champions' workspace facts", () => {
     expect(failed({ steps: { ...STEPS, escaped: { ...STEPS.escaped, opponentsPage: 2 } } })).toEqual([one]);
     expect(failed({ steps: { ...STEPS, escaped: { ...STEPS.escaped, closed: false } } })).toEqual([one]);
     expect(failed({ steps: { ...STEPS, escaped: { ...STEPS.escaped, listPage: 2 } } })).toEqual([one]);
+  });
+
+  it("fail an opponent opened from the second page whose Escape lands on the first (the page it was opened from is kept); one page of opponents passes", () => {
+    const one = "Escape returns to the opponents on the same page, Escape again closes, the list on the page it was on";
+    expect(failed({ steps: { ...STEPS, escaped: { ...STEPS.escaped, laterPage: 1 } } })).toEqual([one]);
+    // The second page never reached (a Next that did not turn): not the page-2 case it claims to be.
+    expect(failed({ steps: { ...STEPS, escaped: { ...STEPS.escaped, laterPageBefore: 1, laterPage: 1 } } })).toEqual([one]);
+    expect(failed({ steps: { ...STEPS, escaped: { ...STEPS.escaped, laterPageBefore: null, laterPage: null } } })).toEqual([]);
   });
 
   it("warn, not fail, where the member's data has no champion with 3+ games or no lane opponent known", () => {

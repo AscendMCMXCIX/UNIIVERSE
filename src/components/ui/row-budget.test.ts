@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { clampPage, columnRows, keepPage, pageCount, pageOf, pageRange, pagedListNext, rowBudget, slotPageOf, slotPages, type PagedInputs, type PagedState, type Slot } from "./row-budget";
+import { clampPage, columnRows, followedNext, keepPage, pageCount, pageOf, pageRange, pagedListNext, rowBudget, slotPageOf, slotPages, type Followed, type PagedInputs, type PagedState, type Slot } from "./row-budget";
 
 /*
   All Champions' one-screen workspace pages its lists by the rows that fit (row-budget.ts; the measure
@@ -172,5 +172,55 @@ describe("pagedListNext: the page after each change", () => {
   it("the count shrinks: the last page there is now; unpaged keeps its page", () => {
     expect(next(at(5), { total: 10 })).toBe(2);
     expect(next(at(2), { perPage: null })).toBe(2);
+  });
+});
+
+/*
+  The lane opponents come back from an opponent's games on the page holding the opponent just left
+  (All opponents, Escape; docs/MATCHUPS.md). The list follows the open opponent, then the one just
+  left until its pages are drawn again (useFollowed), so pagedListNext keeps (or finds) that page:
+  with the budget kept while the games were shown, and with a budget measured only then (a linked
+  opponent, whose grid was never drawn). Review of 27 Nov 2026: both landed on page 1.
+*/
+describe("followedNext and the page an opponent's games go back to", () => {
+  it("keeps the item just closed as the one followed; opening another, or the same again, lets it go", () => {
+    const open: Followed = { open: "Irelia", left: null };
+    const closed = followedNext(open, null);
+    expect(closed).toEqual({ open: null, left: "Irelia" });
+    expect(followedNext(closed, null)).toBe(closed);
+    expect(followedNext(closed, "Riven")).toEqual({ open: "Riven", left: null });
+    expect(followedNext(open, "Irelia")).toBe(open);
+  });
+
+  const per = 10;
+  const rows = 40;
+  const next = (prev: PagedState, change: Partial<PagedInputs>) => {
+    const n = { ...prev, ...change };
+    const p = n.perPage ?? 1;
+    return pagedListNext(prev, n, (i) => Math.floor(i / p) + 1, Math.max(1, Math.ceil(n.total / p)));
+  };
+  const state = (page: number, over: Partial<PagedInputs>): PagedState => ({ perPage: per, total: rows, selected: null, selectedIndex: -1, search: "", order: "games", data: "d", reset: "TOP", ...over, page, first: (page - 1) * per });
+
+  it("from page 2, the grid comes back on page 2: the budget kept, the opponent just left still followed", () => {
+    // Irelia (index 12) opened from page 2; back to the grid, the list follows her until it is drawn.
+    const opened = state(2, { selected: "Irelia", selectedIndex: 12 });
+    expect(next(opened, { selected: "Irelia", selectedIndex: 12 })).toBe(2);
+    // Then it lets go: closing keeps the page.
+    expect(next(state(2, { selected: "Irelia", selectedIndex: 12 }), { selected: null, selectedIndex: -1 })).toBe(2);
+  });
+
+  it("‹ › to another opponent first: the page holding the one left (Ornn, index 31: page 4)", () => {
+    expect(next(state(2, { selected: "Irelia", selectedIndex: 12 }), { selected: "Ornn", selectedIndex: 31 })).toBe(4);
+  });
+
+  it("a linked opponent (the grid never measured): once measured, the page holding it, not page 1", () => {
+    const linked = state(1, { perPage: null, selected: "Gangplank", selectedIndex: 39 });
+    // Back to the grid, not measured yet: unpaged, the opponent still followed.
+    const back = { ...linked, page: next(linked, { selected: "Gangplank", selectedIndex: 39 }) };
+    expect(back.page).toBe(1);
+    // Measured: Gangplank's page.
+    expect(next(back, { perPage: per })).toBe(4);
+    // What the review found: without the opponent followed, the measure gave page 1.
+    expect(next({ ...back, selected: null, selectedIndex: -1 }, { perPage: per, selected: null, selectedIndex: -1 })).toBe(1);
   });
 });

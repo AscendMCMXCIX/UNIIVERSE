@@ -126,6 +126,12 @@ export function workspaceVerdicts({ size, read, list, opponents, games, steps })
     fact("every lane opponent is reachable through its pages, most games first across pages, the small samples marked", opponents.distinct === opponents.total && opponents.repeats === 0 && opponents.distinct === opponents.count && ordered && marked, { distinct: opponents.distinct, total: opponents.total, count: opponents.count, repeats: opponents.repeats, ordered, marked, pages: opponents.pages });
     if (games && steps.detail) fact("its most-met opponent's games open in place without changing the page's height, every game reachable", steps.detail.heightBefore === steps.detail.heightAfter && games.distinct === games.record && games.repeats === 0 && (opponents.total < 2 || steps.detail.steps), { heightBefore: steps.detail.heightBefore, heightAfter: steps.detail.heightAfter, distinct: games.distinct, record: games.record, steps: steps.detail.steps, pages: games.pages });
   }
-  if (steps.escaped) fact("Escape returns to the opponents on the same page, Escape again closes, the list on the page it was on", steps.escaped.opponentsPage === steps.escaped.opponentsPageBefore && steps.escaped.closed && steps.escaped.listPage === steps.escaped.listPageBefore, steps.escaped);
+  // The page it was opened from (the first, for the most-met opponent; the second, for one opened from there where there
+  // are two pages or more): Escape comes back to it.
+  if (steps.escaped) {
+    const e = steps.escaped;
+    const later = e.laterPageBefore == null || (e.laterPage === e.laterPageBefore && e.laterPageBefore > 1);
+    fact("Escape returns to the opponents on the same page, Escape again closes, the list on the page it was on", e.opponentsPage === e.opponentsPageBefore && e.opponentsPageBefore >= 1 && later && e.closed && e.listPage === e.listPageBefore, e);
+  }
   return out;
 }

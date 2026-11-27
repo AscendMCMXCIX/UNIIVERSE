@@ -26,16 +26,38 @@ describe("the workspace's gate", () => {
     expect(mediaOf("ws-host")).toBe(WS_QUERY);
   });
 
-  it("asks a fine pointer, 80rem of width and, per band of widths, 46 of the band's widest root", () => {
-    const root = (w: number) => Math.min(22, Math.max(16, 16 + (w - 1536) * 0.0045));
-    const bands = [...WS_QUERY.matchAll(/\(pointer: fine\) and \(min-width: ([\d.]+)(rem|px)\)(?: and \(max-width: (\d+)px\))? and \(min-height: (\d+)px\)/g)];
-    expect(bands).toHaveLength(5);
-    for (const [, , , max, height] of bands) {
-      const widest = max ? root(Number(max)) : 22;
-      // At least 46 of the band's widest root (rounded up to the pixel), so the page's own check never disagrees inside the band.
-      expect(Number(height), `band to ${max ?? "∞"}`).toBeGreaterThanOrEqual(WS_MIN_HEIGHT_REM * widest - 0.5);
-      expect(Number(height), `band to ${max ?? "∞"}`).toBeLessThanOrEqual(WS_MIN_HEIGHT_REM * widest + 1);
+  const root = (w: number) => Math.min(22, Math.max(16, 16 + (w - 1536) * 0.0045));
+  const bands = [...WS_QUERY.matchAll(/\(pointer: fine\) and \(min-width: ([\d.]+)(rem|px)\)(?: and \(max-width: (\d+)px\))? and \(min-height: (\d+)px\)/g)].map(([, min, unit, max, height]) => ({ min: unit === "rem" ? Number(min) * 16 : Number(min), max: max ? Number(max) : null, height: Number(height) }));
+
+  it("asks a fine pointer, 80rem of width and, per band of widths, 41 of the band's widest root", () => {
+    expect(WS_MIN_HEIGHT_REM).toBe(41);
+    expect(bands).toHaveLength(10);
+    for (const { max, height } of bands) {
+      const widest = max ? root(max) : 22;
+      // At least 41 of the band's widest root (rounded up to the pixel), so the page's own check never disagrees inside the band.
+      expect(height, `band to ${max ?? "∞"}`).toBeGreaterThanOrEqual(WS_MIN_HEIGHT_REM * widest - 0.5);
+      expect(height, `band to ${max ?? "∞"}`).toBeLessThanOrEqual(WS_MIN_HEIGHT_REM * widest + 1);
     }
+  });
+
+  it("leaves no width uncovered (each band includes its upper edge) and rejects few windows the page's own root check would take", () => {
+    expect(bands[0]!.min).toBe(1280);
+    for (let i = 1; i < bands.length; i++) expect(bands[i]!.min, `band ${i} starts where the one before ends`).toBe(bands[i - 1]!.max);
+    expect(bands.at(-1)!.max).toBeNull();
+    // From 1536 to 1920px a band is 64px wide: at its narrowest width the CSS asks at most 13px more than the root check.
+    for (const { min, max, height } of bands) if (max !== null && max <= 1920) expect(height - (WS_MIN_HEIGHT_REM * root(min) - 0.5), `band ${min}–${max}`).toBeLessThanOrEqual(13);
+  });
+
+  it("takes the short laptop windows the owner's request names (a browser window inside a 1366 × 768 or 1920 × 1080 at 125% screen), and leaves 1366 × 640 to the flow", () => {
+    const takes = (w: number, h: number) => bands.some((b) => w >= b.min && (b.max === null || w <= b.max) && h >= b.height) && h >= WS_MIN_HEIGHT_REM * root(w) - 0.5;
+    expect(takes(1366, 657)).toBe(true);
+    expect(takes(1536, 730)).toBe(true);
+    expect(takes(1600, 772)).toBe(true);
+    expect(takes(1648, 760)).toBe(true);
+    expect(takes(1536, 790)).toBe(true);
+    expect(takes(1920, 937)).toBe(true);
+    expect(takes(1366, 640)).toBe(false);
+    expect(takes(1279, 900)).toBe(false);
   });
 });
 
@@ -60,7 +82,7 @@ function rowsThatFit(w: number, h: number): number {
 describe("the workspace's first paint (WS_TIER_ROWS)", () => {
   // Each tier's smallest window in every band of widths (globals.css: the ws gate, board-at-mid, board-at-tall).
   const tiers: Array<[keyof typeof WS_TIER_ROWS, Array<[number, number]>]> = [
-    ["gate", [[1280, 736], [1535, 736], [1800, 791], [1920, 816], [2560, 948], [2561, 1012]]],
+    ["gate", [[1280, 656], [1536, 656], [1536, 668], [1600, 680], [1664, 691], [1728, 703], [1792, 715], [1856, 727], [1920, 786], [2240, 845], [2560, 902]]],
     ["mid", [[1535, 856], [1800, 920], [1920, 929], [2560, 1080], [2561, 1153]]],
     ["tall", [[1535, 975], [1800, 1047], [1920, 1072], [2560, 1246], [2561, 1331]]],
   ];

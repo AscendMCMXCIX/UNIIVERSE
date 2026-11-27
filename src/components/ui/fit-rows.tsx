@@ -205,7 +205,9 @@ export function FitChampions({ total, heading, cssMore, children }: { total: num
  * complete rows that fit between its first row and its card's footer, less the guard band
  * (FIT_GUARD_REM), measured against the window, never the frame's box (the frame grows with its
  * content wherever that is taller, so its box would be circular: fitLimit's rule). Null while not
- * active (flow) or not measured yet.
+ * measured yet. While inactive (flow, or the list not drawn: an opponent's games in its place) it
+ * keeps returning the last count it measured, so a list that gives way and comes back finds its
+ * pages as they were (callers gate it on the workspace themselves).
  *
  *   limit = innerHeight − #content's bottom padding − the guard − the footer − the card's bottom border
  *   top   = the first drawn row's top (the list's own where none is drawn)
@@ -296,5 +298,7 @@ export function useRowBudget(
       observer?.disconnect();
     };
   }, [active, key, cap, measure]);
-  return active ? rows : null;
+  // The last count measured, also while inactive: a list that gives way to an opponent's games, and comes back, keeps its
+  // pages (and the page it was on) rather than starting again from none.
+  return rows;
 }

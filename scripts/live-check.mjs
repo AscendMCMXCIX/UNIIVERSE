@@ -1877,6 +1877,8 @@ async function workspaceFacts(page) {
           await first("opponents", "opponents-pager");
           await settle();
           // Its most-met opponent (Most games: the first cell): its games in place, the page's height kept.
+          const oppPage = () => page.evaluate(() => Number(document.querySelector("[data-ws-region=opponents]")?.getAttribute("data-page") ?? "0"));
+          const opponentsPageBefore = await oppPage();
           const heightBefore = await height();
           await page.locator("[data-testid=champion-preview-opponent] > button").first().click();
           await page.getByTestId("champion-preview-games").waitFor({ timeout: 15_000 }).catch(() => {});
@@ -1887,14 +1889,31 @@ async function workspaceFacts(page) {
           const gamePages = await walk("games", "games-next");
           games = { ...walkSummary(gamePages), record };
           steps.detail = { heightBefore, heightAfter, steps: stepsShown };
-          // Escape: the grid on the page it was on (the first), then the pane closed, the list on its page.
+          // Escape: the grid on the page it was opened from, then the pane closed, the list on its page.
           await page.keyboard.press("Escape");
           await page.getByTestId("champion-preview-opponent-list").waitFor({ timeout: 5_000 }).catch(() => {});
-          const opponentsPage = Number((await page.evaluate(() => document.querySelector("[data-ws-region=opponents]")?.getAttribute("data-page"))) ?? "0");
+          await settle();
+          const opponentsPage = await oppPage();
+          // With a second page of opponents: one opened from it comes back to it (not to the first page).
+          let laterPageBefore = null;
+          let laterPage = null;
+          if (oppPages.length > 1) {
+            await page.getByTestId("opponents-next").click();
+            await page.waitForFunction(() => Number(document.querySelector("[data-ws-region=opponents]")?.getAttribute("data-page")) === 2, null, { timeout: 5_000 }).catch(() => {});
+            await settle();
+            laterPageBefore = await oppPage();
+            await page.locator("[data-testid=champion-preview-opponent] > button").first().click();
+            await page.getByTestId("champion-preview-pairing").waitFor({ timeout: 15_000 }).catch(() => {});
+            await settle();
+            await page.keyboard.press("Escape");
+            await page.getByTestId("champion-preview-opponent-list").waitFor({ timeout: 5_000 }).catch(() => {});
+            await settle();
+            laterPage = await oppPage();
+          }
           await page.keyboard.press("Escape");
           const closed = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
           const listPage = Number((await page.evaluate(() => document.querySelector("[data-ws-region=list]")?.getAttribute("data-page"))) ?? "0");
-          steps.escaped = { opponentsPageBefore: 1, opponentsPage, closed, listPageBefore: before.listPage, listPage };
+          steps.escaped = { opponentsPageBefore, opponentsPage, laterPageBefore, laterPage, closed, listPageBefore: before.listPage, listPage };
         } else {
           opponents = { ...walkSummary([]), total: 0, count: 0 };
           await page.keyboard.press("Escape");

@@ -61,9 +61,16 @@ export function modalOpen(): boolean {
   but the page's own rem is short gets the flow layout (the page scrolls, as it always has).
 */
 export const WS_QUERY =
-  "(pointer: fine) and (min-width: 80rem) and (max-width: 1535px) and (min-height: 736px), (pointer: fine) and (min-width: 1536px) and (max-width: 1800px) and (min-height: 791px), (pointer: fine) and (min-width: 1801px) and (max-width: 1920px) and (min-height: 816px), (pointer: fine) and (min-width: 1921px) and (max-width: 2560px) and (min-height: 948px), (pointer: fine) and (min-width: 2561px) and (min-height: 1012px)";
-/** The workspace's least height, in the page's own rem (46 × 16 = 736px at a 16px root). */
-export const WS_MIN_HEIGHT_REM = 46;
+  "(pointer: fine) and (min-width: 80rem) and (max-width: 1536px) and (min-height: 656px), (pointer: fine) and (min-width: 1536px) and (max-width: 1600px) and (min-height: 668px), (pointer: fine) and (min-width: 1600px) and (max-width: 1664px) and (min-height: 680px), (pointer: fine) and (min-width: 1664px) and (max-width: 1728px) and (min-height: 691px), (pointer: fine) and (min-width: 1728px) and (max-width: 1792px) and (min-height: 703px), (pointer: fine) and (min-width: 1792px) and (max-width: 1856px) and (min-height: 715px), (pointer: fine) and (min-width: 1856px) and (max-width: 1920px) and (min-height: 727px), (pointer: fine) and (min-width: 1920px) and (max-width: 2240px) and (min-height: 786px), (pointer: fine) and (min-width: 2240px) and (max-width: 2560px) and (min-height: 845px), (pointer: fine) and (min-width: 2560px) and (min-height: 902px)";
+/**
+ * The workspace's least height, in the page's own rem (41 × 16 = 656px at a 16px root): a 1366 × 768
+ * laptop's browser window (about 657px inside it) keeps the workspace with fewer rows (the owner's
+ * request: shorter desktop windows show fewer rows). Every champion of one position fits whole from
+ * here, an opponent's games open included; for a champion of several positions with an opponent open
+ * the detail keeps one game a column, and in the shortest windows (under about 716px) the page can
+ * grow by the few pixels that row lacks, never hiding anything (docs/RESPONSIVE.md, "the floor").
+ */
+export const WS_MIN_HEIGHT_REM = 41;
 
 /** The page's root size in px (the user's text size, the app's width clamp, any emulated text size). */
 export function rootPx(): number {

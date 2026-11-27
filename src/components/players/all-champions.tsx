@@ -89,6 +89,14 @@ const FIRST = 20;
 */
 const GRID =
   "@min-[44rem]:grid-cols-[minmax(11.75rem,1fr)_minmax(3.25rem,4.5rem)_minmax(4.5rem,6rem)_minmax(3.25rem,4.25rem)_minmax(3.5rem,4.5rem)_minmax(3rem,4.25rem)_minmax(5.25rem,6.5rem)_minmax(4.375rem,5.25rem)] @min-[44rem]:gap-x-2 @min-[44rem]:px-3 @min-[76rem]:grid-cols-[minmax(14rem,1fr)_minmax(4rem,4.5rem)_minmax(4.75rem,5.25rem)_minmax(5.5rem,6.25rem)_minmax(4rem,4.5rem)_minmax(6rem,6.5rem)_repeat(3,minmax(4rem,4.5rem))_minmax(6.5rem,7.25rem)] @min-[76rem]:gap-x-2 @min-[76rem]:px-5";
+/*
+  A linked preview's first paint (the server's HTML and the hydration render) draws the list beside the pane. In the
+  workspace a section under 64.75rem (1280–1355px wide with the sidebar open) gets the sheet once hydrated, and until
+  then its CSS hides the pane's column and gives the list the whole frame: there the rows and the heading row keep the
+  wide table's template (GRID's 44rem tier: a section that narrow never reaches 76rem), so the list is drawn as the
+  sheet will leave it and nothing moves when it opens.
+*/
+const SHEET_FIRST_PAINT_GRID = "ws:@max-[64.75rem]/section:@min-[44rem]:grid-cols-[minmax(11.75rem,1fr)_minmax(3.25rem,4.5rem)_minmax(4.5rem,6rem)_minmax(3.25rem,4.25rem)_minmax(3.5rem,4.5rem)_minmax(3rem,4.25rem)_minmax(5.25rem,6.5rem)_minmax(4.375rem,5.25rem)] ws:@max-[64.75rem]/section:@min-[44rem]:gap-x-2";
 /** A sortable number, or null when the figure is missing (missing rows always sort last). */
 function sortValue(c: ChampionRow, key: SortKey): number | null {
   switch (key) {
@@ -352,7 +360,7 @@ function useRoomForPane(ref: React.RefObject<HTMLElement | null>, ws: boolean): 
  * board-at-*), each one row fewer than fit the tier's smallest window in every band of widths
  * (row-budget's arithmetic: posture.test.ts recomputes it), so hydration only adds rows below them.
  */
-export const WS_TIER_ROWS = { gate: 5, mid: 7, tall: 9 } as const;
+export const WS_TIER_ROWS = { gate: 3, mid: 7, tall: 9 } as const;
 /** A row's first-paint class in the workspace, by its index on the list. */
 export function wsTierClass(i: number): string | undefined {
   if (i >= WS_TIER_ROWS.tall) return "ws:hidden";
@@ -652,6 +660,9 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   }, [selectedKey, anchorPane]);
   const rowOf = (id: string) => cardRef.current?.querySelector<HTMLElement>(`[data-testid=top-champion][data-champion="${id}"]`) ?? null;
   const rowButton = (id: string) => rowOf(id)?.querySelector<HTMLButtonElement>("[data-open-champion]") ?? null;
+  /** Where the focus goes as the preview closes: the champion's row; where the list was paged away from it (the pane keeps
+   *  its champion), the first row of the page shown, so the focus is never left on the page's body and the list stays on its page. */
+  const returnButton = (id: string) => rowButton(id) ?? cardRef.current?.querySelector<HTMLButtonElement>("[data-testid=top-champion] [data-open-champion]") ?? null;
   const [viaKeys, setViaKeys] = React.useState(false);
   const show = (c: ChampionRow, role: Role | null, keys: boolean) => {
     setViaKeys(keys);
@@ -670,7 +681,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     address.close();
     // The focus goes back to its row where it was in the preview or on the row (a click elsewhere keeps its own).
     const at = document.activeElement;
-    if (back && (!at || at === document.body || !!at.closest("[data-preview-pane]") || !!at.closest("[data-testid=top-champion]"))) rowButton(back)?.focus({ preventScroll: true });
+    if (back && (!at || at === document.body || !!at.closest("[data-preview-pane]") || !!at.closest("[data-testid=top-champion]"))) returnButton(back)?.focus({ preventScroll: true });
   };
   const closeRef = React.useRef(close);
   const chooseRef = React.useRef(choose);
@@ -711,7 +722,9 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     const was = shownRef.current;
     shownRef.current = selectedKey;
     const at = document.activeElement;
-    if (was && !selectedKey && (!at || at === document.body)) cardRef.current?.querySelector<HTMLButtonElement>(`[data-testid=top-champion][data-champion="${was}"] [data-open-champion]`)?.focus({ preventScroll: true });
+    // Its row, or where the list was paged away from it the first row of the page shown (as close() does).
+    const card = cardRef.current;
+    if (was && !selectedKey && (!at || at === document.body)) (card?.querySelector<HTMLButtonElement>(`[data-testid=top-champion][data-champion="${was}"] [data-open-champion]`) ?? card?.querySelector<HTMLButtonElement>("[data-testid=top-champion] [data-open-champion]"))?.focus({ preventScroll: true });
   }, [selectedKey]);
   // The rows a step walks: every row in the workspace (its pages turn as it crosses them), the drawn ones in the flow.
   const walk = range ? rows : shown;
@@ -722,6 +735,10 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     const next = walk[(i + d + walk.length) % walk.length];
     if (!next || next.championId === fromId) return;
     // A step keeps the focus where it is (the list, or ‹ › in the preview): the heading takes it only on a keyboard's open.
+    // The pane's ‹ › are drawn again with the next champion (its body cross-fades in), so the arrow pressed is found again.
+    const at = document.activeElement as HTMLElement | null;
+    const arrow = at?.closest<HTMLElement>("[data-preview-pane] [data-testid=champion-preview-prev], [data-preview-pane] [data-testid=champion-preview-next]");
+    if (arrow) stepArrow.current = arrow.dataset.testid === "champion-preview-next" ? "next" : "prev";
     setViaKeys(false);
     address.show(next.championId, next.role);
     if (range && perPage !== null) {
@@ -737,6 +754,20 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
       b?.closest("li")?.scrollIntoView({ block: "nearest" });
     }
   };
+  // The pane's ‹ › pressed: the focus on the same arrow of the next champion's controls, or the other where it is now
+  // disabled at an end (as an opponent's ‹ › keep it).
+  const stepArrow = React.useRef<"prev" | "next" | null>(null);
+  React.useLayoutEffect(() => {
+    const which = stepArrow.current;
+    if (!which) return;
+    stepArrow.current = null;
+    const at = document.activeElement as HTMLButtonElement | null;
+    if (at && at !== document.body && at.isConnected && !at.disabled) return;
+    const pane = paneRef.current;
+    const same = pane?.querySelector<HTMLButtonElement>(`[data-testid=champion-preview-${which}]`);
+    const other = pane?.querySelector<HTMLButtonElement>(`[data-testid=champion-preview-${which === "next" ? "prev" : "next"}]`);
+    (same && !same.disabled ? same : other && !other.disabled ? other : same)?.focus({ preventScroll: true });
+  }, [selectedKey]);
   // Focus a row a key moved to once its page is drawn.
   React.useLayoutEffect(() => {
     const id = focusRow.current;
@@ -818,7 +849,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           const narrowFigure = split || sorted === "champion" || sorted === "games" || sorted === "win" ? null : (summaryPairs(c, sorted).find((pair) => pair.sorted) ?? null);
           return (
             // A row lights up while pointed at or focused (a quiet tint; the whole row opens the champion's window).
-            <li key={c.championId} data-role={c.role ?? ""} aria-setsize={rows.length} aria-posinset={i + 1} className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2 @max-[17rem]:grid-cols-[minmax(0,1fr)] transition-colors duration-150 hover:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:outline has-[[data-open-champion]:focus-visible]:outline-2 has-[[data-open-champion]:focus-visible]:-outline-offset-2 has-[[data-open-champion]:focus-visible]:outline-accent @min-[44rem]:py-1.5 md:group-data-[split]/list:py-1.5 data-[selected=true]:bg-surface-3 data-[selected=true]:hover:bg-surface-3 data-[selected=true]:has-[[data-open-champion]:focus-visible]:bg-surface-3 data-[selected=true]:before:absolute data-[selected=true]:before:inset-y-0 data-[selected=true]:before:left-0 data-[selected=true]:before:w-0.5 data-[selected=true]:before:bg-accent", !split && GRID, !range && wsTierClass(i))} data-selected={selectedKey === c.championId || undefined} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-roles={c.roles.map((x) => x.role).join(",")} data-no-role={c.noRole || undefined} data-kills={p.totalKills ?? ""} data-mastery={c.mastery?.points ?? ""} data-multikills={c.multikills?.counted ? MULTIKILL_KINDS.map((k) => c.multikills![k.key]).join(",") : ""} data-multikill-coverage={c.multikills ? multikillCoverage(c.multikills).state : ""}>
+            <li key={c.championId} data-role={c.role ?? ""} aria-setsize={rows.length} aria-posinset={i + 1} className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2 @max-[17rem]:grid-cols-[minmax(0,1fr)] transition-colors duration-150 hover:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:outline has-[[data-open-champion]:focus-visible]:outline-2 has-[[data-open-champion]:focus-visible]:-outline-offset-2 has-[[data-open-champion]:focus-visible]:outline-accent @min-[44rem]:py-1.5 md:group-data-[split]/list:py-1.5 data-[selected=true]:bg-surface-3 data-[selected=true]:hover:bg-surface-3 data-[selected=true]:has-[[data-open-champion]:focus-visible]:bg-surface-3 data-[selected=true]:before:absolute data-[selected=true]:before:inset-y-0 data-[selected=true]:before:left-0 data-[selected=true]:before:w-0.5 data-[selected=true]:before:bg-accent", split ? SHEET_FIRST_PAINT_GRID : GRID, !range && wsTierClass(i))} data-selected={selectedKey === c.championId || undefined} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-roles={c.roles.map((x) => x.role).join(",")} data-no-role={c.noRole || undefined} data-kills={p.totalKills ?? ""} data-mastery={c.mastery?.points ?? ""} data-multikills={c.multikills?.counted ? MULTIKILL_KINDS.map((k) => c.multikills![k.key]).join(",") : ""} data-multikill-coverage={c.multikills ? multikillCoverage(c.multikills).state : ""}>
               <span className="flex min-w-0 items-center gap-3">
                 <span className="hidden w-5 shrink-0 text-right text-xs tabular-nums text-fg-subtle @4xl/section:block" aria-hidden>
                   {i + 1}
@@ -939,7 +970,9 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   );
   return (
     // The workspace (ws:, globals.css): the section is the rest of the shell's window-tall column, its cards reaching the frame's foot.
-    <section ref={sectionRef} className="@container/section space-y-3 ws:flex ws:flex-1 ws:flex-col" aria-labelledby="all-champions" data-testid="all-champions" data-workspace={workspace ? "" : undefined}>
+    // Its parts 12px apart: space-y in the flow; a gap in the workspace's flex column, which only its laid-out parts take (a
+    // margin would also go to the layout before a closed or top-layer dialog, or the flow's hidden legend, and shorten the frame).
+    <section ref={sectionRef} className="@container/section space-y-3 ws:flex ws:flex-1 ws:flex-col ws:gap-3 ws:space-y-0" aria-labelledby="all-champions" data-testid="all-champions" data-workspace={workspace ? "" : undefined}>
       {/* The profile's one heading layout (as Season performance and Match History). */}
       <SectionHeader
         id="all-champions"
@@ -991,7 +1024,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           <div ref={(el) => {
             toolbarRef.current = el;
             listToolbarRef.current = el;
-          }} className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 sm:@min-[20.5rem]:flex-nowrap @min-[44rem]:flex-wrap @min-[76rem]:px-4" data-testid="all-champions-toolbar">
+          }} className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 sm:@min-[20.5rem]:flex-nowrap @min-[44rem]:flex-wrap @min-[76rem]:px-4 ws:py-2" data-testid="all-champions-toolbar">
             <div className={cn("flex min-w-0 flex-[1_1_12rem] flex-wrap items-center gap-2 max-sm:flex-[1_1_0%] @min-[44rem]:max-w-xs", refreshHere ? "max-sm:min-w-[min(11.75rem,100%)]" : "max-sm:min-w-[min(8.5rem,100%)]")}>
               <SearchInput ref={searchRef} value={query} onChange={setQuery} placeholder={phone || split ? "Find…" : "Find a champion or role…"} label="Find a champion or a role" className="flex-[1_1_4.5rem] max-sm:[&_input]:pl-8 max-sm:[&_input:placeholder-shown]:pr-1.5" testId="all-champions-search" />
               {toolsBesideSort ? null : phoneTools}
@@ -1051,8 +1084,14 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
             {/* Pinned under the profile's section tabs, which stay pinned above it (globals.css: --bar-top, --tabs-top).
                 Beside the preview the list keeps a heading row of the same height, so no row moves as it
                 opens: the champion, and its games and win rate at the right (the figures it shows). */}
+            {split && !hydrated ? (
+              // The first paint of a linked preview where the sheet will take it (SHEET_FIRST_PAINT_GRID): the wide heading row.
+              <div className={cn("hidden items-center border-b border-border/70 bg-surface px-3 ws:@max-[64.75rem]/section:@min-[44rem]:grid!", GRID)} role="group" aria-label="Sort the champions">
+                {COLUMNS.map((c) => heading(c))}
+              </div>
+            ) : null}
             {split ? (
-              <div ref={listHeadRef} className="sticky top-[calc(var(--bar-top)+var(--tabs-top))] z-[1] hidden items-center justify-between gap-4 border-b border-border/70 bg-surface px-3 md:flex ws:static" role="group" aria-label="Sort the champions" data-testid="all-champions-header">
+              <div ref={listHeadRef} className="sticky top-[calc(var(--bar-top)+var(--tabs-top))] z-[1] hidden items-center justify-between gap-4 border-b border-border/70 bg-surface px-3 md:flex ws:static ws:@max-[64.75rem]/section:hidden!" role="group" aria-label="Sort the champions" data-testid="all-champions-header">
                 <span className="flex min-w-0 items-center gap-3">
                   {heading(COLUMNS[0]!)}
                   {/* Sorted by a figure the narrowed list does not show (KDA, mastery…): said here, once, instead of under every row. */}

@@ -3,7 +3,7 @@
 import * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { cn } from "@/lib/cn";
-import { MOUSE_BUTTON_REM, pagerFold, pagerItems, widestItems } from "./pager-data";
+import { MOUSE_BUTTON_REM, lineItems, pagerFold, pagerItems, pagerRem, widestItems } from "./pager-data";
 import { rootPx } from "./posture";
 
 /*
@@ -17,8 +17,10 @@ import { rootPx } from "./posture";
   - "stacked": Match History's own (Release 16, the owner's approved look), the buttons over the
     range, centred; it folds by its current line and wraps only past that (very large text);
   - "inline": a workspace footer's (All Champions, 27 Nov 2026), the range then the buttons on one
-    line at the footer's right. It folds by the widest line its page count draws and reserves the
-    range's widest text, so it never changes its width or its fold as the reader turns its pages.
+    line at the footer's right. It folds by the widest line its page count draws, reserves that
+    line's width for its buttons (the arrows at its two ends, the pages centred between them) and the
+    range's widest text for the range, so it never changes its width or its fold, and no button moves
+    from under the pointer, as the reader turns its pages.
 
   A page change the reader makes (a button here, or a list's keys) is read out once, politely, by the
   `live` words the list gives (never after a resize or a measure). The focus stays on the pressed
@@ -131,6 +133,8 @@ function InlinePager({ label, page, pages, onPage, range, widest, rangeId, prevL
     onPage(to);
   };
   const items = pagerItems(page, pages);
+  // The widest line this many pages draw (folded or not), reserved: the arrows stay where they are on every page.
+  const line = pages > 1 ? pagerRem(lineItems(widestItems(pages), folded), MOUSE_BUTTON_REM) : 0;
   return (
     <>
       <nav ref={navRef} aria-label={label} className="flex min-w-0 flex-1 items-center justify-end gap-3" data-testid={testId} data-folded={folded || undefined}>
@@ -138,24 +142,26 @@ function InlinePager({ label, page, pages, onPage, range, widest, rangeId, prevL
           {range}
         </span>
         {pages > 1 ? (
-          <span className="flex shrink-0 items-center gap-1">
+          <span className="flex shrink-0 items-center gap-1" style={{ minWidth: `${line}rem` }} data-testid={`${testId}-buttons`}>
             <button type="button" disabled={page <= 1 || disabled} onClick={() => go(page - 1)} className={ARROW} aria-label={prevLabel} data-testid={prevTestId}>
               <ChevronLeft className="h-4 w-4" aria-hidden />
             </button>
-            {items.map((item, i) =>
-              "gap" in item ? (
-                gap(`g${i}`)
-              ) : (
-                <React.Fragment key={item.page}>
-                  {item.jump && folded ? gap(`j${item.page}`) : null}
-                  {item.folds && folded ? null : (
-                    <button type="button" aria-current={item.page === page ? "page" : undefined} aria-label={`Page ${item.page}`} onClick={() => go(item.page)} className={cn(PAGE, item.page === page ? "bg-accent/15 font-semibold text-accent" : "text-fg-muted hover:bg-surface-2 hover:text-fg")} data-page={item.page}>
-                      {item.page}
-                    </button>
-                  )}
-                </React.Fragment>
-              ),
-            )}
+            <span className="flex flex-1 items-center justify-center gap-1">
+              {items.map((item, i) =>
+                "gap" in item ? (
+                  gap(`g${i}`)
+                ) : (
+                  <React.Fragment key={item.page}>
+                    {item.jump && folded ? gap(`j${item.page}`) : null}
+                    {item.folds && folded ? null : (
+                      <button type="button" aria-current={item.page === page ? "page" : undefined} aria-label={`Page ${item.page}`} onClick={() => go(item.page)} className={cn(PAGE, item.page === page ? "bg-accent/15 font-semibold text-accent" : "text-fg-muted hover:bg-surface-2 hover:text-fg")} data-page={item.page}>
+                        {item.page}
+                      </button>
+                    )}
+                  </React.Fragment>
+                ),
+              )}
+            </span>
             <button type="button" disabled={page >= pages || disabled} onClick={() => go(page + 1)} className={ARROW} aria-label={nextLabel} data-testid={nextTestId}>
               <ChevronRight className="h-4 w-4" aria-hidden />
             </button>

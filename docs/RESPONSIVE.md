@@ -698,28 +698,42 @@ the account screen over the dashboard at 200% on a 320px phone as well.
 The owner's request of 27 Nov 2026: on a desktop, All Champions fits one window and never scrolls,
 not by trimming padding but by its layout. It has two postures (docs/MATCHUPS.md has what each shows):
 
-- **The workspace** (`ws`): a window with a fine pointer, from 80rem wide, at least 46 of the page's
-  own rem tall. The root grows from 1536px wide (html's clamp), so the CSS gate is written per band of
-  widths at 46 × the band's widest root: 736px up to 1535px wide, 791 to 1800, 816 to 1920, 948 to
-  2560, 1012 beyond (`@custom-variant ws` and `ws-host` in globals.css; `WS_QUERY` in
-  `ui/posture.ts` is the same string, and `posture.test.ts` compares them). A media query cannot read
-  the page's own root (a larger browser text size, an emulated one), so once hydrated `useWorkspace()`
-  also asks `innerHeight ≥ 46 × the root`; the section carries `data-workspace` while both may hold
+- **The workspace** (`ws`): a window with a fine pointer, from 80rem wide, at least 41 of the page's
+  own rem tall (656px at 16px: the browser window of a 1366 × 768 laptop, about 657px inside it, and of
+  a 1920 × 1080 screen at 125%, about 1536 × 730, keep the workspace with fewer rows; from 27 to 28 Nov
+  2026 the gate was 46rem, 736px, and sent them to the long page, which the owner's request rules out:
+  "at shorter desktop sizes, reduce visible row counts"). The root grows from 1536px wide (html's
+  clamp), so the CSS gate is written per band of widths at 41 × the band's widest root, rounded up to
+  the pixel: 656px up to 1536px wide, then every 64px to 1920 (668, 680, 691, 703, 715, 727), 786 to
+  2240, 845 to 2560, 902 beyond; each band includes its upper edge, so a fractional width (a zoom)
+  never falls between two, and inside a band the CSS asks at most 13px more than the root check
+  (`@custom-variant ws` and `ws-host` in globals.css; `WS_QUERY` in `ui/posture.ts` is the same
+  string, and `posture.test.ts` compares them). A media query cannot read the page's own root (a
+  larger browser text size, an emulated one), so once hydrated `useWorkspace()` also asks
+  `innerHeight ≥ 41 × the root`; the section carries `data-workspace` while both may hold
   (the server's HTML and the hydration render, where the CSS decides) and loses it where they do not,
   and every `ws:` class needs that attribute. `ws-host:` makes the shell's main, its frame and the
   profile's column flex columns (the column `w-full`: a flex item with `mx-auto` shrinks to its
   content).
 - **The flow**: everywhere else (phones, tablets held either way, `pointer: coarse` laptops, windows
-  under 1280px wide or under the band's height, a larger text size): today's page, unchanged, the page
-  the one thing that scrolls.
+  under 1280px wide or under the band's height, such as 1366 × 640, a larger text size): today's page,
+  unchanged, the page the one thing that scrolls.
 
 **The frame.** In the workspace the section is the flex remainder of the shell's `min-h-dvh` column:
 the window less the profile's band, its tabs, the one-line section header and `#content`'s padding
 (522 / 654 / ~646 / 786px at 1366 × 768, 1440 × 900, 1648 × 900 and 1920 × 1080). The list's card and
 the preview's card sit side by side, both stretched to the frame's foot, their footers on one
-baseline; with no champion open the list's wide table fills the frame. The flex items keep
-`min-height: auto`, so the frame never hides content: what would not fit grows the frame and the page
-by exactly that much, which can happen only below the gate. The preview is a pane only where the
+baseline; with no champion open the list's wide table fills the frame. The section spaces its parts
+with a gap in the workspace (`ws:gap-3`, not `space-y-3`: a margin would also go to the layout before
+the sheet's or a game's dialog, or the flow's hidden legend, and shorten the frame by 12px). The flex
+items keep `min-height: auto`, so the frame never hides content: what would not fit grows the frame
+and the page by exactly that much (**the floor**: a list never shows fewer than one row a column).
+From 46rem tall (736px at 16px) that never happens. Between 41 and 46rem every champion of one
+position fits whole, its opponent's games included, and so does a champion of several positions
+without an opponent open; with one open (the positions row, P3, P4 and the detail's bands above one
+game a column), a window under about 713px lets the page grow by what that row lacks: 4px for
+Aatrox's two positions at 1366 × 657, 44px for Sion's five, nothing hidden, nothing scrolling inside
+(`e2e/all-champions-workspace.spec.ts`, "shorter desktop windows"). The preview is a pane only where the
 section holds the opponents' two columns beside the list (64.75rem: `WS_PANE_SECTION_REM`); a
 narrower workspace section (1280–1359px with the sidebar open) opens it in the sheet over the paged
 list (decision O1). The pane drops the flow's `sticky` and `overflow-clip` (a flex item that clips
@@ -735,13 +749,23 @@ above the rows changes size; it never observes the rows, keys its measure on pri
 measure that would flip back settles on the smaller count, so it always comes to rest. Every row is
 one height (the champions' role line holds the "In pool" chip's height with or without it). The
 server cannot measure, so its HTML draws the first rows by the window's height in the Leaderboards'
-tiers, one fewer than fit (`WS_TIER_ROWS`: 5, 7 at `board-at-mid`, 9 at `board-at-tall`; the
-unit test recomputes them per band), and hydration only adds rows below them. Pages are client state
+tiers, one fewer than fit (`WS_TIER_ROWS`: 3, 7 at `board-at-mid`, 9 at `board-at-tall`; the
+unit test recomputes them per band), and hydration only adds rows below them. A linked preview's
+first paint draws the first opponents, and an opponent's first games, in the first column only (1
+under `board-at-mid`, 4 opponents and 3 games from it: what fits at the tier's smallest window for any
+champion), so the measured page only adds cells below them and the second column: no cell moves at
+hydration. Where the workspace's section is under 64.75rem (the sheet's sizes), a linked preview's
+first paint gives the list the frame with the wide table's rows and heading (`SHEET_FIRST_PAINT_GRID`
+in all-champions.tsx), as the sheet will leave it. Pages are client state
 (`usePagedList`): a new selection shows its page, a new budget keeps the selection's page or the
 first row shown, typing goes to page 1, another order to the selection's page, another filter to the
-selection's page where it is still listed. The pager (`ui/pager.tsx`, Match History's, shared) folds
-by the widest line its page count draws and reserves its range's widest text, so it never changes
-width as its pages turn.
+selection's page where it is still listed; leaving an opponent's games (All opponents, Escape) shows
+the page holding that opponent (`useFollowed`: the list follows the opponent just left until it has
+drawn its pages, also after a linked opponent whose grid was never measured), and the measure keeps
+its last count while a list gives way to the detail. The pager (`ui/pager.tsx`, Match History's,
+shared) folds by the widest line its page count draws and reserves that line's width for its buttons
+(the arrows at its two ends, the pages centred between them) and its range's widest text, so it never
+changes width and no arrow moves from under the pointer as its pages turn.
 
 **Margins.** Each list ends at least 12px above its footer (16px or more measured at the owner's
 sizes, with CI's wider text too): the fixed workspace's form of "A layout held to a measure keeps a
@@ -754,8 +778,12 @@ window, the cards above the padding, the margins, no scroller and nothing clippe
 too), every name and K/D/A whole, every control reachable and Tab with a visible focus and no scroll,
 opening a champion or an opponent without a change of height or a moved row, every record through the
 pages (30 champions, 40 opponents in three orders with the divider's rules, 9 games), the keys, Back
-and Forward, filters that keep the champion, a resize, the sidebar and 125% zoom, axe, wider text, and
-the flow at 1366 × 700, 1440 × 600, 1280 × 720 and with a 150% root.
+and Forward, filters that keep the champion, a resize, the sidebar and 125% zoom, axe, wider text,
+the shorter laptop windows (1366 × 657, 1536 × 730, 1600 × 772, 1648 × 789), a linked preview's first
+paint (nothing moves at hydration), the pagers' constant width, the focus after leaving an opponent
+(from a later page, after ‹ ›, from a link), after closing a champion paged away, across a zoom over
+the gate and on the pane's ‹ ›, each item's place on its list, and the flow at 1366 × 640,
+1440 × 600, 1280 × 640 and with a 150% root.
 
 ## Primitives
 

@@ -31,9 +31,10 @@ show that one icon. Each position's own figures are sent with the row only where
 the row's (two or more positions, or a game with none), so a one-position champion's figures go once.
 
 **The one-screen workspace (the owner's request of 27 Nov 2026).** On a desktop window with a mouse,
-from 1280px wide and at least 46 of the page's own rem tall (736px up to 1535px wide; 791, 816, 948
-and 1012px in the wider bands, where the root grows: docs/RESPONSIVE.md, "All Champions'
-workspace"), All Champions never scrolls. The section is the rest of the window under the profile's
+from 1280px wide and at least 41 of the page's own rem tall (656px up to 1536px wide, a 1366 × 768
+laptop's browser window; up to 902px in the widest band, where the root grows: docs/RESPONSIVE.md,
+"All Champions' workspace"), All Champions never scrolls (below 46rem, 736px, only a champion of
+several positions with an opponent open can let it grow by what its one game a column lacks). The section is the rest of the window under the profile's
 band, its tabs and the one-line section header; the list and the preview are two cards side by side
 that both reach the window's foot, their footers on one baseline. **Nothing grows the page: the
 champions, the lane opponents and an opponent's games are in pages** of the complete rows that fit
@@ -126,7 +127,8 @@ are partial (complete, it repeats what is on screen and is read out instead). Ev
    order and search, the address replaced, the focus kept on the button), one paragraph (the KDA and
    the 10:00 sentence), and its games in two columns from a 37rem region, paged; the footer holds the
    link to Matchup Intel and the games' pager. "All opponents" or Escape bring the grid back on the
-   page holding that opponent, the focus on its cell. In the flow: selecting a row
+   page holding that opponent (the one opened, or the one ‹ › stepped to; after a linked opponent
+   too), the focus on its cell; a cell not on that page never takes the focus later. In the flow: selecting a row
    shows, **beside the table** where the preview is at least 38rem wide (and replaces the detail when
    another row is chosen; the row again or "Clear" puts it back), or as **one step in place of the
    table** in a narrower preview (the sheet; "All opponents" goes back, the focus following, and the
@@ -179,16 +181,20 @@ Champions with that champion's preview open, in the pool's role.
 **Keyboard.** A click on a row opens it (focus stays on the row; the preview's champion, position,
 games and win rate are announced), Enter opens it and moves focus to the pane's heading; ↑/↓ (or
 K/J) on the list move it to the row above or below, in that champion's most played position; ‹ ›
-in its header do the same; Escape, Close, Back or the selected row again close it, and focus returns
-to the row. Keys inside the preview are its own (its positions, its opponents' search and orders,
+in its header do the same (the focus stays on the arrow pressed, or the other at an end); Escape,
+Close, Back or the selected row again close it, and focus returns to the row (in the workspace, where
+the list was paged away from it, to the first row of the page shown: the list stays on its page).
+A zoom or a resize across the workspace's gate keeps the focus on the same opponent's row or control
+in the other layout (the nearest drawn one where it has none, such as a pager). Keys inside the preview are its own (its positions, its opponents' search and orders,
 their rows, the games). A position icon's tooltip closes on Escape alone. In the workspace: ↑/↓
 walk every row from the focused one, turning the page at its edge (the focus follows); PageUp and
 PageDown turn the list's page (the focus on its first row, PageUp its last), Home and End go to the
 first or last row overall; in the opponents ↑/↓ follow the reading order across pages, ←/→ move to
 the same row of the other column, PageUp/PageDown and Home/End as the list's, and Enter opens one in
 place; Escape goes back from an opponent's games to the grid first, then closes the pane. A page
-change the reader made is read out once ("Champions 8 to 14 of 30"), never after a resize; each row
-reads its place on the whole list ("Ambessa, 1 of 30").
+change the reader made is read out once ("Champions 8 to 14 of 30"), never after a resize; each row,
+lane opponent and game reads its place on the whole list ("Ambessa, 1 of 30"; "Shen, 11 of 40"), and
+the small-sample divider is read as the description of the opponent after it rather than as an item.
 
 **Data path** (`src/server/actions/champion-preview.ts`, `src/server/players/champion-preview.ts`):
 
