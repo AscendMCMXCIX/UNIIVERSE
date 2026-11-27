@@ -254,7 +254,7 @@ async function deployment() {
       body = null;
     }
     report.deployment = body?.deployment ?? null;
-    report.health = body ? { ok: body.ok === true, db: body.db?.ok ?? null, notices: Array.isArray(body.notices) ? body.notices.length : null, patch: typeof body.patch === "string" ? body.patch : null } : null;
+    report.health = body ? { ok: body.ok === true, db: body.db?.ok ?? null, notices: Array.isArray(body.notices) ? body.notices.length : null, patch: typeof body.patch === "string" ? body.patch : null, highElo: typeof body.highElo?.collection === "string" ? body.highElo.collection : null } : null;
     report.healthNotices = Array.isArray(body?.notices) ? body.notices : [];
     if (!expected || report.deployment?.commit === expected || Date.now() > deadline) break;
     await new Promise((r) => setTimeout(r, 15_000));
@@ -1298,6 +1298,16 @@ async function resourcesFacts(page, kind) {
  * test. It reads nothing beyond what the page itself reads (the session, the cached roster and
  * patch, the chosen champions' stored abilities and their cached build totals).
  */
+/** /api/health's Master+ collection state ("on", "off", or null when it does not say): no page load. */
+function healthHighEloNow() {
+  try {
+    const body = JSON.parse(http("/api/health").text);
+    return typeof body?.highElo?.collection === "string" ? body.highElo.collection : null;
+  } catch {
+    return null;
+  }
+}
+
 /** /api/health's current patch (null when it names none or does not answer): no page load. */
 function healthPatchNow() {
   try {
@@ -1370,7 +1380,9 @@ async function championLookupFacts(page, kind) {
   const legacy = await page.evaluate(readChampionLookup);
   // The patch /api/health names (read at the start against production; a local run asks once here).
   const healthPatch = report.health ? report.health.patch : healthPatchNow();
-  for (const v of championLookupVerdicts({ kind, champion: "Ahri", at, wide, hastedRead, all, search, dual, swapped, removed, stopped, legacy, healthPatch })) check("champion-lookup", v.name, v.status, v.detail);
+  // Whether the Master+ builds' collection is on (/api/health; docs/HIGH_ELO_EVIDENCE.md): off, the page offers no Master+ source.
+  const healthHighElo = report.health ? report.health.highElo : healthHighEloNow();
+  for (const v of championLookupVerdicts({ kind, champion: "Ahri", at, wide, hastedRead, all, search, dual, swapped, removed, stopped, legacy, healthPatch, healthHighElo })) check("champion-lookup", v.name, v.status, v.detail);
 }
 
 /**

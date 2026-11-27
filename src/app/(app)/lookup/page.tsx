@@ -1,4 +1,5 @@
 import { Suspense } from "react";
+import { cookies } from "next/headers";
 import { getAppDb } from "@/server/bootstrap";
 import { requirePageAccess } from "@/server/auth/page-access";
 import { hasPermission, type Session } from "@/server/auth/permissions";
@@ -6,7 +7,8 @@ import type { Db } from "@/server/db/types";
 import { loadLookupPage } from "@/server/champion-lookup/view";
 import { loadChampionBuilds, skillRanksOf } from "@/server/champion-builds/load";
 import { behindPatch, type LookupChampion } from "@/domain/champion-lookup/view";
-import { hasteFromAddress, paramOf, queueFromAddress, roleFromAddress } from "@/components/champion-lookup/address";
+import { hasteFromAddress, paramOf, queueFromAddress, roleFromAddress, sourceFromAddress } from "@/components/champion-lookup/address";
+import { HIGH_ELO_TEST_COOKIE, highEloShown } from "@/server/champion-builds/high-elo/switch";
 import { ChampionBuilds, ChampionBuildsLoading } from "@/components/champion-lookup/champion-builds";
 import { LookupView } from "@/components/champion-lookup/lookup-view";
 import { cn } from "@/lib/cn";
@@ -31,8 +33,8 @@ type Search = Record<string, string | string[] | undefined>;
  * request, no one player's data.
  */
 /** One champion's builds, read while the rest of the page is already shown. */
-async function Builds({ db, session, champion }: { db: Db; session: Session; champion: LookupChampion }) {
-  const views = await loadChampionBuilds(db, session, { championId: champion.champion.id, championName: champion.champion.name, ranks: skillRanksOf(champion.abilities) });
+async function Builds({ db, session, champion, master }: { db: Db; session: Session; champion: LookupChampion; master: boolean }) {
+  const views = await loadChampionBuilds(db, session, { championId: champion.champion.id, championName: champion.champion.name, ranks: skillRanksOf(champion.abilities) }, { master });
   return views ? <ChampionBuilds views={views} /> : null;
 }
 
@@ -47,10 +49,12 @@ export default async function ChampionIntelPage({ searchParams }: { searchParams
   // Builds need the game's current patch, and the right to see teammates' statistics (the team's
   // own games are among them); a champion whose abilities are not stored has none either.
   const withBuilds = !!currentPatch && hasPermission(session, "view-teammate-stats");
+  // The Master+ source (docs/HIGH_ELO_EVIDENCE.md): offered only while its collection is on, or with the browser tests' cookie on the in-memory demo.
+  const master = withBuilds && highEloShown((await cookies()).get(HIGH_ELO_TEST_COOKIE)?.value ?? null);
   const buildsOf = (c: LookupChampion | null) =>
     withBuilds && c?.abilities ? (
       <Suspense fallback={<ChampionBuildsLoading />}>
-        <Builds db={db} session={session} champion={c} />
+        <Builds db={db} session={session} champion={c} master={master} />
       </Suspense>
     ) : undefined;
   const roles: [ReturnType<typeof roleFromAddress>, ReturnType<typeof roleFromAddress>] = [roleFromAddress(page.firstFrom === "champion2" ? sp.role2 : sp.role), second ? roleFromAddress(sp.role2) : null];
@@ -70,6 +74,7 @@ export default async function ChampionIntelPage({ searchParams }: { searchParams
         initialHaste2={second ? haste2 : 0}
         initialRoles={roles}
         initialQueue={queueFromAddress(sp.queue)}
+        initialSource={master ? sourceFromAddress(sp.source) : "team"}
         builds={{ first: buildsOf(lookup), second: buildsOf(second) }}
         dropped={page.dropped}
         source={

@@ -1,6 +1,9 @@
 import { describe, expect, it } from "vitest";
 import {
   HIGHEST_TIP,
+  MASTER_GROUP,
+  MASTER_OPTION,
+  MASTER_WHERE_TIP,
   MOST_COMMON_TIP,
   PART_LABELS,
   QUEUE_LABELS,
@@ -24,6 +27,11 @@ import {
   fullTip,
   gamesTip,
   gamesWords,
+  masterFewTip,
+  masterFewWords,
+  masterGamesTip,
+  masterGamesWords,
+  masterSourceWords,
   partEmptyWords,
   otherQueueWords,
   patchTip,
@@ -134,5 +142,21 @@ describe("the builds' words", () => {
     expect(fullTip(full, true)).toBe("The core items with the highest win rate, then those most often bought fourth (30% of 40 games) and fifth (33% of 30) after them.");
     expect(fullTip({ ...full, fifth: null }, true)).toBe("The core items with the highest win rate, then the item most often bought fourth after them (30% of 40 games).");
     expect(fullTip(full, true)).not.toContain("most common core");
+  });
+
+  it("say the Master+ source apart from the team's: its games observed and what they are worth weighted, all regions, no player stored", () => {
+    const b = { observed: 1240, games: 809.6, patches: ["26.23"], currentGames: 809.6 };
+    expect(masterGamesWords(b)).toBe("From 1,240 Master+ games");
+    expect(masterSourceWords(b)).toBe("From 1,240 Master+ games · all regions · patch 26.23");
+    expect(masterGamesTip(b)).toBe("1,240 games observed, worth 810 as a sample once weighted: figures and thresholds use 810.");
+    expect(masterFewWords(0, "26.23")).toBe("No Master+ games counted on patch 26.23 yet");
+    expect(masterFewWords(14, "26.23")).toBe("Not enough Master+ games on patch 26.23 yet");
+    expect(masterFewTip(14.2, "MID")).toBe("Builds need 20 games in one role once weighted. The Master+ games counted are worth 14 as Mid on this patch and the one before.");
+    expect(MASTER_WHERE_TIP).toContain("No player is stored");
+    for (const tip of [MASTER_WHERE_TIP, masterGamesTip({ observed: 12345, games: 8000 }), masterFewTip(19, "SUPPORT"), masterFewTip(0, null)]) {
+      expect(words(tip), tip).toBeLessThanOrEqual(25);
+      expect(tip, tip).not.toMatch(REFUSED);
+    }
+    for (const label of [MASTER_GROUP, MASTER_OPTION]) expect(label).not.toMatch(REFUSED);
   });
 });

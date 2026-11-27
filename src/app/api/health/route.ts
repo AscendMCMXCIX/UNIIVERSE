@@ -14,6 +14,7 @@ import { log } from "@/server/observability/log";
 import { digestHealth } from "@/server/riot/static/digests";
 import { staticDataHealth } from "@/server/ops/static-health";
 import { STATIC_ATTEMPT_KEY, type StaticAttempt } from "@/server/riot/static/assets";
+import { highEloGate } from "@/server/champion-builds/high-elo/switch";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +35,9 @@ const RANK_SCHEDULE_SILENT_MS = 20 * 60_000;
  * refresh's state (server/ops/static-health.ts: ok, failed validation or stale; patch names and counts only), listed in
  * `failingJobs` as "static-data" when not ok. `notices` says what is off by choice
  * (server/ops/health-notices.ts): the five-minute schedule turned off after it was on, and jobs set
- * to 0 in Admin; they warn in the Production check and never fail a scheduled run.
+ * to 0 in Admin; they warn in the Production check and never fail a scheduled run. `highElo` says
+ * whether the Master+ builds' collection is on or off (server/champion-builds/high-elo/switch.ts),
+ * nothing more.
  */
 export async function GET() {
   const started = performance.now();
@@ -127,6 +130,8 @@ export async function GET() {
       digests,
       staticData,
       riot: { credential: credential.state },
+      // Champion Intel's Master+ builds (docs/HIGH_ELO_EVIDENCE.md): whether collection is on, only (no counts, no reasons).
+      highElo: { collection: highEloGate().on ? "on" : "off" },
       ms: Math.round((performance.now() - started) * 10) / 10,
     });
   } catch (err) {

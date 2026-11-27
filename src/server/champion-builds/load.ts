@@ -9,6 +9,8 @@ import { cachedFor } from "@/server/observability/cache";
 import { BUILDS_FORMAT, championBuildsViews, itemClasses, previousPatch, type BuildCountRow, type BuildIcon, type ChampionBuildsViews, type IconResolver, type PatchWindow, type SkillRanks } from "@/domain/champion-builds";
 import type { Slot } from "@/domain/champion-lookup/types";
 import { readBuildCounts } from "./query";
+import { highEloChampionCounts } from "./high-elo/store";
+import { highEloBuildRows } from "@/domain/high-elo/counts";
 
 /*
   Champion Intel's builds for one champion (docs/CHAMPION_INTEL.md, "Builds and runes"), built on
@@ -35,7 +37,11 @@ import { readBuildCounts } from "./query";
 */
 
 export const BUILDS_CACHE_TAG = "champion-builds";
+/** The Master+ counts' tag (no person in them; an erasure may drop it, it costs nothing). */
+export const HIGH_ELO_CACHE_TAG = "champion-builds-high-elo";
 const CACHE_SECONDS = 6 * 3600;
+/** The Master+ counts change with every slice while collection is on: an hour. */
+const HIGH_ELO_CACHE_SECONDS = 3600;
 
 /** Riot's stat shard ids and their Data Dragon icons (cdn/img/perk-images/StatMods), the same table as Match History's (server/players/match-history.ts SHARD_ICONS): runesReforged.json has no shards. */
 const SHARD_ICONS: Readonly<Record<number, string>> = {
@@ -137,16 +143,29 @@ export async function countChampionBuilds(db: Db, input: Pick<ChampionBuildsInpu
 }
 
 /**
- * The builds views of one champion for this account (every queue on its own), or null where
- * nothing is shown at all (no permission, no current patch). Never throws: a failure is the
- * "unavailable" view.
+ * One champion's Master+ counts on the window (docs/HIGH_ELO_EVIDENCE.md), as the builds' weighted
+ * rows: read only where the page offers the Master+ source (collection on, or the browser tests'
+ * cookie on the in-memory demo), cached for an hour on the production database. Nothing about a
+ * player: counts only.
  */
-export async function loadChampionBuilds(db: Db, session: Session | null, input: ChampionBuildsInput): Promise<ChampionBuildsViews | null> {
+async function masterRows(db: Db, championId: string, window: PatchWindow, assetsVersion: string | null): Promise<BuildCountRow[]> {
+  const patches = window.previous ? [window.current, window.previous] : [window.current];
+  const read = async () => highEloBuildRows(await highEloChampionCounts(db, { champion: championId, patches }));
+  return (await sharedCacheFor(db)) ? unstable_cache(read, ["champion-builds-high-elo", String(BUILDS_FORMAT), championId, patches.join("+"), assetsVersion ?? "no-items"], { revalidate: HIGH_ELO_CACHE_SECONDS, tags: [HIGH_ELO_CACHE_TAG] })() : read();
+}
+
+/**
+ * The builds views of one champion for this account (every queue on its own, and the Master+ source
+ * where `master` says the page offers it), or null where nothing is shown at all (no permission, no
+ * current patch). Never throws: a failure is the "unavailable" view.
+ */
+export async function loadChampionBuilds(db: Db, session: Session | null, input: ChampionBuildsInput, options: { master?: boolean } = {}): Promise<ChampionBuildsViews | null> {
   if (!hasPermission(session, "view-teammate-stats")) return null;
   try {
     const counted = await countChampionBuilds(db, input);
     if (!counted) return null;
-    return championBuildsViews(input.championName, counted.rows, counted.window, iconResolver(counted.assets));
+    const master = options.master ? await masterRows(db, input.championId, counted.window, counted.assets?.version ?? null) : null;
+    return championBuildsViews(input.championName, counted.rows, counted.window, iconResolver(counted.assets), master);
   } catch (err) {
     log("error", "champion-builds.failed", { champion: input.championId, error: err });
     return { status: "unavailable", championName: input.championName };
@@ -161,6 +180,7 @@ export async function loadChampionBuilds(db: Db, session: Session | null, input:
 export function forgetChampionBuilds(): void {
   try {
     revalidateTag(BUILDS_CACHE_TAG, { expire: 0 });
+    revalidateTag(HIGH_ELO_CACHE_TAG, { expire: 0 });
   } catch {
     // Outside a request of the Next server: nothing cached here.
   }

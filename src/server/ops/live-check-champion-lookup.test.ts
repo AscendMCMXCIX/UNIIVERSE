@@ -44,6 +44,7 @@ const AT: ChampionLookupRead = {
   buildsSource: "team",
   buildsQueueShown: "Ranked Solo/Duo",
   buildsAddressQueue: false,
+  buildsMasterOffered: false,
   buildsLine: "From 143 games in the team's matches · patch 26.23 · all ranks",
   buildsFew: "",
   buildsParts: [
@@ -66,7 +67,7 @@ const REMOVED: ChampionLookupRead = { ...AT, haste: 20, url: "/lookup?champion=A
 const ALL: ChampionWindowRead = { open: true, shown: 173, counted: 173, first: "Aatrox", found: "" };
 const SEARCH: ChampionWindowRead = { open: true, shown: 1, counted: 173, first: "Ahri", found: "1 champion found" };
 const LEGACY = { url: "/lookup?champion=Mordekaiser", champion: "Mordekaiser", heading: "Champion Intel" };
-const run = (over: Partial<Parameters<typeof championLookupVerdicts>[0]> = {}) => championLookupVerdicts({ kind: "desktop", champion: "Ahri", at: AT, wide: WIDE, hastedRead: HASTED, all: ALL, search: SEARCH, dual: DUAL, swapped: SWAPPED, removed: REMOVED, legacy: LEGACY, healthPatch: "16.23", ...over });
+const run = (over: Partial<Parameters<typeof championLookupVerdicts>[0]> = {}) => championLookupVerdicts({ kind: "desktop", champion: "Ahri", at: AT, wide: WIDE, hastedRead: HASTED, all: ALL, search: SEARCH, dual: DUAL, swapped: SWAPPED, removed: REMOVED, legacy: LEGACY, healthPatch: "16.23", healthHighElo: "off", ...over });
 const failed = (over: Partial<Parameters<typeof championLookupVerdicts>[0]> = {}) => run(over).filter((v) => v.status === "FAIL").map((v) => v.name);
 
 describe("Champion Intel's Production check facts", () => {
@@ -194,6 +195,15 @@ describe("Champion Intel's Production check facts", () => {
     expect(run({ dual: { ...DUAL, buildsLevel: null } }).some((v) => v.name === level)).toBe(false);
   });
 
+  it("hold the Master+ source to /api/health: offered only while its collection is on", () => {
+    const off = "desktop: /api/health says the Master+ builds' collection is off, and the builds offer no Master+ source";
+    expect(run({ healthHighElo: "off" }).find((v) => v.name === off)?.status).toBe("PASS");
+    expect(failed({ healthHighElo: "off", at: { ...AT, buildsMasterOffered: true } })).toEqual([off]);
+    expect(failed({ healthHighElo: "on" })).toEqual(["desktop: /api/health says the Master+ builds' collection is on, and the builds offer Master+ source"]);
+    expect(failed({ healthHighElo: "on", at: { ...AT, buildsMasterOffered: true } })).toEqual([]);
+    expect(run({ healthHighElo: null }).find((v) => v.name.includes("does not say whether"))?.status).toBe("WARN");
+  });
+
   it("name the queues as the page does", () => {
     expect(QUEUE_NAMES).toEqual(QUEUE_LABELS);
   });
@@ -202,7 +212,7 @@ describe("Champion Intel's Production check facts", () => {
     // The abilities' patch, and the builds' (always counted on the game's current patch), both against it.
     expect(failed({ healthPatch: "16.24" })).toHaveLength(2);
     expect(failed({ healthPatch: "16.24", at: { ...AT, source: "Riot Data Dragon 16.23.1 · patch 26.23 · the game is on patch 26.24", buildsLine: "From 22 games in the team's matches · patches 26.23–26.24 · all ranks" } })).toEqual([]);
-    expect(run({ healthPatch: undefined }).some((v) => v.name.includes("/api/health"))).toBe(false);
+    expect(run({ healthPatch: undefined, healthHighElo: undefined }).some((v) => v.name.includes("/api/health"))).toBe(false);
   });
 
   it("warn, not fail, where the abilities are not stored, the Q has no number on a later patch, or the stored record predates the facts", () => {

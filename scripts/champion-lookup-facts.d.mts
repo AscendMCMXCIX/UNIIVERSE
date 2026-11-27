@@ -41,6 +41,8 @@ export interface ChampionLookupRead {
   buildsSource: string | null;
   buildsQueueShown: string;
   buildsAddressQueue: boolean;
+  /** Whether the queue choice offers the Master+ source. */
+  buildsMasterOffered: boolean;
   buildsLine: string;
   buildsFew: string;
   /** Each part's row; `trees`: the rune page's tree icons drawn (two where the runes are shown). */
@@ -85,4 +87,6 @@ export function championLookupVerdicts(input: {
   stopped?: "compare" | "swap" | "remove";
   legacy: Pick<ChampionLookupRead, "url" | "champion" | "heading">;
   healthPatch?: string | null;
+  /** /api/health's highElo.collection ("on" or "off"); undefined or null: not said. */
+  healthHighElo?: string | null;
 }): Verdict[];

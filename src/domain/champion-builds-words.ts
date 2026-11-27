@@ -168,3 +168,38 @@ export const FIRST_POINTS_WORDS = "most often first";
 export function roleSwitchLabel(championName: string): string {
   return `${championName}'s builds by role`;
 }
+
+/* The Master+ source (docs/HIGH_ELO_EVIDENCE.md): anonymous counts, weighted, shown apart from the team's. */
+
+/** The queue choice's group names and its one Master+ option, shown only where the page offers Master+. */
+export const TEAM_GROUP = "The team's matches";
+export const MASTER_GROUP = "Master+ ranked games";
+export const MASTER_OPTION = "Ranked Solo/Duo · all regions";
+
+/** What "Master+ games" and "all regions" explain. */
+export const MASTER_WHERE_TIP = "Anonymous counts from Master, Grandmaster and Challenger players' Ranked Solo/Duo games in every region, weighted by each region's players. No player is stored.";
+
+/** "From 1,240 Master+ games": the games observed (the ⓘ says what they are worth once weighted). */
+export function masterGamesWords(b: Pick<RoleBuilds, "observed">): string {
+  return `From ${formatCount(b.observed)} Master+ game${b.observed === 1 ? "" : "s"}`;
+}
+
+/** The weighting in words: the games observed, and what the figures and thresholds use. */
+export function masterGamesTip(b: Pick<RoleBuilds, "observed" | "games">): string {
+  return `${formatCount(b.observed)} games observed, worth ${formatCount(b.games)} as a sample once weighted: figures and thresholds use ${formatCount(b.games)}.`;
+}
+
+/** The Master+ source line ("From 1,240 Master+ games · all regions · patch 26.23"). */
+export function masterSourceWords(b: Pick<RoleBuilds, "observed" | "patches" | "currentGames">): string {
+  return `${masterGamesWords(b)} · all regions · ${patchWords(b)}`;
+}
+
+/** The Master+ source with nothing to show: none counted yet, or too few once weighted. */
+export function masterFewWords(games: number, currentPatch: string): string {
+  return games > 0 ? `Not enough Master+ games on patch ${currentPatch} yet` : `No Master+ games counted on patch ${currentPatch} yet`;
+}
+
+export function masterFewTip(games: number, role: Role | null): string {
+  const seen = role && games > 0 ? `worth ${formatCount(games)} as ${ROLE_LABELS[role]} on this patch and the one before` : "none on this patch or the one before";
+  return `Builds need ${MIN_SECTION_GAMES} games in one role once weighted. The Master+ games counted are ${seen}.`;
+}

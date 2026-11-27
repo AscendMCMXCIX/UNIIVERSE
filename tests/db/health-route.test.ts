@@ -56,6 +56,11 @@ describe("/api/health", () => {
     expect(((await (await GET()).json()) as { data: { accounts: string | null } }).data.accounts).toBeNull();
   });
 
+  it("says whether Champion Intel's Master+ collection is on, and nothing more (off in this build)", async () => {
+    const body = (await (await GET()).json()) as { highElo: unknown };
+    expect(body.highElo).toEqual({ collection: "off" });
+  });
+
   it("never shows a visitor the database driver's message: it can name the host, region and user", async () => {
     const driverMessage = 'password authentication failed for user "postgres.abcdefghijklmnopqrst" (aws-0-ap-southeast-2.pooler.supabase.com:6543)';
     const failing = { mode: "postgres", db: { execute: async () => { throw new Error(driverMessage); } }, close: async () => {} };

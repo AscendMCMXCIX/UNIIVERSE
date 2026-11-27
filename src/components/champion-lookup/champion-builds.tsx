@@ -15,8 +15,12 @@ import {
   MOST_COMMON_TIP,
   NO_BOOTS,
   PART_LABELS,
+  MASTER_GROUP,
+  MASTER_OPTION,
+  MASTER_WHERE_TIP,
   QUEUE_LABELS,
   QUEUE_TIP,
+  TEAM_GROUP,
   RANK_TIP,
   RUNE_PAGE_WORDS,
   SMALL_SAMPLE_WORDS,
@@ -32,6 +36,11 @@ import {
   fullTip,
   gamesTip,
   gamesWords,
+  masterFewTip,
+  masterFewWords,
+  masterGamesTip,
+  masterGamesWords,
+  masterSourceWords,
   otherQueueWords,
   partEmptyWords,
   patchTip,
@@ -389,7 +398,8 @@ const Sep = () => (
 
 function Heading({ id, children, className }: { id: string; children?: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1", className)} data-testid="lookup-build-heading">
+    // min-w-0: in a row of its own (the few state) it may be narrower than the queue choice's widest name, which then ends in an ellipsis.
+    <div className={cn("flex min-w-0 max-w-full flex-wrap items-center gap-x-4 gap-y-1", className)} data-testid="lookup-build-heading">
       <h3 id={id} className="text-sm font-semibold text-fg">
         {BUILDS_TITLE}
       </h3>
@@ -412,10 +422,9 @@ function QueueChoice({ championName, value, master, onChange }: { championName: 
   );
 }
 
-/** The option groups, only where Master+ is offered. */
-const TEAM_GROUP = "The team's matches";
-const MASTER_GROUP = "Master+ ranked games";
-const MASTER_OPTION = "Ranked Solo/Duo · all regions";
+/** Each champion's section its own name (Compare holds two: one landmark each). */
+const sectionName = (championName: string) => `${championName}'s builds and runes`;
+
 
 /**
  * The builds section of one champion. `views` come from the server (server/champion-builds): every
@@ -437,7 +446,7 @@ export function ChampionBuilds({ views }: { views: ChampionBuildsViews }) {
 
   if (views.status !== "counted") {
     return (
-      <section aria-labelledby={headingId} className="flex flex-wrap items-baseline gap-x-4 gap-y-1" data-testid="lookup-builds-view" data-status="unavailable">
+      <section aria-label={sectionName(views.championName)} className="flex flex-wrap items-baseline gap-x-4 gap-y-1" data-testid="lookup-builds-view" data-status="unavailable">
         <Heading id={headingId} />
         <p className="text-sm text-fg-muted" data-testid="lookup-build-unavailable">
           {UNAVAILABLE_WORDS}
@@ -446,9 +455,9 @@ export function ChampionBuilds({ views }: { views: ChampionBuildsViews }) {
     );
   }
 
-  const master = views.master;
-  const source = askedSource === "master" && master ? "master" : "team";
-  const view: ChampionBuildsView = source === "master" ? master! : views.queues[queue];
+  const masterView = views.master;
+  const source = askedSource === "master" && masterView ? "master" : "team";
+  const view: ChampionBuildsView = source === "master" ? masterView! : views.queues[queue];
   const choose = (v: BuildQueueKey | "master") => {
     if (v === "master") setSource("master");
     else {
@@ -456,19 +465,19 @@ export function ChampionBuilds({ views }: { views: ChampionBuildsViews }) {
       setQueue(v);
     }
   };
-  const queueChoice = <QueueChoice championName={views.championName} value={source === "master" ? "master" : view.queue} master={!!master} onChange={choose} />;
+  const queueChoice = <QueueChoice championName={views.championName} value={source === "master" ? "master" : view.queue} master={!!masterView} onChange={choose} />;
   const sectionData = { "data-queue": view.queue, "data-source": source } as const;
 
   if (view.status !== "shown") {
     const offer = source === "team" ? otherQueueOffer(views.queues, view.queue, asked ?? view.role) : null;
     return (
-      <section ref={sectionRef} aria-labelledby={headingId} className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2" data-testid="lookup-builds-view" data-status="few" {...sectionData}>
+      <section ref={sectionRef} aria-label={sectionName(views.championName)} className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2" data-testid="lookup-builds-view" data-status="few" {...sectionData}>
         <Heading id={headingId}>{queueChoice}</Heading>
         <p className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-muted">
           {/* Room for the ⓘ's target past its mark (24px under a mouse, 44px on a touch screen) where the words fill the line. */}
           <span className="inline-flex items-center gap-1.5 pr-1 pointer-coarse:pr-3.5">
-            <span data-testid="lookup-build-few">{fewWords(view.queue, view.currentPatch)}</span>
-            <InfoTip label="About builds" text={fewTip(view.games, view.role, view.queue)} testId="lookup-build-few-tip" />
+            <span data-testid="lookup-build-few">{source === "master" ? masterFewWords(view.games, view.currentPatch) : fewWords(view.queue, view.currentPatch)}</span>
+            <InfoTip label="About builds" text={source === "master" ? masterFewTip(view.games, view.role) : fewTip(view.games, view.role, view.queue)} testId="lookup-build-few-tip" />
           </span>
           {offer ? (
             <Button
@@ -499,29 +508,48 @@ export function ChampionBuilds({ views }: { views: ChampionBuildsViews }) {
   const offersHighest = hasPerformer(b);
   const shown: Mode = offersHighest ? mode : "common";
   const form = compare ? FORMS.compare : FORMS.single;
+  const master = source === "master";
   const sourceLine = (
     // One champion: beside the title where the section is wide (a desktop); narrower, on a line of its own under the title, the role and the view switch. Compare: its own row.
-    <p className={cn("min-w-0 text-xs text-fg-muted", compare ? undefined : "order-last basis-full @min-[52rem]/builds:order-none @min-[52rem]/builds:basis-auto")} data-testid="lookup-build-source" data-line={sourceWords(b)} data-games={Math.round(b.games)} data-patches={b.patches.join(",")} data-current-games={Math.round(b.currentGames)} data-timeline-games={Math.round(b.timelineGames)}>
-      <InfoTip text={gamesTip(b)} testId="lookup-build-games">
-        {gamesWords(b)}
-      </InfoTip>{" "}
-      <InfoTip text={SOURCE_TIP} testId="lookup-build-where">
-        in the team&apos;s matches
-      </InfoTip>
-      <Sep />
-      <InfoTip text={patchTip(b)} testId="lookup-build-patch">
-        <span className={cn(b.widened && "text-warn")}>{patchWords(b)}</span>
-      </InfoTip>
-      <Sep />
-      <InfoTip text={RANK_TIP} testId="lookup-build-ranks">
-        all ranks
-      </InfoTip>
+    <p className={cn("min-w-0 text-xs text-fg-muted", compare ? undefined : "order-last basis-full @min-[52rem]/builds:order-none @min-[52rem]/builds:basis-auto")} data-testid="lookup-build-source" data-line={master ? masterSourceWords(b) : sourceWords(b)} data-games={Math.round(b.games)} data-observed={b.observed} data-patches={b.patches.join(",")} data-current-games={Math.round(b.currentGames)} data-timeline-games={Math.round(b.timelineGames)}>
+      {master ? (
+        <>
+          <InfoTip text={masterGamesTip(b)} testId="lookup-build-games">
+            {masterGamesWords(b)}
+          </InfoTip>
+          <Sep />
+          <InfoTip text={MASTER_WHERE_TIP} testId="lookup-build-where">
+            all regions
+          </InfoTip>
+          <Sep />
+          <InfoTip text={patchTip(b)} testId="lookup-build-patch">
+            <span className={cn(b.widened && "text-warn")}>{patchWords(b)}</span>
+          </InfoTip>
+        </>
+      ) : (
+        <>
+          <InfoTip text={gamesTip(b)} testId="lookup-build-games">
+            {gamesWords(b)}
+          </InfoTip>{" "}
+          <InfoTip text={SOURCE_TIP} testId="lookup-build-where">
+            in the team&apos;s matches
+          </InfoTip>
+          <Sep />
+          <InfoTip text={patchTip(b)} testId="lookup-build-patch">
+            <span className={cn(b.widened && "text-warn")}>{patchWords(b)}</span>
+          </InfoTip>
+          <Sep />
+          <InfoTip text={RANK_TIP} testId="lookup-build-ranks">
+            all ranks
+          </InfoTip>
+        </>
+      )}
     </p>
   );
   return (
     <section
       ref={sectionRef}
-      aria-labelledby={headingId}
+      aria-label={sectionName(views.championName)}
       // Compare: twelve rows of the board (the heading, the source line, each group's headings and parts), as a subgrid.
       className={cn("min-w-0 space-y-2", compare ? "@min-[22rem]/board:row-span-12 @min-[22rem]/board:grid @min-[22rem]/board:grid-rows-subgrid" : "@container/builds")}
       data-testid="lookup-builds-view"

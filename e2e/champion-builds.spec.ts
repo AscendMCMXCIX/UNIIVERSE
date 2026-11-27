@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "./test";
 import { expectNoSeriousAxe } from "./axe";
-import { pick, shownLabel, valueOf } from "./select";
+import { optionsOf, pick, shownLabel, valueOf } from "./select";
 
 /*
   CHAMPION INTEL's builds and runes (docs/CHAMPION_INTEL.md, "Builds and runes"), on the demo's
@@ -317,4 +317,144 @@ test("axe: the builds, single and compared, a queue with too few games and its o
   await page.goto("/lookup?champion=Ahri");
   await ready(page);
   await expectNoSeriousAxe(page, "builds, too few games", ["[data-testid=lookup-builds]"]);
+});
+
+/*
+  The Master+ source (docs/HIGH_ELO_EVIDENCE.md): prepared and switched off, so production offers
+  none. The browser tests' cookie shows the in-memory demo's synthetic counts (server/demo/high-elo.ts,
+  made by the sampler's own code): Thresh in support with a choice that won clearly more (the
+  "Highest win rate" view, its marks and its full build), Leona in two roles, Nasus too few once
+  weighted, Ahri none.
+*/
+test.describe("Master+ source", () => {
+  const MASTER_COOKIE = "uniiverse-test-high-elo";
+  test.beforeEach(async ({ context, baseURL }) => {
+    await context.addCookies([{ name: MASTER_COOKIE, value: "on", url: baseURL! }]);
+  });
+
+  test("not offered without collection (the cookie absent): the four queues only", async ({ page, context }) => {
+    await context.clearCookies({ name: MASTER_COOKIE });
+    await page.goto("/lookup?champion=Thresh&source=master");
+    await ready(page);
+    await expect(builds(page)).toHaveAttribute("data-source", "team");
+    expect((await optionsOf(queue(page))).map((o) => o.value)).toEqual(["solo", "flex", "draft", "clash"]);
+    await expect(page).toHaveURL(/[?&]champion=Thresh$/);
+  });
+
+  test("chosen in the queue choice: anonymous counts apart from the team's, weighted, said so, in the address", async ({ page }) => {
+    await page.goto("/lookup?champion=Thresh");
+    await ready(page);
+    const options = await optionsOf(queue(page));
+    expect(options.map((o) => o.value)).toEqual(["solo", "flex", "draft", "clash", "master"]);
+    expect(options.at(-1)!.label).toBe("Ranked Solo/Duo · all regions");
+    await pick(queue(page), "master");
+    const view = builds(page);
+    await expect(view).toHaveAttribute("data-source", "master");
+    await expect(view).toHaveAttribute("data-queue", "solo");
+    await expect(page).toHaveURL(/[?&]champion=Thresh&source=master$/);
+    await expect(view.getByTestId("lookup-build-source")).toHaveAttribute("data-line", /^From \d[\d,]* Master\+ games · all regions · patch 26\.22$/);
+    const observed = Number(await view.getByTestId("lookup-build-source").getAttribute("data-observed"));
+    const games = Number(await view.getByTestId("lookup-build-source").getAttribute("data-games"));
+    expect(observed).toBeGreaterThan(games);
+    await view.getByTestId("lookup-build-games").focus();
+    await expect(page.getByTestId("lookup-build-games-bubble")).toHaveText(/^[\d,]+ games observed, worth [\d,]+ as a sample once weighted: figures and thresholds use [\d,]+\.$/);
+    await view.getByTestId("lookup-build-where").focus();
+    await expect(page.getByTestId("lookup-build-where-bubble")).toContainText("No player is stored.");
+    // No "all ranks" (the tier is in the name), no player anywhere.
+    await expect(view.getByTestId("lookup-build-ranks")).toHaveCount(0);
+    expect(await page.content()).not.toMatch(/-player-|demo-filler|DEMO_[A-Za-z0-9]/);
+    // A reload keeps it; the team's queue again drops it from the address.
+    await page.reload();
+    await ready(page);
+    await expect(builds(page)).toHaveAttribute("data-source", "master");
+    await pick(queue(page), "solo");
+    await expect(builds(page)).toHaveAttribute("data-source", "team");
+    await expect(page).toHaveURL(/[?&]champion=Thresh$/);
+  });
+
+  test("the highest win rate is another view, offered where a common choice won clearly more; the rows that differ are marked, the full build after its core", async ({ page }) => {
+    await page.goto("/lookup?champion=Thresh&source=master");
+    await ready(page);
+    const view = builds(page);
+    const mode = view.getByTestId("lookup-build-mode");
+    await expect(mode.getByRole("radio", { name: "Most common" })).toHaveAttribute("aria-checked", "true");
+    const before = await part(page, "core").getByTestId("lookup-build-choice").locator("img").evaluateAll((els) => els.map((e) => e.getAttribute("alt")));
+    await mode.getByRole("radio", { name: "Highest win rate" }).click();
+    await expect(view).toHaveAttribute("data-mode", "highest");
+    for (const name of ["runes", "boots", "core", "full"]) await expect(part(page, name), name).toHaveAttribute("data-choice", "highest");
+    await expect(part(page, "spells")).toHaveAttribute("data-choice", "common");
+    const after = await part(page, "core").getByTestId("lookup-build-choice").locator("img").evaluateAll((els) => els.map((e) => e.getAttribute("alt")));
+    expect(after).not.toEqual(before);
+    // Never a small sample: from 30 games or more (effective), the most common's counts beside it.
+    for (const name of ["runes", "boots", "core"]) {
+      expect(Number(await part(page, name).getAttribute("data-games")), name).toBeGreaterThanOrEqual(30);
+      await expect(part(page, name), name).toHaveAttribute("data-common-games", /^\d+$/);
+    }
+    await view.getByTestId("lookup-build-win-head").first().focus();
+    await expect(page.getByTestId("lookup-build-win-head-bubble")).toContainText("likely range");
+    await view.locator('[data-testid="lookup-build-head"]').first().getByRole("button", { name: "Highest win rate" }).focus();
+    await expect(page.getByTestId("info-tip-bubble")).toHaveText("Among choices of 30 games or more, one that won clearly more than the most common, 99% sure not by chance. Shown only then.");
+    const fullTip = part(page, "full").getByTestId("lookup-build-full");
+    await fullTip.focus();
+    await expect(page.getByTestId("lookup-build-full-bubble")).toHaveText(/^The core items with the highest win rate, then /);
+    await fullTip.blur();
+    await mode.getByRole("radio", { name: "Most common" }).click();
+    await expect(view).toHaveAttribute("data-mode", "common");
+  });
+
+  test("two roles: the role is chosen here, kept in the address with the source, the default left out", async ({ page }) => {
+    await page.goto("/lookup?champion=Leona&source=master");
+    await ready(page);
+    const view = builds(page);
+    const roles = view.getByTestId("lookup-build-role");
+    await expect(roles.getByRole("radio")).toHaveCount(2);
+    await expect(roles.getByRole("radio", { name: /Support/ })).toHaveAttribute("aria-checked", "true");
+    await roles.getByRole("radio", { name: /Bottom/ }).click();
+    await expect(view).toHaveAttribute("data-role", "ADC");
+    await expect(page).toHaveURL(/[?&]champion=Leona&role=ADC&source=master$/);
+    await page.reload();
+    await ready(page);
+    await expect(builds(page)).toHaveAttribute("data-role", "ADC");
+    await builds(page).getByTestId("lookup-build-role").getByRole("radio", { name: /Support/ }).click();
+    await expect(page).toHaveURL(/[?&]champion=Leona&source=master$/);
+    if ((await page.viewportSize())!.width >= 768) return;
+    for (const h of await builds(page).getByTestId("lookup-build-role").getByRole("radio").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) expect(h).toBeGreaterThanOrEqual(44);
+  });
+
+  test("too few once weighted, or none counted yet: said in words, with no offer of the team's queues", async ({ page }) => {
+    await page.goto("/lookup?champion=Nasus&source=master");
+    await ready(page);
+    await expect(builds(page)).toHaveAttribute("data-status", "few");
+    await expect(builds(page).getByTestId("lookup-build-few")).toHaveText("Not enough Master+ games on patch 26.22 yet");
+    await expect(builds(page).getByTestId("lookup-build-other-queue")).toHaveCount(0);
+    await page.goto("/lookup?champion=Ahri&source=master");
+    await ready(page);
+    await expect(builds(page).getByTestId("lookup-build-few")).toHaveText("No Master+ games counted on patch 26.22 yet");
+  });
+
+  test("Compare: both columns on the Master+ source, every part's row level in both views", async ({ page }, info) => {
+    if (info.project.name === "phone") await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/lookup?champion=Thresh&champion2=Leona&source=master");
+    await ready(page);
+    for (const n of [1, 2] as const) await expect(builds(page, n)).toHaveAttribute("data-source", "master");
+    const level = async (where: string) => {
+      const tops = await page.evaluate(() => [1, 2].map((n) => Object.fromEntries([...document.querySelectorAll(`[data-testid="lookup-panel"][data-panel="${n}"] [data-testid="lookup-build-part"]`)].map((r) => [r.getAttribute("data-part"), Math.round(r.getBoundingClientRect().top)]))));
+      for (const p of ["runes", "shards", "spells", "skills", "start", "boots", "core"]) expect(Math.abs(tops[0]![p]! - tops[1]![p]!), `${where}: ${p}`).toBeLessThanOrEqual(1);
+    };
+    await level("most common");
+    await builds(page, 1).getByTestId("lookup-build-mode").getByRole("radio", { name: "Highest win rate" }).click();
+    await expect(builds(page, 1)).toHaveAttribute("data-mode", "highest");
+    await level("highest win rate");
+    await page.getByTestId("lookup-swap").click();
+    await expect(page).toHaveURL(/champion=Leona&champion2=Thresh&source=master$/);
+    expect(await overflow(page)).toBeLessThanOrEqual(1);
+  });
+
+  test("axe: the Master+ source, compared, in both views", async ({ page }) => {
+    await page.goto("/lookup?champion=Thresh&champion2=Leona&source=master");
+    await ready(page);
+    await expectNoSeriousAxe(page, "Master+ builds compared", ["[data-testid=lookup-builds]"]);
+    await builds(page, 1).getByTestId("lookup-build-mode").getByRole("radio", { name: "Highest win rate" }).click();
+    await expectNoSeriousAxe(page, "Master+ builds, highest win rate", ["[data-testid=lookup-builds]"]);
+  });
 });

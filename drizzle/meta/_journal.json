@@ -484,6 +484,13 @@
       "when": 1795659089846,
       "tag": "0069_match_details_champions",
       "breakpoints": true
+    },
+    {
+      "idx": 72,
+      "version": "7",
+      "when": 1795744014161,
+      "tag": "0072_high_elo",
+      "breakpoints": true
     }
   ]
 }

@@ -20,6 +20,7 @@ export const JOB_NAMES: Record<string, { name: string; summary: string }> = {
   "builds-audit": { name: "Champion Intel builds check", summary: "Re-checks the builds shown against their rules, from the counts themselves." },
   "account-sync": { name: "Linked accounts", summary: "Reads new games, ranks and mastery for the linked Riot accounts." },
   "timeline-backfill": { name: "Game timelines", summary: "Fetches the game timelines Matchups needs, a few each run." },
+  "high-elo-sample": { name: "Master+ builds", summary: "Counts anonymous Master+ players' builds for Champion Intel; switched off until Riot's registration describes it." },
   "figures-backfill": { name: "Older games' extra figures", summary: "Fetches once more the older games stored before multikills were kept." },
   "rank-checks": { name: "Opponents' ranks", summary: "Checks the rank of the other players in the members' recent games." },
   "rank-watch": { name: "LP tracking", summary: "Reads the linked accounts' ranks, often for those playing ranked." },

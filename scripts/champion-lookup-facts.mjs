@@ -111,6 +111,8 @@ export function readChampionLookup() {
       buildsSource: view?.getAttribute("data-source") ?? null,
       buildsQueueShown: queue ? (queue instanceof HTMLSelectElement ? text(queue.selectedOptions[0]) : text(queue.querySelector("[data-select-label]"))) : "",
       buildsAddressQueue: new URLSearchParams(location.search).has("queue"),
+      // Whether the queue choice offers the Master+ source (the phone's own select's options, or the popover's names, all drawn to size it).
+      buildsMasterOffered: queue ? (queue instanceof HTMLSelectElement ? [...queue.options].some((o) => o.value === "master") : /all regions/.test(queue.textContent ?? "")) : false,
       buildsLine: view?.querySelector('[data-testid="lookup-build-source"]')?.getAttribute("data-line") ?? "",
       buildsFew: text(view?.querySelector('[data-testid="lookup-build-few"]')),
       buildsParts: [...(view?.querySelectorAll('[data-testid="lookup-build-part"]') ?? [])].map((r) => ({
@@ -164,7 +166,7 @@ function publicPatch(patch) {
  * (`legacy`), and /api/health's patch (`healthPatch`, Data Dragon's numbering; undefined: not
  * compared). Each fact: its name, PASS, FAIL or WARN, and what was found.
  */
-export function championLookupVerdicts({ kind, champion, at, wide, hastedRead, all, search, dual, swapped, removed, stopped, legacy, healthPatch }) {
+export function championLookupVerdicts({ kind, champion, at, wide, hastedRead, all, search, dual, swapped, removed, stopped, legacy, healthPatch, healthHighElo }) {
   const out = [];
   const fact = (name, ok, detail) => out.push({ name: `${kind}: ${name}`, status: ok ? "PASS" : "FAIL", detail });
   const warn = (name, detail) => out.push({ name: `${kind}: ${name}`, status: "WARN", detail });
@@ -222,6 +224,9 @@ export function championLookupVerdicts({ kind, champion, at, wide, hastedRead, a
     // D5 (26 Nov 2026): Ranked Solo/Duo by default, one queue named, never several.
     fact("the builds open on Ranked Solo/Duo, and the address names no queue", at.buildsQueue === "solo" && at.buildsQueueShown === QUEUE_NAMES.solo && !at.buildsAddressQueue, { queue: at.buildsQueue, shown: at.buildsQueueShown, inAddress: at.buildsAddressQueue });
     fact("the builds name one queue's games, never several: the queue choice shows one of the four queues, the one the section counts", Object.hasOwn(QUEUE_NAMES, at.buildsQueue ?? "") && QUEUE_NAMES[at.buildsQueue] === at.buildsQueueShown && at.buildsSource === "team", { queue: at.buildsQueue, shown: at.buildsQueueShown, source: at.buildsSource });
+    // D2: the Master+ source only while /api/health says its collection is on (prepared and switched off until the owner's steps).
+    if (healthHighElo === "off" || healthHighElo === "on") fact(`/api/health says the Master+ builds' collection is ${healthHighElo}, and the builds ${healthHighElo === "on" ? "offer" : "offer no"} Master+ source`, at.buildsMasterOffered === (healthHighElo === "on"), { collection: healthHighElo, offered: at.buildsMasterOffered });
+    else if (healthHighElo === null) warn("/api/health does not say whether the Master+ builds' collection is on (a deployment from before it said so)", { collection: healthHighElo ?? null });
   }
   if (at.buildsStatus === "shown") {
     // The current patch; with the previous one added, the range; with none yet on the current one, the previous patch alone, said as that.
