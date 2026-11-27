@@ -56,3 +56,17 @@ export function noteAgeForTest(cookie: string | null | undefined): number | null
 export function kitChangedForTest(cookie: string | null | undefined): boolean {
   return demoTestHooksAllowed() && cookie === "1";
 }
+
+/*
+  BROWSER TESTS ONLY: Matchup Intel's band holds the longest notes a note may hold (four points of
+  35 words, each with a level tag and four abilities: server/matchup/longest-notes.ts) on one screen
+  at 1440 × 900, and the demo's notes are short. A test asks for the demo's notes with the longest
+  points in their place ("1"). Read only on the in-memory demo; nothing is stored.
+*/
+
+export const LONGEST_NOTES_TEST_COOKIE = "uniiverse-test-longest-notes";
+
+/** Whether a browser test's cookie asks for the longest notes in the band; false anywhere but the in-memory demo. */
+export function longestNotesForTest(cookie: string | null | undefined): boolean {
+  return demoTestHooksAllowed() && cookie === "1";
+}

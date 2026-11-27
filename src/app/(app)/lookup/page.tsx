@@ -10,7 +10,7 @@ import { behindPatch, type LookupChampion } from "@/domain/champion-lookup/view"
 import { HIGH_ELO_TEST_COOKIE, highEloShown } from "@/server/champion-builds/high-elo/switch";
 import { loadLaneEvidence } from "@/server/matchup/lane-evidence";
 import { notesForPair } from "@/server/matchup/notes-store";
-import { KIT_CHANGED_TEST_COOKIE, NOTE_AGE_TEST_COOKIE, kitChangedForTest, noteAgeForTest } from "@/server/demo/test-hooks";
+import { KIT_CHANGED_TEST_COOKIE, LONGEST_NOTES_TEST_COOKIE, NOTE_AGE_TEST_COOKIE, kitChangedForTest, longestNotesForTest, noteAgeForTest } from "@/server/demo/test-hooks";
 import { earlyKitLines, kitChange } from "@/domain/matchup/early-kit";
 import type { Role } from "@/domain/roles";
 import { hasteFromAddress, laneFromAddress, paramOf, queueFromAddress, roleFromAddress, sourceFromAddress } from "@/components/champion-lookup/address";
@@ -50,7 +50,7 @@ async function Builds({ db, session, champion, master }: { db: Db; session: Sess
 }
 
 /** Matchup Intel's band for the two champions in a lane, read while the rest of the page is already shown. */
-async function Matchup({ db, session, a, b, role, test }: { db: Db; session: Session; a: LookupChampion; b: LookupChampion; role: Role; test: { ageDistance: number | null; kitChanged: boolean } }) {
+async function Matchup({ db, session, a, b, role, test }: { db: Db; session: Session; a: LookupChampion; b: LookupChampion; role: Role; test: { ageDistance: number | null; kitChanged: boolean; longest: boolean } }) {
   const [evidence, notes] = await Promise.all([
     loadLaneEvidence(db, session, { a: { id: a.champion.id, name: a.champion.name }, b: { id: b.champion.id, name: b.champion.name }, role }),
     notesForPair(db, { role, championId: a.champion.id, opponentId: b.champion.id }, test),
@@ -85,7 +85,7 @@ export default async function ChampionIntelPage({ searchParams }: { searchParams
   let matchup: React.ReactNode = undefined;
   if (lookup && second && lane) {
     const jar = await cookies();
-    const test = { ageDistance: noteAgeForTest(jar.get(NOTE_AGE_TEST_COOKIE)?.value), kitChanged: kitChangedForTest(jar.get(KIT_CHANGED_TEST_COOKIE)?.value) };
+    const test = { ageDistance: noteAgeForTest(jar.get(NOTE_AGE_TEST_COOKIE)?.value), kitChanged: kitChangedForTest(jar.get(KIT_CHANGED_TEST_COOKIE)?.value), longest: longestNotesForTest(jar.get(LONGEST_NOTES_TEST_COOKIE)?.value) };
     matchup = (
       <Suspense fallback={<MatchupBandLoading blocks={hasPermission(session, "view-teammate-stats") ? 3 : 2} />}>
         <Matchup db={db} session={session} a={lookup} b={second} role={lane} test={test} />

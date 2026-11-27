@@ -1,6 +1,8 @@
 import { expect, test, type Page } from "./test";
 import { expectNoSeriousAxe } from "./axe";
 import { pick } from "./select";
+import { widenText } from "./wide-text";
+import { refusedWords } from "../src/domain/matchup/refused-words";
 
 /*
   MATCHUP INTEL (docs/MATCHUP_INTEL.md; the owner's request of 26 Nov 2026, item 4): Champion
@@ -23,7 +25,24 @@ const fit = (page: Page) =>
     const pe = [...document.querySelectorAll('[data-testid="lookup-ability"]:not([data-slot="R"])')].map((r) => r.getBoundingClientRect().bottom);
     return { band: document.querySelector('[data-testid="matchup-band"]')!.getBoundingClientRect().bottom, rows: Math.max(...rows), pe: Math.max(...pe), screen: innerHeight };
   });
-const NEUTRAL = /\b(faster|slower|better|worse|advantage|stronger|weaker|favou?red|wins?|winning|counters?|easy|you|your|should|must|best|optimal)\b/i;
+/** Every text in the band apart, as the Production check reads it (scripts/matchup-facts.mjs): each point, each source's title, each fixed sentence. */
+const bandTexts = (page: Page) =>
+  band(page).evaluate((b) => {
+    const out: string[] = [];
+    const walk = document.createTreeWalker(b, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+      const t = (n.textContent ?? "").replace(/\s+/g, " ").trim();
+      if (t) out.push(t);
+    }
+    return out;
+  });
+/** Neutral words only: none of the notes' refused words (the one list the save and the Production check hold) in any text of the band. */
+const expectNeutral = async (page: Page) => {
+  const texts = await bandTexts(page);
+  expect(texts.length).toBeGreaterThan(0);
+  for (const t of texts) expect(refusedWords(t), t).toEqual([]);
+};
+const LONGEST = "uniiverse-test-longest-notes";
 
 test("the Lane control turns Compare into Matchup Intel: the band above the board, its three blocks named in words, the lane in the address", async ({ page }, info) => {
   test.skip(!isDesktop(info.project.name), "the desktop");
@@ -57,6 +76,11 @@ test("the Lane control turns Compare into Matchup Intel: the band above the boar
   await expect(team.getByTestId("matchup-ahead")).toHaveAttribute("data-of", "14");
   await expect(team.getByTestId("matchup-ahead").locator("dd")).toContainText(/\d+ of 14 · \d+% \(\d+–\d+%\)/);
   await expect(team.getByTestId("matchup-won").locator("dd")).toContainText(/\d+ of 14 · \d+% \(\d+–\d+%\)/);
+  // Each share carries its 95% range for the Production check's reader (the result's line had none until 27 Nov 2026).
+  for (const id of ["matchup-ahead", "matchup-won"]) {
+    await expect(team.getByTestId(id)).toHaveAttribute("data-low", /^0\.\d{4}$|^1\.0000$/);
+    await expect(team.getByTestId(id)).toHaveAttribute("data-high", /^0\.\d{4}$|^1\.0000$/);
+  }
   for (const id of ["matchup-median", "matchup-kills", "matchup-first-blood"]) await expect(team.getByTestId(id)).toBeVisible();
   // Riot's level-1 differences: of one quantity, equal to the columns' own figures.
   const lines = band(page).getByTestId("matchup-kit-line");
@@ -78,7 +102,7 @@ test("the Lane control turns Compare into Matchup Intel: the band above the boar
   await expect(notes.getByTestId("matchup-point").filter({ visible: true })).toHaveCount(3);
   await expect(notes.getByTestId("matchup-sources")).toContainText("Riot's Data Dragon");
   // Neutral words only; nothing scrolls inside.
-  expect(await band(page).textContent()).not.toMatch(NEUTRAL);
+  await expectNeutral(page);
   expect(await scrollers(page)).toBe(0);
   await expectNoSeriousAxe(page, "Matchup Intel with figures", ["[data-testid=matchup-band]"]);
   // No lane again: Compare as it was.
@@ -186,7 +210,58 @@ test("one screen: the band and both champions' five abilities at 1440 × 900 and
   }
 });
 
-test("phones and tablets: the blocks stack above the board, nothing wider than the screen at 100% and 200% text, the lane control's targets a finger's size", async ({ page }, info) => {
+// 27 Nov 2026: two valid points of 35 words pushed both champions' R rows below 900px at 1440 × 900; the shown points now keep to five lines side by side.
+test("one screen with the longest notes a note may hold: four points of 35 words with four abilities each, the shown ones clamped, with text a little wider too", async ({ page, context, baseURL }, info) => {
+  test.skip(!isDesktop(info.project.name), "the desktop");
+  test.setTimeout(180_000);
+  const path = "/lookup?champion=Ahri&champion2=Zed&lane=MID";
+  for (const wide of [false, true]) {
+    if (wide) await widenText(page);
+    for (const folded of [false, true]) {
+      for (const age of ["0", "2"]) {
+        await context.clearCookies({ name: "uniiverse_sidebar" });
+        await context.addCookies([{ name: LONGEST, value: "1", url: baseURL! }, { name: "uniiverse-test-note-age", value: age, url: baseURL! }, ...(folded ? [{ name: "uniiverse_sidebar", value: "collapsed", url: baseURL! }] : [])]);
+        for (const [width, height] of [[1366, 768], [1440, 900], [1920, 1080]] as const) {
+          await page.setViewportSize({ width, height });
+          await page.goto(path);
+          await ready(page);
+          const notes = band(page).getByTestId("matchup-notes");
+          await expect(notes.getByTestId("matchup-note")).toHaveAttribute("data-freshness", age === "0" ? "fresh" : "stale");
+          const where = `${width} × ${height}${folded ? ", folded" : ""}${wide ? ", wider text" : ""}${age === "2" ? ", not re-checked" : ""}`;
+          // The first point alone (it fills the lines by itself), three behind the fold; within its lines (one less beside "not re-checked").
+          await expect(notes.getByTestId("matchup-points")).toHaveAttribute("data-lines", age === "0" ? "5" : "4");
+          await expect(notes.getByTestId("matchup-points").getByTestId("matchup-point")).toHaveCount(1);
+          await expect(notes.getByTestId("matchup-notes-more").locator("summary")).toHaveText("3 more · sources");
+          const m = await fit(page);
+          expect(m.band, `${where}: the band on screen`).toBeLessThanOrEqual(m.screen - 12);
+          if (width >= 1440) expect(m.rows, `${where}: the five abilities of both on screen`).toBeLessThanOrEqual(m.screen - 12);
+          expect(await overflow(page), where).toBeLessThanOrEqual(1);
+          expect(await scrollers(page), where).toBe(0);
+        }
+      }
+    }
+  }
+  // The points are the longest a note may hold (server/matchup/longest-notes.ts), and clamped: opening the fold shows them whole and the rest.
+  await context.clearCookies({ name: "uniiverse_sidebar" });
+  await context.clearCookies({ name: "uniiverse-test-note-age" });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(path);
+  await ready(page);
+  const notes = band(page).getByTestId("matchup-notes");
+  const points = notes.getByTestId("matchup-points");
+  await expect(notes.getByTestId("matchup-point").first()).toContainText("This ability's missile travels along a straight line");
+  const clamped = await points.evaluate((ul) => ({ shown: ul.clientHeight, whole: ul.scrollHeight }));
+  expect(clamped.whole, "the shown point is cut at its lines: a line or more hidden").toBeGreaterThanOrEqual(clamped.shown + 20);
+  await notes.getByTestId("matchup-notes-more").locator("summary").click();
+  await expect.poll(() => points.evaluate((ul) => ul.clientHeight)).toBeGreaterThanOrEqual(clamped.whole - 1);
+  await expect(notes.getByTestId("matchup-point")).toHaveCount(4);
+  await expect(notes.getByTestId("matchup-ref")).toHaveCount(16);
+  await expectNeutral(page);
+  await expectNoSeriousAxe(page, "Matchup Intel with the longest notes", ["[data-testid=matchup-band]"]);
+  await context.clearCookies({ name: LONGEST });
+});
+
+test("phones and tablets: the blocks stack above the board, nothing wider than the screen at 100% and 200% text, the lane control's targets a finger's size", async ({ page, baseURL }, info) => {
   test.skip(isDesktop(info.project.name), "phones and tablets");
   const sizes = info.project.name === "phone" ? [320, 375, 390, 430] : [info.project.use.viewport?.width ?? 820];
   for (const width of sizes) {
@@ -206,6 +281,15 @@ test("phones and tablets: the blocks stack above the board, nothing wider than t
     }
   }
   await expectNoSeriousAxe(page, "Matchup Intel on a phone or tablet", ["[data-testid=matchup-band]"]);
+  // Stacked, the page scrolls: the longest points show whole, never clamped.
+  await page.context().addCookies([{ name: LONGEST, value: "1", url: baseURL! }]);
+  await page.setViewportSize({ width: sizes[0]!, height: 844 });
+  await page.goto("/lookup?champion=Ahri&champion2=Zed&lane=MID");
+  await ready(page);
+  const points = band(page).getByTestId("matchup-points");
+  expect(await points.evaluate((ul) => ul.scrollHeight - ul.clientHeight)).toBeLessThanOrEqual(1);
+  expect(await overflow(page)).toBeLessThanOrEqual(1);
+  await page.context().clearCookies({ name: LONGEST });
 });
 
 test("Matchup Intel's old address and All Champions' preview lead here with the lane", async ({ page }, info) => {

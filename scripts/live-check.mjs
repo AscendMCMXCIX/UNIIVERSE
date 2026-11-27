@@ -185,7 +185,7 @@ import { auditCounts, leaderboardScopeVerdicts, readLeaderboardScope } from "./l
 import { rosterRowLines } from "./roster-lines.mjs";
 import { championLookupVerdicts, readChampionLookup, readChampionWindow } from "./champion-lookup-facts.mjs";
 import { buildsVerdicts, probeFrom, probePath, readBuildsColumns } from "./builds-facts.mjs";
-import { matchupVerdicts, readMatchup } from "./matchup-facts.mjs";
+import { MATCHUP_READ, matchupVerdicts, readMatchup } from "./matchup-facts.mjs";
 import { fitVerdicts, postGameVerdicts, readFit, readInspection, readPostGame, switchVerdicts } from "./post-game-facts.mjs";
 import { championPreviewVerdicts, readChampionPreview, readChampionRows, targetRow } from "./champion-preview-facts.mjs";
 import { breakdownKeyboardVerdicts, breakdownVerdicts, MULTIKILL_ROLE_LABEL, multikillVerdicts, readBreakdownFocus, readMultikillBoard, readMultikillBreakdown } from "./multikill-facts.mjs";
@@ -1522,14 +1522,14 @@ async function buildsChampionFacts(page, log, kind) {
 async function matchupFacts(page) {
   await page.getByTestId("lookup-view").and(page.locator("[data-ready=true]")).waitFor({ timeout: 20_000 });
   await page.getByTestId("matchup-band").waitFor({ timeout: 20_000 }).catch(() => {});
-  const at = await page.evaluate(readMatchup);
+  const at = await page.evaluate(readMatchup, MATCHUP_READ);
   let swapped;
   let stopped;
   try {
     await page.getByTestId("lookup-swap").click({ timeout: 5_000 });
     await page.waitForFunction(() => new URLSearchParams(location.search).get("champion") === "Zed", null, { timeout: 20_000 });
     await page.locator('[data-testid="matchup-band"][data-a="Zed"]').waitFor({ timeout: 20_000 });
-    swapped = await page.evaluate(readMatchup);
+    swapped = await page.evaluate(readMatchup, MATCHUP_READ);
   } catch {
     stopped = "swap";
   }

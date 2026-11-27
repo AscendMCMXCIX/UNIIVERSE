@@ -10,6 +10,7 @@ import { log } from "@/server/observability/log";
 import { cleanNoteInput, noteFreshness, scopeChampions, validateNote, type MatchupNote, type NoteInput, type NoteProblem, type NoteStatus, type PairNotes, type ShownNote } from "@/domain/matchup/notes";
 import { isRole, type Role } from "@/domain/roles";
 import { abilityHashes, changedParts, kitHash } from "./kit-hash";
+import { withLongestPoints } from "./longest-notes";
 
 /*
   Matchup Intel's reviewed notes in the database (matchup_notes, migration 0071;
@@ -91,14 +92,15 @@ async function publishedFor(db: Db, role: Role, championId: string, opponentId: 
 }
 
 /** The band's notes for one pair: every published one with its freshness; a failure reads as none, logged. */
-export async function notesForPair(db: Db, input: { role: Role; championId: string; opponentId: string }, test?: { ageDistance?: number | null; kitChanged?: boolean }): Promise<PairNotes> {
+export async function notesForPair(db: Db, input: { role: Role; championId: string; opponentId: string }, test?: { ageDistance?: number | null; kitChanged?: boolean; longest?: boolean }): Promise<PairNotes> {
   try {
     const [notes, current, known] = await Promise.all([publishedFor(db, input.role, input.championId, input.opponentId), getCurrentPatch(db), cachedFor("patch:known", 10 * 60_000, () => listPatchesDesc(db), db)]);
     const currentPatch = current?.patch ?? null;
     if (!notes.length) return { notes: [], currentPatch };
     const { kits } = await currentKits(db, [input.championId, input.opponentId]);
     // Browser tests only (the in-memory demo): a note as if reviewed so many patches before the
-    // current one (the patches counted back from it), or a kit as if Riot changed the opponent.
+    // current one (the patches counted back from it), a kit as if Riot changed the opponent, or the
+    // longest points a note may hold in place of the demo's (./longest-notes.ts).
     const age = test?.ageDistance ?? null;
     const m = /^(\d+)\.(\d+)$/.exec(currentPatch ?? "");
     const aged = age !== null && m ? Array.from({ length: Number(m[2]) }, (_, k) => `${m[1]}.${Number(m[2]) - k}`) : null;
@@ -108,7 +110,7 @@ export async function notesForPair(db: Db, input: { role: Role; championId: stri
       currentPatch,
       notes: notes.map((note) => {
         const reviewed = aged && age !== null ? (aged[Math.min(age, aged.length - 1)] ?? note.reviewedPatch) : note.reviewedPatch;
-        const shown = { ...note, reviewedPatch: reviewed };
+        const shown = { ...(test?.longest ? withLongestPoints(note) : note), reviewedPatch: reviewed };
         return { note: shown, freshness: noteFreshness(shown, { current: currentPatch, knownDesc: knownNow, kitHashes: now }) };
       }),
     };

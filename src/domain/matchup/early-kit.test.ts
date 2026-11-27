@@ -3,7 +3,7 @@ import abilityFixture from "@/server/riot/fixtures/champion-abilities.fixture.js
 import { lookupChampion } from "@/domain/champion-lookup/view";
 import type { DdragonChampionAbilities } from "@/domain/champion-lookup/types";
 import { EARLY_STATS, differenceWords, earlyKitLines, kitChange, kitLine } from "./early-kit";
-import { evidenceRefusedWords } from "./refused-words";
+import { refusedWords } from "./refused-words";
 
 /* Matchup Intel's "From Riot's data" block (docs/MATCHUP_INTEL.md): level-1 differences of the same quantity, in neutral words, for every pair. */
 
@@ -29,7 +29,7 @@ describe("the level-1 lines", () => {
         expect(l.words).toBe(differenceWords(l.diff, l.more === null ? null : l.more === 0 ? a : b));
         if (l.more !== null) expect(l.words).toMatch(new RegExp(` more for ${l.more === 0 ? a : b}$`));
         expect(l.words).not.toMatch(NEUTRAL);
-        expect(evidenceRefusedWords(l.words)).toEqual([]);
+        expect(refusedWords(l.words)).toEqual([]);
       }
     }
   });

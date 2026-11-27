@@ -40,6 +40,8 @@ interface GameOpts {
   owners: string[];
   /** The member's PUUID in the blue top seat (its own game). */
   memberPuuid?: string;
+  /** Other seats held by members: [seat index, PUUID]. */
+  seats?: Array<[number, string]>;
   queueId?: number;
   duration?: number;
   version?: string;
@@ -64,7 +66,7 @@ async function game(o: GameOpts): Promise<string> {
   for (let i = 0; i < 10; i++) {
     const blue = i < 5;
     const position = POS[i % 5]!;
-    const puuid = i === 0 && o.memberPuuid ? o.memberPuuid : `${matchId}-s${i}`;
+    const puuid = i === 0 && o.memberPuuid ? o.memberPuuid : (o.seats?.find(([seat]) => seat === i)?.[1] ?? `${matchId}-s${i}`);
     const p: MatchParticipantDetail = { puuid, name: `${puuid}#OCE`, teamId: blue ? 100 : 200, championId: (blue ? o.blue : o.red)[i % 5]!, championKey: 0, champLevel: 12, position, win: blue === (o.blueWins ?? true), kills: 1, deaths: 1, assists: 1, cs: 100, gold: 9000, damage: 1, damageTaken: 1, vision: 1, wardsPlaced: 1, items: null, spells: null, runes: null, stats: { firstBloodKill: o.firstBlood === i } };
     if (o.readings !== false) Object.assign(p, { teamPosition: position, individualPosition: position });
     parts.push(p);
@@ -88,6 +90,7 @@ async function game(o: GameOpts): Promise<string> {
 const BLUE = ["Garen", "LeeSin", "Ahri", "Jinx", "Thresh"];
 const RED = ["Darius", "Vi", "Zed", "Caitlyn", "Leona"];
 let ace = "";
+let bea = "";
 let solo = "";
 let old = "";
 
@@ -105,6 +108,7 @@ beforeAll(async () => {
     return a!.id;
   };
   ace = await account("Ace", "p-ace");
+  bea = await account("Bea", "p-bea");
   solo = await account("Solo", "p-solo", { teamMember: false });
   old = await account("Old", "p-old", { archivedAt: new Date() });
   // 12 games of a member's in Solo/Duo: Ahri (blue mid) against Zed (red mid), 8 won by Ahri's side, Ahri 150 gold ahead.
@@ -216,12 +220,28 @@ describe("the block", () => {
     expect(JSON.stringify(c)).not.toMatch(/Ahri|Zed|Garen|Darius|p-ace|OC1_/);
   });
 
+  // 27 Nov 2026: this test erased the only member of every game, so it passed with no game left; now a second member shares three of them.
   it("drops an erased member's seats: their games stay for the others, their own seat never counts", async () => {
-    const before = await readLaneGames(handle.db, { lo: "Darius", hi: "Garen", role: "TOP", season: 16 });
+    // Three Normal Draft games of Ace (blue top, Garen) and Bea (red mid, Zed): Ahri against Zed in Mid is Bea's lane, Garen against Darius in Top Ace's.
+    for (let i = 0; i < 3; i++) await game({ blue: BLUE, red: RED, owners: [ace, bea], memberPuuid: "p-ace", seats: [[7, "p-bea"]], queueId: 400 });
+    const draft = (rows: Awaited<ReturnType<typeof readLaneGames>>) => rows.filter((r) => r.queue === 400);
+    const top = { lo: "Darius", hi: "Garen", role: "TOP" as const, season: 16 };
+    const mid = { lo: "Ahri", hi: "Zed", role: "MID" as const, season: 16 };
+    const before = { top: await readLaneGames(handle.db, top), mid: await readLaneGames(handle.db, mid) };
+    expect(draft(before.top)).toHaveLength(3);
+    expect(draft(before.mid)).toHaveLength(3);
     const [acePlayer] = await handle.db.select({ id: riotAccounts.playerId }).from(riotAccounts).where(sql`${riotAccounts.puuid} = 'p-ace'`);
     await eraseSubject(handle.db, null, await memberSubject(handle.db, { playerId: acePlayer!.id! }));
-    const after = await readLaneGames(handle.db, { lo: "Darius", hi: "Garen", role: "TOP", season: 16 });
-    // Ace held blue top (Garen) in their own games: with them erased, those seats are gone and the games no longer a member's.
-    expect(after.length).toBeLessThan(before.length);
+    const after = { top: await readLaneGames(handle.db, top), mid: await readLaneGames(handle.db, mid) };
+    // Ace's own games (no other member in them) are gone.
+    expect(after.top.length).toBeLessThan(before.top.length);
+    // The shared games stay for Bea: her lane is counted as before, a member's seat in it.
+    expect(draft(after.mid)).toHaveLength(3);
+    expect(draft(after.mid).every((r) => r.member && r.t !== null && r.hi !== null)).toBe(true);
+    // Ace's own seat in them never counts: no Garen against Darius in Top from those games.
+    expect(draft(after.top)).toEqual([]);
+    const [shared] = await handle.db.select({ participants: matchDetails.participants }).from(matchDetails).where(sql`${matchDetails.queueId} = 400`).limit(1);
+    expect(shared!.participants[0]).toMatchObject({ removed: true, championId: null });
+    expect(JSON.stringify(after)).not.toMatch(/p-ace|p-bea|OC1_/);
   });
 });

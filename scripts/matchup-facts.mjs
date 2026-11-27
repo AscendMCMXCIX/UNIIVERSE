@@ -13,10 +13,22 @@
   with why, no instruction or verdict words, no player named, and the band and both champions' five
   abilities on one screen. Read in the page only: counts, true or false, px, numbers and the page's
   own fixed words; no name but champions'.
+
+  The verdict words are the notes' own refused words (src/domain/matchup/refused-words-list.mjs, the
+  one list the notes' save, the editor and the browser tests hold too), handed to the page as
+  MATCHUP_READ and tested on each text of the band apart (each point, each source's title, each fixed
+  sentence: two texts side by side, "Zed W" then "In lane…", are never read as one word). So a note
+  the editor accepts can never fail this fact, and the fact refuses no word a note may hold. Only the
+  listed word found is reported, never the page's text.
 */
 
-/** What the band and the board show, read in the page (Playwright's evaluate: self-contained). */
-export function readMatchup() {
+import { REFUSED_FLAGS, refusedSources } from "../src/domain/matchup/refused-words-list.mjs";
+
+/** What the page reader needs from outside the page (page.evaluate(readMatchup, MATCHUP_READ)): the refused words' patterns. */
+export const MATCHUP_READ = { refused: refusedSources().map(({ word, source }) => ({ word, source })), flags: REFUSED_FLAGS };
+
+/** What the band and the board show, read in the page (Playwright's evaluate: self-contained; `words` is MATCHUP_READ). */
+export function readMatchup(words) {
   const text = (el) => el?.textContent?.replace(/\s+/g, " ").trim() ?? "";
   const band = document.querySelector('[data-testid="matchup-band"]');
   const team = band?.querySelector('[data-testid="matchup-team"]') ?? null;
@@ -32,6 +44,17 @@ export function readMatchup() {
   };
   // The band's own words: Riot's quoted descriptions are elsewhere (the rows), never in the band.
   const own = text(band);
+  // Each text of the band apart, against the notes' refused words (none handed in: not read, and the fact fails).
+  const refused = Array.isArray(words?.refused) ? words.refused.map((r) => ({ word: r.word, pattern: new RegExp(r.source, words.flags) })) : null;
+  const texts = [];
+  if (band) {
+    const walk = document.createTreeWalker(band, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(); n; n = walk.nextNode()) {
+      const t = (n.textContent ?? "").replace(/\s+/g, " ").trim();
+      if (t) texts.push(t);
+    }
+  }
+  const verdictWord = refused ? (refused.find((r) => texts.some((t) => r.pattern.test(t)))?.word ?? null) : null;
   const lowest = Math.max(...["P", "Q", "W", "E", "R"].flatMap((slot) => [1, 2].map((n) => document.querySelector(`[data-testid="lookup-panel"][data-panel="${n}"] [data-testid="lookup-ability"][data-slot="${slot}"]`)?.getBoundingClientRect().bottom ?? Infinity)));
   const scrolls = (el) => {
     const st = getComputedStyle(el);
@@ -55,7 +78,8 @@ export function readMatchup() {
     kit,
     team: team ? { state: team.getAttribute("data-state"), games: Number(team.getAttribute("data-games")), queue: team.getAttribute("data-queue"), ahead: share("matchup-ahead"), won: share("matchup-won"), percents: (text(team).match(/\d+%/g) ?? []).length, line: text(team.querySelector('[data-testid="matchup-team-line"]')) } : null,
     notes: notes ? { state: notes.getAttribute("data-state"), shown: [...notes.querySelectorAll('[data-testid="matchup-note"]')].map((n) => ({ freshness: n.getAttribute("data-freshness"), reviewed: n.getAttribute("data-reviewed") })), hidden: [...notes.querySelectorAll('[data-testid="matchup-note-hidden"]')].map((n) => ({ freshness: n.getAttribute("data-freshness"), words: text(n) })), meta: text(notes.querySelector('[data-testid="matchup-notes-meta"]')) } : null,
-    verdictWords: /\b(you|your|should|must|counter|counters|easy|easier|favou?red|advantage|stronger|weaker|better|worse|faster|slower|wins?|winning|best|optimal|recommend\w*|punish\w*|outplay\w*)\b/i.test(own),
+    verdictWords: refused ? verdictWord !== null : null,
+    verdictWord,
     identity: /#[A-Za-z0-9]{2,5}\b|\b[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}\b|[A-Za-z0-9_-]{60,}/.test(own),
     bandBottom: band ? Math.round(band.getBoundingClientRect().bottom) : null,
     lastBottom: Number.isFinite(lowest) ? Math.round(lowest) : null,
@@ -105,7 +129,7 @@ export function matchupVerdicts({ at, swapped, stopped, healthPatch, mayStats = 
   const n = at.notes;
   const notesOk = !!n && (n.state === "none" || n.state === "shown" || n.state === "unavailable") && n.shown.every((s) => (s.freshness === "fresh" && (!current || s.reviewed === current || /^\d+\.\d+$/.test(s.reviewed ?? ""))) || s.freshness === "stale") && n.hidden.every((h) => /^A reviewed note is hidden: /.test(h.words)) && (n.shown.every((s) => s.freshness !== "stale") || /not re-checked/.test(n.meta));
   fact("Reviewed notes: none, or each shown note labelled with its review patch (not re-checked when two or three patches old), a hidden note saying why", notesOk, { state: n?.state ?? null, shown: n?.shown.length ?? null, hidden: n?.hidden.length ?? null, meta: n?.meta ?? null });
-  fact("no instruction or verdict words in the band (you, should, counter, favoured, faster, wins…)", !at.verdictWords && !(swapped?.verdictWords ?? false), null);
+  fact("no instruction or verdict words in the band (the notes' refused words: you, should, counter, favoured, faster, wins…)", at.verdictWords === false && (!swapped || swapped.verdictWords === false), { word: at.verdictWord ?? swapped?.verdictWord ?? null, read: at.verdictWords !== null });
   fact("no player named in the band: no Riot ID or account id", !at.identity && !(swapped?.identity ?? false), null);
   fact("one screen at 1440 × 900: the band and both champions' five abilities on it, nothing scrolling inside", at.size === "1440x900" && at.bandBottom !== null && at.lastBottom !== null && at.lastBottom <= at.innerHeight && at.scrollers === 0, { bandBottom: at.bandBottom, lastBottom: at.lastBottom, innerHeight: at.innerHeight, scrollers: at.scrollers });
   if (stopped) fact("Swap finished (a step that did not is named)", false, { stopped });

@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { Plus, Trash2 } from "lucide-react";
-import { LEVEL_LABELS, MAX_POINTS, MAX_SOURCES, SOURCE_KINDS, scopeChampions, validateNote, type NoteInput, type NoteLevels, type NoteProblem, type SourceKind } from "@/domain/matchup/notes";
+import { LEVEL_LABELS, MAX_POINTS, MAX_SOURCES, SOURCE_KINDS, rescope, scopeChampions, validateNote, type NoteInput, type NoteLevels, type NoteProblem, type SourceKind } from "@/domain/matchup/notes";
 import { ROLES, type Role } from "@/domain/roles";
 import { saveMatchupNoteAction } from "@/server/actions/matchup-notes";
 import { Button } from "@/components/ui/button";
@@ -18,7 +18,9 @@ import { cn } from "@/lib/cn";
   the abilities it rests on, an optional level tag, and the sources. Checked here as it is typed with
   the server's own rules (domain/matchup/notes validateNote: the refused words with why, 35 words a
   point, an https address), and again on the server, which also refuses a member's or player's name.
-  Save draft keeps it off the band; Publish records the review on the current patch.
+  Save draft keeps it off the band; Publish records the review on the current patch. A change of
+  scope, champion or opponent keeps only the refs of champions still in it (domain rescope): the
+  toggles are drawn for those champions alone, so any other ref could be neither seen nor removed.
 */
 
 const SLOTS = ["P", "Q", "W", "E", "R"] as const;
@@ -49,6 +51,11 @@ export function NoteEditor({ id, initial, champions, currentPatch, onClose, onSa
   const set = (patch: Partial<NoteInput>) => {
     setServerProblems([]);
     setInput((now) => ({ ...now, ...patch }));
+  };
+  /** The scope, the champion played or the opponent changed: refs to a champion no longer in the note go. */
+  const setScope = (patch: Partial<Pick<NoteInput, "scope" | "opponentId" | "championId">>) => {
+    setServerProblems([]);
+    setInput((now) => rescope(now, patch));
   };
   const setPoint = (i: number, patch: Partial<NoteInput["points"][number]>) => set({ points: input.points.map((p, k) => (k === i ? { ...p, ...patch } : p)) });
   const setSource = (i: number, patch: Partial<NoteInput["sources"][number]>) => set({ sources: input.sources.map((s, k) => (k === i ? { ...s, ...patch } : s)) });
@@ -90,7 +97,7 @@ export function NoteEditor({ id, initial, champions, currentPatch, onClose, onSa
           <legend className="text-sm font-semibold text-fg">Scope</legend>
           <div role="radiogroup" aria-label="Kind of note" className={segmentedGroupClass()}>
             {(["opponent", "pair"] as const).map((s) => (
-              <button key={s} type="button" role="radio" aria-checked={input.scope === s} onClick={() => set({ scope: s, championId: s === "pair" ? (input.championId ?? "") : null })} className={segmentClass(input.scope === s, { size: "md" })} data-testid={`matchup-editor-scope-${s}`}>
+              <button key={s} type="button" role="radio" aria-checked={input.scope === s} onClick={() => setScope({ scope: s, championId: s === "pair" ? (input.championId ?? "") : null })} className={segmentClass(input.scope === s, { size: "md" })} data-testid={`matchup-editor-scope-${s}`}>
                 {s === "opponent" ? "Every pair against an opponent" : "One pairing"}
               </button>
             ))}
@@ -103,13 +110,13 @@ export function NoteEditor({ id, initial, champions, currentPatch, onClose, onSa
             {input.scope === "pair" ? (
               <div>
                 <Label htmlFor="matchup-editor-champion">Champion played</Label>
-                <Select id="matchup-editor-champion" value={input.championId ?? ""} onValueChange={(v) => set({ championId: v })} options={championOptions} data-testid="matchup-editor-champion" />
+                <Select id="matchup-editor-champion" value={input.championId ?? ""} onValueChange={(v) => setScope({ championId: v })} options={championOptions} data-testid="matchup-editor-champion" />
                 <Problems list={problems} field="championId" />
               </div>
             ) : null}
             <div>
               <Label htmlFor="matchup-editor-opponent">Lane opponent</Label>
-              <Select id="matchup-editor-opponent" value={input.opponentId} onValueChange={(v) => set({ opponentId: v })} options={championOptions} data-testid="matchup-editor-opponent" />
+              <Select id="matchup-editor-opponent" value={input.opponentId} onValueChange={(v) => setScope({ opponentId: v })} options={championOptions} data-testid="matchup-editor-opponent" />
               <Problems list={problems} field="opponentId" />
             </div>
           </div>
