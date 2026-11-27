@@ -112,6 +112,33 @@ From the same match and timeline requests as before (no new request, no new endp
   once a patch, from three Data Dragon files (`src/server/riot/static/digests.ts`); a failed attempt
   is retried at most once a day. Admin's Data & Integrations and `/api/health` count what changed
   between the two newest patches; Matchup Intel's two-patch rule read it too until it was retired.
+  Since 27 Nov 2026 Matchup Intel's lane figures read it again (docs/MATCHUP_INTEL.md): Riot's latest
+  recorded change to either champion of a pair (the newest patch whose hash differs from the patch
+  before it) chooses their window.
+
+### Matchup Intel and patch maintenance (27 Nov 2026)
+
+Matchup Intel (Champion Intel's Compare with a lane; docs/MATCHUP_INTEL.md) adds no job and no
+stored derived data: its three blocks follow every patch on their own.
+
+- **From Riot's data** is rebuilt from the abilities and statistics version-check stores, at every
+  read, with the abilities' own "Changed since" marks.
+- **In the team's matches** is counted on read from the stored records and timelines (one statement
+  per pair, cached six hours, tag `lane-matchups`), its window chosen by the digests above.
+- **Reviewed notes** (`matchup_notes`) keep each scope champion's kit hash at their review
+  (`src/server/matchup/kit-hash.ts`, from `champion_abilities`): a new patch that changes either
+  champion hides the note at once; otherwise it is "not re-checked" two and three patches on and hidden
+  from the fourth. Admin's Matchup notes lists them under "Needs re-review", the dashboard counts them,
+  `/api/health` gives `matchupNotes`.
+- **Per patch (the owner):** re-review the notes the dashboard flags (what changed, Riot's patch notes
+  linked for a person to read; Confirm, Edit, Unpublish or Retire), and Confirm the "not re-checked"
+  ones every second patch.
+- **Once a season, or when a new champion arrives:** rebuild the committed ability fixture
+  (`node scripts/static/build-ability-fixture.mjs --version <new>`) and run `mechanics.test.ts`,
+  `cooldown.test.ts`, `cost.test.ts` and `src/domain/matchup/early-kit.test.ts`; their roster counts move
+  only through a reviewed commit.
+- **After the release:** one Data jobs run with `auth-audit`, `perf-probe` (its `matchup.lane-evidence`
+  step) and `data-audit` (its `matchupCoverage` section: counts only) reads production's real coverage.
 
 ## Rank readings and LP per game (`rank-watch`)
 

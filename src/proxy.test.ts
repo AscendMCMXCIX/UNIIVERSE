@@ -19,9 +19,11 @@ describe("route protection", () => {
     expect(res.status).toBe(307);
     expect(res.headers.get("location")).toBe("https://team.example/login?next=%2Fteam");
   });
-  it("answers Matchup Intel's old links with one permanent redirect to Champion Intel, carrying the enemy first, signed out too", async () => {
+  // Changed on 27 Nov 2026 (Matchup Intel back inside Champion Intel's Compare): both champions and the lane are carried.
+  it("answers Matchup Intel's old links with one permanent redirect to Champion Intel, carrying both champions and the lane, signed out too", async () => {
     for (const [path, to] of [
-      ["/resources/matchups?champion=Riven&vs=Mordekaiser", "/lookup?champion=Mordekaiser"],
+      ["/resources/matchups?champion=Riven&vs=Mordekaiser", "/lookup?champion=Riven&champion2=Mordekaiser"],
+      ["/resources/matchups?role=top&champion=Riven&vs=Mordekaiser", "/lookup?champion=Riven&champion2=Mordekaiser&lane=TOP"],
       ["/resources/matchups?role=top&champion=Riven", "/lookup?champion=Riven"],
       ["/resources/matchups?role=adc&ally=Lulu&vs2=Lux&ability=Lux.Q", "/lookup?champion=Lux"],
       ["/resources/matchups?ally=Lulu", "/lookup?champion=Lulu"],

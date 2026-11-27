@@ -286,7 +286,15 @@ its second tab; from 18 Nov 2026 Matchup Intel (`/resources/matchups`) was a sid
 own, between Team and Resources, and since 23 Nov 2026 Champion Lookup, renamed Champion Intel on
 24 Nov 2026 (`/lookup`, one or two champions' abilities, cooldowns, costs, mechanics, facts, base
 statistics and, for members, builds and runes: docs/CHAMPION_INTEL.md) takes that place; Matchup Intel's address
-redirects to it (docs/MATCHUP_INTEL.md).
+redirects to it (docs/MATCHUP_INTEL.md). Since 27 Nov 2026 Matchup Intel is Champion Intel's Compare
+with a lane (docs/MATCHUP_INTEL.md): `src/domain/matchup/` (Riot's level-1 differences, the lane
+figures and their window, the notes' rules and freshness, the curation queue, the refused words and
+the band's words, all pure), `src/server/matchup/` (the lane statement and its cached loader, the
+notes' store and kit hashes, the curation queue, data-audit's coverage), `src/server/actions/matchup-notes.ts`,
+the band (`src/components/champion-lookup/matchup-band.tsx`, a server component with two client
+islands: the team block and its queue, and the notes' fold), and Admin's
+`src/app/(admin)/admin/matchup-notes/` with `src/components/admin/matchup-notes/`; one table,
+`matchup_notes` (migration 0071).
 The Library is the team's library of League of Legends sites in five sections (League of Legends, Summoner's Rift,
 ARAM, Arena, Esports). One filter bar (search, then the section), favourites kept in the browser
 (`localStorage`), then one panel per section, two side by side on wide screens. Each site is one

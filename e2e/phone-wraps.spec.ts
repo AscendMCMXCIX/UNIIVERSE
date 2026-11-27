@@ -229,7 +229,7 @@ test("on a 320px phone, at 100%, 150% and 200% text, Leaderboards' season record
   }
 });
 
-const ADMIN_PAGES = ["/admin", "/admin/people", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/data", "/admin/system", "/admin/audit", "/admin/settings"];
+const ADMIN_PAGES = ["/admin", "/admin/people", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/matchup-notes", "/admin/data", "/admin/system", "/admin/audit", "/admin/settings"];
 
 test("at 200% and 150% text on 320, 375 and 393px phones, every Admin Mode page is no wider than the phone", async ({ page, context, baseURL }) => {
   // Its health cards, Branding's Reset colours and save bar, Previews' switches, Users & Permissions'

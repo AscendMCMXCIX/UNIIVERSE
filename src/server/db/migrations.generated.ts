@@ -975,5 +975,20 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
     "statements": [
       "CREATE INDEX \"match_details_champions_idx\" ON \"match_details\" USING gin ((jsonb_path_query_array(\"participants\", '$[*].championId'))) WITH (fastupdate=false);"
     ]
+  },
+  {
+    "idx": 71,
+    "tag": "0071_matchup_notes",
+    "hash": "2a234b399d970c1016d4e9e25ffd8f3b97cbfd240aef0eb06869492c0e6c1469",
+    "statements": [
+      "CREATE TABLE \"matchup_notes\" (\n\t\"id\" uuid PRIMARY KEY DEFAULT gen_random_uuid() NOT NULL,\n\t\"scope\" text NOT NULL,\n\t\"role\" text NOT NULL,\n\t\"opponent_id\" text NOT NULL,\n\t\"champion_id\" text,\n\t\"status\" text DEFAULT 'draft' NOT NULL,\n\t\"points\" jsonb NOT NULL,\n\t\"sources\" jsonb DEFAULT '[]'::jsonb NOT NULL,\n\t\"reviewed_by\" uuid,\n\t\"reviewed_at\" timestamp with time zone,\n\t\"reviewed_patch\" text,\n\t\"reviewed_version\" text,\n\t\"kit_hashes\" jsonb,\n\t\"ability_hashes\" jsonb,\n\t\"created_by\" uuid,\n\t\"created_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\t\"updated_by\" uuid,\n\t\"updated_at\" timestamp with time zone DEFAULT now() NOT NULL,\n\tCONSTRAINT \"matchup_notes_scope_check\" CHECK (\"matchup_notes\".\"scope\" IN ('opponent', 'pair') AND ((\"matchup_notes\".\"scope\" = 'pair') = (\"matchup_notes\".\"champion_id\" IS NOT NULL))),\n\tCONSTRAINT \"matchup_notes_role_check\" CHECK (\"matchup_notes\".\"role\" IN ('TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT')),\n\tCONSTRAINT \"matchup_notes_status_check\" CHECK (\"matchup_notes\".\"status\" IN ('draft', 'published', 'retired')),\n\tCONSTRAINT \"matchup_notes_review_check\" CHECK (\"matchup_notes\".\"status\" <> 'published' OR (\"matchup_notes\".\"reviewed_at\" IS NOT NULL AND \"matchup_notes\".\"reviewed_patch\" IS NOT NULL AND \"matchup_notes\".\"kit_hashes\" IS NOT NULL))\n);",
+      "ALTER TABLE \"matchup_notes\" ADD CONSTRAINT \"matchup_notes_reviewed_by_users_id_fk\" FOREIGN KEY (\"reviewed_by\") REFERENCES \"public\".\"users\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "ALTER TABLE \"matchup_notes\" ADD CONSTRAINT \"matchup_notes_created_by_users_id_fk\" FOREIGN KEY (\"created_by\") REFERENCES \"public\".\"users\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "ALTER TABLE \"matchup_notes\" ADD CONSTRAINT \"matchup_notes_updated_by_users_id_fk\" FOREIGN KEY (\"updated_by\") REFERENCES \"public\".\"users\"(\"id\") ON DELETE set null ON UPDATE no action;",
+      "CREATE UNIQUE INDEX \"matchup_notes_live_idx\" ON \"matchup_notes\" USING btree (\"scope\",\"role\",\"opponent_id\",coalesce(\"champion_id\", '')) WHERE \"matchup_notes\".\"status\" <> 'retired';",
+      "CREATE INDEX \"matchup_notes_read_idx\" ON \"matchup_notes\" USING btree (\"role\",\"opponent_id\") WHERE \"matchup_notes\".\"status\" = 'published';",
+      "ALTER TABLE \"matchup_notes\" ENABLE ROW LEVEL SECURITY;",
+      "-- Closed to Supabase's Data API whatever the project's default privileges, and readable by the\n-- backup role where it exists (docs/DATABASE_PERMISSIONS.md). A uuid key: no sequence to grant.\nDO $$ BEGIN\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN\n    REVOKE ALL ON TABLE public.matchup_notes FROM anon;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN\n    REVOKE ALL ON TABLE public.matchup_notes FROM authenticated;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'uniiverse_backup') THEN\n    GRANT SELECT ON TABLE public.matchup_notes TO uniiverse_backup;\n  END IF;\nEND $$;"
+    ]
   }
 ];

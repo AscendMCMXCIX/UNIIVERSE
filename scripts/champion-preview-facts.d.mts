@@ -27,6 +27,8 @@ export interface ChampionPreviewRead {
   lookup?: number;
   lookupPage?: boolean;
   lookupChampion?: boolean;
+  /** The link's lane is the preview's position (lane=, the bot lane's carry written BOTTOM). */
+  lookupLane?: boolean;
   address?: { champion: boolean; role?: boolean };
 }
 export interface Verdict { name: string; status: "PASS" | "FAIL" | "WARN"; detail: unknown }

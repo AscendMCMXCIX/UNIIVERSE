@@ -47,7 +47,7 @@ Deactivating, deleting and archiving are different actions, and none of them is 
 | Notes others wrote | Whole-word mentions of their names, Riot names and Riot IDs (3 characters or more) become "[removed]"; the rest of each note stays. This includes the private text other players kept in the retired Ranked Development: review learning points and adjustments, session focus and closing notes, objective titles and explanations, and If–Then plans. |
 | Admin activity | Entries keep what happened. Their name becomes **"Erased member"** as actor or target, and matching details become "[removed]". Since 19 Nov 2026, every entry about them by id (done to their account, profile or Riot account, by anyone, themselves included) loses every text in its details, whatever it says (numbers and yes/no values stay), so a detail naming them as they were called before a rename cannot survive. An entry they only made, about another member or a setting, keeps its details apart from values that name them: what access they gave someone else stays that person's record. **Forward only:** entries left by erasures made before that keep what those erasures left. Their ids were removed then, so neither a later erasure nor re-applying the records (`erasure-reconcile`, Personal data → Re-apply records) finds them by id; clearing them would need a one-off over the entries named "Erased member", which waits for the owner (the overhaul plan's OD21, with a read-only count first). |
 | Job logs | Their Riot IDs are taken out of `job_runs` and `data_refresh_status`. Newer sync lines name an account only as `account 1a2b3c4d`. Run records are deleted after 60 days (the daily `integrity` job, in bounded batches). |
-| Caches | Team, public page, leaderboards, public pictures and banners, proficiency and lookup caches, and the lanes Matchups keeps, are cleared on this server instance (`src/server/privacy/after-erasure.ts`); other instances follow within their cache times. Champion Intel's build totals, kept in Next's data cache that every instance shares, are dropped at once (`forgetChampionBuilds`), so the next page counts them again without the erased person's games. |
+| Caches | Team, public page, leaderboards, public pictures and banners, proficiency and lookup caches, and the lanes Matchups keeps, are cleared on this server instance (`src/server/privacy/after-erasure.ts`); other instances follow within their cache times. Champion Intel's build totals and Matchup Intel's lane games and curation queue, kept in Next's data cache that every instance shares, are dropped at once (`forgetChampionBuilds`, `forgetLaneMatchups`, `forgetMatchupQueue`), so the next page counts them again without the erased person's games. Matchup Intel's reviewed notes lose the links to an erased administrator's account (the notes stay: they name no player). |
 
 It then records:
 - **An erasure record** (`privacy_erasures`): a random reference and keyed tokens of the account, profile, Riot account ids, PUUIDs and Riot IDs. Never the identifiers themselves.
@@ -166,6 +166,28 @@ docs/CHAMPION_INTEL.md, "Builds and runes", has the rules.
   server's instances), dropped at once by an erasure; no table holds them.
 - **Erased people** are already out of the records and timelines (`removed`, timeline entries
   deleted), and the counts skip a removed place.
+
+## Matchup Intel's lane totals and reviewed notes (27 Nov 2026)
+
+The owner's request of 26 Nov 2026 (item 4) brought Matchup Intel back as Champion Intel's Compare
+with a lane (docs/MATCHUP_INTEL.md). Two uses, said in the notice (`PRIVACY_UPDATED` 27 November 2026):
+
+- **Lane totals** (the match-records row): for a lane and two champions chosen by hand, how the two
+  players of that lane compared at 10 minutes in the stored draft games a current team member played
+  (every lane of them, both teams): gold, experience and CS differences, kills between the two, first
+  blood, result. One statement per pair counts inside the database; per game only anonymous numbers
+  leave it (no PUUID, name, Riot ID or match id: `tests/db/lane-matchups.test.ts` checks the answer's
+  keys), and only totals are shown, from 10 games. For members who may see teammates' statistics (a
+  pair only one member plays would show that member's lane results, as the builds would). Nothing new
+  is stored: kept up to six hours in Next's data cache, dropped at once by an erasure
+  (`forgetLaneMatchups`); an erased player's seat is never counted.
+- **Reviewed notes** (a row of their own): short observations about two champions' kits that
+  administrators write, in `matchup_notes` (migration 0071). The reviewing administrator's account is
+  stored with each note (with who created and last changed it); members see "an administrator", Admin
+  the display name. A note's text may never name a player (the save refuses a member's, player's or
+  linked Riot name and a Riot ID's tag). Permanent removal sets the three account links to NULL and
+  keeps the note (`src/server/privacy/erasure.ts`; the preview counts the notes). The curation queue in
+  Admin shows champion names and counts only, never whose games.
 
 ## Prepared, not active: high-elo statistics (OD4)
 

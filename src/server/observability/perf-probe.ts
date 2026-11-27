@@ -19,6 +19,7 @@ import { offeredCurrentSeason } from "@/domain/season";
 import { currentSeason } from "@/server/accounts/sync";
 import { getPlayerOverview } from "@/server/players/overview";
 import { getPlayerMatchups, type MatchupsData } from "@/server/players/matchups";
+import { readLaneGames } from "@/server/matchup/lane-query";
 
 export interface ProbeStep {
   name: string;
@@ -358,6 +359,15 @@ export async function runPerfProbe(
         );
       }
     }
+    // Matchup Intel's lane figures (docs/MATCHUP_INTEL.md): the one statement for a common pair, cold
+    // (the database's own time: the band caches it for six hours in Next's data cache, which this job
+    // does not read) and warm. Counts only: how many games the pair has.
+    push(
+      await step("matchup.lane-evidence", async () => readLaneGames(db, { lo: "Ahri", hi: "Zed", role: "MID", season: offeredCurrentSeason(await currentSeason(db)) }), {
+        warm: true,
+        note: (r) => `${(r as unknown[]).length} games of the pair (every draft queue) · ${(r as Array<{ t: unknown }>).filter((g) => g.t).length} with a timeline`,
+      }),
+    );
     // Played together (counts only).
     invalidatePlayedTogetherCache();
     push(

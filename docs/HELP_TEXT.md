@@ -117,6 +117,24 @@ The overhaul's stage-0 inventory (`docs/overhaul/tooltips.json` on the `overhaul
 
 The kept items (86) are unchanged, except D09's words "Primary role" → "Main role" on the pool's role icon.
 
+## 27 Nov 2026: Matchup Intel's band (Release 19)
+
+Every ⓘ and fixed sentence of the band is in `src/domain/matchup/words.ts`, each ⓘ one or two
+sentences of at most 25 words, none with a refused word or "you" (`src/domain/matchup/words.test.ts`
+counts them as `tip-length.test.ts` does; `refused-words.ts` holds both lists).
+
+| Where | Words |
+|---|---|
+| Reviewed notes ⓘ (`NOTES_TIP`) | "Written and checked by a team administrator from the sources shown. Observations about the two kits, not advice." |
+| In the team's matches ⓘ (`TEAM_TIP`) | "Counted in the team's stored matches, both teams, with a timeline to 10:00. Not a global sample; high-elo games are not collected." |
+| From Riot's data ⓘ (`RIOT_TIP`) | "Riot's level 1 numbers side by side, the same quantity only. Riot's data cannot show every balance change; cooldowns are in the rows below." |
+| Under 10 games (`FEW_TIP`) | "A few games can lean either way by chance, so figures show from 10 games with a timeline." |
+| A share's range (`shareTip`) | "The likely range of the share over many more such games (95%)." then "A range that includes 50% shows no difference beyond chance." or, where it does, "It includes 50%: these games don't show a difference beyond chance." |
+| The sample (`sampleTip`) | the window ("Only games since Riot's latest change to Darius, on 26.22." / "Riot changed Darius on 26.22: 9 of these games came before it." / "Riot's data before 26.22 was not compared."), then "3 on patch 26.23; 2 more without a timeline." |
+| The medians (`medianTip`) | "Riven's figures minus Darius's in the middle game. The middle half ran from −220 to +540 gold." |
+| Kills (`killsTip`) | "Riven took a kill on Darius in 4 and Darius on Riven in 5 of the 12 games with kill times." |
+| States | "No Ranked Solo/Duo games of Riven vs Darius in Top in the team's matches yet." · "4 games in the team's matches (Ranked Solo/Duo, Season 2026). Figures show from 10." · "Lane figures can't be loaded right now." · "A champion is picked only once in a draft game, so no game has this pair." · "No reviewed notes for Riven vs Darius in Top yet." · "Reviewed on 26.21 · not re-checked for 26.23" · "A reviewed note is hidden: Riot's data for Darius changed after its review on 26.23." · "A reviewed note is hidden: its last review (26.19) is 4 patches old." |
+
 ## 25 Nov 2026: one concept a tip (the owner's readability request)
 
 The owner asked for concise InfoTips: one concept each, plain language a newcomer understands, one or two short sentences, no needless maths or jargon, the essential information visible without the tip, and a shared popover (`src/components/ui/breakdown-popover.tsx`, the Leaderboards lane's) for a detailed breakdown rather than a giant bubble. The typography lane rewrote the tips in its files; the others are their lanes' (listed at the end). The tip's bubble is the body size since this release (14px; 12px before).

@@ -339,9 +339,19 @@ name then focused. No compare is forced, and it is no destination of its own.
   for the other column meanwhile keeps the one still loading ("Loading Lux and Caitlyn…"). A haste
   typed, or a builds role chosen, while the page's own change is on its way stays when it arrives:
   the page tells its own address from one opened elsewhere (a link, Back), which brings its own.
-- **Neutral.** Two references, never a verdict: no colour or word says which value is better, no
-  difference is computed, nothing is "faster" (RIOT_COMPLIANCE.md item 9; the browser spec checks the
-  words).
+- **Neutral.** Two references, never a verdict: no colour or word says which value is better,
+  nothing is "faster" (RIOT_COMPLIANCE.md item 9; the browser spec checks the words). Without a lane
+  no difference is computed; only with a lane chosen does Matchup Intel's band state differences of
+  the same quantity in neutral words ("22 more for Darius", "the same"), never better, worse, faster,
+  favoured or a verdict (27 Nov 2026).
+- **Matchup Intel** (27 Nov 2026, the owner's request of 26 Nov 2026, item 4; [MATCHUP_INTEL.md](MATCHUP_INTEL.md)):
+  the **Lane** control beside Swap (icons, the chosen lane named; "No lane" first, Compare as it
+  was) puts the early-lane band between the title and the board: Reviewed notes, In the team's
+  matches (accounts that may see teammates' statistics) and From Riot's data, each named in words.
+  The first column reads "Playing", the second "Against"; each ability row's rank-1 cell is tinted.
+  A lane is chosen like a champion (the server builds the band; Swap and ✕ wait meanwhile); Swap
+  keeps it and shows the other side of the same games; ✕ drops it; each column's builds open on the
+  lane's role where the champion has builds in it.
 - **Every width.** From a board of 22rem (a 390px phone at 100% text) up both champions sit side by
   side in every row (a phone's columns use the line form, values wrapping between ranks, the
   abilities' names and cooldowns a size smaller; the portrait above the name, the name a size
@@ -499,8 +509,10 @@ the other champions the browser tests open show the honest line. The same on eve
 
 ## Address
 
-`/lookup?champion=<id>&haste=<n>&role=<role>&champion2=<id>&haste2=<n>&role2=<role>` (`address.ts`,
-`intelHref`), so a reload, a bookmark and a shared link open the same champions at the same hastes,
+`/lookup?champion=<id>&haste=<n>&role=<role>&champion2=<id>&haste2=<n>&role2=<role>&lane=<lane>&queue=<queue>`
+(`address.ts`, `intelHref`; `lane=TOP|JUNGLE|MID|BOTTOM|SUPPORT` only with two champions, Matchup
+Intel's; `queue=solo|flex|draft|clash`, Ranked Solo/Duo left out, the page's queue, which Matchup
+Intel's lane figures read and the builds by queue share), so a reload, a bookmark and a shared link open the same champions at the same hastes,
 each builds section on its chosen role (left out for its default; a role is `TOP`, `JUNGLE`, `MID`,
 `ADC` or `SUPPORT` in any case, anything else ignored). A champion may be its Data
 Dragon id or its name in any case, accents and punctuation ignored ("wukong" opens MonkeyKing); the
@@ -512,11 +524,14 @@ history entry, so Back leaves the page in one step. A champion is built on the s
 (`router.replace`); a haste or a builds role changes the page at once and only rewrites the address
 (`history.replaceState`), with no request. A champion changed drops its column's role.
 
-**Old links.** Matchup Intel's address, `/resources/matchups` with any of its parameters, redirects
-here (HTTP 308, `src/proxy.ts`) carrying one champion: the enemy (`vs`) where it names one, else your
-champion, else the bot lane's other enemy, else your duo partner (`legacyMatchupRedirect`).
-`/resources/matchups?champion=Riven&vs=Mordekaiser` lands on `/lookup?champion=Mordekaiser`. All
-Champions' preview links an opened lane opponent here: "Renekton's abilities in Champion Intel →".
+**Old links.** Matchup Intel's old address, `/resources/matchups` with any of its parameters,
+redirects here (HTTP 308, `src/proxy.ts`, `legacyMatchupRedirect`): since 27 Nov 2026 your champion
+(`champion`) and the enemy (`vs`) as the two champions and the old lane (`role`) as the lane, so
+`/resources/matchups?role=top&champion=Riven&vs=Mordekaiser` lands on
+`/lookup?champion=Riven&champion2=Mordekaiser&lane=TOP`; one of the two alone is carried alone (no
+lane); with neither, the bot lane's other enemy, else your duo partner. All Champions' preview links an
+opened lane opponent here: "Riven vs Renekton in Matchup Intel" (both champions, the position as the
+lane).
 
 ## Fit and measurements
 
@@ -593,8 +608,11 @@ The app-wide checklist is [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md), where Champi
   available prior to the game" are an approved use; this is a web page with the same static data, the
   same before any game and on a second screen during one. Nothing comes from a game in progress or
   from champion select, nothing names a player, and two champions compared are two references, never
-  a verdict on a matchup: aligned side by side, with no better/worse colouring, no difference
-  computed and no "faster" or winner wording.
+  a verdict on a matchup: aligned side by side, with no better/worse colouring and no "faster" or
+  winner wording. Only with a lane chosen (Matchup Intel, [MATCHUP_INTEL.md](MATCHUP_INTEL.md)) does
+  the band state differences of the same quantity in neutral words, beside totals of the team's
+  completed games from 10 games with their 95% ranges and notes the team's administrators review:
+  one pair at a time, chosen by hand, no ranking, counter list or pick suggestion.
 - **No timers.** Base values per rank and their value at a chosen haste only: no timer, countdown,
   "used" or "ready at", and nothing records when an ability was used (`words.test.ts` and the browser
   spec check the words). No advice, ranking or matchup verdict.

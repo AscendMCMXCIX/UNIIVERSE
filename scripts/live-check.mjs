@@ -178,6 +178,7 @@ import { redact } from "./redact.mjs";
 import { riotKeysOnPage } from "./riot-keys.mjs";
 import { rosterRowLines } from "./roster-lines.mjs";
 import { championLookupVerdicts, readChampionLookup, readChampionWindow } from "./champion-lookup-facts.mjs";
+import { matchupVerdicts, readMatchup } from "./matchup-facts.mjs";
 import { fitVerdicts, postGameVerdicts, readFit, readInspection, readPostGame, switchVerdicts } from "./post-game-facts.mjs";
 import { championPreviewVerdicts, readChampionPreview, readChampionRows, targetRow } from "./champion-preview-facts.mjs";
 import { breakdownKeyboardVerdicts, breakdownVerdicts, MULTIKILL_ROLE_LABEL, multikillVerdicts, readBreakdownFocus, readMultikillBoard, readMultikillBreakdown } from "./multikill-facts.mjs";
@@ -234,7 +235,7 @@ function http(path, cookie, headers = []) {
 }
 const turnedAway = (r) => ((r.status >= 300 && r.status < 400 && /\/login/.test(r.redirect)) || r.status === 401 || r.status === 403);
 /** Admin Mode's pages the security facts reach since 19 Nov 2026, and the sign-in previews (Platform Settings → Previews). */
-const ADMIN_PAGES_LATER = ["/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources"];
+const ADMIN_PAGES_LATER = ["/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/matchup-notes"];
 const PREVIEW_PAGES = ["/preview/login", "/preview/setup"];
 /** What only Admin Mode's pages carry (their test ids and the dashboard's data), in a body or a redirect's. */
 const ADMIN_MARKERS = /admin-dashboard|dashboard-accounts|admin-activity|system-status|health-answers|adminAccounts/;
@@ -255,6 +256,8 @@ async function deployment() {
     report.deployment = body?.deployment ?? null;
     report.health = body ? { ok: body.ok === true, db: body.db?.ok ?? null, notices: Array.isArray(body.notices) ? body.notices.length : null, patch: typeof body.patch === "string" ? body.patch : null } : null;
     report.healthNotices = Array.isArray(body?.notices) ? body.notices : [];
+    // Matchup Intel's reviewed notes by state (numbers only): null where the endpoint names none.
+    report.healthMatchupNotes = body && "matchupNotes" in body ? body.matchupNotes : undefined;
     if (!expected || report.deployment?.commit === expected || Date.now() > deadline) break;
     await new Promise((r) => setTimeout(r, 15_000));
   }
@@ -262,6 +265,12 @@ async function deployment() {
   // What is off by choice (server/ops/health-notices.ts): a warning each, never a failure. The
   // endpoint's words only (what is off, since which day); who turned it off is in Admin's Audit Logs.
   for (const notice of report.healthNotices) warn("health", `/api/health notice: ${String(notice?.message ?? notice?.kind ?? "unnamed").slice(0, 200)}`, { kind: notice?.kind ?? null, since: notice?.since ?? null, jobs: notice?.jobs ?? null });
+  // Matchup Intel's notes (27 Nov 2026): four counts that are whole and not negative, the fresh, not re-checked and hidden adding up to the published; or none named (the counts failed to read: logged there, never the check's failure).
+  if (report.healthMatchupNotes !== undefined) {
+    const m = report.healthMatchupNotes;
+    const whole = (v) => Number.isInteger(v) && v >= 0;
+    pass("health", "/api/health counts Matchup Intel's reviewed notes: published, fresh, not re-checked and hidden, whole numbers that add up", m === null || (whole(m.published) && whole(m.fresh) && whole(m.stale) && whole(m.hidden) && m.fresh + m.stale + m.hidden === m.published), m);
+  }
   if (expected) pass("deploy", `production answers from the commit just deployed (${expected})`, report.deployment?.commit === expected, { answering: report.deployment?.commit ?? null, waitedUpToSeconds: waitSeconds });
   else check("deploy", "the deployed commit", "PASS", report.deployment?.commit ?? "unknown");
   // Response times, measured where the check runs: slow is a warning (a cold start can be), not a failure.
@@ -290,7 +299,7 @@ function healthAndSecurity(playerId) {
   // Every Admin Mode page (#258; the rest since 19 Nov 2026) and the sign-in previews Admin Mode
   // opens. /admin/users and /admin/players redirect to /admin/people; /admin/public-access to /admin/branding#brand-public.
   // (Written out, not spread: src/server/ops/live-check-boundary.test.ts reads this list against docs/LIVE_VALIDATION.md.)
-  const paths = ["/team", "/players", "/matches", "/leaderboards", "/overview", "/overview/accounts", "/me", "/settings", "/lookup", "/admin", "/admin/players", "/admin/people", "/admin/audit", "/admin/system", "/admin/data", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/settings", "/preview/login", "/preview/setup"];
+  const paths = ["/team", "/players", "/matches", "/leaderboards", "/overview", "/overview/accounts", "/me", "/settings", "/lookup", "/admin", "/admin/players", "/admin/people", "/admin/audit", "/admin/system", "/admin/data", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/matchup-notes", "/admin/settings", "/preview/login", "/preview/setup"];
   playerId ??= publicPlayerId();
   if (playerId) paths.push(`/players/${playerId}`, `/players/${playerId}/champions`, `/players/${playerId}/matches`, `/players/${playerId}/accounts`);
   else warn("security", "a member's own pages were not tried", "no player id: not signed in, and the public team page lists no member");
@@ -1291,8 +1300,8 @@ async function resourcesFacts(page, kind) {
  * server), read at 1440 × 900 on the aligned board, swapped (one request), read, and the first
  * column's ✕ pressed (one request), which leaves the first champion alone; each read with the
  * champion's builds and runes (streamed in after the abilities, waited for); then Matchup Intel's old address
- * (/resources/matchups?champion=Riven&vs=Mordekaiser), which must land on Champion Intel with
- * Mordekaiser. What is read and asserted is in scripts/champion-lookup-facts.mjs, beside its unit
+ * (/resources/matchups?role=top&champion=Riven&vs=Mordekaiser), which must land on Champion Intel's
+ * Compare with both champions and the lane (lane=TOP). What is read and asserted is in scripts/champion-lookup-facts.mjs, beside its unit
  * test. It reads nothing beyond what the page itself reads (the session, the cached roster and
  * patch, the chosen champions' stored abilities and their cached build totals).
  */
@@ -1362,13 +1371,40 @@ async function championLookupFacts(page, kind) {
     else if (read && step === "swap") swapped = read;
     else if (read) removed = read;
   }
-  // Matchup Intel's old address: one redirect, to Champion Intel with its enemy.
-  await page.goto(`${base}/resources/matchups?champion=Riven&vs=Mordekaiser`, { waitUntil: "domcontentloaded" });
+  // Matchup Intel's old address: one redirect, to Champion Intel's Compare with both champions and the lane.
+  await page.goto(`${base}/resources/matchups?role=top&champion=Riven&vs=Mordekaiser`, { waitUntil: "domcontentloaded" });
   await page.getByTestId("lookup-panel").waitFor({ timeout: 20_000 }).catch(() => {});
   const legacy = await page.evaluate(readChampionLookup);
   // The patch /api/health names (read at the start against production; a local run asks once here).
   const healthPatch = report.health ? report.health.patch : healthPatchNow();
   for (const v of championLookupVerdicts({ kind, champion: "Ahri", at, wide, hastedRead, all, search, dual, swapped, removed, stopped, legacy, healthPatch })) check("champion-lookup", v.name, v.status, v.detail);
+}
+
+/**
+ * MATCHUP INTEL, one page load and one request (docs/LIVE_VALIDATION.md, "What it checks";
+ * docs/MATCHUP_INTEL.md): Champion Intel's Compare with a lane, a common pair (Ahri against Zed in
+ * Mid) at the check's 1440 × 900, the band waited for (streamed after the abilities), read; then
+ * Swap (one request), read again. What is read and asserted is in scripts/matchup-facts.mjs, beside
+ * its unit test. It reads what the page reads: the two champions' stored abilities, the pair's lane
+ * totals (cached six hours) and its published notes; counts and the page's own words only.
+ */
+async function matchupFacts(page) {
+  await page.getByTestId("lookup-view").and(page.locator("[data-ready=true]")).waitFor({ timeout: 20_000 });
+  await page.getByTestId("matchup-band").waitFor({ timeout: 20_000 }).catch(() => {});
+  const at = await page.evaluate(readMatchup);
+  let swapped;
+  let stopped;
+  try {
+    await page.getByTestId("lookup-swap").click({ timeout: 5_000 });
+    await page.waitForFunction(() => new URLSearchParams(location.search).get("champion") === "Zed", null, { timeout: 20_000 });
+    await page.locator('[data-testid="matchup-band"][data-a="Zed"]').waitFor({ timeout: 20_000 });
+    swapped = await page.evaluate(readMatchup);
+  } catch {
+    stopped = "swap";
+  }
+  const healthPatch = report.health ? report.health.patch : healthPatchNow();
+  // The verification account holds the default access, which may see teammates' statistics.
+  for (const v of matchupVerdicts({ at, swapped, stopped, healthPatch, mayStats: true })) check("matchup", v.name, v.status, v.detail);
 }
 
 /**
@@ -2390,6 +2426,13 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
       if (await visit(page, log, kind, "champion-lookup", "/lookup?champion=Ahri", { fullPage: false })) {
         await axe(page, kind, "champion-lookup");
         await championLookupFacts(page, kind);
+      }
+    });
+    // Matchup Intel: Compare with a lane, one page load and the swap.
+    await guarded("matchup", `${kind}: Matchup Intel`, async () => {
+      if (await visit(page, log, kind, "matchup", "/lookup?champion=Ahri&champion2=Zed&lane=MID", { fullPage: false })) {
+        await axe(page, kind, "matchup");
+        await matchupFacts(page);
       }
     });
   }

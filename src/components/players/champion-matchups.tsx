@@ -24,7 +24,7 @@ import { useAnswer, type PreviewData } from "./preview-data";
   and lowest win rate. Under 3 games an opponent is a small sample: its win rate is quiet and the
   win-rate orders list it after the ranked ones, past a divider (domain/champion-preview).
 
-  An opponent's detail (its games, their KDA, the lane at 10:00, the link to Champion Intel) is not
+  An opponent's detail (its games, their KDA, the lane at 10:00, the link to Matchup Intel in Champion Intel's Compare, with the position as its lane) is not
   an accordion: where the preview has room (a 38rem preview) it sits beside the table, and selecting
   another row replaces it; in a narrower preview (a phone's sheet, a tablet) it is one step in place
   of the table, with "All opponents" to go back. The opponent is `vs` in the address, replaced (the
@@ -335,9 +335,10 @@ function PairingDetail({ id, me, them, o, role, isOwn, data, onMatch, onBack, ba
       ) : (
         <p className="text-sm text-fg-muted">These games could not be read yet.</p>
       )}
-      <Link href={intelHref({ id: me.id, haste: 0 }, { id: them.id, haste: 0 })} prefetch={false} className="inline-flex min-h-9 items-center gap-1.5 self-start text-sm font-medium text-accent hover:underline pointer-coarse:min-h-11" data-testid="champion-preview-lookup">
+      {/* Matchup Intel is Compare with a lane (docs/MATCHUP_INTEL.md): the two champions and this position as its lane. */}
+      <Link href={intelHref({ id: me.id, haste: 0 }, { id: them.id, haste: 0 }, { lane: role })} prefetch={false} className="inline-flex min-h-9 items-center gap-1.5 self-start text-sm font-medium text-accent hover:underline pointer-coarse:min-h-11" data-testid="champion-preview-lookup">
         <ScanSearch className="h-4 w-4 shrink-0" aria-hidden />
-        {me.name} and {them.name} in Champion Intel
+        {me.name} vs {them.name} in Matchup Intel
       </Link>
     </section>
   );

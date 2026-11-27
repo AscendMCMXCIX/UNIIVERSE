@@ -8,10 +8,13 @@ import type { LookupChampion } from "@/domain/champion-lookup/view";
 import { columnStats, rankColumns } from "@/domain/champion-lookup/board";
 import { clampHaste } from "@/domain/champion-lookup/haste";
 import { SLOTS } from "@/domain/champion-lookup/types";
-import type { Role } from "@/domain/roles";
+import { ROLES, type Role } from "@/domain/roles";
+import { DEFAULT_LANE_QUEUE, type LaneQueueKey } from "@/domain/matchup/queues";
+import { AGAINST_LABEL, NO_LANE, PLAYING_LABEL, laneControlLabel } from "@/domain/matchup/words";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { toolbarButtonClass } from "@/components/ui/filter-bar";
 import { PAGE_TITLE } from "@/components/ui/page-header";
+import { RoleSegmented } from "@/components/ui/segmented";
 import { intelHref, swappedHref, withoutHref } from "./address";
 import { SlotKey } from "./ability-list";
 import type { StatLine } from "./base-stats";
@@ -19,7 +22,10 @@ import { BuildsRoleProvider } from "./builds-role";
 import { ChampionPanel } from "./champion-panel";
 import { ChampionPickerWindow } from "./champion-picker";
 import { ChampionSearch } from "./champion-search";
+import { MatchupBandLoading } from "./matchup-band-loading";
+import { PageQueueProvider } from "./page-queue";
 import { useRecentLookups } from "./recent";
+import { cn } from "@/lib/cn";
 
 /*
   CHAMPION INTEL's page in the browser (docs/CHAMPION_INTEL.md): the title with where the numbers
@@ -46,6 +52,17 @@ import { useRecentLookups } from "./recent";
   phone of 375px or less, or a large text size) the two columns stack, so no name breaks inside a
   word. Two neutral references: no colour or word says which value is better, no difference is
   computed.
+
+  Matchup Intel (the owner's request of 26 Nov 2026, item 4; docs/MATCHUP_INTEL.md) is Compare with a
+  lane: the Lane control beside Swap (lane=TOP… in the address, written only with two champions)
+  puts the early-lane band (`matchup`, rendered by the page) between the title and the board, the
+  first column the champion played ("Playing") and the second its lane opponent ("Against"). A lane
+  needs the server (its evidence and notes), so it is chosen like a champion: Swap and ✕ wait while
+  it is on its way, and the band's skeleton shows at once. Swap keeps the lane and shows the other
+  side; ✕ drops it; a champion changed keeps it. Only there does the page state differences, in
+  neutral words, and the rank-1 cell of every ability row is tinted (the levels of a lane's start).
+  The page's queue (queue=flex…, Ranked Solo/Duo left out) is client state like a haste: every
+  queue's figures came with the page.
 */
 
 type Which = 0 | 1;
@@ -85,6 +102,9 @@ export function LookupView({
   source,
   dropped,
   builds,
+  initialLane = null,
+  initialQueue = DEFAULT_LANE_QUEUE,
+  matchup,
 }: {
   champions: ChampionChoice[];
   lookup: LookupChampion | null;
@@ -103,6 +123,12 @@ export function LookupView({
    * Compare); nothing is drawn where none is given.
    */
   builds?: { first?: React.ReactNode; second?: React.ReactNode };
+  /** Matchup Intel's lane from the address (lane=), with two champions only; null for none. */
+  initialLane?: Role | null;
+  /** The page's queue from the address (queue=), Ranked Solo/Duo by default. */
+  initialQueue?: LaneQueueKey;
+  /** Matchup Intel's band for the two champions and the lane, rendered by the page; nothing without a lane. */
+  matchup?: React.ReactNode;
 }) {
   const router = useRouter();
   // False on the server and while the page hydrates, then true: the page says when its controls answer.
@@ -114,11 +140,14 @@ export function LookupView({
   // Each builds section's role (the page's state, like the hastes).
   const [roleA, roleB] = initialRoles ?? [null, null];
   const [roles, setRoles] = React.useState<[Role | null, Role | null]>([roleA, roleB]);
+  // Matchup Intel's lane (Compare only) and the page's queue (the page's state, like the hastes).
+  const [lane, setLane] = React.useState<Role | null>(second ? initialLane : null);
+  const [queue, setQueue] = React.useState<LaneQueueKey>(initialQueue);
   // The page as the server sent it: champions, hastes and roles. When it changes, an address opened
   // from elsewhere (a link, the browser's own navigation) brings its own hastes and roles; the
   // address this page itself sent (`sent`: Swap, ✕, a champion chosen) keeps what was typed or chosen
   // here while it was on its way (a haste typed during a swap is not undone when the swap arrives).
-  const arrived = `${lookup?.champion.id ?? ""}|${second?.champion.id ?? ""}|${initialHaste}|${initialHaste2}|${roleA ?? ""}|${roleB ?? ""}`;
+  const arrived = `${lookup?.champion.id ?? ""}|${second?.champion.id ?? ""}|${initialHaste}|${initialHaste2}|${roleA ?? ""}|${roleB ?? ""}|${second ? (initialLane ?? "") : ""}|${initialQueue}`;
   const [seen, setSeen] = React.useState(arrived);
   const [sent, setSent] = React.useState<string | null>(null);
   if (seen !== arrived) {
@@ -126,11 +155,13 @@ export function LookupView({
     if (sent !== arrived) {
       setHastes([clampHaste(initialHaste), clampHaste(initialHaste2)]);
       setRoles([roleA, roleB]);
+      setLane(second ? initialLane : null);
+      setQueue(initialQueue);
     }
     setSent(null);
   }
   /** The page this page's own change will arrive as (the key `arrived` will have). */
-  const sentKey = (a: string | null, b: string | null, h: readonly [number, number], r: readonly [Role | null, Role | null]) => `${a ?? ""}|${b ?? ""}|${h[0]}|${b ? h[1] : 0}|${r[0] ?? ""}|${b ? (r[1] ?? "") : ""}`;
+  const sentKey = (a: string | null, b: string | null, h: readonly [number, number], r: readonly [Role | null, Role | null], l: Role | null = lane, q: LaneQueueKey = queue) => `${a ?? ""}|${b ?? ""}|${h[0]}|${b ? h[1] : 0}|${r[0] ?? ""}|${b ? (r[1] ?? "") : ""}|${b ? (l ?? "") : ""}|${q}`;
   const [picking, setPicking] = React.useState<Which | null>(null);
   // Compare's two statistics folds, open or closed together.
   const [statsOpen, setStatsOpen] = React.useState(false);
@@ -187,8 +218,10 @@ export function LookupView({
     setRoles(nextRoles);
     const a = which === 0 ? id : meant[0];
     const b = which === 1 ? id : meant[1];
-    setSent(sentKey(a, b, nextHastes, nextRoles));
-    startTransition(() => router.replace(intelHref({ id: a, haste: nextHastes[0], role: nextRoles[0] }, b ? { id: b, haste: nextHastes[1], role: nextRoles[1] } : null), { scroll: false }));
+    // A champion changed keeps the lane (Matchup Intel stays on that lane); a first Compare has none yet.
+    const nextLane = b ? lane : null;
+    setSent(sentKey(a, b, nextHastes, nextRoles, nextLane));
+    startTransition(() => router.replace(intelHref({ id: a, haste: nextHastes[0], role: nextRoles[0] }, b ? { id: b, haste: nextHastes[1], role: nextRoles[1] } : null, { lane: nextLane, queue }), { scroll: false }));
     return true;
   };
 
@@ -196,7 +229,7 @@ export function LookupView({
   const remove = (which: Which) => {
     if (pending || !first || !secondId) return;
     const stays = which === 0 ? hastes[1] : hastes[0];
-    const href = withoutHref({ id: first, haste: hastes[0], role: roles[0] }, { id: secondId, haste: hastes[1], role: roles[1] }, which);
+    const href = withoutHref({ id: first, haste: hastes[0], role: roles[0] }, { id: secondId, haste: hastes[1], role: roles[1] }, which, { queue });
     const nextRoles: [Role | null, Role | null] = [which === 0 ? roles[1] : roles[0], null];
     // The column shown second is `lookup` when the two are shown swapped.
     setRemoved({ keep: swapping ? which : which === 0 ? 1 : 0, key: propsKey });
@@ -204,7 +237,9 @@ export function LookupView({
     setTargets({});
     setHastes([stays, 0]);
     setRoles(nextRoles);
-    setSent(sentKey(which === 0 ? secondId : first, null, [stays, 0], nextRoles));
+    // The lane goes with Compare.
+    setLane(null);
+    setSent(sentKey(which === 0 ? secondId : first, null, [stays, 0], nextRoles, null));
     // The focus goes to the champion that stays, once the address has caught up.
     focusAfter.current = 0;
     startTransition(() => router.replace(href, { scroll: false }));
@@ -213,7 +248,7 @@ export function LookupView({
   /** Swap: the two champions change places, each with its own haste and its open folds. Waits while a change is on its way. */
   const swap = () => {
     if (pending || !first || !secondId) return;
-    const href = swappedHref({ id: first, haste: hastes[0], role: roles[0] }, { id: secondId, haste: hastes[1], role: roles[1] });
+    const href = swappedHref({ id: first, haste: hastes[0], role: roles[0] }, { id: secondId, haste: hastes[1], role: roles[1] }, { lane, queue });
     setSwapped(propsKey);
     setRemoved(null);
     setTargets({});
@@ -223,13 +258,24 @@ export function LookupView({
     startTransition(() => router.replace(href, { scroll: false }));
   };
 
+  /** Matchup Intel's lane chosen (or none): the band is built on the server, so it goes as a champion does. Waits while a change is on its way. */
+  const chooseLane = (next: Role | null) => {
+    if (pending || !first || !secondId || next === lane) return;
+    setLane(next);
+    setSwapped(null);
+    setRemoved(null);
+    setTargets({});
+    setSent(sentKey(first, secondId, hastes, roles, next));
+    startTransition(() => router.replace(intelHref({ id: first, haste: hastes[0], role: roles[0] }, { id: secondId, haste: hastes[1], role: roles[1] }, { lane: next, queue }), { scroll: false }));
+  };
+
   // The address follows the page once it has arrived: each champion's own id (a name or another
-  // spelling reads as its id), the hastes and builds roles chosen here, nothing for a champion the roster lacks.
+  // spelling reads as its id), the hastes and builds roles chosen here, the lane and the queue, nothing for a champion the roster lacks.
   React.useEffect(() => {
     if (pending) return;
-    const want = intelHref({ id: first, haste: hastes[0], role: roles[0] }, secondId ? { id: secondId, haste: hastes[1], role: roles[1] } : null);
+    const want = intelHref({ id: first, haste: hastes[0], role: roles[0] }, secondId ? { id: secondId, haste: hastes[1], role: roles[1] } : null, { lane: secondId ? lane : null, queue });
     if (`${window.location.pathname}${window.location.search}` !== want) window.history.replaceState(window.history.state, "", want);
-  }, [pending, first, secondId, hastes, roles]);
+  }, [pending, first, secondId, hastes, roles, lane, queue]);
 
   // Each champion shown joins the window's Recent row.
   React.useEffect(() => {
@@ -268,7 +314,7 @@ export function LookupView({
     const own = order[which]!;
     const target = loadingOf(which);
     // Each column's builds read and set that column's role, and know whether they sit on Compare's rows.
-    const builds = own.builds ? <BuildsRoleProvider value={{ role: roles[which], setRole: (r) => setRoles((now) => (which === 0 ? [r, now[1]] : [now[0], r])), compare: !!order[1 - which]!.look || !!loadingOf((1 - which) as Which) }}>{own.builds}</BuildsRoleProvider> : null;
+    const builds = own.builds ? <BuildsRoleProvider value={{ role: roles[which], setRole: (r) => setRoles((now) => (which === 0 ? [r, now[1]] : [now[0], r])), compare: !!order[1 - which]!.look || !!loadingOf((1 - which) as Which), lane }}>{own.builds}</BuildsRoleProvider> : null;
     return { look: own.look, shown: target ?? own.look?.champion ?? null, loading: !!target, builds };
   };
   const one = columnFor(0);
@@ -282,6 +328,10 @@ export function LookupView({
   // Compare: the other column's "Changed since" mark, whose room a column without one keeps.
   const changedTwins: [string | null, string | null] = both ? [statLines[1].length ? (two.look?.facts?.statsChangedSincePatch ?? null) : null, statLines[0].length ? (one.look?.facts?.statsChangedSincePatch ?? null) : null] : [null, null];
   const mode = both ? "compare" : "single";
+  // The band: the page's own for the lane it was built for; its skeleton while a lane chosen here is on its way.
+  const laneShown = both ? lane : null;
+  const bandArrived = !!matchup && laneShown !== null && laneShown === initialLane && !swapping;
+  const band = laneShown === null ? null : bandArrived ? matchup : pending ? <MatchupBandLoading /> : matchup ?? null;
 
   return (
     <div className="space-y-3" data-testid="lookup-view" data-ready={ready ? "true" : undefined} data-champions={both ? "2" : one.shown ? "1" : "0"}>
@@ -298,11 +348,15 @@ export function LookupView({
             Compare
           </button>
         ) : both ? (
-          // aria-disabled while a change is on its way, never `disabled`: a disabled button would drop the focus of the keyboard that pressed it.
-          <button type="button" onClick={swap} aria-disabled={pending || undefined} aria-label={`Swap ${one.shown!.name} and ${two.shown!.name}`} className={toolbarButtonClass(false, "aria-disabled:cursor-not-allowed aria-disabled:text-fg-disabled aria-disabled:hover:border-border-control aria-disabled:hover:text-fg-disabled")} data-testid="lookup-swap">
-            <ArrowLeftRight className="h-4 w-4" aria-hidden />
-            Swap
-          </button>
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            {/* Matchup Intel's lane: icons with the chosen one named; "No lane" is Compare as it was. */}
+            <RoleSegmented label={laneControlLabel(one.shown!.name, two.shown!.name)} roles={ROLES} value={lane} onChange={chooseLane} allowAll noneLabel={NO_LANE} compactBelow="always" disabled={pending} testId="lookup-lane" />
+            {/* aria-disabled while a change is on its way, never `disabled`: a disabled button would drop the focus of the keyboard that pressed it. */}
+            <button type="button" onClick={swap} aria-disabled={pending || undefined} aria-label={`Swap ${one.shown!.name} and ${two.shown!.name}`} className={toolbarButtonClass(false, "aria-disabled:cursor-not-allowed aria-disabled:text-fg-disabled aria-disabled:hover:border-border-control aria-disabled:hover:text-fg-disabled")} data-testid="lookup-swap">
+              <ArrowLeftRight className="h-4 w-4" aria-hidden />
+              Swap
+            </button>
+          </div>
         ) : null}
       </header>
       {dropped ? (
@@ -313,8 +367,21 @@ export function LookupView({
       <p className="sr-only" role="status" aria-live="polite" data-testid="lookup-status">
         {loadingWords}
       </p>
+      {band ? (
+        <PageQueueProvider value={{ queue, setQueue }}>
+          <div className={cn("transition-opacity", pending && "opacity-60")} aria-busy={pending || undefined} data-testid="matchup-slot">
+            {band}
+          </div>
+        </PageQueueProvider>
+      ) : null}
       {one.shown ? (
-        <div className="@container/board panel-depth overflow-hidden rounded-panel border border-border bg-surface" data-testid="lookup-board" data-layout={both ? "compare" : "single"}>
+        <div
+          // With Matchup Intel's lane, each ability row's rank-1 cell is tinted: the ranks of a lane's first levels.
+          className={cn("@container/board panel-depth overflow-hidden rounded-panel border border-border bg-surface", laneShown && "[&_[data-rank='1']]:rounded-sm [&_[data-rank='1']]:bg-surface-2 [&_[data-rank='1']]:px-0.5")}
+          data-testid="lookup-board"
+          data-layout={both ? "compare" : "single"}
+          data-lane={laneShown ?? undefined}
+        >
           <div className={both ? "grid grid-cols-1 @min-[22rem]/board:grid-cols-[2.25rem_minmax(0,1fr)_minmax(0,1fr)] @min-[22rem]/board:grid-rows-[repeat(21,auto)]" : undefined}>
             {both ? <KeyColumn builds={!!(one.builds || two.builds)} /> : null}
             <ChampionPanel
@@ -335,6 +402,7 @@ export function LookupView({
                 builds={one.builds}
                 statsOpen={both ? statsOpen : undefined}
                 onStatsToggle={both ? setStatsOpen : undefined}
+                side={laneShown ? PLAYING_LABEL : null}
               />
             {both ? (
               <ChampionPanel
@@ -355,6 +423,7 @@ export function LookupView({
                 builds={two.builds}
                 statsOpen={statsOpen}
                 onStatsToggle={setStatsOpen}
+                side={laneShown ? AGAINST_LABEL : null}
               />
             ) : null}
           </div>

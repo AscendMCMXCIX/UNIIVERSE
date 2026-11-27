@@ -60,7 +60,8 @@ const SWAPPED: ChampionLookupRead = { ...DUAL, champion: "Jinx", secondChampion:
 const REMOVED: ChampionLookupRead = { ...AT, haste: 20, url: "/lookup?champion=Ahri&haste=20" };
 const ALL: ChampionWindowRead = { open: true, shown: 173, counted: 173, first: "Aatrox", found: "" };
 const SEARCH: ChampionWindowRead = { open: true, shown: 1, counted: 173, first: "Ahri", found: "1 champion found" };
-const LEGACY = { url: "/lookup?champion=Mordekaiser", champion: "Mordekaiser", heading: "Champion Intel" };
+// Matchup Intel's old address since 27 Nov 2026: Compare with both champions and the lane.
+const LEGACY = { url: "/lookup?champion=Riven&champion2=Mordekaiser&lane=TOP", champion: "Riven", secondChampion: "Mordekaiser", heading: "Champion Intel" };
 const run = (over: Partial<Parameters<typeof championLookupVerdicts>[0]> = {}) => championLookupVerdicts({ kind: "desktop", champion: "Ahri", at: AT, wide: WIDE, hastedRead: HASTED, all: ALL, search: SEARCH, dual: DUAL, swapped: SWAPPED, removed: REMOVED, legacy: LEGACY, healthPatch: "16.23", ...over });
 const failed = (over: Partial<Parameters<typeof championLookupVerdicts>[0]> = {}) => run(over).filter((v) => v.status === "FAIL").map((v) => v.name);
 
@@ -89,7 +90,9 @@ describe("Champion Intel's Production check facts", () => {
     expect(failed({ wide: { ...WIDE, scrollHeight: 1200 } })).toHaveLength(1);
     expect(failed({ all: { ...ALL, shown: 20 } })).toHaveLength(1);
     expect(failed({ search: { ...SEARCH, first: "Zed" } })).toHaveLength(1);
-    expect(failed({ legacy: { ...LEGACY, url: "/lookup?champion=Riven", champion: "Riven" } })).toHaveLength(1);
+    expect(failed({ legacy: { ...LEGACY, url: "/lookup?champion=Riven", champion: "Riven", secondChampion: null } })).toHaveLength(1);
+    expect(failed({ legacy: { ...LEGACY, url: "/lookup?champion=Mordekaiser", champion: "Mordekaiser", secondChampion: null } })).toHaveLength(1);
+    expect(failed({ legacy: { ...LEGACY, url: "/lookup?champion=Riven&champion2=Mordekaiser" } })).toHaveLength(1);
     expect(failed({ at: { ...AT, timerWords: true } })).toHaveLength(1);
   });
 

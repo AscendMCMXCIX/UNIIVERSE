@@ -14,8 +14,8 @@
   abilities): whether they show, the source line, each part's choice with its win and pick rate or
   why there is none (the runes with both trees' icons), or the honest line that the patch has too
   few games; and that no Riot ID or account id is anywhere in them. Where a step of Compare does not
-  finish, only that step is judged (and fails, named); the steps after it never ran and are not. Then Matchup Intel's old address, which must land here carrying
-  its enemy. Read in the page only: counts, true or false,
+  finish, only that step is judged (and fails, named); the steps after it never ran and are not. Then Matchup Intel's old address, which must land here in
+  Compare with both champions and its lane. Read in the page only: counts, true or false,
   px, numbers and the page's own fixed words; no name but champions' and abilities'.
 */
 
@@ -217,7 +217,8 @@ export function championLookupVerdicts({ kind, champion, at, wide, hastedRead, a
   }
   fact("the builds name no player: no Riot ID or account id in them, one champion or two", !at.buildsIdentity && !(dual?.buildsIdentity ?? false), { at: at.buildsIdentity, dual: dual?.buildsIdentity ?? null });
   if (dual !== undefined && dual.buildsLevel !== null) fact("Compare: each champion's builds on one row after R, level in both columns", dual.buildsLevel === true, { level: dual.buildsLevel });
-  fact("Matchup Intel's old address lands on Champion Intel, carrying its enemy (vs)", legacy.url === "/lookup?champion=Mordekaiser" && legacy.champion === "Mordekaiser" && legacy.heading === "Champion Intel", { url: legacy.url, champion: legacy.champion });
+  // Changed on 27 Nov 2026 (Matchup Intel back inside Champion Intel's Compare): both champions and the lane.
+  fact("Matchup Intel's old address lands on Champion Intel's Compare with both champions and its lane (champion, vs, role)", legacy.url === "/lookup?champion=Riven&champion2=Mordekaiser&lane=TOP" && legacy.champion === "Riven" && legacy.secondChampion === "Mordekaiser" && legacy.heading === "Champion Intel", { url: legacy.url, champion: legacy.champion, second: legacy.secondChampion });
   fact("no timer, countdown, ready time or \"verified\" anywhere on the page", !at.timerWords && !hastedRead.timerWords, null);
   return out;
 }

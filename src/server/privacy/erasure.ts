@@ -1,6 +1,6 @@
 import { eq, inArray, sql, type SQL } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { activationCodes, appSettings, auditEvents, dataRefreshStatus, invites, jobRuns, lastKnownRanks, matchDetails, players, privacyErasures, riotAccounts, users, type MatchParticipantDetail } from "@/server/db/schema";
+import { activationCodes, appSettings, auditEvents, dataRefreshStatus, invites, jobRuns, lastKnownRanks, matchDetails, matchupNotes, players, privacyErasures, riotAccounts, users, type MatchParticipantDetail } from "@/server/db/schema";
 import { pruneAuthFailures } from "@/server/auth/throttle";
 import { accountSyncLeaseKey, figuresCatchUpLeaseKey, viewRefreshLeaseKey } from "@/server/jobs/background";
 import { summariseMatches } from "@/server/accounts/match-summary";
@@ -78,6 +78,8 @@ export interface ErasureCounts {
   evidenceRows: number;
   /** Notes other people wrote that named them (the names are replaced, the rest of the note kept). */
   notes: number;
+  /** Matchup Intel's reviewed notes their account wrote, changed or reviewed: the notes stay (they never name a player), the links to the account are removed. */
+  matchupNotes: number;
   auditEntries: number;
   jobLogs: number;
   otherRecords: number;
@@ -433,12 +435,13 @@ async function planErasure(db: Db, s: ErasureSubject): Promise<Plan> {
 
   // What their own records add up to.
   const notTheirs = s.accountIds.length ? sql`AND account_id NOT IN (${uuidList(s.accountIds)})` : sql``;
-  const [games, journal, ranks, lanePartners, evidenceRows] = await Promise.all([
+  const [games, journal, ranks, lanePartners, evidenceRows, curated] = await Promise.all([
     s.accountIds.length ? count(db, sql`SELECT count(*) AS n FROM account_matches WHERE account_id IN (${uuidList(s.accountIds)}) AND champion_id IS NOT NULL`) : 0,
     s.playerId ? count(db, sql`SELECT count(*) AS n FROM ranked_games WHERE player_id = ${s.playerId}::uuid`) : 0,
     s.puuids.length ? count(db, sql`SELECT count(*) AS n FROM last_known_ranks WHERE puuid IN (${textList(s.puuids)})`) : 0,
     shared.length ? countLanePartners(db, s, shared) : 0,
     shared.length ? count(db, sql`SELECT count(*) AS n FROM account_match_prep WHERE match_id IN (${textList(shared)}) ${notTheirs}`) : 0,
+    s.userId ? count(db, sql`SELECT count(*) AS n FROM matchup_notes WHERE reviewed_by = ${s.userId}::uuid OR created_by = ${s.userId}::uuid OR updated_by = ${s.userId}::uuid`) : 0,
   ]);
 
   return {
@@ -464,6 +467,7 @@ async function planErasure(db: Db, s: ErasureSubject): Promise<Plan> {
       lanePartners,
       evidenceRows,
       notes: notes.edits.length,
+      matchupNotes: curated,
       auditEntries: audit.length,
       jobLogs: jobRows.length + refreshRows.length,
       otherRecords: ranks + opponentAccounts.length,
@@ -644,6 +648,10 @@ async function applyPlan(tx: Db, plan: Plan): Promise<void> {
     await tx.update(invites).set({ createdByUserId: null }).where(eq(invites.createdByUserId, s.userId));
     await tx.update(invites).set({ usedByUserId: null }).where(eq(invites.usedByUserId, s.userId));
     await tx.delete(invites).where(eq(invites.userId, s.userId));
+    // Matchup Intel's reviewed notes stay (their text never names a player); the links to the account go (the foreign keys would set them NULL with the account too).
+    await tx.update(matchupNotes).set({ reviewedBy: null }).where(eq(matchupNotes.reviewedBy, s.userId));
+    await tx.update(matchupNotes).set({ createdBy: null }).where(eq(matchupNotes.createdBy, s.userId));
+    await tx.update(matchupNotes).set({ updatedBy: null }).where(eq(matchupNotes.updatedBy, s.userId));
   }
   if (s.playerId) await tx.delete(invites).where(eq(invites.playerId, s.playerId));
   const leases = [...s.accountIds.map(accountSyncLeaseKey), ...(s.playerId ? [viewRefreshLeaseKey(s.playerId), figuresCatchUpLeaseKey(s.playerId)] : [])];

@@ -1,4 +1,4 @@
-import { BookMarked, Fingerprint, Medal, Users, UserCog, Settings, History, UserPlus, Database, Paintbrush, Activity, LayoutGrid, LayoutDashboard, CircleUserRound, Gauge, Library, ScrollText, Link2, KeyRound, MonitorSmartphone, SlidersHorizontal, ClipboardList, ScanSearch, ServerCog, type LucideIcon } from "lucide-react";
+import { Activity, BookMarked, CircleUserRound, ClipboardList, Database, Fingerprint, Gauge, History, KeyRound, LayoutDashboard, LayoutGrid, Library, Link2, Medal, MonitorSmartphone, NotebookPen, Paintbrush, ScanSearch, ScrollText, ServerCog, Settings, SlidersHorizontal, UserCog, UserPlus, Users, type LucideIcon } from "lucide-react";
 import { hasPermission, type Permission, type Session } from "@/server/auth/permissions";
 
 export interface NavLink {
@@ -128,11 +128,16 @@ export const ADMIN_USERS_SECTIONS: NavLink[] = [
   { href: "/admin/people/privacy", label: "Personal data", icon: Fingerprint, permission: "manage-users" },
 ];
 
-/** Admin Mode's Platform Settings: the site's look, how its pages appear, and the Resources library (administrators only). */
+/**
+ * Admin Mode's Platform Settings: the site's look, how its pages appear, the Resources library and
+ * Matchup Intel's reviewed notes (docs/MATCHUP_INTEL.md, "Curation"; the content permission, as
+ * Resources) (administrators only).
+ */
 export const ADMIN_SETTINGS_SECTIONS: NavLink[] = [
   { href: "/admin/branding", label: "Branding", icon: Paintbrush, permission: "manage-branding" },
   { href: "/admin/previews", label: "Previews", icon: MonitorSmartphone, permission: "manage-branding" },
   { href: "/admin/resources", label: "Resources", icon: BookMarked, permission: "manage-branding" },
+  { href: "/admin/matchup-notes", label: "Matchup notes", icon: NotebookPen, permission: "manage-branding" },
 ];
 
 /**

@@ -95,7 +95,7 @@ describe("navigation parity: one set of destinations on every screen", () => {
     ["Player Mode, an account outside the team", ["/overview", "/lookup", "/resources", "/settings"], false, "/resources"],
     ["Player Mode, without Leaderboards (Restricted Player)", PLAYER.filter((h) => h !== "/leaderboards"), false, "/players"],
     ["Admin Mode, every permission", ADMIN, true, "/admin"],
-    ["Admin Mode, branding only", ["/admin", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/audit"], true, "/admin/audit"],
+    ["Admin Mode, branding only", ["/admin", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/matchup-notes", "/admin/audit"], true, "/admin/audit"],
   ] as const)("%s: the sidebar, a tablet's bar, a phone's bar and its sideways bar hold the same entries, names, icons and order", (_, allowed, admin, path) => {
     const bars = render(path, [...allowed], admin);
     expect(bars.sidebar, "the sidebar").toEqual(expected(allowed, admin, { shorts: false }));
