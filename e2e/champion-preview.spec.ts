@@ -94,6 +94,24 @@ async function scrollToEnd(page: Page) {
 
 const BESIDE = { found: true, window: false, within: true, besideList: true, nameClear: true, sideways: false, oneScroll: true, headOnScreen: true };
 const pane = (page: Page) => page.locator("aside[data-preview-pane][data-testid=champion-preview]");
+/**
+ * All Champions' one-screen workspace (docs/RESPONSIVE.md, "All Champions' workspace": a desktop window
+ * with a mouse from 1280px wide and 736px tall, the desktop project's 1440 × 900 among them): its lists
+ * in pages, an opponent's games in place of the grid. Read once the page knows (hydrated).
+ */
+const workspace = async (page: Page) => {
+  await expect.poll(() => page.evaluate(() => document.readyState === "complete")).toBe(true);
+  return page.evaluate(() => !!document.querySelector("[data-workspace]") && getComputedStyle(document.getElementById("content")!).display === "flex");
+};
+/** The one-screen promise in short (e2e/all-champions-workspace.spec.ts holds it in full): the page is the window, nothing in it scrolls. */
+const oneScreen = (page: Page) =>
+  page.evaluate(() => ({
+    fits: document.documentElement.scrollHeight <= innerHeight,
+    scrollers: [...document.querySelectorAll("#content *")].filter((el) => {
+      const s = getComputedStyle(el);
+      return (/(auto|scroll)/.test(s.overflowY) && el.scrollHeight > el.clientHeight + 1) || (/(auto|scroll)/.test(s.overflowX) && el.scrollWidth > el.clientWidth + 1);
+    }).length,
+  }));
 
 const nameXs = (rows: Locator) => rows.evaluateAll((els) => els.map((e) => Math.round(e.querySelector("[data-open-champion]")!.getBoundingClientRect().x)));
 const rowBoxes = (rows: Locator) => rows.evaluateAll((els) => els.map((e) => [Math.round(e.getBoundingClientRect().top + scrollY), Math.round(e.getBoundingClientRect().height)]));
@@ -138,18 +156,28 @@ test("desktop: the preview opens in a pane beside the list; the list narrows but
   expect((await page.getByTestId("champion-preview-kills").boundingBox())!.height, "one line").toBeLessThanOrEqual(24);
   // Mastery is the champion's, every position's.
   await expect(page.getByTestId("champion-preview-mastery")).toContainText(/Mastery [\d.]+K? all positions/);
-  await expect(page.getByTestId("champion-preview-opponent-head")).toBeVisible();
+  // The desktop's 1440 × 900 is All Champions' one-screen workspace (docs/RESPONSIVE.md): the opponents in two
+  // columns of pages under one head each, what a lane opponent is in the ⓘ beside their heading.
+  expect(await workspace(page)).toBe(true);
+  await expect(page.getByTestId("champion-preview-opponent-head").first()).toBeVisible();
   for (const h of await page.getByTestId("champion-preview-opponent").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) expect(h, "a dense opponent row").toBeLessThanOrEqual(40);
-  await expect(page.getByTestId("champion-preview-foot")).toContainText("Lane opponent: the enemy Riot placed in");
-  // An opponent's games beside the table at 1440 (no accordion, nothing under its row), the table still there.
+  await expect(pane(page).getByRole("button", { name: "About lane opponents" })).toBeVisible();
+  expect(await oneScreen(page)).toEqual({ fits: true, scrollers: 0 });
+  // An opponent's games in place of the grid (no accordion, nothing under its row), its heading focused, the page's height the same.
+  const height = await page.evaluate(() => document.documentElement.scrollHeight);
+  const opponent = (await page.getByTestId("champion-preview-opponent").first().getAttribute("data-champion"))!;
   await page.getByTestId("champion-preview-opponent").first().getByRole("button").click();
   const detail = page.getByTestId("champion-preview-pairing");
   await expect(page.getByTestId("champion-preview-game").first()).toBeVisible();
   await expect(page.getByTestId("champion-preview-pairing-kda")).toContainText(/KDA \d+\.\d\d|Perfect KDA/);
-  const [table, side] = [(await page.getByTestId("champion-preview-opponent-table").boundingBox())!, (await detail.boundingBox())!];
-  expect(side.x, "the detail beside the table").toBeGreaterThanOrEqual(table.x + table.width - 1);
-  await expect(page.getByTestId("champion-preview-opponent").first().getByRole("button")).toHaveAttribute("aria-pressed", "true");
+  await expect(detail.locator("h4")).toBeFocused();
+  await expect(page.getByTestId("champion-preview-opponent-list")).toHaveCount(0);
+  expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBe(height);
+  expect(await oneScreen(page)).toEqual({ fits: true, scrollers: 0 });
   expect(await page.evaluate(() => history.length)).toBe(entries + 1);
+  // "All opponents": the grid back, the focus on the opponent's cell.
+  await detail.getByTestId("champion-preview-opponents-back").click();
+  await expect(page.locator(`[data-opponent-row="${opponent}"]`)).toBeFocused();
   // Another row switches it; ↑/↓ move it; the address is replaced, never pushed.
   await rows.nth(1).getByTestId("open-champion").click();
   await expect(page.getByTestId("champion-preview-content")).toHaveAttribute("data-champion", (await rows.nth(1).getAttribute("data-champion"))!);
@@ -174,14 +202,22 @@ test("desktop: the preview opens in a pane beside the list; the list narrows but
   // A click elsewhere on the page leaves it open: it is part of the page now, not a layer over it.
   await page.getByTestId("all-champions-scope").click();
   await expect(pane(page)).toBeVisible();
-  // The same at 1280, 1366, 1920 and 2560, the sidebar open and collapsed: beside the list, within the screen, nothing wider than it.
+  // The same at 1280, 1366, 1920 and 2560, the sidebar open and collapsed: beside the list, within the screen, nothing wider
+  // than it, one screen; except at 1280 × 800 with the sidebar open, whose workspace is too narrow for the opponents' two
+  // columns beside the list (open decision O1): the preview there is the sheet, over the list's pages.
   for (const sidebar of ["expanded", "collapsed"]) {
     await page.context().addCookies([{ name: "uniiverse_sidebar", value: sidebar, url: page.url() }]);
     await page.reload();
     await expect(page.getByTestId("champion-preview-content")).toBeVisible();
     for (const { width, height } of [{ width: 1280, height: 800 }, { width: 1366, height: 768 }, { width: 1920, height: 1080 }, { width: 2560, height: 1440 }]) {
       await page.setViewportSize({ width, height });
+      if (width === 1280 && sidebar === "expanded") {
+        await expect(page.locator("dialog[open][data-testid=champion-preview]"), "1280px, the sidebar open: the sheet").toBeVisible();
+        await expect(page.getByTestId("all-champions-table")).toHaveAttribute("data-ws-region", "list");
+        continue;
+      }
       await expect.poll(() => beside(page, rows.nth(1)), `${width}px, the sidebar ${sidebar}`).toEqual(BESIDE);
+      await expect.poll(() => oneScreen(page), `${width}px, the sidebar ${sidebar}: one screen`).toEqual({ fits: true, scrollers: 0 });
     }
   }
   await page.context().clearCookies({ name: "uniiverse_sidebar" });
@@ -224,6 +260,8 @@ test("desktop: in a short scrolled window, opening, switching and closing never 
   await page.goto(`${profile}/champions`);
   const rows = page.getByTestId("top-champion");
   await expect(rows.nth(5)).toBeVisible();
+  // Under the workspace's height (docs/RESPONSIVE.md): the flow, the page the one thing that scrolls.
+  expect(await workspace(page)).toBe(false);
   await scrollToEnd(page);
   const last = rows.nth((await rows.count()) - 1);
   const y0 = (await last.boundingBox())!.y;
@@ -251,6 +289,7 @@ test("the list read on while the preview is open stays where the reader is when 
   await page.goto(`${profile}/champions`);
   const rows = page.getByTestId("top-champion");
   await expect(rows.nth(5)).toBeVisible();
+  expect(await workspace(page), "the flow").toBe(false);
   const scroll = () => page.evaluate(() => Math.round(scrollY));
   const entries = await page.evaluate(() => history.length);
   const closings = phone ? (["close", "back"] as const) : (["close", "escape", "back"] as const);
@@ -296,6 +335,7 @@ test("desktop: a pane taller than the window has no scroll of its own: the page 
   await page.goto(`${profile}/champions`);
   const rows = page.getByTestId("top-champion");
   await expect(rows.nth(5)).toBeVisible();
+  expect(await workspace(page), "the flow").toBe(false);
   // The list scrolled to its end, then its last row: the pane's top (the champion, ‹ › and Close) on screen.
   await scrollToEnd(page);
   expect(await page.evaluate(() => scrollY), "the list is scrolled").toBeGreaterThan(0);
@@ -328,12 +368,13 @@ test("desktop: a pane taller than the window has no scroll of its own: the page 
   await expect.poll(async () => Math.round((await pane(page).boundingBox())!.y) - Math.round((await page.getByTestId("all-champions-table").boundingBox())!.y)).toBe(0);
 });
 
-test("desktop: with the sidebar open at 1280 and 1366, opening the pane moves no row of a champion of five positions, even sorted by a figure the narrowed list does not show", async ({ page, baseURL }, info) => {
+test("desktop: at 1280 (the sidebar folded) and 1366 (open), opening the pane moves no row of a champion of five positions, even sorted by a figure the narrowed list does not show", async ({ page, baseURL }, info) => {
   test.skip(info.project.name !== "desktop", "a mouse: 24px position buttons");
-  await page.context().addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: baseURL! }]);
   // Demo Sub (Top): Sion in five positions, Malphite in three, Ornn in two, Mordekaiser in one, each "In pool".
   const profile = await demoMember(page, "Demo Sub (Top)");
-  for (const size of [{ width: 1280, height: 800 }, { width: 1366, height: 768 }]) {
+  // Both are the one-screen workspace; at 1280 with the sidebar open the preview is the sheet (decision O1, the test above).
+  for (const [size, sidebar] of [[{ width: 1280, height: 800 }, "collapsed"], [{ width: 1366, height: 768 }, "expanded"]] as const) {
+    await page.context().addCookies([{ name: "uniiverse_sidebar", value: sidebar, url: baseURL! }]);
     await page.setViewportSize(size);
     await page.goto(`${profile}/champions`);
     const rows = page.getByTestId("top-champion");
@@ -345,6 +386,7 @@ test("desktop: with the sidebar open at 1280 and 1366, opening the pane moves no
       await openRow(page, rows.nth(0));
       await expect.poll(() => beside(page, rows.nth(0)), `${size.width}px, sorted by ${sortBy}`).toEqual(BESIDE);
       expect(await rowBoxes(rows), `${size.width}px, sorted by ${sortBy}: every row's place and height`).toEqual(boxes);
+      expect(await oneScreen(page), `${size.width}px: one screen`).toEqual({ fits: true, scrollers: 0 });
       expect(await nameXs(rows)).toEqual(xs);
       if (sortBy === "kda") {
         // The order the narrowed list keeps is said once, in its heading; no row trades "In pool" for the figure.
@@ -356,6 +398,7 @@ test("desktop: with the sidebar open at 1280 and 1366, opening the pane moves no
       expect(await rowBoxes(rows)).toEqual(boxes);
     }
   }
+  await page.context().clearCookies({ name: "uniiverse_sidebar" });
 });
 
 test("the opponents' search belongs to its position: words typed in one position never hide another position's opponents", async ({ page, baseURL }) => {
@@ -395,6 +438,8 @@ test("the opponents' search belongs to its position: words typed in one position
 });
 
 test("the opponents: one table of every lane opponent, a search, three orders with the small samples last by win rate, and an opponent's games without an accordion", async ({ page }, info) => {
+  // The flow's table (a desktop window under the workspace's height: 1440 × 600; the workspace's pages are the test after this).
+  if (info.project.name === "desktop") await page.setViewportSize({ width: 1440, height: 600 });
   const profile = await demoMember(page);
   await page.goto(`${profile}/champions`);
   const row = page.getByTestId("top-champion").first();
@@ -474,6 +519,95 @@ test("the opponents: one table of every lane opponent, a search, three orders wi
   }
 });
 
+test("the workspace's opponents (1440 × 900, one a column): every opponent through the pages in each order, merged cells in two columns, the small samples' divider, an opponent's games in place and in pages", async ({ page, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "the one-screen workspace (a desktop window with a mouse)");
+  // The demo's champions meet four opponents at most: a test cookie caps the measured pages at one opponent (and one game) a column (server/demo/test-hooks.ts).
+  await page.context().addCookies([{ name: "uniiverse-test-opponents-per-column", value: "1", url: baseURL! }]);
+  const profile = await demoMember(page);
+  await page.goto(`${profile}/champions`);
+  await openRow(page, page.getByTestId("top-champion").first());
+  expect(await workspace(page)).toBe(true);
+  const list = pane(page).getByTestId("champion-preview-opponent-list");
+  await expect(list).toHaveAttribute("data-per", "2");
+  const total = Number(await list.getAttribute("data-total"));
+  expect(total).toBeGreaterThanOrEqual(3);
+  // Two columns, read down the first then the second; each cell its games with the record merged ("3 · 2W 1L") and its win rate.
+  const cells = pane(page).locator("[data-testid=champion-preview-opponent]:visible");
+  const [a, b] = [(await cells.nth(0).boundingBox())!, (await cells.nth(1).boundingBox())!];
+  expect(b.x, "the second cell in the second column").toBeGreaterThan(a.x + a.width - 1);
+  await expect(cells.first().getByTestId("opponent-games")).toHaveText(/^\d+ games? · \d+W \d+L, \d+ wins? \d+ loss(es)?$/);
+  for (const order of ["games", "high", "low"] as const) {
+    await pane(page).getByTestId(`opponent-sort-${order}`).click();
+    await expect(list).toHaveAttribute("data-page", "1");
+    const seen: string[] = [];
+    for (let n = 0; n < 20; n++) {
+      const slots = await list.locator("> li:visible").evaluateAll((els) => els.map((e) => ((e as HTMLElement).dataset.testid === "champion-preview-small-divider" ? "—" : `${(e as HTMLElement).dataset.champion}:${(e as HTMLElement).dataset.small ?? ""}`)));
+      expect(slots.at(-1), `${order}: the divider never a page's last slot`).not.toBe("—");
+      // Most games has no divider; the win-rate orders start every page that begins in the small samples with it.
+      if (order === "games") expect(slots, "Most games: no divider").not.toContain("—");
+      else if (slots[0]?.endsWith(":true")) throw new Error(`${order}: a page that starts in the small samples starts with the divider`);
+      seen.push(...slots.filter((x) => x !== "—").map((x) => x.split(":")[0]!));
+      const next = pane(page).getByTestId("opponents-next");
+      if (!(await next.count()) || (await next.isDisabled())) break;
+      await next.click();
+      await expect(list).toHaveAttribute("data-page", String(n + 2));
+    }
+    expect(new Set(seen).size, `${order}: every opponent once`).toBe(total);
+    expect(seen).toHaveLength(total);
+  }
+  await pane(page).getByTestId("opponent-sort-games").click();
+  // An opponent's games: in place of the grid, two a page here, every game through the pages.
+  const first = pane(page).locator("[data-testid=champion-preview-opponent]:visible").first();
+  const games = Number(await first.getAttribute("data-games"));
+  await first.getByRole("button").click();
+  const region = pane(page).getByTestId("champion-preview-games");
+  await expect(region).toHaveAttribute("data-per", "2");
+  let count = 0;
+  for (let n = 0; n < 20; n++) {
+    count += await region.locator("> li:visible").count();
+    const next = pane(page).getByTestId("games-next");
+    if (!(await next.count()) || (await next.isDisabled())) break;
+    await next.click();
+    await expect(region).toHaveAttribute("data-page", String(n + 2));
+  }
+  expect(count, "every game through the pages").toBe(games);
+  expect(await oneScreen(page)).toEqual({ fits: true, scrollers: 0 });
+});
+
+test("the workspace on the default demo (three champions a page): ↓ at a page's last row turns it, PageDown and Home, and Escape goes back from an opponent's games to the grid, then closes", async ({ page, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "the one-screen workspace (a desktop window with a mouse)");
+  await page.context().addCookies([
+    { name: "uniiverse-test-champions-per-page", value: "3", url: baseURL! },
+    { name: "uniiverse-test-opponents-per-column", value: "1", url: baseURL! },
+  ]);
+  const profile = await demoMember(page);
+  await page.goto(`${profile}/champions`);
+  const card = page.getByTestId("all-champions-table");
+  await expect(card).toHaveAttribute("data-per", "3");
+  const rows = card.locator("[data-testid=top-champion]");
+  await expect(rows).toHaveCount(3);
+  await openRow(page, rows.nth(2));
+  await rows.nth(2).getByTestId("open-champion").focus();
+  await page.keyboard.press("ArrowDown");
+  await expect(card).toHaveAttribute("data-page", "2");
+  await expect(rows.first().getByTestId("open-champion")).toBeFocused();
+  await expect(page.getByTestId("champion-preview-content")).toHaveAttribute("data-champion", (await rows.first().getAttribute("data-champion"))!);
+  await page.keyboard.press("Home");
+  await expect(card).toHaveAttribute("data-page", "1");
+  await page.keyboard.press("PageDown");
+  await expect(card).toHaveAttribute("data-page", "2");
+  // Escape, innermost first: an opponent's games back to the grid (the focus on its cell), then the pane closes.
+  const cell = pane(page).locator("[data-testid=champion-preview-opponent]:visible").first();
+  const id = (await cell.getAttribute("data-champion"))!;
+  await cell.getByRole("button").click();
+  await expect(pane(page).getByTestId("champion-preview-pairing")).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(pane(page).locator(`[data-opponent-row="${id}"]`)).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(pane(page)).toHaveCount(0);
+  expect(await oneScreen(page)).toEqual({ fits: true, scrollers: 0 });
+});
+
 test("phones: an opponent chosen far down the table opens its step in view, and \"All opponents\" brings its row back into view", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "the sheet's one step in place of the table");
   // A short phone window: the sheet's body scrolls to reach the table's last row.
@@ -517,7 +651,15 @@ test("a champion played in one position: the position named alone, its record sa
   // "Support 9 / 56% · 5W 4L" sat right above "56% / 9 games · 5W 4L" (the owner's review of 25 Nov 2026).
   await expect(segment.getByTestId("champion-preview-role-record")).toHaveCount(0);
   await expect(segment).toHaveText(/^(Top|Jungle|Mid|Bottom|Support)$/);
-  await expect(segment).toHaveAccessibleName(new RegExp(`^(Top|Jungle|Mid|Bottom|Support): ${games} games? · ${rate} win rate · ${wins}W ${games - wins}L$`));
+  const words = new RegExp(`^(Top|Jungle|Mid|Bottom|Support): ${games} games? · ${rate} win rate · ${wins}W ${games - wins}L$`);
+  if (await workspace(page)) {
+    // The one-screen workspace: nothing to choose, so the position is said in the identity bar, its record read out.
+    await expect(segment).toBeHidden();
+    const said = page.getByTestId("champion-preview-position");
+    await expect(said).toBeVisible();
+    await expect(said).toHaveAttribute("data-role", (await segment.getAttribute("data-role"))!);
+    await expect(said).toHaveText(words);
+  } else await expect(segment).toHaveAccessibleName(words);
   expect(await recordGames(page)).toBe(games);
   await expect(page.getByTestId("champion-preview-winrate")).toContainText(rate);
   // Still a 44px target on a touch screen, with one line: measured at rest (while a sheet opens, its scale reads 43.999px).
@@ -587,8 +729,15 @@ test("positions: a champion played in one, two, three and five positions shows e
     await expect(segment.getByTestId("champion-preview-role-record")).toHaveText(`${rate} · ${wins}W ${games - wins}L`);
     await expect(segment).toContainText(String(games));
   }
-  await expect(page.getByTestId("champion-preview-no-role")).toHaveText(/^1 more game has no recorded position: it counts in Sion's totals only\.$/);
-  await expect(page.getByTestId("champion-preview-total")).toHaveText(`${await sion.getAttribute("data-games")} games in all`);
+  if (await workspace(page)) {
+    // The workspace: the totals after the positions, the game with none in a few words (the sentence in its title, and read out).
+    await expect(page.getByTestId("champion-preview-no-role")).toHaveAttribute("title", "1 more game has no recorded position: it counts in Sion's totals only.");
+    await expect(page.getByTestId("champion-preview-no-role")).toContainText(", 1 with no recorded position");
+    await expect(page.getByTestId("champion-preview-total")).toContainText(`${await sion.getAttribute("data-games")} games in all`);
+  } else {
+    await expect(page.getByTestId("champion-preview-no-role")).toHaveText(/^1 more game has no recorded position: it counts in Sion's totals only\.$/);
+    await expect(page.getByTestId("champion-preview-total")).toHaveText(`${await sion.getAttribute("data-games")} games in all`);
+  }
   // Switching: every figure and the opponents follow at once; the address is replaced, never pushed.
   const entries = await page.evaluate(() => history.length);
   await page.getByTestId("champion-preview-opponent").first().waitFor();
@@ -844,6 +993,7 @@ test("from a scrolled list: a row below the first screen opens its preview, Esca
   const profile = await demoMember(page, "Demo Mid");
   await page.goto(`${profile}/champions`);
   await expect(page.getByTestId("top-champion").first()).toBeVisible();
+  expect(await workspace(page), "the flow").toBe(false);
   const most = await page.getByTestId("top-champion").count();
   expect(most, "a list that can scroll").toBeGreaterThanOrEqual(6);
   const rows = page.getByTestId("top-champion");
@@ -898,6 +1048,7 @@ test("after Show all: a row reached through it opens its preview, closes, and co
   await page.goto(`${profile}/champions`);
   const rows = page.getByTestId("top-champion");
   await expect(rows.first()).toBeVisible();
+  expect(await workspace(page), "the flow").toBe(false);
   await expect(rows).toHaveCount(3);
   const more = page.getByTestId("all-champions-more");
   await expect(more).toHaveText(/Show all \d+ champions/);

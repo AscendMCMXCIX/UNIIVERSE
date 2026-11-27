@@ -66,7 +66,7 @@ describe("All Champions' preview facts", () => {
     expect(failed({ ...DEMO, role: "" })).toHaveLength(1);
   });
   it("fail opponents folded away, out of order, or a small sample unmarked", () => {
-    const one = "desktop: every lane opponent is in one table, most games first, the small samples (1–2 games) marked, none folded away";
+    const one = "desktop: the lane opponents shown are most games first, the small samples (1–2 games) marked, none folded away (every opponent through the pages: the workspace's facts)";
     expect(failed({ ...DEMO, folded: 1 })).toEqual([one]);
     expect(failed({ ...DEMO, opponents: [...DEMO.opponents!].reverse() })).toEqual([one]);
     expect(failed({ ...DEMO, opponents: DEMO.opponents!.map((o) => ({ ...o, small: false })) })).toEqual([one]);
@@ -126,6 +126,24 @@ describe("All Champions' preview facts", () => {
     expect(pos({ scrolled: 412, open: -40, closed: 0 }).status).toBe("FAIL");
     expect(pos({ scrolled: 412, open: 2, closed: -2 }).status).toBe("PASS");
     expect(pos({ scrolled: 0, open: 0, closed: 0 }).detail).toMatchObject({ notApplicable: expect.any(String) });
+  });
+  it("choose a row on the list's second page when the list has pages (the workspace), else the flow's rule", () => {
+    const paged = [{ games: 3, open: false, page: 2, pages: 4 }, { games: 2, open: false, page: 2, pages: 4 }];
+    expect(targetRow(paged)).toBe(0);
+    // A second page with no row of 3+ games: the first with 3+ games (the check then reads the first page).
+    expect(targetRow([{ games: 2, open: false, page: 2, pages: 4 }])).toBe(-1);
+    expect(targetRow([{ games: 5, open: false, page: 1, pages: 1 }])).toBe(0);
+  });
+  it("the browsing position in the workspace: the list on its page, every row's top kept; a list of one page is not applicable", () => {
+    const pos = (kept: Parameters<typeof championPreviewVerdicts>[0]["kept"]) => championPreviewVerdicts({ kind: "desktop", at: DEMO, step: STEP, escaped: ESC, kept }).at(-1)!;
+    expect(pos({ pages: 4, pageBefore: 2, pageOpen: 2, pageClosed: 2, open: 0, closed: 1 }).status).toBe("PASS");
+    expect(pos({ pages: 4, pageBefore: 2, pageOpen: 2, pageClosed: 1, open: 0, closed: 0 }).status).toBe("FAIL");
+    expect(pos({ pages: 4, pageBefore: 2, pageOpen: 2, pageClosed: 2, open: 3, closed: 0 }).status).toBe("FAIL");
+    expect(pos({ pages: 1, pageBefore: 1, pageOpen: 1, pageClosed: 1, open: 0, closed: 0 }).detail).toMatchObject({ notApplicable: "the list is one page" });
+  });
+  it("read the workspace's merged games cell as its games: \"7 games · 4W 3L…\" passes as \"7 games\" does", () => {
+    // (readChampionPreview reads it in the page; the verdict takes its `says`.)
+    expect(failed({ ...DEMO, opponents: DEMO.opponents!.map((o) => ({ ...o, says: true })) })).toEqual([]);
   });
   it("fail a preview that never opened", () => {
     expect(failed({ open: false })).toHaveLength(1);

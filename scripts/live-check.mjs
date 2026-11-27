@@ -187,10 +187,11 @@ import { championLookupVerdicts, readChampionLookup, readChampionWindow } from "
 import { buildsVerdicts, probeFrom, probePath, readBuildsColumns } from "./builds-facts.mjs";
 import { MATCHUP_READ, matchupVerdicts, readMatchup } from "./matchup-facts.mjs";
 import { fitVerdicts, postGameVerdicts, readFit, readInspection, readPostGame, switchVerdicts } from "./post-game-facts.mjs";
-import { championPreviewVerdicts, readChampionPreview, readChampionRows, targetRow } from "./champion-preview-facts.mjs";
+import { championPreviewVerdicts, firstWithGames, readChampionPreview, readChampionRows, targetRow } from "./champion-preview-facts.mjs";
 import { breakdownKeyboardVerdicts, breakdownVerdicts, MULTIKILL_ROLE_LABEL, multikillVerdicts, readBreakdownFocus, readMultikillBoard, readMultikillBreakdown } from "./multikill-facts.mjs";
 import { cardScoreVerdicts, firstScored, readCardScores, readOpenedScore, readTogetherScores, togetherScoreVerdicts } from "./card-score-facts.mjs";
 import { oneScreenInput, oneScreenVerdicts, readOneScreen } from "./one-screen-facts.mjs";
+import { readPage, readWorkspace, walkSummary, workspaceVerdicts } from "./all-champions-workspace-facts.mjs";
 import { TABLE_FIGURES, readTableFigures, readTypeFacts, tableFigureVerdicts, typeVerdicts } from "./type-facts.mjs";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -1660,6 +1661,7 @@ async function allChampions(page, log, kind, playerId) {
       const still = after.x.length === before.x.length && after.x.every((x, i) => Math.abs(x - before.x[i]) <= 1) && after.y === before.y && after.rows.length === before.rows.length && after.rows.every((t, i) => Math.abs(t - before.rows[i]) <= 1);
       pass("games", `${kind}: the champion preview opens beside the list, which stays where it was (every champion's name at the same x, every row's top, the page not scrolled); Escape and Back close it`, opened && still && escaped && again && backed, { opened, before: { y: before.y }, after: { y: after.y }, rowsKept: still, escaped, backed });
       await guarded("all-champions", `${kind}: the preview's content`, () => championPreviewFacts(page, kind));
+      await guarded("all-champions", `${kind}: the one-screen workspace`, () => workspaceFacts(page));
     } else {
       // The sheet (the phone window shell).
       const sheet = await page.locator("dialog[open][data-testid=champion-preview]").count();
@@ -1683,18 +1685,36 @@ async function allChampions(page, log, kind, playerId) {
  * A list with no such champion is a warning, not a failure.
  */
 async function championPreviewFacts(page, kind) {
-  // The whole list ("Show all", a toggle in the page: no request), so the page can scroll for the browsing position.
+  // The one-screen workspace (27 Nov 2026): the list in pages. The row is read on its second page where it has one (a page
+  // change is the page's own state: no request), so a jump back to the first page shows in the browsing position.
+  const paged = await page.evaluate(() => Number(document.querySelector("[data-ws-region=list]")?.getAttribute("data-pages") ?? "0"));
+  if (paged >= 2) {
+    await page.getByTestId("all-champions-next").click().catch(() => {});
+    await page.waitForFunction(() => document.querySelector("[data-ws-region=list]")?.getAttribute("data-page") === "2", null, { timeout: 5_000 }).catch(() => {});
+  }
+  // The flow: the whole list ("Show all", a toggle in the page: no request), so the page can scroll for the browsing position.
   const all = page.getByTestId("all-champions-more");
-  if (await all.count()) await all.click().catch(() => {});
-  const rows = await page.evaluate(readChampionRows);
-  const i = targetRow(rows, 3);
+  if (!paged && (await all.count())) await all.click().catch(() => {});
+  let rows = await page.evaluate(readChampionRows);
+  let i = targetRow(rows, 3);
+  if (i < 0 && paged >= 2) {
+    // No row of 3+ games on the second page: the first page's.
+    await page.getByTestId("all-champions-prev").click().catch(() => {});
+    await page.waitForFunction(() => document.querySelector("[data-ws-region=list]")?.getAttribute("data-page") === "1", null, { timeout: 5_000 }).catch(() => {});
+    rows = await page.evaluate(readChampionRows);
+    i = targetRow(rows, 3);
+  }
   if (i < 0) return warn("all-champions", `${kind}: skipped: no champion on the list has 3 or more games, so the preview's content was not read`, { rows: rows.length });
   const row = page.locator("[data-testid=top-champion]").nth(i);
   const button = row.locator("[data-open-champion]");
-  // The browsing position (row 4.5d): the row brought to the middle of the screen, where it stays.
+  // The workspace's browsing position: the list's page and every drawn row's top, before, open and after Escape.
+  const listState = () => page.evaluate(() => ({ page: Number(document.querySelector("[data-ws-region=list]")?.getAttribute("data-page") ?? "0"), tops: [...document.querySelectorAll("[data-testid=top-champion]")].map((r) => Math.round(r.getBoundingClientRect().top)) }));
+  const moved = (a, b) => (a.tops.length === b.tops.length ? Math.max(0, ...a.tops.map((t, k) => Math.abs(t - b.tops[k]))) : 999);
+  const before = paged ? await listState() : null;
+  // The flow's browsing position (row 4.5d): the row brought to the middle of the screen, where it stays.
   // In the middle of the screen; a row near the list's top is scrolled up to about 200px from the
   // window's top instead, then down a step at a time while anything pinned covers it.
-  await row.evaluate(async (r) => {
+  if (!paged) await row.evaluate(async (r) => {
     const frame = () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
     r.scrollIntoView({ block: "center" });
     await frame();
@@ -1722,11 +1742,15 @@ async function championPreviewFacts(page, kind) {
   }
   const at = await page.evaluate(readChampionPreview, i);
   const yOpen = await rowTop();
-  // Escape from here first, for the position (the next row's step below opens it again).
+  const whileOpen = paged ? await listState() : null;
+  // Escape from here first, for the position (the next row's step below opens it again). In the workspace the first
+  // Escape takes the opponent's games back to the grid, the second closes the pane.
   await page.keyboard.press("Escape");
+  if (paged) await page.waitForTimeout(150).then(() => page.keyboard.press("Escape"));
   await page.getByTestId("champion-preview-content").waitFor({ state: "detached", timeout: 5_000 }).catch(() => {});
   await page.waitForTimeout(200);
-  const kept = { scrolled, open: yOpen - y0, closed: (await rowTop()) - y0 };
+  const after = paged ? await listState() : null;
+  const kept = paged ? { pages: paged, pageBefore: before.page, pageOpen: whileOpen.page, pageClosed: after.page, open: moved(whileOpen, before), closed: moved(after, before) } : { scrolled, open: yOpen - y0, closed: (await rowTop()) - y0 };
   await button.click();
   await content.waitFor({ timeout: 15_000 }).catch(() => {});
   // ↓ from the row: the next row's preview, the address replaced (the list keeps the keys while the focus is in it).
@@ -1734,26 +1758,151 @@ async function championPreviewFacts(page, kind) {
   if (rows.length > 1) {
     const before = await page.evaluate(() => ({ url: location.href, length: history.length }));
     await button.focus();
+    const from = await row.getAttribute("data-champion");
     await page.keyboard.press("ArrowDown");
     const next = (i + 1) % rows.length;
+    // The next row: the flow's next drawn one; in the workspace the row that took the focus (↓ may turn the page).
     const moved = await page
-      .waitForFunction((n) => {
-        const row = document.querySelectorAll("[data-testid=top-champion]")[n];
-        const c = document.querySelector("[data-testid=champion-preview-content]");
-        return !!row && !!c && c.getAttribute("data-champion") === row.getAttribute("data-champion") && (c.getAttribute("data-role") ?? "") === (row.getAttribute("data-role") ?? "");
-      }, next, { timeout: 10_000 })
+      .waitForFunction(
+        ({ n, start, inPages }) => {
+          const row = (inPages ? document.activeElement?.closest("[data-testid=top-champion]") : document.querySelectorAll("[data-testid=top-champion]")[n]) ?? null;
+          const c = document.querySelector("[data-testid=champion-preview-content]");
+          return !!row && !!c && row.getAttribute("data-champion") !== start && c.getAttribute("data-champion") === row.getAttribute("data-champion") && (c.getAttribute("data-role") ?? "") === (row.getAttribute("data-role") ?? "");
+        },
+        { n: next, start: from, inPages: paged >= 2 },
+        { timeout: 10_000 },
+      )
       .then(() => true, () => false);
-    const after = await page.evaluate((n) => {
-      const row = document.querySelectorAll("[data-testid=top-champion]")[n];
+    const after = await page.evaluate(({ n, inPages }) => {
+      const row = (inPages ? document.activeElement?.closest("[data-testid=top-champion]") : document.querySelectorAll("[data-testid=top-champion]")[n]) ?? null;
       const q = new URLSearchParams(location.search);
       return { url: location.href, length: history.length, address: q.get("champion") === row?.getAttribute("data-champion") && (q.get("crole") ?? "") === (row?.getAttribute("data-role") ?? "") };
-    }, next);
+    }, { n: next, inPages: paged >= 2 });
     step = { next: moved, address: after.address && after.url !== before.url, replaced: after.length === before.length };
   }
   await page.keyboard.press("Escape");
   const closed = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
   const escaped = { closed, address: await page.waitForFunction(() => !new URLSearchParams(location.search).has("champion"), null, { timeout: 5_000 }).then(() => true, () => false) };
   for (const v of championPreviewVerdicts({ kind, at, step, escaped, kept })) check("all-champions", v.name, v.status, v.detail);
+}
+
+/**
+ * All Champions' one-screen workspace (27 Nov 2026, the owner's request; scripts/all-champions-workspace-facts.mjs): at
+ * 1440 × 900, 1920 × 950 and 1920 × 1080 (the window resized in the desktop's context, no reload), the page is the window,
+ * every champion is reachable through the list's pages, the first champion with 3+ games opens beside the list without
+ * changing the page's height, every lane opponent is reachable through its pages (most games first), its most-met
+ * opponent's games open in place and are reachable through theirs, and Escape steps back. Page changes are the page's own
+ * state (no request); each size opens one preview and one opponent through the page's two light actions, as a click does.
+ * Counts, px and hashes only (the walks hash each id in the page).
+ */
+async function workspaceFacts(page) {
+  const settle = async () => {
+    let last = "";
+    for (let waited = 0; waited < 3000; waited += 250) {
+      await page.waitForTimeout(250);
+      const now = JSON.stringify(await page.evaluate(readWorkspace));
+      if (now === last) return;
+      last = now;
+    }
+  };
+  /** Presses a region's Next until it is disabled (at most 60), reading each page. */
+  const walk = async (region, next) => {
+    const pages = [await page.evaluate(readPage, region)];
+    for (let n = 0; n < 60; n++) {
+      const button = page.getByTestId(next);
+      if (!(await button.count()) || (await button.isDisabled())) break;
+      const at = pages.at(-1)?.page ?? 0;
+      await button.click();
+      await page.waitForFunction(({ region, at }) => Number(document.querySelector(`[data-ws-region="${region}"]`)?.getAttribute("data-page")) === at + 1, { region, at }, { timeout: 5_000 }).catch(() => {});
+      pages.push(await page.evaluate(readPage, region));
+    }
+    return pages;
+  };
+  /** Back to a region's first page (its "Page 1" button), for what comes next. */
+  const first = async (region, testId) => {
+    const one = page.getByTestId(testId).locator("[aria-label='Page 1']");
+    if (await one.count()) await one.click().catch(() => {});
+    await page.waitForFunction((region) => Number(document.querySelector(`[data-ws-region="${region}"]`)?.getAttribute("data-page") ?? "1") === 1, region, { timeout: 5_000 }).catch(() => {});
+  };
+  const height = () => page.evaluate(() => document.documentElement.scrollHeight);
+  try {
+    for (const [width, height0] of [[1440, 900], [1920, 950], [1920, 1080]]) {
+      const size = `${width} × ${height0}`;
+      await page.setViewportSize({ width, height: height0 });
+      await page.evaluate(() => window.scrollTo(0, 0));
+      if (await page.getByTestId("champion-preview-content").count()) {
+        await page.keyboard.press("Escape");
+        await page.keyboard.press("Escape");
+      }
+      await settle();
+      const read = await page.evaluate(readWorkspace);
+      if (!read.workspace) {
+        for (const v of workspaceVerdicts({ size, read })) check("all-champions", v.name, v.status, v.detail);
+        continue;
+      }
+      await first("list", "all-champions-pager");
+      const listPages = await walk("list", "all-champions-next");
+      const list = { ...walkSummary(listPages), total: listPages[0]?.total ?? 0, per: listPages[0]?.per ?? 1 };
+      await first("list", "all-champions-pager");
+      await settle();
+      // The first champion with 3+ games on the first page, opened: the page's height and every row's top as they were.
+      const rows = await page.evaluate(readChampionRows);
+      const i = firstWithGames(rows, 3);
+      let steps = { opened: null };
+      let opponents = null;
+      let games = null;
+      if (i >= 0) {
+        const tops = () => page.evaluate(() => [...document.querySelectorAll("[data-testid=top-champion]")].map((r) => Math.round(r.getBoundingClientRect().top)));
+        const before = { height: await height(), tops: await tops(), listPage: Number((await page.evaluate(() => document.querySelector("[data-ws-region=list]")?.getAttribute("data-page"))) ?? "1") };
+        await page.locator("[data-testid=top-champion]").nth(i).locator("[data-open-champion]").click();
+        const content = page.getByTestId("champion-preview-content");
+        await content.waitFor({ timeout: 15_000 }).catch(() => {});
+        await page.waitForFunction(() => document.querySelector("[data-testid=champion-preview-opponents]")?.getAttribute("data-state") !== "loading", null, { timeout: 15_000 }).catch(() => {});
+        await settle();
+        const now = await tops();
+        const beside = await page.evaluate(() => {
+          const pane = document.querySelector("aside[data-preview-pane]")?.getBoundingClientRect();
+          const card = document.querySelector("[data-testid=all-champions-table]")?.getBoundingClientRect();
+          return !!pane && !!card && card.right <= pane.left + 0.5 && !document.querySelector("dialog[open]");
+        });
+        steps = { opened: { heightBefore: before.height, heightAfter: await height(), beside, rowsKept: now.length === before.tops.length && now.every((t, k) => Math.abs(t - before.tops[k]) <= 1) } };
+        const state = await page.evaluate(() => document.querySelector("[data-testid=champion-preview-opponents]")?.getAttribute("data-state") ?? "");
+        if (state === "answered") {
+          const count = await page.evaluate(() => Number(document.querySelector("[data-testid=champion-preview-opponent-count]")?.firstChild?.textContent?.replace(/,/g, "") ?? "0"));
+          const oppPages = await walk("opponents", "opponents-next");
+          opponents = { ...walkSummary(oppPages), total: oppPages[0]?.total ?? 0, count };
+          await first("opponents", "opponents-pager");
+          await settle();
+          // Its most-met opponent (Most games: the first cell): its games in place, the page's height kept.
+          const heightBefore = await height();
+          await page.locator("[data-testid=champion-preview-opponent] > button").first().click();
+          await page.getByTestId("champion-preview-games").waitFor({ timeout: 15_000 }).catch(() => {});
+          await settle();
+          const heightAfter = await height();
+          const record = await page.evaluate(() => Number(/^(\d[\d,]*) games?/.exec(document.querySelector("[data-testid=champion-preview-pairing-record]")?.textContent?.trim() ?? "")?.[1]?.replace(/,/g, "") ?? "0"));
+          const stepsShown = await page.evaluate(() => !!document.querySelector("[data-testid=champion-preview-opponent-next]"));
+          const gamePages = await walk("games", "games-next");
+          games = { ...walkSummary(gamePages), record };
+          steps.detail = { heightBefore, heightAfter, steps: stepsShown };
+          // Escape: the grid on the page it was on (the first), then the pane closed, the list on its page.
+          await page.keyboard.press("Escape");
+          await page.getByTestId("champion-preview-opponent-list").waitFor({ timeout: 5_000 }).catch(() => {});
+          const opponentsPage = Number((await page.evaluate(() => document.querySelector("[data-ws-region=opponents]")?.getAttribute("data-page"))) ?? "0");
+          await page.keyboard.press("Escape");
+          const closed = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
+          const listPage = Number((await page.evaluate(() => document.querySelector("[data-ws-region=list]")?.getAttribute("data-page"))) ?? "0");
+          steps.escaped = { opponentsPageBefore: 1, opponentsPage, closed, listPageBefore: before.listPage, listPage };
+        } else {
+          opponents = { ...walkSummary([]), total: 0, count: 0 };
+          await page.keyboard.press("Escape");
+          await content.waitFor({ state: "detached", timeout: 5_000 }).catch(() => {});
+        }
+      }
+      for (const v of workspaceVerdicts({ size, read, list, opponents, games, steps })) check("all-champions", v.name, v.status, v.detail);
+    }
+  } finally {
+    await page.setViewportSize(VIEWPORTS.desktop.viewport);
+  }
 }
 
 /**
