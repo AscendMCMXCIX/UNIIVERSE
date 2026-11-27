@@ -38,13 +38,13 @@ builds.
 | Counts (the builds' own kinds), effective size, the page's rows | `src/domain/high-elo/counts.ts` (+ test) |
 | One player's build values, the builds statement's rules in TypeScript | `src/domain/champion-builds-observe.ts`; `tests/db/champion-builds-observe.test.ts` holds it equal to the SQL |
 | A fetched game's observations | `src/server/champion-builds/high-elo/observe.ts` |
-| The slice, the store, the switches, the client factory, the state | `src/server/champion-builds/high-elo/` (`sampler.ts`, `store.ts`, `switch.ts`, `sampler-client.ts`, `state.ts`) |
-| The job | `src/server/jobs/high-elo-sample.ts` (last in the tick's order, 60 s at most, never due while off) |
+| The slice, the store and its retention, the abilities' ranks, the switches, the client factory, the state | `src/server/champion-builds/high-elo/` (`sampler.ts`, `store.ts`, `ranks.ts`, `switch.ts`, `sampler-client.ts`, `state.ts`) |
+| The job | `src/server/jobs/high-elo-sample.ts` (last in the tick's order, 60 s at most, never due while off); the retention also runs in the daily housekeeping, `src/server/jobs/integrity.ts` |
 | The tables | migration `drizzle/0072_high_elo.sql`, `src/server/db/schema/high-elo.ts` |
 | The page | the Master+ source in `src/components/champion-lookup/champion-builds.tsx`, read by `src/server/champion-builds/load.ts` |
 | Admin | `src/components/admin/high-elo-state.tsx` on Data & Integrations |
 | The demo's counts (test data, in-memory demo only, shown only with the browser tests' cookie) | `src/server/demo/high-elo.ts` |
-| Tests | the unit tests above, `src/server/champion-builds/high-elo/switch.test.ts`, `tests/db/high-elo.test.ts`, `e2e/champion-builds.spec.ts` ("Master+ source") |
+| Tests | the unit tests above, `src/server/champion-builds/high-elo/switch.test.ts`, `tests/db/high-elo.test.ts`, `tests/db/high-elo-job.test.ts` (the stored runs), `e2e/champion-builds.spec.ts` ("Master+ source") |
 
 ## What the page shows (once switched on)
 
@@ -78,15 +78,18 @@ four regional hosts in parallel (americas, europe, asia, sea). For each region:
 1. **Pick one server of the region**, with probability in proportion to its Master+ population as
    last read (a server never read counts as average until it is).
 2. **Read its three ladders** (Challenger, Grandmaster, Master); keep only the count in each tier.
-   The lists stay in memory for this slice.
+   The lists stay in memory for this slice. **The team's own accounts are taken out of them** (every
+   Riot account linked to a player profile, read once a slice, in memory only): a member is never
+   sampled, never counted in a game, and never in the weights' population, so the counts are of
+   players who are not members, as the privacy notice says.
 3. **The window:** from the server's cursor to one hour ago, at most 24 hours (the weights scale for
    the part of a longer gap not read).
 4. **Sample 6 players** uniformly from the server's Master+ players (a keyed hash of the slice).
 5. **Read their Ranked Solo/Duo match ids** in the window.
 6. **Fetch at most 8 games**, chosen uniformly from the ids found, each with its timeline.
-7. **Observe every Master+ player of each game** (every player on the lists just read, not only the
-   sampled ones): their lane, champion, result and build values. The other players are left out:
-   their rank is not known.
+7. **Observe every Master+ player of each game** (every player on the lists just read, members
+   taken out, not only the sampled ones): their lane, champion, result and build values. The other
+   players are left out: their rank is not known.
 
 **Weights** (Horvitz–Thompson): each observation weighs one over the probability that the slice
 included it: P(game found) = 1 − C(N−m, k)/C(N, k) (N the server's Master+ players, m the game's,
@@ -118,12 +121,28 @@ Supabase's Data API roles, and `SELECT` for the backup role (docs/DATABASE_PERMI
   `tests/db/high-elo.test.ts` refuses any column named like a player, game, account or Riot ID in
   `high_elo_*`, and checks every stored value has its kind's form and is under 60 characters (so no
   identifier can hide in one).
-- **Retention:** each slice deletes counts of patches other than the current and the previous one.
+- **Nor in the job's runs:** a Riot error's own message names its route, and a match's route its id
+  (`Riot API 503 on /lol/match/v5/matches/<id>`), so a failed region's reason in the summary
+  (`job_runs`, `data_refresh_status`, kept 60 days) is Riot's status and the kind of failure only
+  ("Riot API 503", "Riot API unreachable (network error)"), a database error its code, anything
+  else its name and its message with every identifier and route taken out (`sampler.ts`
+  `failureReason`); a refused key stops the run with Riot's words for it ("Riot API 403: the key was
+  rejected…"), never the route it came on. `tests/db/high-elo-job.test.ts` runs the job as the
+  scheduler does and reads the stored runs.
+- **Retention:** counts of patches other than the current and the previous one are deleted by each
+  slice before its regions, whatever they then do (out of today's games, over the storage cap, out
+  of requests), and by the **daily housekeeping** (`integrity`) whether or not the collection runs:
+  stopped (interval 0, the switch removed, no key) they still expire within a day of the next patch.
+  Never everything: with no current patch known nothing is deleted.
 - **Storage cap:** 40 MB (`HIGH_ELO_MAX_BYTES`). A slice that finds `high_elo_counts` larger writes
-  nothing, its cursor included ("storage cap"). Modelled at about 10,000 sampled games a patch:
-  about 12 MB a patch, 25 MB for the two kept.
+  nothing, its cursor included ("storage cap"); its old patches are deleted all the same. Deleting
+  rows does not shrink the table on disk, so once over the cap the job stays stopped until the
+  session acts (a hard stop, below). Modelled at about 10,000 sampled games a patch: about 12 MB a
+  patch, 25 MB for the two kept.
 - **Exactly once:** the counts and the cursor move in one transaction, from the cursor the slice read;
-  a slice that stops writes nothing, and two at once cannot both count a window.
+  a slice that stops writes nothing, and two at once cannot both count a window. The four regions
+  write at once and share the "all" rows, so each writes its rows in the key's own order
+  (`store.ts` `inKeyOrder`): two regions on the same rows wait for each other and never deadlock.
 
 ## Budgets (per day; the pilot's 120-minute slice, then hourly)
 
@@ -135,7 +154,7 @@ Supabase's Data API roles, and `SELECT` for the backup role (docs/DATABASE_PERMI
 | Vercel Active CPU | About 480 CPU-s a day; about 100–150 used without deploys | Measured on 23 Nov: 2.5 ms a game and 2.8 ms a 6,000-player ladder locally; at four times that on Vercel, at most 0.5–1.5 CPU-s a slice, **at most 12–36 CPU-s a day** hourly. Each slice records `cpuMs` |
 | Vercel Provisioned Memory | About 12 GB-h a day | At most 60 s × 2 GB a slice: 0.4 GB-h a day in the pilot, 0.8 hourly |
 | Database storage | 500 MB, about 190 MB used | About 25 MB for two patches, capped at 40 MB |
-| Database egress | 120 MB a day | Writes are not egress; a page's read is one champion's counts (about 1,000–3,000 summed rows, 60–180 KB) cached an hour: at most about 10 MB a day at the team's use |
+| Database egress | 120 MB a day | Writes are not egress. **The job's own reads, each slice:** the item data (about 60 KB, cached 10 minutes, so cold on most slices), the abilities' ranks only (`ranks.ts`, about 7 KB, where the abilities' whole records, which the job's first version read, are about 0.6 MB), and the roster's keys, patches, cursors, populations, day's games, team accounts and table size (about 5 KB): about 70 KB a slice (12 KB measured on the test database, which holds no item data), **at most about 1.7 MB a day hourly**, 0.9 MB in the pilot; the daily housekeeping's retention adds one count. **The page's reads:** one champion's counts (about 1,000–3,000 summed rows, 60–180 KB) cached an hour, at most about 10 MB a day at the team's use. **Together at most about 12 MB a day** |
 | Deploys | About 6 a day | Collection needs none; the enabling pull request is one |
 
 **Guards:** a slice stops at 60 s or 120 requests; a 401 or 403 stops every region and the run; a
@@ -227,9 +246,10 @@ verification; every step below is the owner's.
    interval to 60 in Admin → Data & Integrations.
 4. **Stop at any time:** set the job's interval to 0 in Admin (immediate, no deploy); or remove
    `UNIIVERSE_HIGH_ELO_COLLECTION` in Vercel and redeploy (key 2 off). Stored counts keep the current
-   and previous patch and expire by themselves. **Hard stops**, for the session to act on: any day
-   above 350 CPU-s or 10 GB-h; the table above 40 MB (the job then refuses to write by itself); any
-   key refusal.
+   and previous patch and expire by themselves: the daily housekeeping (`integrity`) deletes older
+   patches' counts whether or not the collection runs. **Hard stops**, for the session to act on:
+   any day above 350 CPU-s or 10 GB-h; the table above 40 MB (the job then refuses to write by
+   itself, and stays stopped: deleting rows does not shrink the table on disk); any key refusal.
 
 ## Not built, and why
 

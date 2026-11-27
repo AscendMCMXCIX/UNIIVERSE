@@ -483,7 +483,7 @@ Riot ID typed (account creation, or an Alt added on the profile)
 - **Retry / back-off:**
   - Accounts: 5 min after the first failure, doubling up to 6 h.
   - Interrupted runs count as failed runs: the job's next start (after 15 min) or `integrity` records each one and closes its `job_runs` row.
-  - `integrity` unsticks interrupted runs, deletes sessions a week after they ended, prunes failed sign-ins past the throttling window and run records older than 60 days (bounded batches).
+  - `integrity` unsticks interrupted runs, deletes sessions a week after they ended, prunes failed sign-ins past the throttling window and run records older than 60 days (bounded batches), and deletes Master+ build counts of patches older than the previous one (docs/HIGH_ELO_EVIDENCE.md, "Retention").
 - **Sync priorities (accounts):**
   1. New or failing links.
   2. Accounts still collecting this season.
