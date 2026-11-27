@@ -676,6 +676,9 @@ const DEMO_ROLES_FOR = (role: Role): Role[] => (["TOP", "JUNGLE", "MID", "ADC", 
  */
 const DEMO_OLDER_RECORDS = "Demo Support";
 
+/** The in-memory demo of a full roster (layout checks only; never on a deployment): see applyFullRosterFixture. */
+const FULL_ROSTER = () => process.env.UNIIVERSE_DEMO_FULL_ROSTER === "1" && !isProductionDeployment();
+
 /** Demo members whose newest N games alone carry multikill counts (the board's provisional and too-few groups). */
 const DEMO_FEW_COUNTS: Readonly<Record<string, number>> = { "Demo Sub (Support)": 12, "Demo Sub (Top)": 5 };
 
@@ -809,7 +812,8 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
     }
     // Two members with few games carrying counts (their older records still to be fetched again),
     // so the multikill board shows a provisional score and a member with too few games for one.
-    const few = DEMO_FEW_COUNTS[name];
+    // A full roster's layout check (UNIIVERSE_DEMO_FULL_ROSTER=1, applyFullRosterFixture) has every member's counts, so both rankings hold nine.
+    const few = FULL_ROSTER() ? undefined : DEMO_FEW_COUNTS[name];
     if (few !== undefined && i < count - few) delete me.stats;
     const allies = [1, 2, 3, 4].map((n) => filler(n, ownTeam, true));
     const enemies = [5, 6, 7, 8, 9].map((n) => filler(n, otherTeam, false));
@@ -876,6 +880,47 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
   await db.insert(matchDetails).values(details).onConflictDoNothing();
   if (timelines.length) await db.insert(matchTimelines).values(timelines).onConflictDoNothing();
   return gone;
+}
+
+/**
+ * Layout checks of a full roster only (UNIIVERSE_DEMO_FULL_ROSTER=1, in-memory demo; Release 19): the
+ * two members still in setup get a demo Riot account, up to date, and a season of games, and the two
+ * substitutes' games all carry multikill counts (DEMO_FEW_COUNTS stands down), so nine players are
+ * active and both of Leaderboards' rankings hold nine (the owner's team is eight or nine; the default
+ * demo's seven, five of them on the multikill board, left the one screen untested at that size). Demo Halfway plays its two ADC champions;
+ * Demo Newcomer, who has chosen no role, plays three junglers (its profile still shows no role). The
+ * default demo is unchanged. Never on a Postgres database or a deployment.
+ */
+const FULL_ROSTER_GAMES: Readonly<Record<string, ReadonlyArray<{ role: Role; pool: readonly string[] }>>> = {
+  "Demo Halfway": [{ role: "ADC", pool: ["Ashe", "Caitlyn"] }],
+  "Demo Newcomer": [{ role: "JUNGLE", pool: ["Kayn", "Hecarim", "Graves"] }],
+};
+
+export async function applyFullRosterFixture(db: Db): Promise<{ created: number }> {
+  if (isProductionDeployment()) return { created: 0 };
+  const team = await getOrCreateTeam(db);
+  const roster = await listPlayers(db, team.id);
+  const known = new Set((await db.select({ id: champions.id }).from(champions)).map((c) => c.id));
+  let created = 0;
+  for (const p of roster) {
+    const plan = FULL_ROSTER_GAMES[p.displayName];
+    if (!plan) continue;
+    const [existing] = await db.select({ id: riotAccounts.id }).from(riotAccounts).where(eq(riotAccounts.playerId, p.id));
+    if (existing) continue;
+    const [account] = await db
+      .insert(riotAccounts)
+      .values({ ownerType: "player", playerId: p.id, gameName: p.displayName, tagLine: "DEMO", platform: "euw1", puuid: `demo-${p.id}`, label: "demo", syncStatus: "demo", lastSyncAt: new Date() })
+      .returning({ id: riotAccounts.id });
+    const pools = plan.map((x) => ({ role: x.role, pool: x.pool.filter((c) => known.has(c)) })).filter((x) => x.pool.length > 0);
+    await seedDemoGames(db, account!.id, `demo-${p.id}`, p.displayName, pools);
+    await seedDemoRankHistory(db, account!.id, 7 + created);
+    created += 1;
+  }
+  if (created) {
+    invalidateProficiencyCache();
+    await summariseMatches(db);
+  }
+  return { created };
 }
 
 /**

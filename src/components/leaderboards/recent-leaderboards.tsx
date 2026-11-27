@@ -200,7 +200,8 @@ function FormRowItem({ r, p, tie, window }: { r: FormRow; p: BoardPlayer; tie: T
       data-you={r.you || undefined}
       data-tied={r.tied || undefined}
       own={r.you}
-      density={{ narrow: "two-line", medium: "compact", wide: "compact" }}
+      // From 36rem the row's height follows the roster (36-40px, the grid's --rank-row: Release 19), so nine players fit the one screen.
+      density={{ narrow: "two-line", medium: "rank", wide: "rank" }}
       className={FILL_ROW}
       lead={
         <>
@@ -255,12 +256,13 @@ function FormRowItem({ r, p, tie, window }: { r: FormRow; p: BoardPlayer; tie: T
               ) : null}
             </span>
           </span>
-          {/* The main role: a badge on the picture's lower right below 58rem, its own column from 58rem. RoleIcon's own h-4 w-4 would win over a smaller size given to it, so the badge sizes it. */}
+          {/* The main role: a badge on the picture's lower right below 58rem, its own column from 58rem. RoleIcon's own h-4 w-4 would win over a smaller size given to it, so the badge sizes it.
+              From 36rem it ends 2px under the 32px picture, inside a 36px row (Release 19: the rows follow the roster, --rank-row). */}
           <span
             data-testid="form-role"
             title={roleTitle}
             className={cn(
-              r.role ? "absolute col-[2/3] -right-1 bottom-[calc(50%-1.5rem)] @min-[36rem]/list:bottom-[calc(50%-1.25rem)] @max-[13.5rem]/list:row-[1/2] grid size-4.5 place-items-center rounded-full bg-surface-3 text-fg-muted ring-2 ring-surface [&>[data-role-icon]]:size-2.5 @min-[58rem]/list:[&>[data-role-icon]]:size-3.5" : "sr-only @min-[58rem]/list:not-sr-only",
+              r.role ? "absolute col-[2/3] -right-1 bottom-[calc(50%-1.5rem)] @min-[36rem]/list:bottom-[calc(50%-1.125rem)] @max-[13.5rem]/list:row-[1/2] grid size-4.5 place-items-center rounded-full bg-surface-3 text-fg-muted ring-2 ring-surface [&>[data-role-icon]]:size-2.5 @min-[58rem]/list:[&>[data-role-icon]]:size-3.5" : "sr-only @min-[58rem]/list:not-sr-only",
               "@min-[58rem]/list:static @min-[58rem]/list:col-[7/8] @min-[58rem]/list:row-[1/2] @min-[58rem]/list:flex @min-[58rem]/list:size-auto @min-[58rem]/list:min-w-0 @min-[58rem]/list:items-center @min-[58rem]/list:gap-1.5 @min-[58rem]/list:rounded-none @min-[58rem]/list:bg-transparent @min-[58rem]/list:text-sm @min-[58rem]/list:ring-0",
             )}
           >

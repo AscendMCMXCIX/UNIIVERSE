@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FILL_ROW_MAX_REM, FILL_SPARE_MAX, ONE_SCREEN_SECTIONS, oneScreenInput, oneScreenVerdicts, showAllCounts, type OneScreenRead } from "../../../scripts/one-screen-facts.mjs";
+import { FILL_ROW_MAX_REM, FILL_SPARE_MAX, ONE_SCREEN_SECTIONS, ROOM_MIN, oneScreenInput, oneScreenVerdicts, showAllCounts, type OneScreenRead } from "../../../scripts/one-screen-facts.mjs";
 
 /*
   The Production check's one-screen facts (scripts/one-screen-facts.mjs, Release 16): the readings
@@ -69,6 +69,20 @@ describe("one screen", () => {
     // A profile without Recent form and Ranked progress (too few games, no account): the two it always draws are enough.
     const thin = { ...PROFILE_1440, boxes: [box("season-figures", 208, 416), { id: "ranked-progress", present: false }, { id: "recent-form", present: false }, box("champion-pools", 432, 700)] };
     expect(statuses(oneScreenVerdicts({ page: "profile", size: "1440 × 900", read: thin }))).toEqual(["PASS", "PASS"]);
+  });
+
+  it("keeps room to spare under the sections (Release 19): at least 12px above the page's padding passes, less is a warning (never a failure on its own: the window is the hard limit)", () => {
+    expect(ROOM_MIN).toBe(12);
+    const roomy = oneScreenVerdicts({ page: "profile", size: "1440 × 900", read: { ...PROFILE_1440, pad: 28 } });
+    const room = roomy.find((v) => v.name.includes("room to spare"))!;
+    // The lowest section ends at 856: 900 - 28 - 856 = 16px.
+    expect(room.status).toBe("PASS");
+    expect(room.detail).toEqual({ room: 16, min: 12, pad: 28 });
+    const tight = oneScreenVerdicts({ page: "profile", size: "1920 × 950", read: { ...PROFILE_1440, window: 950, pad: 31, boxes: [box("season-figures", 208, 416), box("ranked-progress", 208, 473), box("recent-form", 489, 916), box("champion-pools", 432, 915)] } });
+    expect(tight.find((v) => v.name.includes("room to spare"))!.status).toBe("WARN");
+    expect(statuses(tight).filter((s) => s === "FAIL")).toEqual([]);
+    // A reading without the page's padding (an older reader) has no such fact.
+    expect(oneScreenVerdicts({ page: "profile", size: "1440 × 900", read: PROFILE_1440 }).some((v) => v.name.includes("room to spare"))).toBe(false);
   });
 
   it("fails a board below the window, or a page without one it promises", () => {
