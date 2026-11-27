@@ -543,6 +543,24 @@ cache, read, temporary, and the one table it reads, numbers and table names only
 the counts of 26 Nov ("21,7xx comparison games · 5 roles · ~659 role and champion groups ·
 counting nested", plus the games stored since): production evidence that the answer is the same.
 
+**On production** (Data jobs run 45983330118, 27 Nov 2026, on cd8fdea, minutes after the deploy):
+- `leaderboards.multikill-baseline`: **967 ms cold** against 2,991 ms on 26 Nov, 1.7 ms warm (cached).
+  The note matches 26 Nov's counts plus the games stored since: "21,799 comparison games · 5 roles ·
+  660 role and champion groups · counting nested".
+- `leaderboards.multikill-statement`: 40.4 ms in the database and 60.8 ms in all, every page (2,513)
+  from the database's cache, nothing read from disk and nothing temporary, reading `match_multikills`
+  only.
+- **Still above the expected 0.1–0.25 s cold.** The cold step also re-reads the counting rule
+  (`loadCountingReading`: one statement over `account_matches`' figures) and runs the comparison's
+  statement before the explained run has warmed the table's pages. The probe does not time these
+  apart, so where the other ~0.9 s goes is not measured yet. The probe of 30 Nov 2026 (scheduled) reads
+  it again. If it stays above 0.5 s, time the counting reading and the first statement separately
+  before changing anything. A visitor waits for it at most once per instance in 30 minutes.
+- `db-usage`: `match_multikills` holds 59,980 rows in 12.1 MB (9.6 MB heap, 2.5 MB index), about
+  200 bytes a counted player as estimated. The database is 177 MB of the 500 MB plan.
+- The fairness check (`multikill-audit`) on the same run: 1.6 s in all (531 ms in the database), a
+  317 KB answer.
+
 - **Rejected:** an index on an expression of the players (Postgres recomputed it from the heap and
   TOAST: no faster); a generated column with a compact summary in `match_details` (rewrites the
   table under an exclusive lock and grows every other reader's heap); a longer or shared cache on

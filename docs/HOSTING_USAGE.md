@@ -41,6 +41,14 @@ player, kept by the database from the records.
   API's roles holding nothing, and no callable function; `perf-probe`'s
   `leaderboards.multikill-baseline` cold well under 300 ms with the same counts as 26 Nov plus new
   games; `db-usage` gives the table's size.
+- **Measured after the deploy** (Data jobs run 45983330118, 27 Nov, about 1.5 minutes): `auth-audit`
+  ok, with 0070, 0071 and 0072 applied and no table without row-level security. `access-audit` ok:
+  50 tables, all with row-level security, the backup role reading every one, the Data API's roles
+  holding nothing, and one function, the trigger function, not `SECURITY DEFINER`. `db-usage`:
+  `match_multikills` 12.1 MB (59,980 rows), the database 177 MB, the app's egress 17.1 MB so far that
+  day. The comparison reads 967 ms cold against 2,991 ms before (docs/PERFORMANCE.md, "On production":
+  still above the 300 ms expected, to be read again on 30 Nov). The fairness check took 1.6 s with a
+  317 KB answer.
 
 ## 27 Nov 2026: Champion Intel's builds by queue, the builds audit, and the Master+ sampling (switched off)
 
