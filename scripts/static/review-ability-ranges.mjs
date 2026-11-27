@@ -41,16 +41,16 @@ export const SPELL_SLOTS = ["Q", "W", "E", "R"];
 export const RANGE_KINDS = ["reach", "global", "self", "none"];
 /** Who decided a row: the fixed rules below, an independent automated review, or the team. Never a person's name. */
 export const RANGE_REVIEWERS = ["automated draft", "automated review", "owner"];
-/** Why a row says the number is not shown (for `none` only; never shown). */
-export const NONE_REASONS = ["placeholder", "two-forms", "not-the-reach", "scales-in-game", "several-abilities"];
+/** Why a row says the number is not shown (for `none` only; never shown). "unconfirmed": a review could not confirm that Riot's number is the reach (a reviewer unsure, the reviewers split, or the adjudicators not both confirming), so it is recorded as reviewed and not shown, and --write never drafts it again. */
+export const NONE_REASONS = ["placeholder", "two-forms", "not-the-reach", "scales-in-game", "several-abilities", "unconfirmed"];
 const VERSION = /^\d{1,4}(?:\.\d{1,4}){1,3}$/;
 /** A slot that holds two abilities ("To the Skies! / Shock Blast", "Arc of Judgment | Arc of Ruin"): one array for both. */
 export const TWO_FORMS = / \/ | \| /;
 
 const NOTE =
-  "Ability ranges (Champion Intel, docs/CHAMPION_INTEL.md, \"Ranges\"): what Data Dragon's `range` measures for each spell. The number shown is always Data Dragon's current one; a row applies only while Riot's spell id, range array and text hash (description and tooltip) are the ones in the row. kind: reach (shown as \"Range 1,175\"), global (\"Global\"), self (cast on the champion; not shown, by the owner's decision for Release 19), none (not the reach; not shown). reviewer: \"automated draft\" (the fixed rules of scripts/static/review-ability-ranges.mjs, high confidence only), \"automated review\" or \"owner\". Rows are changed through pull requests: git history is the review log. No personal data.";
+  "Ability ranges (Champion Intel, docs/CHAMPION_INTEL.md, \"Ranges\"): what Data Dragon's `range` measures for each spell. The number shown is always Data Dragon's current one; a row applies only while Riot's spell id, range array and text hash (description and tooltip) are the ones in the row. kind: reach (shown as \"Range 1,175\"), global (\"Global\"), self (cast on the champion; not shown, by the owner's decision for Release 19), none (not the reach; not shown). reviewer: \"automated draft\" (the fixed rules of scripts/static/review-ability-ranges.mjs, high confidence only), \"automated review\" (docs/CHAMPION_INTEL.md, \"Ranges\": two independent reviewers, and two adjudicators where the rules differed) or \"owner\". why \"unconfirmed\": reviewed, and the review could not confirm Riot's number is the reach, so it is not shown. Rows are changed through pull requests: git history is the review log. No personal data.";
 const PROCESS =
-  "Drafted by the fixed rules of scripts/static/review-ability-ranges.mjs from Data Dragon's numbers and Riot's descriptions and tooltips; only drafts the rules rate high confidence are written as \"automated draft\"; an independent automated review or the team confirms or extends them. Data Dragon only: no wiki, no CommunityDragon.";
+  "Drafted by the fixed rules of scripts/static/review-ability-ranges.mjs from Data Dragon's numbers and Riot's descriptions and tooltips (only high-confidence drafts are ever written, as \"automated draft\"); then reviewed (\"automated review\"): two independent reviewers classify every spell from the same evidence without the draft; a reach or global is kept only where both say so and the draft agrees, or where a verifier and a skeptic both confirm it; any doubt is written as none, \"unconfirmed\", never shown. The team may confirm or change any row (\"owner\"). Data Dragon only: no wiki, no CommunityDragon.";
 
 /* ---------- Riot's text, as the rules read it ---------- */
 
