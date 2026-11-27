@@ -60,7 +60,7 @@ UNIIVERSE keeps both shut for everyone but the owner. Either one alone would kee
 
 ## Permissions matrix
 
-All 70 tables are **private** (68 until migration 0067 added `account_match_prep` and `static_digests`, Matchup Intel's evidence, each with the grants block; both kept when Matchup Intel was retired on 23 Nov 2026, `account_match_prep` read and written by nothing since: docs/CHAMPION_INTEL.md, "What is stored and not shown"). No table is meant to be read through the Data API, by anyone, so every table gets the same database access:
+All 73 tables are **private** (68 until migration 0067 added `account_match_prep` and `static_digests`, Matchup Intel's evidence, each with the grants block; both kept when Matchup Intel was retired on 23 Nov 2026, `account_match_prep` read and written by nothing since: docs/CHAMPION_INTEL.md, "What is stored and not shown"; 73 since migration 0072 added the three `high_elo_*` tables, prepared and empty while their collection is switched off: docs/HIGH_ELO_EVIDENCE.md. Other Release 19 migrations add their own; the coordinator's count is the merged tree's). No table is meant to be read through the Data API, by anyone, so every table gets the same database access:
 
 | Role | Access to every table |
 |---|---|
@@ -81,6 +81,7 @@ What differs is who sees the data **through the app**. The server decides that (
 | Static game data | `patches`, `champions`, `champion_skins` | Signed-in members. Nothing personal. |
 | Branding and settings | `app_settings`, `brand_assets`, `brand_upload_chunks` | Everyone sees the published branding. Changing it is for admins. |
 | Operations | `data_refresh_status`, `job_runs`, `audit_events`, `db_egress_daily`, `uniiverse_migrations` | Admins (System Health, Admin activity). |
+| High-elo statistics (anonymous; prepared, switched off) | `high_elo_counts`, `high_elo_cursors`, `high_elo_population` | Members with teammates' statistics, as totals in Champion Intel's builds once switched on; Admin sees the state. No column can hold a player, a game or a Riot ID. |
 
 - **The public team page is the only anonymous view.** Its server builds it field by field from a fixed allowlist (`src/server/public/team.ts`), reading as the owner like every other page. It never goes through the Data API.
 - **Read-only data stays read-only.** Only the app's own server writes. The backup role can only `SELECT`, and its sessions are read-only.

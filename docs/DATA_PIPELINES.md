@@ -131,6 +131,24 @@ Members are never checked this way: their own sync reads their rank, and their r
 - They are matched by PUUID, or by Riot ID when a new API key changed the PUUIDs; a PUUID learned that way is added to their record.
 - Sync log lines name accounts by a short id, never a Riot ID.
 
+## Champion Intel's builds: the audit and the Master+ sampling (Release 19)
+
+- **`builds-audit`** (check, read-only, on demand and by the Production check; never scheduled):
+  finds the champion-role-queues with builds on the current patch window (one statement over the
+  team's stored draft games; only those with 20 games leave the database), counts up to six
+  champions through the builds page's own cached path and key (`countChampionBuilds`, so it warms the
+  page), and re-derives every rule from the raw counts (docs/LIVE_VALIDATION.md, "The builds audit").
+  Counts and anonymous labels only; the two champions the Production check opens are sealed under
+  `CRON_SECRET`. A violation fails the run. Its key needs no migration (`data_refresh_status` keys are
+  text).
+- **`high-elo-sample`** (refresh; **switched off**): one slice of anonymous Master+ sampling for
+  Champion Intel's builds (docs/HIGH_ELO_EVIDENCE.md). Without both keys (the code's
+  `HIGH_ELO_LADDER_REGISTERED`, false; the deployment's `UNIIVERSE_HIGH_ELO_COLLECTION=on`, unset)
+  and a Riot key it returns at once, "off", with no Riot request and nothing written; it has no
+  interval while off, so the tick (where it is last) never runs it. When on: 60 s and 120 requests a
+  slice at most, 1,000 games a day, counts only into `high_elo_counts`, a 40 MB cap, old patches
+  deleted.
+
 ## Health and self-monitoring
 
 `data_refresh_status` records each job's last start/success/failure, error, duration and consecutive failures. Admin → Data & Riot and `/api/health` surface warnings when a pipeline is stale (the version check silent for 26 hours) or failing repeatedly. A run killed before it finished (a function timeout, a crash) counts as a failed run: the next run of the job, starting once it has said "running" for 15 minutes, records it (one more consecutive failure, `last_failure_at`, "Run never finished (process was interrupted).") and closes its `job_runs` row as failed; until then a run past those 15 minutes already counts as failed in the warnings and `/api/health`. The `integrity` job (daily) unsticks job states left running by an interrupted process the same way (counted as a failed run) and closes every `job_runs` row left open for over 30 minutes, deletes sign-in sessions a week after they ended, failed sign-ins older than the throttling window and run records older than 60 days, in bounded batches. It also re-applies the personal-data erasure records to anything stored in the last two days, as a safety net, and reports a degraded run when a record was made under another `UNIIVERSE_AUTH_SECRET`. `erasure-reconcile` (on demand only) re-applies them to the whole database, after a restore (`docs/BACKUPS.md`).

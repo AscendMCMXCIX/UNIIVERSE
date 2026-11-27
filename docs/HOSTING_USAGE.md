@@ -7,6 +7,28 @@ UNIIVERSE runs on the free plans of Supabase (the Postgres database) and Vercel 
 
 This page records what caused that, what was changed, how it was measured, and how to check it again. The second pass, after egress reached 7.14 GB on 20 Oct, is the next section.
 
+## 27 Nov 2026: Champion Intel's builds by queue, the builds audit, and the Master+ sampling (switched off)
+
+- **The builds statement counts every queue at once** (D5): each row carries its queue and the most
+  games one player had with its value (worked out inside the database). Its answer grows by about
+  25–70% in rows, each a few bytes longer: 5–20 KB for a popular champion becomes about 7–30 KB. The
+  database time is unchanged (18–44 ms on the demo), it is still one statement per champion and patch
+  window cached six hours (`BUILDS_FORMAT` 2 is a new key: the first day of the release counts each
+  champion opened once more), and **a queue chosen on the page reads nothing**. The page's payload
+  carries up to four queue views (about 4 KB each on the demo, most of them the short "too few" view).
+- **The builds audit** (`builds-audit`, called by the Production check on each run): the candidates
+  statement (only champion-role-queues with 20 games leave the database: under 3 KB on the demo) and
+  up to six counting statements, through the page's own cache key, so they are the page's next reads
+  and none within six hours of the last. About a second of function time and, cold, under 0.2 MB of
+  egress a run; with about 7 runs a day (6 deploys and the daily run) at most about 1.5 MB a day and
+  10 CPU-s. The populated builds facts add one page load and one Swap (a server render) a run.
+- **The Master+ sampling** (`high-elo-sample`): **switched off; it costs nothing** (no request, no
+  write, no interval). Its budgets once on are in docs/HIGH_ELO_EVIDENCE.md, "Budgets": at most
+  12–36 CPU-s and 0.8 GB-h of memory a day hourly (half in the 120-minute pilot), about 25 MB of
+  storage for two patches capped at 40 MB, and at most about 10 MB a day of egress for the page's
+  reads (one champion's counts, cached an hour). The owner's go-ahead thresholds (Vercel and
+  Supabase readings) are in its "For the owner".
+
 ## 26 Nov 2026: Champion Intel's builds and runes (one counting statement per champion, cached six hours)
 
 **What it reads.** Champion Intel's builds (docs/CHAMPION_INTEL.md, "Builds and runes") count what

@@ -205,6 +205,11 @@ describe("the Master+ builds' storage and sampling (switched off)", () => {
   it("the demo's synthetic counts give a Highest win rate, two roles, too few and none, through the builds' own rules", async () => {
     const deltas = demoHighEloDeltas("16.22");
     for (const d of deltas) expect(validBuildValue(d.kind, d.value), `${d.kind} ${d.value}`).toBe(true);
+    // One row per key (the regions' "all" rows summed), so seeding stores every game.
+    const keys = deltas.map((d) => [d.champion, d.patch, d.role, d.region, d.opponent, d.kind, d.value].join("|"));
+    expect(new Set(keys).size).toBe(keys.length);
+    const games = (region: string) => deltas.filter((d) => d.champion === "Thresh" && d.kind === "games" && d.region === region).reduce((s, d) => s + d.n, 0);
+    expect(games("all")).toBe(games("americas") + games("europe") + games("asia") + games("sea"));
     const icons = { item: (id: number) => ({ url: "", name: `Item ${id}` }), rune: (id: number) => ({ url: "", name: `Rune ${id}` }), spell: (k: number) => ({ url: "", name: `Spell ${k}` }), shard: (id: number, row: number) => ({ url: "", name: `Shard ${row}` }) };
     const view = (champion: string) => championBuildsView(champion, highEloBuildRows(deltas.filter((d) => d.champion === champion && d.region === "all")), { current: "16.22", previous: "16.21" }, icons, "solo", "master");
     const thresh = view("Thresh");

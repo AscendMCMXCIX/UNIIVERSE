@@ -92,7 +92,14 @@ export function demoHighEloDeltas(patch: string): CountDelta[] {
       out.push(...countDeltas(observations, patch, region));
     }
   }
-  return out;
+  // Every region's "all" rows are one row each, summed, as the sampler's writes add up (store.ts commitVisit).
+  const merged = new Map<string, CountDelta>();
+  for (const d of out) {
+    const key = [d.champion, d.patch, d.role, d.region, d.opponent, d.kind, d.value].join("|");
+    const was = merged.get(key);
+    merged.set(key, was ? { ...was, n: was.n + d.n, w: was.w + d.w, w2: was.w2 + d.w2, ww: was.ww + d.ww } : d);
+  }
+  return [...merged.values()];
 }
 
 /** Seeds the demo's counts at its current patch, once (a second start adds nothing). */
