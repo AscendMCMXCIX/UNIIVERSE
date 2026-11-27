@@ -324,6 +324,33 @@ p a.text-accent {
   }
 }
 /*
+  All Champions' one-screen workspace (docs/RESPONSIVE.md, "All Champions' workspace"): a desktop
+  window with a fine pointer, from 80rem wide, and at least 41 of the page's own rem tall (656px at
+  16px: a 1366 × 768 laptop's browser window, about 657px inside it, keeps the workspace with fewer
+  rows; until 28 Nov 2026 46rem, which sent it to the long page). The root grows from 1536px wide
+  (html's clamp), so each band of widths asks 41 × its widest root, rounded up to the pixel: 656 to
+  1536px, then every 64px to 1920 (668, 680, 691, 703, 715, 727), 786 to 2240, 845 to 2560 and 902
+  (the root's 22px) beyond. Bands this narrow leave the page's own root check (posture.ts) a few
+  pixels at most to disagree in; each band includes its upper edge, so a fractional width (a zoom)
+  never falls between two. WS_QUERY in ui/posture.ts is the same string (posture.test.ts compares them).
+  ws:      the section and its descendants, while the section carries [data-workspace];
+  ws-host: the shell's elements that hold such a section (main, the frame, the profile's column).
+*/
+@custom-variant ws {
+  @media (pointer: fine) and (min-width: 80rem) and (max-width: 1536px) and (min-height: 656px), (pointer: fine) and (min-width: 1536px) and (max-width: 1600px) and (min-height: 668px), (pointer: fine) and (min-width: 1600px) and (max-width: 1664px) and (min-height: 680px), (pointer: fine) and (min-width: 1664px) and (max-width: 1728px) and (min-height: 691px), (pointer: fine) and (min-width: 1728px) and (max-width: 1792px) and (min-height: 703px), (pointer: fine) and (min-width: 1792px) and (max-width: 1856px) and (min-height: 715px), (pointer: fine) and (min-width: 1856px) and (max-width: 1920px) and (min-height: 727px), (pointer: fine) and (min-width: 1920px) and (max-width: 2240px) and (min-height: 786px), (pointer: fine) and (min-width: 2240px) and (max-width: 2560px) and (min-height: 845px), (pointer: fine) and (min-width: 2560px) and (min-height: 902px) {
+    &:where([data-workspace], [data-workspace] *) {
+      @slot;
+    }
+  }
+}
+@custom-variant ws-host {
+  @media (pointer: fine) and (min-width: 80rem) and (max-width: 1536px) and (min-height: 656px), (pointer: fine) and (min-width: 1536px) and (max-width: 1600px) and (min-height: 668px), (pointer: fine) and (min-width: 1600px) and (max-width: 1664px) and (min-height: 680px), (pointer: fine) and (min-width: 1664px) and (max-width: 1728px) and (min-height: 691px), (pointer: fine) and (min-width: 1728px) and (max-width: 1792px) and (min-height: 703px), (pointer: fine) and (min-width: 1792px) and (max-width: 1856px) and (min-height: 715px), (pointer: fine) and (min-width: 1856px) and (max-width: 1920px) and (min-height: 727px), (pointer: fine) and (min-width: 1920px) and (max-width: 2240px) and (min-height: 786px), (pointer: fine) and (min-width: 2240px) and (max-width: 2560px) and (min-height: 845px), (pointer: fine) and (min-width: 2560px) and (min-height: 902px) {
+    &:has([data-workspace]) {
+      @slot;
+    }
+  }
+}
+/*
   A season record's two-line cell (leaderboards/records.tsx, BOOK_COLS): a cell of 36rem or more, or
   any cell on a Leaderboards page of 59rem or more (the desktop's one-screen board, whose records'
   column is 21–38.5rem). Either container query alone; the narrow cell's layout is the classes

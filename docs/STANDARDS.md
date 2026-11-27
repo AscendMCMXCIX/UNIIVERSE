@@ -233,13 +233,26 @@ docs/TEAM_LEADERBOARDS.md, "One screen"); on small screens and at large text siz
 over the one screen. Leaderboards is one screen from a 59rem page too (docs/TEAM_LEADERBOARDS.md,
 "One screen"): every board shows every row, the rankings' rows following the roster (40px for up to
 seven players, 36px for nine), so a full roster of nine fits 1440 × 900, 1920 × 950 and 1920 × 1080.
+All Champions is one screen on a desktop window too (the owner's request of 27 Nov 2026: its
+one-screen workspace, docs/RESPONSIVE.md): at 1366 × 768, 1440 × 900, 1648 × 900 and 1920 × 1080,
+the sidebar open and folded, with text 1% wider, the page never scrolls; its champions, lane opponents
+and an opponent's games are in pages of the rows that fit (`useRowBudget`, `Pager`), and its two cards
+fill the frame to the window's foot, their footers on one baseline (a workspace's panes are its frame,
+the one exception to "no card stretched"). A shorter desktop window, down to a laptop's browser
+window (41rem tall: 656px at 16px), keeps the workspace with fewer rows; below 46rem a champion of
+several positions with an opponent open keeps one game a column and the page can grow by what that row
+lacks, never hiding anything. Phones, tablets, windows under 41rem and large text keep its scrolling
+page.
 
 **A layout held to a measure keeps a margin** (Release 19, the owner's request of 26 Nov 2026). A test
 that holds a layout to the window ("one screen", "fits", a row's height) asserts at least 12px of room,
 measured above the page's own bottom padding, never only "no scroll"; and it runs once more with
 `widenText` (`e2e/wide-text.ts`: every glyph 1% of its size wider, twice the difference of CI's
 browser), so a layout that passes here passes there. A list fitted to the window keeps the guard band
-itself (`fit-rows.tsx`), so its margin does not depend on the test.
+itself (`fit-rows.tsx`), so its margin does not depend on the test. In a fixed workspace (All
+Champions) the frame fills to `#content`'s bottom padding by construction, so the margin is measured
+inside each card: **from a list's last row to its footer, at least 12px**, the paged list's own guard
+band (`useRowBudget`).
 
 **Page layout.** One frame for every page, so pages differ by their content, not their scaffolding:
 - **The shared frame** (S2c, `app-shell.tsx`): every page sits in one column, at most `--content-wide`
@@ -343,6 +356,7 @@ Use the shared component before writing a new one (`src/components/ui`):
 | Buttons and links that look like buttons | `Button`, `buttonClass` (links never wrap buttons) |
 | Fields | `Input`, `Textarea`, `Select`, `Label`, `Switch` |
 | A section that opens and closes, or the rest of a list | `Fold` (`ui/fold.tsx`: `panel`, `row` or `inline`); never a `details` of its own |
+| A list in a one-screen workspace that would grow past the window (All Champions' champions, lane opponents, an opponent's games) | Pages of the rows that fit: `useRowBudget` (`ui/fit-rows.tsx`), `usePagedList` and `slotPages` (`ui/row-budget.ts`), and the shared `Pager` (`ui/pager.tsx`, `layout="inline"` in a card's footer; Match History's `layout="stacked"`); never a list that scrolls on its own |
 | A table that can be wider than the screen | `ScrollRegion` with a `label`: the keyboard can focus and scroll it, and screen readers name it |
 | A status or a tag | `Badge` |
 | Nothing to show | `EmptyState`: the default `block` (a dashed panel of its own, `compact` for less padding), `variant="row"` in place of a group of rows inside a `DataList`, `variant="inline"` as one line of running text (a `<p>`: phrasing content only) |

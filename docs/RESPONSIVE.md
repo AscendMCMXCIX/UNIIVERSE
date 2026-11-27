@@ -693,6 +693,98 @@ the account screen over the dashboard at 200% on a 320px phone as well.
 - `main` pads for the tab bar (`pb-tabbar`) so content never hides behind it; held sideways, where
   there is none, only for the home indicator.
 
+### All Champions' workspace (27 Nov 2026)
+
+The owner's request of 27 Nov 2026: on a desktop, All Champions fits one window and never scrolls,
+not by trimming padding but by its layout. It has two postures (docs/MATCHUPS.md has what each shows):
+
+- **The workspace** (`ws`): a window with a fine pointer, from 80rem wide, at least 41 of the page's
+  own rem tall (656px at 16px: the browser window of a 1366 × 768 laptop, about 657px inside it, and of
+  a 1920 × 1080 screen at 125%, about 1536 × 730, keep the workspace with fewer rows; from 27 to 28 Nov
+  2026 the gate was 46rem, 736px, and sent them to the long page, which the owner's request rules out:
+  "at shorter desktop sizes, reduce visible row counts"). The root grows from 1536px wide (html's
+  clamp), so the CSS gate is written per band of widths at 41 × the band's widest root, rounded up to
+  the pixel: 656px up to 1536px wide, then every 64px to 1920 (668, 680, 691, 703, 715, 727), 786 to
+  2240, 845 to 2560, 902 beyond; each band includes its upper edge, so a fractional width (a zoom)
+  never falls between two, and inside a band the CSS asks at most 13px more than the root check
+  (`@custom-variant ws` and `ws-host` in globals.css; `WS_QUERY` in `ui/posture.ts` is the same
+  string, and `posture.test.ts` compares them). A media query cannot read the page's own root (a
+  larger browser text size, an emulated one), so once hydrated `useWorkspace()` also asks
+  `innerHeight ≥ 41 × the root`; the section carries `data-workspace` while both may hold
+  (the server's HTML and the hydration render, where the CSS decides) and loses it where they do not,
+  and every `ws:` class needs that attribute. `ws-host:` makes the shell's main, its frame and the
+  profile's column flex columns (the column `w-full`: a flex item with `mx-auto` shrinks to its
+  content).
+- **The flow**: everywhere else (phones, tablets held either way, `pointer: coarse` laptops, windows
+  under 1280px wide or under the band's height, such as 1366 × 640, a larger text size): today's page,
+  unchanged, the page the one thing that scrolls.
+
+**The frame.** In the workspace the section is the flex remainder of the shell's `min-h-dvh` column:
+the window less the profile's band, its tabs, the one-line section header and `#content`'s padding
+(522 / 654 / ~646 / 786px at 1366 × 768, 1440 × 900, 1648 × 900 and 1920 × 1080). The list's card and
+the preview's card sit side by side, both stretched to the frame's foot, their footers on one
+baseline; with no champion open the list's wide table fills the frame. The section spaces its parts
+with a gap in the workspace (`ws:gap-3`, not `space-y-3`: a margin would also go to the layout before
+the sheet's or a game's dialog, or the flow's hidden legend, and shorten the frame by 12px). The flex
+items keep `min-height: auto`, so the frame never hides content: what would not fit grows the frame
+and the page by exactly that much (**the floor**: a list never shows fewer than one row a column).
+From 46rem tall (736px at 16px) that never happens. Between 41 and 46rem every champion of one
+position fits whole, its opponent's games included, and so does a champion of several positions
+without an opponent open; with one open (the positions row, P3, P4 and the detail's bands above one
+game a column), a window under about 713px lets the page grow by what that row lacks: 4px for
+Aatrox's two positions at 1366 × 657, 44px for Sion's five, nothing hidden, nothing scrolling inside
+(`e2e/all-champions-workspace.spec.ts`, "shorter desktop windows"). The preview is a pane only where the
+section holds the opponents' two columns beside the list (64.75rem: `WS_PANE_SECTION_REM`); a
+narrower workspace section (1280–1359px with the sidebar open) opens it in the sheet over the paged
+list (decision O1). The pane drops the flow's `sticky` and `overflow-clip` (a flex item that clips
+gets no least height and would cut silently), and the flow's pane placement and pinned headings are
+idle.
+
+**The rows.** Each list (the champions, the lane opponents, one opponent's games) shows the complete
+rows that fit between its first row and its card's footer, less the 1rem guard: `useRowBudget`
+(`ui/fit-rows.tsx`) reads the window (never the frame's box, which grows with its content), the
+footer's height and the first row's top and height (`rowBudget` in `ui/row-budget.ts`), in a layout
+effect, on resize (a zoom fires one), once the fonts load, and when #content, the footer or a band
+above the rows changes size; it never observes the rows, keys its measure on primitives only, and a
+measure that would flip back settles on the smaller count, so it always comes to rest. Every row is
+one height (the champions' role line holds the "In pool" chip's height with or without it). The
+server cannot measure, so its HTML draws the first rows by the window's height in the Leaderboards'
+tiers, one fewer than fit (`WS_TIER_ROWS`: 3, 7 at `board-at-mid`, 9 at `board-at-tall`; the
+unit test recomputes them per band), and hydration only adds rows below them. A linked preview's
+first paint draws the first opponents, and an opponent's first games, in the first column only (1
+under `board-at-mid`, 4 opponents and 3 games from it: what fits at the tier's smallest window for any
+champion), so the measured page only adds cells below them and the second column: no cell moves at
+hydration. Where the workspace's section is under 64.75rem (the sheet's sizes), a linked preview's
+first paint gives the list the frame with the wide table's rows and heading (`SHEET_FIRST_PAINT_GRID`
+in all-champions.tsx), as the sheet will leave it. Pages are client state
+(`usePagedList`): a new selection shows its page, a new budget keeps the selection's page or the
+first row shown, typing goes to page 1, another order to the selection's page, another filter to the
+selection's page where it is still listed; leaving an opponent's games (All opponents, Escape) shows
+the page holding that opponent (`useFollowed`: the list follows the opponent just left until it has
+drawn its pages, also after a linked opponent whose grid was never measured), and the measure keeps
+its last count while a list gives way to the detail. The pager (`ui/pager.tsx`, Match History's,
+shared) folds by the widest line its page count draws and reserves that line's width for its buttons
+(the arrows at its two ends, the pages centred between them) and its range's widest text, so it never
+changes width and no arrow moves from under the pointer as its pages turn.
+
+**Margins.** Each list ends at least 12px above its footer (16px or more measured at the owner's
+sizes, with CI's wider text too): the fixed workspace's form of "A layout held to a measure keeps a
+margin" (docs/STANDARDS.md).
+
+`e2e/all-champions-workspace.spec.ts` (its own demo server with `UNIIVERSE_DEMO_WIDE_CHAMPION=1`:
+Demo Top's Ambessa with 40 lane opponents and 30 champions) holds it at 1366 × 768, 1440 × 900,
+1648 × 900 and 1920 × 1080, the sidebar open and folded, plus 1366 × 736 and 1280 × 800: the page the
+window, the cards above the padding, the margins, no scroller and nothing clipped (classic scrollbars
+too), every name and K/D/A whole, every control reachable and Tab with a visible focus and no scroll,
+opening a champion or an opponent without a change of height or a moved row, every record through the
+pages (30 champions, 40 opponents in three orders with the divider's rules, 9 games), the keys, Back
+and Forward, filters that keep the champion, a resize, the sidebar and 125% zoom, axe, wider text,
+the shorter laptop windows (1366 × 657, 1536 × 730, 1600 × 772, 1648 × 789), a linked preview's first
+paint (nothing moves at hydration), the pagers' constant width, the focus after leaving an opponent
+(from a later page, after ‹ ›, from a link), after closing a champion paged away, across a zoom over
+the gate and on the pane's ‹ ›, each item's place on its list, and the flow at 1366 × 640,
+1440 × 600, 1280 × 640 and with a 150% root.
+
 ## Primitives
 
 - `Button`: desktop heights unchanged; `max-md:min-h-11` and `pointer-coarse:min-h-11`. `wrap`: on a
@@ -767,7 +859,9 @@ window's footer, at a large text size (a row narrower than 17.5rem), "Game n of 
 under Previous and Next, so neither runs off the screen. Encounters' Against, Alongside and All
 keep their whole width on a 320–360px phone, the search's icon taking the next line.
 
-All Champions follows its list's own width too (a container query, so the sidebar counts):
+All Champions follows its list's own width too (a container query, so the sidebar counts). On a
+desktop window the page is the one-screen workspace (Shell, "All Champions' workspace" above); the
+paragraphs below are the flow, unchanged wherever the workspace does not apply:
 
 | List | Layout |
 | --- | --- |
@@ -833,7 +927,12 @@ and Close, the positions of a champion played in one, two, three and five positi
 mark on the phone and the tablet), the opponents' table, its search kept to its position, its detail
 and the phone's step brought into view, and old addresses on all three projects, the sheet on the
 phone and the upright tablet and the pane on the tablet held sideways; `e2e/profile.spec.ts` the
-five-position row at 768 and 752px on the touch tablet.
+five-position row at 768 and 752px on the touch tablet. Since 27 Nov 2026 the desktop project's
+1440 × 900 is the workspace: the pane tests there assert it (one screen, the opponents in two columns,
+an opponent's games in place), the short-window tests (1440 × 600, 1366 × 540, 480px tall) assert the
+flow, 1280 × 800 with the sidebar open asserts the sheet over the paged list, and two tests force pages
+on the default demo with the test cookies `uniiverse-test-champions-per-page` and
+`uniiverse-test-opponents-per-column`.
 
 The player Peek's pool list (Team, Players, Leaderboards; `PoolChampionTile`) takes its columns
 (Win rate, Games, KDA, CS/min or Vision) from its own width, 28rem or more (`@container/pool`), and
@@ -993,6 +1092,13 @@ For example, Team Matches' cards take their four columns from their list's width
 Leaderboards (one page since 19 Nov 2026, one dashboard since 25 Nov 2026: no views, nothing folded) places its four boards by the page's own width (`@container/dash`): one column under 59rem (phones upright and sideways, tablets, a desktop at 150% text or more; with the index of the sections below Recent form, `SectionIndex`), in the order Recent form, Multikills, Season records, Milestones, a short natural scroll; from 59rem one screen, a 2 × 2 grid (`minmax(36.25rem, 1.25fr) minmax(21.75rem, 1fr)`) whose rows the two boards in them share: Recent form beside the multikills, the season records beside the milestones, each pair one height, every board within the window at 1366 × 768, 1440 × 900 and 1920 × 1080 with the demo's seven active players. Each board's rows follow the board's own width (`@container/list`): Recent form's tiers (36rem, 58rem; large-text reflows under 17.5, 16.5 and 13.5rem); the multikills a table of eight columns from 26rem (the kinds' words from 40rem), a phone's two-line rows under it (the name the row's whole width under 15rem); each season record a cell of its own, two columns of cells from a 34rem panel (two lines from a 36rem cell and on a 59rem page, the `record-two` variant; three lines under it; one column under 16rem); the milestones' cells two columns from 26rem. The page is no wider than a 320px phone at 100%, 150% and 200% text (`e2e/phone-wraps.spec.ts`, `e2e/large-text-leaderboards.spec.ts`; the screen counts are in `docs/TEAM_LEADERBOARDS.md`). The `board-at-*` and `board-below-*` variants (globals.css) now serve the profile Overview's Recent form only.
 
 ## Device matrix
+
+All Champions (27 Nov 2026): 1366 × 768, 1440 × 900, 1648 × 900 and 1920 × 1080, the sidebar open or
+folded, are the one-screen workspace with the pane; 1280 × 800 folded and 1360 × 768 open too; 1280
+× 800 open (1280–1359px wide with the sidebar open) is the workspace with the preview in the sheet;
+1024–1279px, windows under the band's height (1366 × 700, 1280 × 720, 1920 × 800), a 110% zoom on a
+1366 × 768 laptop, touch tablets held sideways (`pointer: coarse`), phones and a larger text size are
+the flow.
 
 `e2e/mobile-landscape.spec.ts` (run once, from the phone project) opens its own Chromium
 contexts with Playwright's device descriptors (iPhone SE, iPhone 15, both ways round) and checks

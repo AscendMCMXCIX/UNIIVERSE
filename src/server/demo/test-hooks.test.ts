@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { championsFirstForTest, kitChangedForTest, longestNotesForTest, noteAgeForTest, opponentSearchFromForTest } from "./test-hooks";
+import { championsFirstForTest, championsPerPageForTest, kitChangedForTest, longestNotesForTest, noteAgeForTest, opponentSearchFromForTest, opponentsPerColumnForTest } from "./test-hooks";
 
 describe("All Champions' Show all test hook", () => {
   afterEach(() => vi.unstubAllEnvs());
@@ -18,6 +18,28 @@ describe("All Champions' Show all test hook", () => {
     vi.stubEnv("UNIIVERSE_DB_MODE", "memory");
     vi.stubEnv("DATABASE_URL", "postgres://x");
     expect(championsFirstForTest("3")).toBeNull();
+  });
+});
+
+describe("All Champions' workspace page caps", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  it("are read on the in-memory demo only: 1 to 19 champions a page, 1 to 5 opponents or games a column", () => {
+    vi.stubEnv("UNIIVERSE_DB_MODE", "memory");
+    vi.stubEnv("VERCEL", "");
+    vi.stubEnv("DATABASE_URL", "");
+    expect(championsPerPageForTest("3")).toBe(3);
+    expect(championsPerPageForTest("19")).toBe(19);
+    for (const bad of ["0", "20", "-1", "3x", "", null, undefined]) expect(championsPerPageForTest(bad)).toBeNull();
+    expect(opponentsPerColumnForTest("1")).toBe(1);
+    expect(opponentsPerColumnForTest("5")).toBe(5);
+    for (const bad of ["0", "6", "12", "1x", "", null, undefined]) expect(opponentsPerColumnForTest(bad)).toBeNull();
+    vi.stubEnv("VERCEL", "1");
+    expect(championsPerPageForTest("3")).toBeNull();
+    expect(opponentsPerColumnForTest("1")).toBeNull();
+    vi.stubEnv("VERCEL", "");
+    vi.stubEnv("DATABASE_URL", "postgres://x");
+    expect(championsPerPageForTest("3")).toBeNull();
+    expect(opponentsPerColumnForTest("1")).toBeNull();
   });
 });
 

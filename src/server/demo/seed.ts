@@ -711,23 +711,42 @@ const DEMO_OTHER_POSITIONS: Readonly<Record<string, Readonly<Record<string, Read
   },
 };
 
+/** What a fixture asks of seedDemoGames beyond a member's own season (applyWideChampionFixture). */
+interface DemoGamesOptions {
+  /** Every game keeps its multikill counts (DEMO_FEW_COUNTS stands down): the full-roster layout check only. */
+  allCounts?: boolean;
+  /** How many games, in place of the season's drawn 24–48. */
+  count?: number;
+  /** The match ids' first number (`DEMO_<8 hex>_<firstIndex + i>`), clear of the member's own 0–47. */
+  firstIndex?: number;
+  /** The random sequences' seed in place of the name (the name stays the player's, for DEMO_OTHER_POSITIONS and the record). */
+  seed?: string;
+  /** The lane opponent of the i-th game in place of DEMO_LANE_OPPONENTS' draw (drawn all the same, so the frames are as before). */
+  opponentFor?: (i: number, role: Role) => string;
+  /** The position recorded for the i-th game in place of the pool's (null: none recorded). */
+  positionFor?: (i: number, role: Role) => Role | null;
+}
+
 /**
  * A demo player's games; returns those whose record "Riot no longer provides" (see DEMO_OLDER_RECORDS).
  * `allCounts`: every game keeps its multikill counts (DEMO_FEW_COUNTS stands down), for the
- * full-roster layout check only (seedDemoAccounts' `fullRoster`, applyFullRosterFixture).
+ * full-roster layout check only (seedDemoAccounts' `fullRoster`, applyFullRosterFixture). The other
+ * options are the wide-champion fixture's (applyWideChampionFixture); without them a member's season
+ * is drawn exactly as it always was.
  */
-async function seedDemoGames(db: Db, accountId: string, puuid: string, name: string, pools: Array<{ role: Role; pool: string[] }>, { allCounts = false }: { allCounts?: boolean } = {}): Promise<string[]> {
+async function seedDemoGames(db: Db, accountId: string, puuid: string, name: string, pools: Array<{ role: Role; pool: string[] }>, { allCounts = false, count: fixedCount, firstIndex = 0, seed: seedText = name, opponentFor, positionFor }: DemoGamesOptions = {}): Promise<string[]> {
   const gone: string[] = [];
   if (pools.length === 0) return gone;
   // A second sequence for the lane opponents and frames, so the games themselves stay as before.
-  let laneSeed = [...name].reduce((s, c) => s + c.charCodeAt(0) * 3, 11);
+  let laneSeed = [...seedText].reduce((s, c) => s + c.charCodeAt(0) * 3, 11);
   const laneRnd = () => ((laneSeed = (laneSeed * 9301 + 49297) % 233280), laneSeed / 233280);
   const timelines: Array<typeof matchTimelines.$inferInsert> = [];
   const season = await currentSeason(db);
-  let seed = [...name].reduce((s, c) => s + c.charCodeAt(0), 7);
+  let seed = [...seedText].reduce((s, c) => s + c.charCodeAt(0), 7);
   const rnd = () => ((seed = (seed * 9301 + 49297) % 233280), seed / 233280);
   const int = (lo: number, hi: number) => Math.round(lo + rnd() * (hi - lo));
-  const count = int(24, 48);
+  const drawnCount = int(24, 48);
+  const count = fixedCount ?? drawnCount;
   const skill = 0.44 + rnd() * 0.14;
   const now = Date.now();
   const games: Array<typeof accountMatches.$inferInsert> = [];
@@ -740,7 +759,7 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
     const nth = (onChampion.get(championId) ?? 0) + 1;
     onChampion.set(championId, nth);
     const other = DEMO_OTHER_POSITIONS[name]?.[championId]?.[nth];
-    const played: Role | null = other === undefined ? role : other;
+    const played: Role | null = positionFor ? positionFor(i, role) : other === undefined ? role : other;
     const duration = int(1450, 2350);
     const minutes = duration / 60;
     const win = rnd() < skill;
@@ -752,13 +771,13 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
     const cs = support ? int(15, 45) : Math.round(minutes * (jungle ? 5.4 + rnd() * 1.6 : 6.2 + rnd() * 2.6));
     const damage = Math.round(minutes * (support ? 260 + rnd() * 200 : 520 + rnd() * 520));
     const vision = Math.round(minutes * (support ? 2.1 + rnd() * 1.1 : jungle ? 1.0 + rnd() * 0.6 : 0.6 + rnd() * 0.5));
-    const matchId = `DEMO_${puuid.slice(5, 13)}_${i}`;
+    const matchId = `DEMO_${puuid.slice(5, 13)}_${firstIndex + i}`;
     const gameCreation = now - (count - i) * 86_400_000 * 1.6 - int(0, 40_000_000);
     const queueId = rnd() < 0.7 ? 420 : 440;
     const laneOptions = DEMO_LANE_OPPONENTS[played ?? role];
     const opponentIndex = Math.min(laneOptions.length - 1, Math.floor(laneRnd() * laneRnd() * laneOptions.length));
     // The enemy in the same position; without a recorded position no lane opponent is known (laneOpponentOf).
-    const laneChampion = laneOptions[opponentIndex]!;
+    const laneChampion = opponentFor ? opponentFor(i, played ?? role) : laneOptions[opponentIndex]!;
     const enemyChampionId = played ? laneChampion : null;
     games.push({ accountId, matchId, gameCreation, queueId, championId, role: played, win, enemyChampionId, patch: `${season}.${Math.max(1, 20 - Math.floor((count - i) / 3))}`, gameDuration: duration, kills, deaths, assists, cs, damage, visionScore: vision });
     // Every third game on the red side (never one with the recurring duo below), so every view is
@@ -770,7 +789,7 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
     // Other players are new in every game, except a pair of rivals who queue together and meet
     // this player in every third game (what the match window's possible groups show; demo only).
     const duo = (n: number, ally: boolean) => i % 3 === 0 && !ally && (n === 6 || n === 7);
-    const filler = (n: number, teamId: number, ally: boolean): MatchParticipantDetail => ({ puuid: duo(n, ally) ? `demo-duo-${puuid.slice(5, 13)}-${n}` : `demo-filler-${puuid.slice(5, 13)}-${i}-${n}`, name: duo(n, ally) ? `Demo Duo ${n - 5}#DEMO` : demoOtherName(ally, n), teamId, championId: n === 5 ? laneChampion : demoOther(i, n, taken), championKey: 0, champLevel: 15, position: null, win: ally ? win : !win, kills: ally ? Math.round((teamKills - kills) / 4) : int(2, 8), deaths: int(1, 7), assists: int(2, 12), cs: int(30, 240), gold: int(7000, 14000), damage: int(6000, 26000), damageTaken: int(9000, 30000), vision: int(10, 50), wardsPlaced: int(4, 20), items: null, spells: null, runes: null });
+    const filler = (n: number, teamId: number, ally: boolean): MatchParticipantDetail => ({ puuid: duo(n, ally) ? `demo-duo-${puuid.slice(5, 13)}-${n}` : `demo-filler-${puuid.slice(5, 13)}-${firstIndex + i}-${n}`, name: duo(n, ally) ? `Demo Duo ${n - 5}#DEMO` : demoOtherName(ally, n), teamId, championId: n === 5 ? laneChampion : demoOther(i, n, taken), championKey: 0, champLevel: 15, position: null, win: ally ? win : !win, kills: ally ? Math.round((teamKills - kills) / 4) : int(2, 8), deaths: int(1, 7), assists: int(2, 12), cs: int(30, 240), gold: int(7000, 14000), damage: int(6000, 26000), damageTaken: int(9000, 30000), vision: int(10, 50), wardsPlaced: int(4, 20), items: null, spells: null, runes: null });
     const me: MatchParticipantDetail = {
       puuid,
       name: `${name}#DEMO`,
@@ -824,11 +843,11 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
     const allies = [1, 2, 3, 4].map((n) => filler(n, ownTeam, true));
     const enemies = [5, 6, 7, 8, 9].map((n) => filler(n, otherTeam, false));
     // The lane opponent: the enemy in the same position.
-    const lane = `demo-lane-${puuid.slice(5, 13)}-${i}`;
+    const lane = `demo-lane-${puuid.slice(5, 13)}-${firstIndex + i}`;
     enemies[0] = { ...enemies[0]!, puuid: lane, championId: laneChampion, position: played ?? role };
     balanceDemoGame(me, allies, enemies, minutes, i);
     const sides = ownTeam === 100 ? [me, ...allies, ...enemies] : [...enemies, me, ...allies];
-    // Most demo games have a timeline; every sixth is left "still to be collected". Everyone in
+    // Most demo games have a timeline; every sixth (by its match number) is left "still to be collected". Everyone in
     // it has frames, a build and kill times, from a sequence of the game's own (the player's and
     // the lane opponent's frames are as they always were), and the record's team counts follow
     // the timeline's objectives.
@@ -841,7 +860,7 @@ async function seedDemoGames(db: Db, accountId: string, puuid: string, name: str
     const others = [...allies.map((a, k) => ({ puuid: a.puuid, ally: true, role: roles[k]! })), ...enemies.slice(1).map((e, k) => ({ puuid: e.puuid, ally: false, role: roles[k]! }))];
     const players = [{ puuid, role: lanePosition }, { puuid: lane, role: lanePosition }, ...others];
     let builds: Array<{ puuid: string; purchases: Array<[number, number]> }> | null = null;
-    if (i % 6 !== 5) {
+    if ((firstIndex + i) % 6 !== 5) {
       let gameSeed = [...matchId].reduce((n, c) => n + c.charCodeAt(0) * 7, 13);
       const gameRnd = () => ((gameSeed = (gameSeed * 9301 + 49297) % 233280), gameSeed / 233280);
       const frames = fitFramesToRecord(demoFrames(laneRnd, duration, puuid, lane, lanePosition, win, (opponentIndex - 1) * 25, { rnd: gameRnd, players: others }), sides);
@@ -923,6 +942,97 @@ export async function applyFullRosterFixture(db: Db): Promise<{ created: number 
     await seedDemoGames(db, account!.id, `demo-${p.id}`, p.displayName, pools, { allCounts: true });
     await seedDemoRankHistory(db, account!.id, 7 + created);
     created += 1;
+  }
+  if (created) {
+    invalidateProficiencyCache();
+    await summariseMatches(db);
+  }
+  return { created };
+}
+
+/**
+ * All Champions' one-screen workspace (UNIIVERSE_DEMO_WIDE_CHAMPION=1, in-memory demo only; the
+ * owner's request of 27 Nov 2026): a champion with dozens of lane opponents, as production's
+ * Ambessa has, which no default demo champion comes near (four at most). Demo Top gets:
+ *  - Ambessa, Top only: 98 games against 40 Top opponents (WIDE_CHAMPION_OPPONENTS: 15 ranked with
+ *    3+ games, 25 small samples), interleaved round-robin so the dates spread over about 157 days;
+ *    every sixth game has no timeline, so Darius's 9 include the 10:00 sentence and "no timeline";
+ *  - Aatrox, Top 20 and Mid 8, against 12 and 5 opponents (a position switch resets the pages);
+ *  - 22 more champions with 1–4 games each, over all five positions, one game with no recorded
+ *    position: 30 rows in all, more than any page shows and than Show all's 20;
+ *  - Ambessa's mastery (405,000 points, level 10) and a place in the Top pool ("In pool").
+ * The default demo and every figure the suite asserts on it are unchanged. Run after the other demo
+ * fixtures (which rewrite the members' own DEMO_ games), with match ids from 1000 (clear of the
+ * member's own 0–47). Never on a Postgres database or a deployment (bootstrap: demoWideChampion).
+ */
+const WIDE_CHAMPION_OPPONENTS: ReadonlyArray<readonly [string, number]> = [
+  ["Darius", 9], ["Garen", 7], ["Fiora", 6], ["Camille", 5], ["Renekton", 5],
+  ["Aatrox", 4], ["Jax", 4], ["Sett", 4],
+  ["Malphite", 3], ["Mordekaiser", 3], ["Ornn", 3], ["Riven", 3], ["Shen", 3], ["Teemo", 3], ["Volibear", 3],
+  ["Gnar", 2], ["Gwen", 2], ["Illaoi", 2], ["Irelia", 2], ["Jayce", 2], ["KSante", 2], ["Kayle", 2], ["Kennen", 2],
+  ["Kled", 1], ["Nasus", 1], ["Olaf", 1], ["Pantheon", 1], ["Poppy", 1], ["Quinn", 1], ["Rumble", 1], ["Singed", 1], ["Sion", 1],
+  ["Trundle", 1], ["Tryndamere", 1], ["Urgot", 1], ["Vladimir", 1], ["Yasuo", 1], ["Yone", 1], ["Yorick", 1], ["Gangplank", 1],
+];
+const WIDE_AATROX_TOP: ReadonlyArray<readonly [string, number]> = [["Darius", 4], ["Garen", 3], ["Sett", 2], ["Fiora", 2], ["Camille", 2], ["Renekton", 1], ["Jax", 1], ["Malphite", 1], ["Shen", 1], ["Riven", 1], ["Teemo", 1], ["Volibear", 1]];
+const WIDE_AATROX_MID: ReadonlyArray<readonly [string, number]> = [["Ahri", 3], ["Syndra", 2], ["Zed", 1], ["Orianna", 1], ["Yasuo", 1]];
+/** The 22 champions played a little, by position, with their games; Kayn's last game records no position. */
+const WIDE_MORE_CHAMPIONS: ReadonlyArray<readonly [Role, string, number]> = [
+  ["TOP", "Camille", 3], ["TOP", "Fiora", 2], ["TOP", "Renekton", 4], ["TOP", "Sett", 1], ["TOP", "Riven", 2],
+  ["JUNGLE", "Viego", 3], ["JUNGLE", "LeeSin", 2], ["JUNGLE", "Vi", 1], ["JUNGLE", "Kayn", 4],
+  ["MID", "Ahri", 2], ["MID", "Orianna", 3], ["MID", "Syndra", 1], ["MID", "Zed", 2], ["MID", "Yasuo", 1],
+  ["ADC", "Jinx", 2], ["ADC", "Kaisa", 3], ["ADC", "Ezreal", 1],
+  ["SUPPORT", "Thresh", 2], ["SUPPORT", "Leona", 1], ["SUPPORT", "Lulu", 3], ["SUPPORT", "Nautilus", 2], ["SUPPORT", "Braum", 1],
+];
+
+/** A schedule's opponents, one game each round over the counts still left, in the schedule's order. */
+export function roundRobin(schedule: ReadonlyArray<readonly [string, number]>): string[] {
+  const left = schedule.map(([id, n]) => [id, n] as [string, number]);
+  const out: string[] = [];
+  while (left.some(([, n]) => n > 0)) {
+    for (const entry of left) {
+      if (entry[1] <= 0) continue;
+      out.push(entry[0]);
+      entry[1] -= 1;
+    }
+  }
+  return out;
+}
+
+export async function applyWideChampionFixture(db: Db): Promise<{ created: number }> {
+  if (isProductionDeployment()) return { created: 0 };
+  const [top] = await db.select({ id: players.id }).from(players).where(eq(players.displayName, "Demo Top"));
+  if (!top) return { created: 0 };
+  const puuid = `demo-${top.id}`;
+  const [account] = await db.select({ id: riotAccounts.id }).from(riotAccounts).where(eq(riotAccounts.puuid, puuid));
+  if (!account) return { created: 0 };
+  const firstId = `DEMO_${puuid.slice(5, 13)}_1000`;
+  const [done] = await db.select({ id: accountMatches.matchId }).from(accountMatches).where(and(eq(accountMatches.accountId, account.id), eq(accountMatches.matchId, firstId)));
+  if (done) return { created: 0 };
+  const known = new Set((await db.select({ id: champions.id }).from(champions)).map((c) => c.id));
+  const has = (id: string) => known.has(id);
+  const schedule = (list: ReadonlyArray<readonly [string, number]>) => roundRobin(list.filter(([id]) => has(id)));
+  let created = 0;
+  if (has("Ambessa")) {
+    const ambessa = schedule(WIDE_CHAMPION_OPPONENTS);
+    await seedDemoGames(db, account.id, puuid, "Demo Top", [{ role: "TOP", pool: ["Ambessa"] }], { count: ambessa.length, firstIndex: 1000, seed: "Demo Top · Ambessa", opponentFor: (i) => ambessa[i]! });
+    created += ambessa.length;
+    const [last] = await db.select({ at: accountMatches.gameCreation }).from(accountMatches).where(and(eq(accountMatches.accountId, account.id), eq(accountMatches.championId, "Ambessa"))).orderBy(sql`${accountMatches.gameCreation} desc`).limit(1);
+    await db.insert(accountMastery).values({ accountId: account.id, championId: "Ambessa", points: 405_000, level: 10, lastPlayedAt: last ? new Date(last.at) : new Date() }).onConflictDoNothing();
+    await db.insert(playerChampionPools).values({ playerId: top.id, slot: "primary", championId: "Ambessa", position: 20 }).onConflictDoNothing();
+  }
+  if (has("Aatrox")) {
+    const topGames = schedule(WIDE_AATROX_TOP);
+    const midGames = schedule(WIDE_AATROX_MID);
+    await seedDemoGames(db, account.id, puuid, "Demo Top", [{ role: "TOP", pool: ["Aatrox"] }], { count: topGames.length, firstIndex: 1200, seed: "Demo Top · Aatrox Top", opponentFor: (i) => topGames[i]! });
+    await seedDemoGames(db, account.id, puuid, "Demo Top", [{ role: "MID", pool: ["Aatrox"] }], { count: midGames.length, firstIndex: 1220, seed: "Demo Top · Aatrox Mid", opponentFor: (i) => midGames[i]! });
+    created += topGames.length + midGames.length;
+  }
+  let next = 1300;
+  for (const [role, championId, games] of WIDE_MORE_CHAMPIONS) {
+    if (!has(championId)) continue;
+    await seedDemoGames(db, account.id, puuid, "Demo Top", [{ role, pool: [championId] }], { count: games, firstIndex: next, seed: `Demo Top · ${championId}`, positionFor: (i) => (championId === "Kayn" && i === games - 1 ? null : role) });
+    next += games;
+    created += games;
   }
   if (created) {
     invalidateProficiencyCache();

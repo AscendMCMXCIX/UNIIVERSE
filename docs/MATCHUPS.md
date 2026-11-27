@@ -30,7 +30,27 @@ them on screen, so a tooltip's facts never need a hover. A role filter leaves th
 show that one icon. Each position's own figures are sent with the row only where they differ from
 the row's (two or more positions, or a game with none), so a one-position champion's figures go once.
 
-**Where it opens.** On a computer (from 768px wide, in a window taller than 480px, where the
+**The one-screen workspace (the owner's request of 27 Nov 2026).** On a desktop window with a mouse,
+from 1280px wide and at least 41 of the page's own rem tall (656px up to 1536px wide, a 1366 × 768
+laptop's browser window; up to 902px in the widest band, where the root grows: docs/RESPONSIVE.md,
+"All Champions' workspace"), All Champions never scrolls (below 46rem, 736px, only a champion of
+several positions with an opponent open can let it grow by what its one game a column lacks). The section is the rest of the window under the profile's
+band, its tabs and the one-line section header; the list and the preview are two cards side by side
+that both reach the window's foot, their footers on one baseline. **Nothing grows the page: the
+champions, the lane opponents and an opponent's games are in pages** of the complete rows that fit
+between each list's first row and its footer, less a 1rem guard (`useRowBudget`, measured live, so a
+shorter window or a larger root shows fewer rows; text never shrinks; nothing scrolls inside;
+nothing is clipped), with a pager in each footer ("8–14 of 30", the shared `Pager`) that reaches
+every page, and keys that cross pages. Opening a champion or an opponent never changes the page's
+height and never moves a row. The preview is beside the list only where the section holds the
+opponents' two columns (64.75rem: 1366px with the sidebar open, 1280px with it folded); in a
+narrower workspace (1280–1359px with the sidebar open: open decision O1) it opens in the sheet over
+the paged list. Everywhere else (phones, tablets, short or narrow windows, a larger text size) the
+page keeps the flow described next, unchanged. Measured rows per page (sidebar open and folded): the
+champions 7, 9, 9 and 11 at 1366 × 768, 1440 × 900, 1648 × 900 and 1920 × 1080; Ambessa's lane
+opponents 10, 18, 16 and 22 (two columns); an opponent's games 10, 18, 16 and 20.
+
+**Where it opens (the flow).** On a computer (from 768px wide, in a window taller than 480px, where the
 section is at least 47.5rem: a 1024px window with the sidebar folded, 1280px with it open, an
 1180px tablet held sideways) the
 preview is a **pane beside the list** (the owner's request of 25 Nov 2026: the docked panel of
@@ -57,7 +77,15 @@ list in the first HTML; CSS keeps that pane from the windows that get the sheet 
 (From S5 to 22 Nov 2026 a panel over the columns after Win rate; from 23 Nov 2026 it unfolded under
 its row; from Release 16 to 25 Nov 2026 a panel docked at the window's right edge, over the table.)
 
-**Content, in this order and nothing else** (`champion-preview.tsx`, `champion-matchups.tsx`):
+**Content, in this order and nothing else** (`champion-preview.tsx`, `champion-matchups.tsx`). In
+the workspace the same content is a horizontal summary in bands, about 166px for a champion of one
+position (288 before): **P1** one identity bar (a 36px portrait, the name, the one position as words
+with its record read out, In pool, the mastery, ‹ › and Close), the **positions** row only for two or
+more (their label read out, the games in all after them: "29 games in all, 1 with no recorded
+position", the full sentence in its title and read out), **P3** five figure cells (the win rate in
+text-2xl, its record in text-xs), **P4** the kills and multikills, the partial marks' words ("* only
+some games counted so far" and its ⓘ) at its end, and the coverage sentence only where the averages
+are partial (complete, it repeats what is on screen and is read out instead). Every figure is kept.
 
 1. **Identity:** the portrait and name (the pane's heading; the sheet's header), "In pool", the
    champion's **mastery, marked "all positions"** (Riot counts mastery per champion, never per
@@ -75,7 +103,13 @@ its row; from Release 16 to 25 Nov 2026 a panel docked at the window's right edg
    ("*" where only some games are counted so far, "not counted yet" where none is), wrapping between
    items only where it must ("0 penta" whole, each "·" ending its line), and what they are
    averaged over ("Averages over all 22 Top games in these filters"). No boxes: labels over figures.
-4. **Lane opponents:** ONE table of every lane opponent the champion met in that position, however
+4. **Lane opponents** (the workspace: every opponent, in pages, under one toolbar line: the heading
+   with its count and an ⓘ that says what a lane opponent is and the small-sample rule, the search,
+   and the orders, "Most games", "Highest" and "Lowest" with " win rate" read out below a 43rem
+   region; two columns read down the first then the second, each cell the opponent, its games with
+   the record merged, "9 · 5W 4L", and its win rate; the divider a cell of its own, never a page's last
+   slot, again at the top of every page that starts inside the small samples; the footer "Known in N
+   of M games." where some games name none, and the pager. The flow: ONE table.) Every lane opponent the champion met in that position, however
    few the games (no folds, no "more" toggles, no Best/Worst tabs): portrait and name, games, W/L,
    win rate; a search by name from four opponents, belonging to the position it was typed in
    (another position's table starts whole, and a table that draws no field is never filtered: a word
@@ -87,7 +121,14 @@ its row; from Release 16 to 25 Nov 2026 a panel docked at the window's right edg
      direction, so a 1–0 never tops "Highest win rate" as 100%; ties go to more games, then the most
      recent; the counts are always shown;
    - a win rate is coloured from **5** games (the app's champion rule).
-5. **An opponent's detail, without an accordion** (`vs` in the address, replaced): selecting a row
+5. **An opponent's detail, without an accordion** (`vs` in the address, replaced). In the workspace it
+   opens **in place of the grid**, the focus on its heading: one header line ("‹ All opponents", the
+   opponent, "9 games · 6W 3L · 67%", and ‹ 3 of 40 › to the previous or next opponent in the grid's
+   order and search, the address replaced, the focus kept on the button), one paragraph (the KDA and
+   the 10:00 sentence), and its games in two columns from a 37rem region, paged; the footer holds the
+   link to Matchup Intel and the games' pager. "All opponents" or Escape bring the grid back on the
+   page holding that opponent (the one opened, or the one ‹ › stepped to; after a linked opponent
+   too), the focus on its cell; a cell not on that page never takes the focus later. In the flow: selecting a row
    shows, **beside the table** where the preview is at least 38rem wide (and replaces the detail when
    another row is chosen; the row again or "Clear" puts it back), or as **one step in place of the
    table** in a narrower preview (the sheet; "All opponents" goes back, the focus following, and the
@@ -96,12 +137,14 @@ its row; from Release 16 to 25 Nov 2026 a panel docked at the window's right edg
    (`pairingKda`, the games with a full record), one sentence only with at least 5 games with a
    timeline ("At 10:00 you had more gold than Nasus in 5 of 6 games with a timeline (+623 on
    average)", "Gwen had" on a teammate's profile: `src/domain/viewer-words.ts`), every game as a
-   compact row (W/L, K/D/A, CS, the gold difference at 10:00 or "no timeline", the date), each
-   opening the match window; and "Gwen vs Nasus in Matchup Intel" (`/lookup?champion=Gwen&champion2=Nasus&lane=TOP`:
+   compact row (W/L, K/D/A, CS, the gold difference at 10:00 or "no timeline", the date; each cell on
+   one line, K/D/A at least 4.25rem so "10/10/10" is never cut, both layouts), each opening the match
+   window; and "Gwen vs Nasus in Matchup Intel" (`/lookup?champion=Gwen&champion2=Nasus&lane=TOP`:
    the two side by side in Champion Intel's Compare, the position as Matchup Intel's lane, since 27 Nov
    2026; docs/MATCHUP_INTEL.md).
 6. **Foot line:** "Lane opponent: the enemy Riot placed in your position" ("their position" on a
-   teammate's), with "Known in N of M games" when some games name none.
+   teammate's), with "Known in N of M games" when some games name none. In the workspace the
+   definition is the opponents' ⓘ (decision O3) and "Known in N of M games." stays in the footer.
 
 Removed with the old champion window (19 Nov 2026): its tabs, the six tiles, the multikill strip,
 the lane tables, chart and second checkpoint table, the queue and account split, "How these figures
@@ -124,7 +167,13 @@ filters) opens its most played position. A game opened from an opponent's games 
 over the preview) adds `&match=` by the same rule, so it has an entry of its own: Back closes the
 game and leaves the preview as it was (on a phone the sheet steps aside while the game is open and
 comes back), and Back from a page a link in the game opened returns to the game. Old links keep
-working: `tab=matchups&vs=X` opens the preview with X open; `/overview/matchups` and
+working: `tab=matchups&vs=X` opens the preview with X open;
+**A filter change keeps the open champion** (27 Nov 2026, decision O2: "select any champion … change
+filters"): the filters write `champion` and `crole` back (never `vs`); where the champion has no game
+in the new filters, the preview's keys go by a replace and the list shows its first page. Closing
+goes Back only while the list's query is still the one the preview's entry was pushed over
+(`closeGoesBack`), else it replaces, so Back never brings the old filters back. Page changes are the
+page's own state, never in the address. `/overview/matchups` and
 `/players/[id]/matchups` redirect into it (the most played champion when none is named); the
 Overview's old `?champ=` key redirects to All Champions. A pool card on the Overview links to All
 Champions with that champion's preview open, in the pool's role.
@@ -132,9 +181,20 @@ Champions with that champion's preview open, in the pool's role.
 **Keyboard.** A click on a row opens it (focus stays on the row; the preview's champion, position,
 games and win rate are announced), Enter opens it and moves focus to the pane's heading; ↑/↓ (or
 K/J) on the list move it to the row above or below, in that champion's most played position; ‹ ›
-in its header do the same; Escape, Close, Back or the selected row again close it, and focus returns
-to the row. Keys inside the preview are its own (its positions, its opponents' search and orders,
-their rows, the games). A position icon's tooltip closes on Escape alone.
+in its header do the same (the focus stays on the arrow pressed, or the other at an end); Escape,
+Close, Back or the selected row again close it, and focus returns to the row (in the workspace, where
+the list was paged away from it, to the first row of the page shown: the list stays on its page).
+A zoom or a resize across the workspace's gate keeps the focus on the same opponent's row or control
+in the other layout (the nearest drawn one where it has none, such as a pager). Keys inside the preview are its own (its positions, its opponents' search and orders,
+their rows, the games). A position icon's tooltip closes on Escape alone. In the workspace: ↑/↓
+walk every row from the focused one, turning the page at its edge (the focus follows); PageUp and
+PageDown turn the list's page (the focus on its first row, PageUp its last), Home and End go to the
+first or last row overall; in the opponents ↑/↓ follow the reading order across pages, ←/→ move to
+the same row of the other column, PageUp/PageDown and Home/End as the list's, and Enter opens one in
+place; Escape goes back from an opponent's games to the grid first, then closes the pane. A page
+change the reader made is read out once ("Champions 8 to 14 of 30"), never after a resize; each row,
+lane opponent and game reads its place on the whole list ("Ambessa, 1 of 30"; "Shen, 11 of 40"), and
+the small-sample divider is read as the description of the opponent after it rather than as an item.
 
 **Data path** (`src/server/actions/champion-preview.ts`, `src/server/players/champion-preview.ts`):
 

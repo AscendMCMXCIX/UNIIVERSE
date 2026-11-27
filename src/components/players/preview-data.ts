@@ -52,6 +52,26 @@ export interface PreviewSelection {
 /** The preview's address parameters (old links' `tab` included, so closing drops it). */
 export const PREVIEW_KEYS: readonly string[] = ["champion", "crole", "vs", "tab"];
 
+/**
+ * The list's own query in an address (its filters and sort, without the preview's keys), in one
+ * order: what the preview's entry was pushed over, compared when it closes.
+ */
+export function listQuery(search: string): string {
+  const q = new URLSearchParams(search);
+  for (const k of PREVIEW_KEYS) q.delete(k);
+  return [...q.entries()].sort(([a, x], [b, y]) => a.localeCompare(b) || x.localeCompare(y)).map(([k, v]) => `${k}=${v}`).join("&");
+}
+
+/**
+ * Whether closing goes Back over the preview's entry: only where this page pushed it and the list's
+ * query is still the one it was pushed over. A filter changed meanwhile keeps the champion open (the
+ * owner's request of 27 Nov 2026) and replaces the entry with the new filters: Back from there would
+ * bring the old filters back, so closing replaces instead.
+ */
+export function closeGoesBack(pushedOver: string | null, search: string): boolean {
+  return pushedOver !== null && listQuery(search) === pushedOver;
+}
+
 export function previewFrom(sp: URLSearchParams): PreviewSelection | null {
   const championId = sp.get("champion");
   if (!championId) return null;
@@ -76,8 +96,10 @@ export function usePreviewAddress() {
   const sp = useSearchParams();
   const urlKey = sp.toString();
   const sel = React.useMemo(() => previewFrom(new URLSearchParams(urlKey)), [urlKey]);
-  // Opened from this page: closing goes back in history (so Back never reopens it).
+  // Opened from this page: closing goes back in history (so Back never reopens it), while the list's
+  // query is the one the preview's entry was pushed over (closeGoesBack).
   const pushed = React.useRef(false);
+  const pushedOver = React.useRef<string | null>(null);
   // Gives the list's entry its scroll restoration back once the preview it pushed has closed (keepListPlace).
   const listPlace = React.useRef<(() => void) | null>(null);
   const urlWith = React.useCallback(
@@ -97,6 +119,7 @@ export function usePreviewAddress() {
     if (new URLSearchParams(window.location.search).has("champion")) window.history.replaceState(null, "", url);
     else {
       pushed.current = true;
+      pushedOver.current = listQuery(window.location.search);
       listPlace.current = keepListPlace(window.history, () => window.history.pushState(null, "", url));
     }
   };
@@ -104,23 +127,31 @@ export function usePreviewAddress() {
   // Another position of the same champion: its own opponents, so the opponent goes with the old one.
   const setRole = (role: Role) => window.history.replaceState(null, "", urlWith({ crole: role, vs: null, tab: null }));
   const close = () => {
-    if (pushed.current) {
-      pushed.current = false;
-      window.history.back();
-    } else window.history.replaceState(null, "", urlWith(Object.fromEntries(PREVIEW_KEYS.map((k) => [k, null]))));
+    const back = pushed.current && closeGoesBack(pushedOver.current, window.location.search);
+    pushed.current = false;
+    pushedOver.current = null;
+    if (back) window.history.back();
+    else window.history.replaceState(null, "", urlWith(Object.fromEntries(PREVIEW_KEYS.map((k) => [k, null]))));
+  };
+  // The champion has no game in the list's new filters: the preview's keys go, by a replace (no entry to go Back to).
+  const drop = () => {
+    pushed.current = false;
+    pushedOver.current = null;
+    window.history.replaceState(null, "", urlWith(Object.fromEntries(PREVIEW_KEYS.map((k) => [k, null]))));
   };
   // Back closed it: a later open pushes again, and the list's entry restores its scroll again (the
   // page now where the reader left it).
   React.useEffect(() => {
     if (sel) return;
     pushed.current = false;
+    pushedOver.current = null;
     if (listPlace.current) listPlace.current();
     // Back over a preview this page opened before a link in it led away (this list drawn anew since):
     // the browser's own restoration, which nothing else in the app changes.
     else if (window.history.scrollRestoration === "manual") window.history.scrollRestoration = "auto";
     listPlace.current = null;
   }, [sel]);
-  return { sel, show, setVs, setRole, close };
+  return { sel, show, setVs, setRole, close, drop };
 }
 
 type Loader<T> = (key: string, run: () => Promise<PreviewResult<T>>) => Promise<PreviewResult<T>>;

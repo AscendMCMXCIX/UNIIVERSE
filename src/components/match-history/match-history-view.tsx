@@ -3,7 +3,7 @@
 import { standoutText } from "@/lib/tip-words";
 import * as React from "react";
 import { usePathname, useRouter, useSearchParams } from "next/navigation";
-import { ChevronLeft, ChevronRight } from "lucide-react";
+import { ChevronRight } from "lucide-react";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
 import { MULTIKILL_NAMES } from "@/domain/multikills";
 import { QUEUE_GROUP_WORDS, figureText, queueGroup, type FigureKey } from "@/domain/match-analysis";
@@ -38,7 +38,7 @@ import { DataStatusNote, RefreshButton, type DataRefreshTarget } from "@/compone
 import { useNow } from "@/components/ui/relative-time";
 import { fmtDuration, fmtInt, fmtNum } from "./match-format";
 import { WINDOW_POSTURE_QUERY, keepsEscape, modalOpen, prefersWindow } from "@/components/ui/posture";
-import { pagerFold, pagerItems } from "./pager";
+import { Pager } from "@/components/ui/pager";
 import { screenHeight, scrollToStart } from "@/lib/screen";
 
 /**
@@ -924,48 +924,34 @@ function SessionHeader({ summary: s, onPage }: { summary: SessionSummary; onPage
 }
 
 /**
- * Compact page controls: arrows, the ends and the neighbourhood of the current page. Their targets
- * are 44px on a touch screen (a finger, phones and tablets alike), 32px with a mouse from md and
- * 40px below it. A phone too narrow for every button on one line (a middle page of a long history,
- * up to seven buttons) leaves the pages either side of the current one to the arrows, so both
- * arrows stay on the line, at its ends (pager.ts); buttons wrap only past that (very large text).
+ * Compact page controls (the shared Pager's stacked layout, ui/pager.tsx): arrows, the ends and the
+ * neighbourhood of the current page. Their targets are 44px on a touch screen (a finger, phones and
+ * tablets alike), 32px with a mouse from md and 40px below it. A phone too narrow for every button
+ * on one line (a middle page of a long history, up to seven buttons) leaves the pages either side of
+ * the current one to the arrows, so both arrows stay on the line, at its ends (pager.ts); buttons
+ * wrap only past that (very large text).
  */
 function Pages({ page, pages, total, per, pending, go }: { page: number; pages: number; total: number; per: number; pending: boolean; go: (p: number) => void }) {
-  const arrow = "grid h-10 w-10 place-items-center rounded-lg border border-border text-fg-muted hover:border-border-strong hover:text-fg disabled:cursor-not-allowed disabled:text-fg-disabled disabled:hover:border-border disabled:hover:text-fg-disabled pointer-coarse:h-11 pointer-coarse:w-11 md:pointer-fine:h-8 md:pointer-fine:w-8";
   const from = (page - 1) * per + 1;
   const to = Math.min(total, page * per);
-  const items = pagerItems(page, pages);
-  const fold = pagerFold(items);
-  const gap = (key: string, className?: string) => (
-    <span key={key} className={cn("px-0.5 text-fg-subtle", className)} aria-hidden>
-      …
-    </span>
-  );
   return (
-    <nav aria-label="Match history pages" className="@container/pages flex flex-wrap items-center justify-center gap-x-3 gap-y-1" data-testid="match-pages">
-      <span className="flex flex-wrap items-center justify-center gap-1">
-        <button type="button" disabled={page <= 1 || pending} onClick={() => go(page - 1)} className={arrow} aria-label="Newer games" data-testid="match-prev">
-          <ChevronLeft className="h-4 w-4" aria-hidden />
-        </button>
-        {items.map((item, i) =>
-          "gap" in item ? (
-            gap(`g${i}`)
-          ) : (
-            <React.Fragment key={item.page}>
-              {item.jump ? gap(`j${item.page}`, fold.show) : null}
-              <button type="button" aria-current={item.page === page ? "page" : undefined} aria-label={`Page ${item.page}`} onClick={() => go(item.page)} className={cn("h-10 min-w-10 rounded-lg px-1.5 text-sm tabular-nums pointer-coarse:h-11 pointer-coarse:min-w-11 md:pointer-fine:h-8 md:pointer-fine:min-w-8", item.page === page ? "bg-accent/15 font-semibold text-accent" : "text-fg-muted hover:bg-surface-2 hover:text-fg", item.folds && fold.hide)}>
-                {item.page}
-              </button>
-            </React.Fragment>
-          ),
-        )}
-        <button type="button" disabled={page >= pages || pending} onClick={() => go(page + 1)} className={arrow} aria-label="Older games" data-testid="match-next">
-          <ChevronRight className="h-4 w-4" aria-hidden />
-        </button>
-      </span>
-      <span className="text-xs tabular-nums text-fg-subtle">
-        Games {from}–{to} of {formatCount(total)}
-      </span>
-    </nav>
+    <Pager
+      layout="stacked"
+      label="Match history pages"
+      page={page}
+      pages={pages}
+      onPage={go}
+      range={
+        <>
+          Games {from}–{to} of {formatCount(total)}
+        </>
+      }
+      prevLabel="Newer games"
+      nextLabel="Older games"
+      disabled={pending}
+      testId="match-pages"
+      prevTestId="match-prev"
+      nextTestId="match-next"
+    />
   );
 }

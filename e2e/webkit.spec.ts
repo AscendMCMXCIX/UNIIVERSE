@@ -181,6 +181,48 @@ test("All Champions: a tap on a champion's second position mark opens its previe
   await fitsWidth(page, "All Champions with a preview open");
 });
 
+test("All Champions at 1440 × 900 in Safari's engine: with a fine pointer the one-screen workspace (the page the window, its pages, the pane's height kept as an opponent opens); without one the flow", async ({ browser, page, baseURL }) => {
+  await page.goto("/team");
+  const profile = `/players/${(await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!}`;
+  const desk = await browser.newContext({ viewport: { width: 1440, height: 900 } });
+  // The demo's lists are shorter than a page: the test cookies cap the measured pages (server/demo/test-hooks.ts).
+  await desk.addCookies([
+    { name: "uniiverse_view", value: "player", url: baseURL! },
+    { name: "uniiverse-test-champions-per-page", value: "3", url: baseURL! },
+    { name: "uniiverse-test-opponents-per-column", value: "1", url: baseURL! },
+  ]);
+  const dp = await desk.newPage();
+  await dp.goto(`${profile}/champions`, { waitUntil: "load" });
+  await expect(dp.getByTestId("top-champion").first()).toBeVisible();
+  const fine = await dp.evaluate(() => matchMedia("(pointer: fine)").matches);
+  if (!fine) {
+    // Playwright's WebKit on Linux reports no fine pointer: the workspace's gate (docs/RESPONSIVE.md) leaves it the flow.
+    await expect.poll(() => dp.evaluate(() => !!document.querySelector("[data-workspace]"))).toBe(false);
+    await fitsWidth(dp, "the flow at 1440 × 900");
+    await desk.close();
+    return;
+  }
+  // dvh and a flex column's least height behave differently in WebKit: the frame still ends at the window's foot.
+  const measure = () =>
+    dp.evaluate(() => {
+      const pad = parseFloat(getComputedStyle(document.getElementById("content")!).paddingBottom);
+      const cards = [...document.querySelectorAll("[data-testid=all-champions-table], aside[data-preview-pane]")].map((c) => c.getBoundingClientRect().bottom);
+      return { fits: document.documentElement.scrollHeight <= innerHeight, cards: cards.every((b) => b <= innerHeight - pad + 0.5), pager: !!document.querySelector("[data-testid=all-champions-pager] [aria-current=page]") };
+    });
+  await expect.poll(measure).toEqual({ fits: true, cards: true, pager: true });
+  await dp.getByTestId("top-champion").first().getByTestId("open-champion").click();
+  const pane = dp.locator("aside[data-preview-pane]");
+  await expect(pane).toBeVisible();
+  await expect.poll(measure).toEqual({ fits: true, cards: true, pager: true });
+  const height = (await pane.boundingBox())!.height;
+  await pane.locator("[data-testid=champion-preview-opponent]").first().getByRole("button").click();
+  await expect(pane.getByTestId("champion-preview-pairing")).toBeVisible();
+  await expect.poll(measure).toEqual({ fits: true, cards: true, pager: true });
+  expect(Math.abs((await pane.boundingBox())!.height - height)).toBeLessThanOrEqual(1);
+  await fitsWidth(dp, "the workspace at 1440 × 900");
+  await desk.close();
+});
+
 test("a teammate's profile: its sections switch, and a champion's preview sheet opens and closes by Back and Escape", async ({ page }) => {
   await page.goto("/players");
   const href = (await page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']").getAttribute("href"))!;
