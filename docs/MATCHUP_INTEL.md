@@ -47,7 +47,7 @@ no colour for good or bad. The section is named "Matchup Intel, Top: Riven again
   Riot's data; its level-1 figure is in each column).
 - Rank-1 cooldowns and costs stay in the board's rows (each row's rank-1 cell is tinted with a lane
   chosen); the mechanics stay as each row's chips. The band repeats none of them.
-- **Ranges (D3):** only through the ranges lane's reviewed rule (`src/domain/champion-lookup/range.ts`),
+- **Ranges (D3):** only through Champion Intel's reviewed range rule (`src/domain/champion-lookup/range.ts`),
   and only where it marks a cast range as reviewed: a line joins through `earlyKitLines(a, b, { ranges })`
   (`RangeLineSource`). None is drawn until then; nothing is estimated.
 - Where an ability's or the statistics' "Changed since" mark is set, one line names what changed

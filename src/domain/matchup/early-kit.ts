@@ -16,7 +16,7 @@ import type { LookupChampion } from "@/domain/champion-lookup/view";
     placeholder in Riot's data, and its level-1 figure is in each column already.
   - Rank-1 cooldowns and costs stay in the board's rows, the mechanics in each row's chips: the band
     repeats none of them.
-  - Ranges (the owner's decision D3): only through the ranges lane's reviewed rule
+  - Ranges (the owner's decision D3): only through Champion Intel's reviewed range rule
     (src/domain/champion-lookup/range.ts), and only where it marks a cast range as reviewed; a range
     line joins through `ranges` (RangeLineSource) and none is drawn until then.
   - Patch awareness: where Riot's data for either champion changed since its previous stored
@@ -48,7 +48,7 @@ export interface KitLine {
   words: string;
 }
 
-/** Range lines from the ranges lane's reviewed rule, where it marks a cast range as reviewed (none by default). */
+/** Range lines from Champion Intel's reviewed range rule (champion-lookup/range.ts), where it marks a cast range as reviewed (none by default). */
 export type RangeLineSource = (a: LookupChampion, b: LookupChampion) => KitLine[];
 
 const round4 = (v: number) => Math.round(v * 10_000) / 10_000;

@@ -104,8 +104,8 @@ export function laneFromAddress(v: string | string[] | undefined): Role | null {
 
 /**
  * The page's queue as the address gives it ("flex", any case), or Ranked Solo/Duo for none or
- * anything else: the builds lane's contract (queueFromAddress, BUILD_QUEUE_IDS), kept identical
- * here so the two read one parameter.
+ * anything else: the same contract as Champion Intel's builds queue (BUILD_QUEUE_IDS), so the
+ * band and the builds read one parameter.
  */
 export function queueFromAddress(v: string | string[] | undefined): LaneQueueKey {
   const s = one(v).toLowerCase();
