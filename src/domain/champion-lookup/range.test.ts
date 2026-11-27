@@ -89,14 +89,15 @@ describe("every spell of the offline fixture (Data Dragon 16.22.1) with the comm
     }
   });
 
-  it("shows the counts the table gives at 16.22.1: every row's key matches, nothing waits for a review", () => {
+  it("shows the counts the reviewed table gives at 16.22.1: every row's key matches but Mel's W (Riot changed it at 16.23.1; a self row, so nothing is shown either way)", () => {
     const count = (k: string) => all.filter((x) => x.a.slot !== "P" && (x.display?.kind ?? "none") === k).length;
-    expect({ reach: count("reach"), global: count("global"), self: count("self"), changed: count("changed") }).toEqual({ reach: 89, global: 7, self: 2, changed: 0 });
-    // Ahri, the Production check's champion: her Q and E shown, as Riot's numbers.
+    expect({ reach: count("reach"), global: count("global"), self: count("self"), changed: count("changed") }).toEqual({ reach: 269, global: 11, self: 180, changed: 1 });
+    // Ahri, the Production check's champion: her Q, E and R shown, as Riot's numbers, from the automated review.
     const ahri = all.filter((x) => x.champion === "Ahri" && x.display?.kind === "reach").map((x) => [x.a.slot, rangeDisplay(x.a, byKey.get(`Ahri:${x.a.slot}`))]);
     expect(ahri).toEqual([
-      ["Q", { kind: "reach", values: [970, 970, 970, 970, 970], reviewedVersion: "16.23.1", reviewer: "automated draft" }],
-      ["E", { kind: "reach", values: [975, 975, 975, 975, 975], reviewedVersion: "16.23.1", reviewer: "automated draft" }],
+      ["Q", { kind: "reach", values: [970, 970, 970, 970, 970], reviewedVersion: "16.23.1", reviewer: "automated review" }],
+      ["E", { kind: "reach", values: [975, 975, 975, 975, 975], reviewedVersion: "16.23.1", reviewer: "automated review" }],
+      ["R", { kind: "reach", values: [450, 450, 450], reviewedVersion: "16.23.1", reviewer: "automated review" }],
     ]);
   });
 });

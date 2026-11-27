@@ -241,10 +241,29 @@ evidence, Riot's description and tooltip with the markup taken out, from `--draf
 Measured on Data Dragon 16.23.1 against the hand classification of 41 champions (164 spells) made
 for the design: the high-confidence reaches were right 33 of 33 (finding 33 of the sample's 106 real
 reaches) and the globals 6 of 6; the other high-confidence rows show nothing either way. The table
-committed on 27 Nov 2026 holds the rules' high-confidence drafts only, labelled `automated draft`:
-165 rows (89 reaches, 7 Global, 2 self, 67 none); 527 spells have no row yet and show none. An
-independent automated review is to confirm and extend them (each confirmed row becomes `automated
-review`); the owner may spot-check rows on the page ("For the owner").
+first held the rules' high-confidence drafts only (165 rows: 89 reaches, 7 Global, 2 self, 67 none).
+
+**The review** (27 Nov 2026, Data Dragon 16.23.1; every row is now `automated review`). Every one of
+the 692 spells was classified by two independent automated reviewers from the same evidence as the
+drafts, without the draft (the brief: `scripts/static/range-review-brief.md`). They agreed with each
+other on 641 and with the draft on 353. The verdicts are combined by fixed rules (in the brief):
+- both reviewers give the drafting rules' kind: that kind (353);
+- both say `self`, or both `none`: so (112; nothing is shown either way);
+- both say `reach` or `global` where the rules did not (103): two adjudicators, a verifier and a
+  skeptic, judge each from the same evidence; written so only when both confirm it (99; Bard's E,
+  Illaoi's E, Syndra's R and Zoe's E were not);
+- anything else, a reviewer unsure or the two split: `none`, why `unconfirmed`, never shown, and
+  `--write` never drafts it again (124, with the 4 above).
+
+The review is stricter than the drafts about the number itself: a reviewer who recalled a different
+in-game reach (Ezreal's Q, 1,150 in Data Dragon against the 1,200 often cited; Caitlyn's Q, Thresh's
+Q, Morgana's Q) made it `unconfirmed`, so where Data Dragon's indicator value and the mechanical
+range are known to differ, nothing is shown rather than a number a player may read as wrong. It also
+took back two high-confidence drafts that were wrong (Kled's Q, two forms; Ziggs's Q, whose bomb
+bounces past Data Dragon's 850). The table holds 692 rows: **269 reaches and 11 Global shown**, 181
+cast on the champion, 231 not the reach (128 of them `unconfirmed`); at 16.22.1 (the browser tests'
+pin) the same, but Mel's W, which Riot changed at 16.23.1 (a self row). The owner may confirm or
+change any row (reviewer `owner`), and spot-check rows on the page ("For the owner").
 
 **Each patch** (after the version-check reads a new version; part of the patch-day procedure):
 1. `node scripts/static/review-ability-ranges.mjs --version <new> --check` (or `--from
@@ -252,10 +271,12 @@ review`); the owner may spot-check rows on the page ("For the owner").
    Riot changed (spell id, range, text), rows whose spell is gone, and the count of spells with no
    row; exit 1 when a row no longer matches. Admin → Data & Integrations shows the same as a count
    ("3 ranges are hidden until reviewed again: Riot changed those abilities.").
-2. Review each changed row against Riot's new text (`--draft out.json` writes every spell's draft
-   and evidence); `--write` keeps the matching rows, keeps a confirmed row that no longer matches
-   (hidden until reviewed again), redrafts a stale automated draft from the fixed rules, and adds the
-   new high-confidence drafts. A confirmed row gets the new version, date and reviewer.
+2. Review each changed row against Riot's new text, as the first review did (`--draft out.json`
+   writes every spell's draft and evidence; the changed rows go to two independent reviewers with
+   `scripts/static/range-review-brief.md`, the draft taken out, and the verdicts are combined by its
+   rules); `--write` keeps the matching rows, keeps a confirmed row that no longer matches (hidden
+   until reviewed again), redrafts a stale automated draft from the fixed rules, and adds the new
+   high-confidence drafts. A reviewed row gets the new version, date and reviewer.
 3. Open a pull request; the table is in `src/`, so it deploys (batch it with other merges). Until
    then only the changed rows' ranges are hidden; every other range stays.
 
@@ -269,8 +290,8 @@ visible.
 and again after a deploy that changes the table (`RANGE_TABLE_HASH`): ranges shown, "Global", cast
 on the champion, not the reach, hidden since Riot changed them, not reviewed, and stored before
 rules format 5. It stores them in `app_settings` "ability_range_review" (a few hundred bytes), logs
-one line ("Ability ranges 16.23.1: 89 shown, 7 global, 2 cast on the champion (not shown), 67 not the
-reach; 0 hidden until reviewed again; 527 not reviewed (165 rows).") and adds them to its summary
+one line ("Ability ranges 16.23.1: 269 shown, 11 global, 181 cast on the champion (not shown), 231 not
+the reach; 0 hidden until reviewed again; 0 not reviewed (692 rows).") and adds them to its summary
 (`abilityRanges`): counts only, no champion named. An ordinary run reads only the stored counts.
 Admin → Data & Integrations shows them under "Riot's static data between patches".
 
@@ -845,7 +866,9 @@ The app-wide checklist is [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md), where Champi
   `src/server/riot/static/abilities.test.ts` (what is read from Data Dragon, the fixture against Data
   Dragon's own numbers, ranges included, the build script); `ability-ranges.test.ts` (the reviewed
   table's shape, one row per spell, every row against the fixture so a stale table fails CI, the
-  drafting script's fixed rules giving its automated drafts, `--write` keeping confirmed rows);
+  drafting script's fixed rules giving its automated drafts unless a review decided the row, `--write`
+  keeping reviewed rows); `src/domain/champion-lookup/range.test.ts` (every spell of the fixture under
+  the rule: 269 reaches, 11 Global; Ahri's Q, E and R);
   `range-review.test.ts` (the version-check's counts); `src/components/admin/static-diff.test.ts`
   (Admin's ranges line).
 - Database: `tests/db/champion-abilities.test.ts` (the sync, the per-champion reads, the patch marks;
@@ -865,8 +888,9 @@ The app-wide checklist is [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md), where Champi
   counted together, the full build's core in each view), `src/server/champion-builds/query.test.ts`
   (the statement's label in the egress counts, as HOSTING_USAGE.md names it).
 - Browser: `e2e/champion-lookup.spec.ts` (the page, its facts, slot keys, chips and costs per rank,
-  the ranges (Ahri's Q and E, "Global", per rank, none on the passive, a two-ability slot or a spell
-  not reviewed, the opened row's line, Compare's columns each their own),
+  the ranges (Ahri's Q, E and R, "Global", per rank, none on the passive, a two-ability slot, a number
+  that is not the reach or a reach the review could not confirm, the opened row's line, Compare's
+  columns each their own),
   the passive's dash, the chips marked in the description, folds by keyboard, the haste field and every
   invalid input, the special cases, unusual champions, "/" and the search, the window, Compare on one
   aligned board, Swap and ✕ on either column, Swap by keyboard keeping its focus, Swap and ✕ waiting
@@ -928,11 +952,13 @@ become `/intel` (it stays `/lookup`, so nothing that links to it changes).
 
 **Ranges** (the owner's decision D3, 26 Nov 2026; built 27 Nov 2026, "Ranges"): shown only where a
 committed review of what Data Dragon's number measures is current; abilities cast on the champion
-show nothing (the owner's decision). The table holds the drafting script's high-confidence drafts,
-labelled "automated draft" (not by a person); an independent automated review is to confirm and
-extend it. The owner may spot-check rows on the page (open a champion's ability: the opened row
-says how its range was decided) and say which, if any, should change. After each patch someone runs
-the script's `--check` and opens a pull request for the rows Riot changed (about 1 to 10 a patch);
+show nothing (the owner's decision). Every spell has been reviewed by two independent automated
+reviewers, with two adjudicators where they differed from the drafting rules (not by a person):
+269 ranges and 11 "Global" are shown; wherever a reviewer had any doubt, nothing is. The owner may
+spot-check rows on the page (open a champion's ability: the opened row says how its range was
+decided) and say which, if any, should change, or confirm rows as the team's (reviewer `owner`). After each patch a session runs
+the script's `--check`, reviews the rows Riot changed the same way and opens a pull request (about 1
+to 10 a patch);
 without it only those rows' ranges are hidden, and Admin's count says how many. The registration's
 description should name "ranges where reviewed" among Data Dragon's facts (the description lane's
 text, RIOT_COMPLIANCE.md).

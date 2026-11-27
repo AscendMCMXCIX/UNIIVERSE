@@ -22,10 +22,10 @@ const spellOf = (r: RangeReview) => fixture.champions[r.champion]?.abilities.fin
 /**
  * Rows reviewed at a later Data Dragon version than the fixture's whose key Riot changed between the
  * two (so they do not match the fixture). Each one is deliberate: the e2e server reads the fixture's
- * version, and these rows show nothing there. None today (16.22.1 → 16.23.1 changed only Mel's W,
- * which has no row).
+ * version, and these rows show nothing there. 16.22.1 → 16.23.1 changed only Mel's W, a `self` row
+ * (nothing is shown either way).
  */
-const MOVED_SINCE_FIXTURE: string[] = [];
+const MOVED_SINCE_FIXTURE: string[] = ["Mel:W"];
 
 describe("the committed table", () => {
   it("is in the rule's shape, every row: no row is left out when the server reads it", () => {
@@ -77,7 +77,7 @@ describe("the committed table", () => {
     expect(moved).toEqual(MOVED_SINCE_FIXTURE);
   });
 
-  it("holds the automated drafts to the drafting script's fixed rules: on the sample's champions, every high-confidence draft is a row of its kind, and every automated-draft row a high-confidence draft", () => {
+  it("holds the automated drafts to the drafting script's fixed rules: on the sample's champions, every high-confidence draft is a row of its kind unless a review decided it, and every automated-draft row a high-confidence draft", () => {
     const { spells } = script.spellsOf(sample);
     const byKey = new Map(rows.map((r) => [`${r.champion}:${r.slot}`, r]));
     let drafted = 0;
@@ -86,7 +86,9 @@ describe("the committed table", () => {
       const row = byKey.get(`${s.champion}:${s.slot}`);
       if (d.confidence === "high") {
         drafted += 1;
-        expect(row?.kind, `${s.champion} ${s.slot}`).toBe(d.kind);
+        // A review (two independent reviewers, the adjudicators: CHAMPION_INTEL.md "Ranges") overrides a draft; --write keeps its row.
+        expect(row, `${s.champion} ${s.slot}`).toBeDefined();
+        if (row!.reviewer === "automated draft") expect(row!.kind, `${s.champion} ${s.slot}`).toBe(d.kind);
         expect(script.rowMatches(row, s), `${s.champion} ${s.slot}`).toBe(true);
       }
       if (row?.reviewer === "automated draft") expect(d, `${s.champion} ${s.slot}`).toMatchObject({ confidence: "high", kind: row.kind, rule: row.rule });

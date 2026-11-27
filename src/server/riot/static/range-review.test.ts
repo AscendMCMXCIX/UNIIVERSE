@@ -11,7 +11,7 @@ const at = new Date("2026-11-27T12:00:00Z");
 describe("the ability ranges' counts", () => {
   it("count every spell of the stored abilities against the committed table: shown, Global, self, none, hidden since a change, not reviewed", () => {
     const c = countRangeReviews(fixture.champions, fixture.version, undefined, at);
-    expect(c).toMatchObject({ version: "16.22.1", spells: 692, shown: 89, global: 7, self: 2, none: 67, changedSinceReview: 0, notReviewed: 527, noRangeYet: 0, rows: rangeReviewRows().length, at: "2026-11-27T12:00:00.000Z" });
+    expect(c).toMatchObject({ version: "16.22.1", spells: 692, shown: 269, global: 11, self: 180, none: 231, changedSinceReview: 1, notReviewed: 0, noRangeYet: 0, rows: rangeReviewRows().length, at: "2026-11-27T12:00:00.000Z" });
     expect(c.shown + c.global + c.self + c.none + c.changedSinceReview + c.notReviewed + c.noRangeYet).toBe(c.spells);
     expect(c.reviewedVersions).toEqual(["16.23.1"]);
   });
@@ -21,8 +21,9 @@ describe("the ability ranges' counts", () => {
     champions.Ahri!.abilities.find((a) => a.slot === "Q")!.textHash = "0000000000000000";
     for (const a of champions.Zed!.abilities) delete a.range;
     const c = countRangeReviews(champions, "16.22.1", undefined, at);
-    expect(c.changedSinceReview).toBe(1);
+    // Mel's W (Riot changed it at 16.23.1, the review's version) and Ahri's Q.
+    expect(c.changedSinceReview).toBe(2);
     expect(c.noRangeYet).toBe(4);
-    expect(c.shown).toBeLessThan(89);
+    expect(c.shown).toBeLessThan(269);
   });
 });

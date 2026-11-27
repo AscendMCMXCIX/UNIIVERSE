@@ -222,18 +222,18 @@ test("ranges: Riot's number where the review of what it measures is current, aft
   test.skip(!isDesktop(info.project.name) && !isPhone(info.project.name), "a desktop and a phone");
   await page.goto("/lookup?champion=Ahri");
   await ready(page);
-  // Ahri (the committed table at 16.23.1, whose rows match the pinned 16.22.1): Q and E reaches, W cast on herself (not shown), R and the passive none.
+  // Ahri (the reviewed table at 16.23.1, whose rows match the pinned 16.22.1): Q, E and R reaches, W cast on herself (not shown), the passive none.
   expect(await rangeOf(page, "Q")).toEqual({ status: "shown", kind: "reach", values: "970,970,970,970,970", drawn: ["970"], text: "Range 970", heard: "Range 970 units" });
   expect(await rangeOf(page, "E")).toMatchObject({ status: "shown", kind: "reach", values: "975,975,975,975,975", text: "Range 975" });
   expect(await rangeOf(page, "W")).toMatchObject({ status: "none", kind: null });
-  expect(await rangeOf(page, "R")).toMatchObject({ status: "none", kind: null });
+  expect(await rangeOf(page, "R")).toMatchObject({ status: "shown", kind: "reach", values: "450,450,450", text: "Range 450" });
   expect(await rangeOf(page, "P")).toMatchObject({ status: "none", kind: null });
   // The item sits in the folded row's name-and-chips flow, small and muted: never a heading of its own.
   const q = row(page, "Q");
   expect(await q.getByTestId("lookup-ability-range").evaluate((e) => ({ inSummary: !!e.closest('[data-testid="lookup-ability-summary"]'), size: parseFloat(getComputedStyle(e).fontSize) }))).toEqual({ inSummary: true, size: 12 });
   // Opened: where the number comes from and who decided what it measures; nothing for a row with no range.
   await q.getByTestId("lookup-ability-summary").click();
-  await expect(q.getByTestId("lookup-range-note")).toHaveText("Range from Riot's data, in game units. Classified by fixed rules from Riot's text on patch 26.23, not by a person.");
+  await expect(q.getByTestId("lookup-range-note")).toHaveText("Range from Riot's data, in game units. Reviewed against Riot's text by an automated review on patch 26.23, not by a person.");
   await row(page, "W").getByTestId("lookup-ability-summary").click();
   await expect(row(page, "W").getByTestId("lookup-ability-details")).toBeVisible();
   await expect(row(page, "W").getByTestId("lookup-range-note")).toHaveCount(0);
@@ -246,12 +246,16 @@ test("ranges: Riot's number where the review of what it measures is current, aft
   // One number per rank where they differ, each "/" with the value before it (Vex's R).
   await page.goto("/lookup?champion=Vex");
   expect(await rangeOf(page, "R")).toMatchObject({ status: "shown", kind: "reach", values: "2000,2500,3000", drawn: ["2,000", "2,500", "3,000"], text: "Range 2,000 / 2,500 / 3,000" });
-  // Two abilities in one slot (Lee Sin's Q: a row of kind none), and a spell the table has not reviewed (Twisted Fate's Q, Data Dragon's 10000): nothing.
+  // Two abilities in one slot (Lee Sin's Q: a row of kind none), a number that is not the reach (Twisted Fate's Q, Data Dragon's 10000), and a reach the review could not confirm (Ezreal's Q, 1,150): nothing.
   await page.goto("/lookup?champion=LeeSin");
   expect(await rangeOf(page, "Q")).toMatchObject({ status: "none", kind: null });
   await page.goto("/lookup?champion=TwistedFate");
   for (const slot of ["P", "Q", "W", "E"]) expect(await rangeOf(page, slot), slot).toMatchObject({ kind: null });
   await expect(page.getByTestId("lookup-ability-range")).toHaveCount(await page.locator('[data-testid="lookup-ability"][data-range-status="shown"]').count());
+  await page.goto("/lookup?champion=Ezreal");
+  expect(await rangeOf(page, "Q")).toMatchObject({ status: "none", kind: null });
+  expect(await rangeOf(page, "E")).toMatchObject({ status: "shown", kind: "reach", text: "Range 475" });
+  expect(await rangeOf(page, "R")).toMatchObject({ status: "shown", kind: "global", text: "Global" });
 
   // Compare: each column its own (Jinx's W a reach, her R Global), with no word comparing them.
   await page.goto("/lookup?champion=Ahri&champion2=Jinx");
