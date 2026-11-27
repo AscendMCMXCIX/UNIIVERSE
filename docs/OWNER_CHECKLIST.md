@@ -24,9 +24,9 @@ Only what no automated check can see: real touch and Safari on a real iPhone, th
 
 ## Admin Mode (signed in as the Owner; a computer is fine)
 
-13. ☐ **Switch to Admin Mode,** then open the Dashboard, People, Audit Logs, System Health, Data & Integrations, Branding, Previews, Resources and Settings. Good: each opens with no error screen and with your team's real figures.
+13. ☐ **Switch to Admin Mode,** then open the Dashboard, People, Audit Logs, System Health, Data & Integrations, Branding, Previews, Resources, Settings and Platform Settings → Matchup notes. Good: each opens with no error screen and with your team's real figures.
 14. ☐ **People.** Good: you are the only Owner, and `verify` is under "Kept automatically" with only Deactivate and Delete.
-15. ☐ **System Health and Data & Integrations.** Good: no job failing, recent successful runs of the account sync and the tick, and the rank schedule in the state you chose.
+15. ☐ **System Health and Data & Integrations.** Good: no job failing, recent successful runs of the account sync and the tick, the rank schedule in the state you chose, the Master+ builds' collection shown as off, and "Ability ranges at <patch>" with no warning line.
 16. ☐ **Audit Logs.** Good: today's entries are there, including your mode switch; nothing you did not do.
 17. ☐ **Switch back to Player Mode.** Good: Team shows, with no admin controls left on screen.
 

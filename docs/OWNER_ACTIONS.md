@@ -25,9 +25,16 @@ One list of the settings, decisions and readings that need the owner (Release 19
 
 11. **Riot Developer Portal.** Paste the registration description prepared for Champion Intel, its builds and runes, ability ranges, Matchup Intel's early-lane band and the high-elo aggregates (docs/RIOT_COMPLIANCE.md, the builds lane's proposed text), and confirm production's key is a **Personal** product registered for UNIIVERSE.
 12. **High-elo aggregates (D2: approved in principle, collection stays off).** The enabling steps, in order, are in docs/HIGH_ELO_EVIDENCE.md, "For the owner": the portal registration covering anonymous high-elo aggregates (item 11), the privacy notice's row, item 6's readings, and for its second tier the workflow approval and a `RIOT_API_KEY` Actions secret. Nothing collects until both switches the code holds are on.
-13. **Matchup Intel's reviewed notes.** Who reviews, and when: docs/MATCHUP_INTEL.md (the curation and review procedure; patch day in docs/PATCH_MAINTENANCE.md, step 6).
+13. **Matchup Intel's reviewed notes.** Write the first notes, then re-review them each patch, in Admin → Platform Settings → Matchup notes (its queue lists the opponents and pairings members meet most, and the notes due for re-review). Until then the band says there are no reviewed notes yet. Who reviews, and when: docs/MATCHUP_INTEL.md (the curation and review procedure; patch day in docs/PATCH_MAINTENANCE.md, step 6).
+14. **The privacy notice's new rows** (dated 27 November 2026): Matchup Intel's lane totals at 10 minutes and its reviewed notes (docs/PRIVACY.md, "Matchup Intel's lane totals and reviewed notes"). Read the public page's two rows and say if they need changing; the high-elo row stays "prepared, not active" until item 12.
+
+## After Release 19's deploy
+
+15. **The multikill score's fairness (the owner's request, item 1).** The read-only `multikill-audit` runs on production data after the deploy; its outcome and what it means are recorded in docs/TEAM_LEADERBOARDS.md, "Fairness evaluation". The formula changes only if the audit finds a better model and a calibrated simulation then confirms it, and only with your approval, because it moves places on the board. If the outcome is "keep", nothing is asked of you.
+16. **Ability ranges (D3), optional.** Open a few champions in Champion Intel: each opened ability row says how its range was decided. Report any range that looks wrong, or confirm rows as the team's own (the table's reviewer `owner`); 269 ranges and 11 "Global" are shown, every one reviewed by two independent automated reviewers, and nothing where a reviewer had any doubt (docs/CHAMPION_INTEL.md, "Ranges").
+17. **Your device checks.** Run docs/OWNER_CHECKLIST.md once (iPhone Safari, the installed app, Admin Mode): only what an engineering session cannot check.
 
 ## Not yours (recorded so nobody waits on you)
 
-- Recreating the 1 Dec 2027 check-in (its session was archived), and scheduled reads of the 30 Nov Monday probe and the 30 Nov backup: the coordinating session.
+- The follow-ups the archived session had scheduled: recreated on 27 Nov 2026 as two scheduled tasks of the coordinating session, one on 30 Nov 2026 (the Monday performance probe and the weekly backup) and one on 5 Jan 2027 (the ranked-year transition on production).
 - Setting 2027's ranked start date when Riot publishes it: a one-line engineering change (docs/RANKED_PROGRESS.md, "The 2027 ranked year").
