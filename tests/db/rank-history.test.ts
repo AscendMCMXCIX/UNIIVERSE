@@ -1,4 +1,4 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { rankSnapshots, riotAccounts } from "@/server/db/schema";
@@ -86,6 +86,49 @@ describe("rank snapshots", () => {
     expect(p.trackingSince).toBe(day(0).getTime());
     expect(p.segments).toBe(2);
     expect(p.events.map((e) => e.kind)).toEqual(["placed", "reset", "promotion"]);
+  });
+});
+
+describe("both queues in one transaction (Release 19, the rank watch's writes)", () => {
+  it("reads and writes both queues of an account in one transaction, the same rows as before", async () => {
+    const db = handle.db;
+    const team = await getOrCreateTeam(db);
+    const owner = (await createPlayer(db, team.id, { displayName: "Batched", primaryRole: "ADC", primaryPool: ["Jinx"] })).id;
+    const [a] = await db.insert(riotAccounts).values({ ownerType: "player", playerId: owner, gameName: "Batch", tagLine: "T", platform: "oc1", puuid: "p-batch", label: "main" }).returning({ id: riotAccounts.id });
+    const id = a!.id;
+    const spy = vi.spyOn(db, "transaction");
+    try {
+      expect(await recordRankSnapshots(db, id, [solo("GOLD", "II", 46, 10, 10), flex("SILVER", "I", 10, 5, 5)], day(0))).toBe(2);
+      expect(await recordRankSnapshots(db, id, [solo("GOLD", "II", 46, 10, 10), flex("SILVER", "I", 10, 5, 5)], day(1))).toBe(0);
+      expect(await recordRankSnapshots(db, id, [solo("GOLD", "II", 70, 11, 10), flex("SILVER", "I", 10, 5, 5)], day(2))).toBe(1);
+      expect(spy).toHaveBeenCalledTimes(3);
+    } finally {
+      spy.mockRestore();
+    }
+    const rows = (await db.select().from(rankSnapshots)).filter((r) => r.accountId === id);
+    expect(rows.filter((r) => r.queue === "solo").map((r) => r.leaguePoints).sort()).toEqual([46, 70]);
+    const flexRows = rows.filter((r) => r.queue === "flex");
+    expect(flexRows).toHaveLength(1);
+    // Flex was confirmed by both later readings, in the same statement as Solo/Duo's.
+    expect(flexRows[0]!.confirmedAt?.getTime()).toBe(day(2).getTime());
+  });
+
+  it("two overlapping runs over both queues store each change once and never move a confirmation back", async () => {
+    const db = handle.db;
+    const team = await getOrCreateTeam(db);
+    const owner = (await createPlayer(db, team.id, { displayName: "Overlap", primaryRole: "SUPPORT", primaryPool: ["Lulu"] })).id;
+    const [a] = await db.insert(riotAccounts).values({ ownerType: "player", playerId: owner, gameName: "Overlap", tagLine: "T", platform: "oc1", puuid: "p-overlap", label: "main" }).returning({ id: riotAccounts.id });
+    const id = a!.id;
+    await recordRankSnapshots(db, id, [solo("GOLD", "II", 46, 10, 10), flex("SILVER", "I", 10, 5, 5)], day(0));
+    const t = (min: number) => new Date(day(0).getTime() + min * 60_000);
+    // The watch and a sync read at once, several times over: a Solo/Duo change once, Flex unchanged.
+    for (let i = 1; i <= 4; i++) {
+      await Promise.all([recordRankSnapshots(db, id, [solo("GOLD", "II", 46 + (i >= 3 ? 20 : 0), 10 + (i >= 3 ? 1 : 0), 10), flex("SILVER", "I", 10, 5, 5)], t(i * 5)), recordRankSnapshots(db, id, [solo("GOLD", "II", 46 + (i >= 3 ? 20 : 0), 10 + (i >= 3 ? 1 : 0), 10), flex("SILVER", "I", 10, 5, 5)], t(i * 5 - 1))]);
+    }
+    const rows = (await db.select().from(rankSnapshots)).filter((r) => r.accountId === id);
+    expect(rows.filter((r) => r.queue === "solo").map((r) => r.leaguePoints).sort()).toEqual([46, 66]);
+    expect(rows.filter((r) => r.queue === "flex")).toHaveLength(1);
+    expect(rows.find((r) => r.queue === "flex")!.confirmedAt!.getTime()).toBe(t(20).getTime());
   });
 });
 

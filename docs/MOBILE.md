@@ -920,7 +920,8 @@ onboarding pages, the Library, Settings and the Card Studio; each is checked in 
   window in WebKit 26.0, the engine that collapsed them, on four phones, an iPad and a Mac.
 - Real devices: see RESPONSIVE.md → Safari and iPhones. Emulated phones prove layout and behaviour
   in an engine, not Safari's own toolbars or gestures on an iPhone. The account screen on a real
-  iPhone, installed and in Safari, is the owner's check.
+  iPhone, installed and in Safari, is the owner's check: docs/OWNER_CHECKLIST.md (Release 19), the
+  one list of what only a real iPhone, the installed app and Admin Mode can show.
 
 
 ## Users & Permissions on phones (overhaul S9a, 19 Nov 2026)

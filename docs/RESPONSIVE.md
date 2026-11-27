@@ -1115,7 +1115,7 @@ Three levels, each saying what it proves:
   Safari, 793 and 812px installed) with every control in reach, and the filter sheet was whole
   (410px). It is iOS's own WebKit, but a simulator: the Home Screen app was set up by the run, not by
   Share → Add to Home Screen.
-- **A real iPhone** (by a person; nothing above covers it):
+- **A real iPhone** (by a person; nothing above covers it). Since Release 19 the owner's one list for a real iPhone, the installed app and Admin Mode is **docs/OWNER_CHECKLIST.md**, which merges these items; the list below is kept as the detail behind them:
   1. Add to Home Screen from Safari's Share menu: the icon and name come from Branding, and the app
      opens full screen with its content clear of the notch and the home indicator.
   2. Sign in inside the installed app (iOS keeps its cookies apart from Safari's), close it and

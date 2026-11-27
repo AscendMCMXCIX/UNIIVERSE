@@ -86,7 +86,9 @@ tests/db/                   database tests (PGlite by default, real Postgres wit
 e2e/                        Playwright: responsive.spec.ts, quality.spec.ts (accessibility, layout)
 scripts/                    migrate, seed-demo, run-job, embed-migrations, reset-password, perf tools
 docs/                       ARCHITECTURE, DATA_PIPELINES, DATA_AUDIT, PERFORMANCE, RESPONSIVE, DEPLOYMENT,
-                            LIVE_VALIDATION, RIOT_COMPLIANCE, feature notes + these two files
+                            LIVE_VALIDATION, RIOT_COMPLIANCE, PATCH_MAINTENANCE (patch day),
+                            OWNER_CHECKLIST (the owner's device and Admin check), OWNER_ACTIONS (what
+                            only the owner can do), feature notes + these two files
 ```
 
 Key single files:
@@ -97,7 +99,7 @@ Key single files:
 
 ### A3. Deployment
 
-- **Production branch:** `main`. Changes arrive through pull requests; `.githooks/pre-push` blocks direct pushes, because no branch protection is configured on `main` (GitHub Pro allows it; turning it on is the owner's decision). Every push to `main` triggers a Vercel production build and deploy, except docs- and tooling-only changes (`scripts/vercel-ignore-build.sh`). Other branches get a preview deployment only when asked for (a `preview/...` branch or `[preview]` in the commit message; docs/HOSTING_USAGE.md). No manual deploy step exists.
+- **Production branch:** `main`. Changes arrive through pull requests; `.githooks/pre-push` blocks direct pushes. Since 23 Nov 2026 the ruleset "Protect main" refuses deletion, force pushes and changes outside a pull request; its required-checks rule holds no check yet, so `CI gate` is not required by GitHub until the owner adds it (docs/CI_USAGE.md, "Protecting `main`"; docs/OWNER_ACTIONS.md). Every push to `main` triggers a Vercel production build and deploy, except docs- and tooling-only changes (`scripts/vercel-ignore-build.sh`). Other branches get a preview deployment only when asked for (a `preview/...` branch or `[preview]` in the commit message; docs/HOSTING_USAGE.md). No manual deploy step exists.
 - **CI** (`.github/workflows/ci.yml`, on ready pull requests, pushes to `main` and by hand; documentation-only changes and draft PRs skip it; a newer push cancels the running check; a merge of an up-to-date PR reuses the PR's result), three jobs (`docs/CI_USAGE.md` explains the Actions-minute budget):
   1. Typecheck, lint, unit tests.
   2. Database tests on a PostgreSQL 16 service (after job 1).

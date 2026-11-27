@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { existsSync, mkdtempSync, readFileSync, rmSync } from "node:fs";
 import { tmpdir } from "node:os";
 import path from "node:path";
 
@@ -41,5 +41,27 @@ describe("the backup script's restore check", () => {
   it("stays optional locally", () => {
     // The run goes on past the guard and fails at its first psql (the closed address), never on the guard.
     expect(run({}).stderr).not.toContain(GUARD);
+  });
+});
+
+describe("the backup script's restore check covers every table (Release 19)", () => {
+  const text = readFileSync(script, "utf8");
+  const migrations = readFileSync(path.resolve(__dirname, "../../server/db/migrations.generated.ts"), "utf8");
+
+  it("derives the tables it counts from the database itself, so a table a later migration adds is counted with no edit here", () => {
+    expect(text).toMatch(/SELECT 'row:' \|\| c\.relname, .*query_to_xml\(format\('SELECT count\(\*\) AS c FROM public\.%I', c\.relname\)/);
+    expect(text).toMatch(/FROM pg_class c JOIN pg_namespace n ON n\.oid = c\.relnamespace WHERE n\.nspname = 'public' AND c\.relkind IN \('r', 'p'\) ORDER BY 1;"/);
+    // Every row count is compared, a missing or extra table fails, and the count of tables checked must equal the tables.
+    expect(text).toContain('is not in the restored copy');
+    expect(text).toContain('the restored copy has tables the source does not');
+    expect(text).toContain('[ "$checked" = "$(value "$AFTER" tables)" ]');
+    // The manifest keeps every table's count (counts only, no data).
+    expect(text).toMatch(/"tableRows": \$\(printf/);
+  });
+
+  it("names only the churning tables by hand, each a table the migrations create", () => {
+    const churn = /^CHURN="([^"]*)"/m.exec(text)?.[1]?.split(" ") ?? [];
+    expect(churn.length).toBeGreaterThan(0);
+    for (const table of churn) expect(migrations, table).toMatch(new RegExp(`CREATE TABLE (IF NOT EXISTS )?\\\\?"${table}\\\\?"`));
   });
 });

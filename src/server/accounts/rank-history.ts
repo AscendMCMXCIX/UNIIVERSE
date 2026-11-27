@@ -25,35 +25,51 @@ export interface LeagueEntryLike {
  * Records one reading of an account's league entries, per ranked queue: a row when the reading
  * differs from the last one stored (the first reading is always stored), otherwise the last row's
  * confirmed_at moves on to this reading. A queue that has a stored rank but is missing from Riot's
- * answer is recorded once as unranked (a season reset or decay off the ladder). Each queue's
- * reading is one transaction holding a lock on that account and queue, so two overlapping runs
- * (account sync and the rank watch) never store the same values twice, and a reading older than
- * the newest one recorded (a slow answer overtaken) changes nothing. Returns the rows written.
+ * answer is recorded once as unranked (a season reset or decay off the ladder). The reading is one
+ * transaction holding a lock on that account's Solo/Duo and then its Flex queue (always in that
+ * order, so two overlapping runs, account sync and the rank watch, never wait on each other in a
+ * cycle), so they never store the same values twice, and a queue's reading older than the newest
+ * one recorded (a slow answer overtaken) changes nothing in that queue. Returns the rows written.
+ *
+ * Release 19 (HOSTING_USAGE.md, "Rank watch writes"): both queues in one transaction, their last
+ * rows read in one statement and their confirmations moved in one, where each queue had its own
+ * transaction: 6 statements for an unchanged account instead of 10, the same rows written.
  */
 export async function recordRankSnapshots(db: Db, accountId: string, entries: readonly LeagueEntryLike[], now = new Date()): Promise<number> {
-  let written = 0;
-  for (const queue of ["solo", "flex"] as const) {
-    const entry = entries.find((e) => QUEUE_OF[e.queueType] === queue);
-    written += await db.transaction(async (tx) => {
-      await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`rank_snapshots:${accountId}:${queue}`}))`);
-      const [last] = await tx.select().from(rankSnapshots).where(and(eq(rankSnapshots.accountId, accountId), eq(rankSnapshots.queue, queue))).orderBy(desc(rankSnapshots.capturedAt)).limit(1);
+  return db.transaction(async (tx) => {
+    for (const queue of ["solo", "flex"] as const) await tx.execute(sql`SELECT pg_advisory_xact_lock(hashtext(${`rank_snapshots:${accountId}:${queue}`}))`);
+    const latest = rowsOf<{ id: string; queue: string; tier: string | null; division: string | null; league_points: number | null; wins: number | null; losses: number | null; captured_at: unknown; confirmed_at: unknown }>(
+      await tx.execute(sql`
+        SELECT DISTINCT ON (queue) id, queue, tier, division, league_points, wins, losses, captured_at, confirmed_at
+        FROM rank_snapshots WHERE account_id = ${accountId}
+        ORDER BY queue, captured_at DESC`),
+    );
+    const confirm: string[] = [];
+    const insert: Array<typeof rankSnapshots.$inferInsert> = [];
+    for (const queue of ["solo", "flex"] as const) {
+      const entry = entries.find((e) => QUEUE_OF[e.queueType] === queue);
+      const row = latest.find((r) => r.queue === queue);
+      const last = row ? { tier: row.tier, division: row.division, leaguePoints: row.league_points === null ? null : Number(row.league_points), wins: row.wins === null ? null : Number(row.wins), losses: row.losses === null ? null : Number(row.losses), capturedAt: at(row.captured_at) ?? 0, confirmedAt: at(row.confirmed_at) } : null;
       const next = entry
         ? { tier: entry.tier ?? null, division: entry.rank ?? null, leaguePoints: entry.leaguePoints, wins: entry.wins, losses: entry.losses }
         : last && last.tier
           ? { tier: null, division: null, leaguePoints: null, wins: null, losses: null }
           : null;
-      if (!next) return 0; // never ranked in this queue, or still unranked: nothing to record
-      if (last && now.getTime() <= Math.max(last.capturedAt.getTime(), last.confirmedAt?.getTime() ?? 0)) return 0;
-      if (last && !snapshotChanged(last, next)) {
-        await tx.update(rankSnapshots).set({ confirmedAt: now }).where(eq(rankSnapshots.id, last.id));
-        return 0;
-      }
-      await tx.insert(rankSnapshots).values({ accountId, queue, ...next, capturedAt: now });
-      return 1;
-    });
-  }
-  return written;
+      if (!next) continue; // never ranked in this queue, or still unranked: nothing to record
+      if (last && now.getTime() <= Math.max(last.capturedAt, last.confirmedAt ?? 0)) continue;
+      if (row && !snapshotChanged(last, next)) confirm.push(row.id);
+      else insert.push({ accountId, queue, ...next, capturedAt: now });
+    }
+    if (confirm.length) await tx.update(rankSnapshots).set({ confirmedAt: now }).where(inArray(rankSnapshots.id, confirm));
+    if (insert.length) await tx.insert(rankSnapshots).values(insert);
+    return insert.length;
+  });
 }
+
+/** postgres-js returns the rows; PGlite wraps them in { rows }. */
+const rowsOf = <T,>(result: unknown): T[] => ((result as { rows?: T[] }).rows ?? (result as T[])) as T[];
+/** A timestamp as either driver returns it from raw SQL (a Date, or text), in ms; null for none. */
+const at = (v: unknown): number | null => (v === null || v === undefined ? null : v instanceof Date ? v.getTime() : new Date(String(v)).getTime());
 
 /**
  * The rank stored on the account (what the profile header, cards and leaderboards show) from one
