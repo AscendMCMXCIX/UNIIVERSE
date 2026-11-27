@@ -367,7 +367,7 @@ function PopoverSelect({ value, options, onValueChange, id, "aria-label": ariaLa
         onClick={() => (open ? close() : show())}
         onKeyDown={onKeyDown}
         // The closed control looks like the native select it replaces (input.tsx), with its chevron.
-        className={cn(withDefaults(selectClass("group/select inline-flex items-center gap-1.5 pr-2 text-left aria-disabled:cursor-not-allowed aria-disabled:text-fg-disabled aria-disabled:hover:border-border-control"), className), open && "border-accent")}
+        className={cn(withDefaults(selectClass("group/select inline-flex items-center gap-1 pr-2 text-left aria-disabled:cursor-not-allowed aria-disabled:text-fg-disabled aria-disabled:hover:border-border-control"), className), open && "border-accent")}
         data-testid={testId}
         data-value={value}
         data-select=""

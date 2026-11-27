@@ -44,3 +44,34 @@ test("a position icon answered without CORS headers keeps its built-in shape, ne
   await expect(page.locator("main svg[data-role-icon]").first(), "the built-in shape").toBeVisible();
   await expect(page.locator("main span[data-role-icon]"), "no mask from an answer the mask cannot use").toHaveCount(0);
 });
+
+/*
+  A Select is drawn as the native control in the server's HTML and as the popover button once the
+  page's code runs (src/components/ui/select.tsx). Both must take the same width, or the line they
+  sit on reflows as the page hydrates: on the profile Overview at 1440 × 900 a 2px wider button
+  wrapped Season performance's scope line and moved the whole Overview 14px down, so a click
+  aimed at a link a moment before landed beside it (e2e/multikills.spec.ts, 27 Nov 2026). The
+  native select is 12px + its label + 28px (the chevron's room); the button 12px + label + a 4px
+  gap + the 16px chevron + 8px.
+*/
+test("a Select keeps its width when the page hydrates, so nothing beside it moves", async ({ page, browser, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "the popover form is the desktop's (phones keep the native select)");
+  await page.goto("/players");
+  const profile = new URL((await page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']").getAttribute("href"))!, "http://x").pathname;
+  // The server's HTML alone: the native select, as the browser draws it before any code runs.
+  const bare = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 1440, height: 900 }, baseURL });
+  const serverPage = await bare.newPage();
+  await serverPage.goto(`${profile}?mode=solo`);
+  const native = await serverPage.locator("#overview-mode").evaluate((e) => ({ tag: e.tagName, width: e.getBoundingClientRect().width }));
+  const linkBefore = await serverPage.getByTestId("multikills-by-champion").evaluate((e) => e.getBoundingClientRect().top);
+  await bare.close();
+  expect(native.tag).toBe("SELECT");
+  // Hydrated: the popover button, the same width; the Overview's link where the server drew it.
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto(`${profile}?mode=solo`);
+  await expect(page.locator("#overview-mode[data-ready]")).toBeAttached();
+  const hydrated = await page.locator("#overview-mode").evaluate((e) => ({ tag: e.tagName, width: e.getBoundingClientRect().width }));
+  expect(hydrated.tag).toBe("BUTTON");
+  expect(Math.abs(hydrated.width - native.width), `native ${native.width}px, popover ${hydrated.width}px`).toBeLessThanOrEqual(0.5);
+  expect(await page.getByTestId("multikills-by-champion").evaluate((e) => e.getBoundingClientRect().top)).toBeCloseTo(linkBefore, 0);
+});
