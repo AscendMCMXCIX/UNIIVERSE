@@ -27,11 +27,12 @@ export function OnThisDevice() {
   return (
     <div className="space-y-3" data-testid="on-this-device">
       <p className="text-sm text-fg-muted">What this browser remembers. It stays on this device and is never sent to the server.</p>
-      <ul className="divide-y divide-border rounded-panel border border-border">
+      {/* Rows on the panel's own surface between hairlines, not a bordered box inside the panel (Release 19, the visual review's V3). */}
+      <ul className="divide-y divide-border/70 border-y border-border/70">
         {DEVICE_ITEMS.map((item, n) => {
           const state = states[n];
           return (
-            <li key={item.id} className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2" data-testid="device-item" data-item={item.id} data-stored={state ? "" : undefined}>
+            <li key={item.id} className="flex min-h-14 flex-wrap items-center gap-x-3 gap-y-1 py-2" data-testid="device-item" data-item={item.id} data-stored={state ? "" : undefined}>
               {/* At least 10rem for the words (rem: it grows with the text size), so at the usual size Clear stays beside them even at 320px; with less, the button takes the next line (R7 review A3). */}
               <div className="min-w-0 flex-[1_1_10rem]">
                 <p className="text-sm font-medium text-fg">{item.label}</p>

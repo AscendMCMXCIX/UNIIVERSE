@@ -10,30 +10,32 @@ describe("Recent form's champions (the Overview's 2×2)", () => {
   const form = recentForm(plan.map((championId, i) => ({ matchId: `m${i}`, win: championId === "Ahri" ? i < 5 : i % 2 === 0, gameCreation: 1_000_000 - i, championId, kills: 5, deaths: 3, assists: 6, cs: 180, visionScore: 20, gameDuration: 1800 })));
   const render = (champions: boolean) => renderToStaticMarkup(createElement(RecentFormStrip, { form, championsById: {}, historyHref: "/h", champions }));
 
-  it("lists the champions of the same games, most played first, each with its record: two to four in the server's drawing by the window's height, the rest as a count on the heading's line, every row there for the fitted list", () => {
+  it("lists the champions of the same games, most played first, each with its record: one to three in the server's drawing by the window's height (a row fewer than fits, Release 19), the rest as a count on the heading's line, every row there for the fitted list", () => {
     const html = render(true);
     const rows = [...html.matchAll(/data-champion="([^"]+)"/g)].map((m) => m[1]);
     // Every champion's row is drawn (the list shows as many as fit once interactive: FitChampions); each carries its rank.
     expect(rows).toEqual(["Ahri", "Orianna", "Azir", "Syndra", "Galio", "Jax"]);
     expect(html).toContain('data-champion="Jax" data-ov-rank="6"');
     expect(html).toContain("9 games · 5W 4L");
-    // Until measured ("css"), "and N more" for the window's height: two rows shown under board-at-mid, three from it, RECENT_CHAMPIONS_SHOWN from board-at-short.
-    expect(RECENT_CHAMPIONS_SHOWN).toBe(4);
-    expect(html).toContain('<span class="board-at-mid:hidden">and 4 more</span><span class="hidden board-at-mid:board-below-short:inline">and 3 more</span><span class="hidden board-at-short:inline">and 2 more</span>');
-    expect(html).toMatch(/class="flex min-w-0 items-center gap-2.5 py-1 group-data-\[fit=css\]\/fit:board-below-mid:hidden" data-champion="Azir"/);
-    expect(html).toMatch(/class="flex min-w-0 items-center gap-2.5 py-1 group-data-\[fit=css\]\/fit:board-below-short:hidden" data-champion="Syndra"/);
-    expect(html).toMatch(/class="flex min-w-0 items-center gap-2.5 py-1 group-data-\[fit=css\]\/fit:hidden" data-champion="Galio"/);
+    // Until measured ("css"), "and N more" for the window's height: one row shown under board-at-mid, two from it, RECENT_CHAMPIONS_SHOWN from board-at-short
+    // (Release 19: a row fewer than fits there, so the first paint keeps a margin above the window; the fit adds rows at the list's end).
+    expect(RECENT_CHAMPIONS_SHOWN).toBe(3);
+    expect(html).toContain('<span class="board-at-mid:hidden">and 5 more</span><span class="hidden board-at-mid:board-below-short:inline">and 4 more</span><span class="hidden board-at-short:inline">and 3 more</span>');
+    expect(html).toMatch(/class="flex min-w-0 items-center gap-2.5 py-1" data-champion="Ahri"/);
+    expect(html).toMatch(/class="flex min-w-0 items-center gap-2.5 py-1 group-data-\[fit=css\]\/fit:board-below-mid:hidden" data-champion="Orianna"/);
+    expect(html).toMatch(/class="flex min-w-0 items-center gap-2.5 py-1 group-data-\[fit=css\]\/fit:board-below-short:hidden" data-champion="Azir"/);
+    expect(html).toMatch(/class="flex min-w-0 items-center gap-2.5 py-1 group-data-\[fit=css\]\/fit:hidden" data-champion="Syndra"/);
     expect(html).toContain('data-fit="css"');
     // Only where the 2×2 applies (a 1440px window, a 68rem dashboard), by CSS: no other layout grows.
     expect(html).toMatch(/class="hidden min-\[90rem\]:@min-\[68rem\]\/ov:block" data-testid="recent-form-champions"/);
   });
 
-  it("draws one champion fewer in each height where Ranked progress has an account select (its title can take two lines)", () => {
+  it("draws one champion fewer in each height where Ranked progress has an account select (its title can take two lines), never none", () => {
     const html = renderToStaticMarkup(createElement(RecentFormStrip, { form, championsById: {}, historyHref: "/h", champions: true, fewer: true }));
-    expect(html).toContain('<span class="board-at-mid:hidden">and 5 more</span><span class="hidden board-at-mid:board-below-short:inline">and 4 more</span><span class="hidden board-at-short:inline">and 3 more</span>');
-    expect(html).toMatch(/class="flex min-w-0 items-center gap-2.5 py-1 group-data-\[fit=css\]\/fit:board-below-mid:hidden" data-champion="Orianna"/);
-    expect(html).toMatch(/class="flex min-w-0 items-center gap-2.5 py-1 group-data-\[fit=css\]\/fit:board-below-short:hidden" data-champion="Azir"/);
-    expect(html).toMatch(/class="flex min-w-0 items-center gap-2.5 py-1 group-data-\[fit=css\]\/fit:hidden" data-champion="Syndra"/);
+    expect(html).toContain('<span class="board-at-mid:hidden">and 5 more</span><span class="hidden board-at-mid:board-below-short:inline">and 5 more</span><span class="hidden board-at-short:inline">and 4 more</span>');
+    expect(html).toMatch(/class="flex min-w-0 items-center gap-2.5 py-1" data-champion="Ahri"/);
+    expect(html).toMatch(/class="flex min-w-0 items-center gap-2.5 py-1 group-data-\[fit=css\]\/fit:board-below-short:hidden" data-champion="Orianna"/);
+    expect(html).toMatch(/class="flex min-w-0 items-center gap-2.5 py-1 group-data-\[fit=css\]\/fit:hidden" data-champion="Azir"/);
   });
 
   it("is left out where the Overview has no Ranked progress beside Recent form", () => {

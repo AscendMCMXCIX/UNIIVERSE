@@ -168,7 +168,8 @@ describe("the season records", () => {
     for (const [, cellClass, colsClass] of cells) {
       const [cell, cols] = [decode(cellClass!), decode(colsClass!)];
       expect(cell).toContain("@container/list");
-      expect(cell).toContain("@min-[34rem]/list:[&:last-child:nth-child(odd)]:col-span-2");
+      // The streak, the seventh, is a cell like the others (Release 19: it went across both columns).
+      expect(cell).not.toContain("col-span-2");
       // Each cell holds its own column template, so its row reads the cell's width; a two-line cell (36rem, or any cell on a
       // 59rem page: the record-two variant) has a 36px picture.
       expect(cols).toContain("[--dl-cols:3rem_minmax(5rem,1fr)_auto_1rem]");
@@ -330,12 +331,16 @@ describe("multikills", () => {
   it("say what the score is ranked by under the heading, what earns points behind one short ⓘ, and how to read a score at the foot", () => {
     expect(html).toContain('<h2 id="multikills-title"');
     expect(decode(innerOf(html, "multikills-title" as string) ?? "")).not.toContain("Season");
-    expect(html).toMatch(/<h2 id="multikills-title"[^>]*>[\s\S]*?<span class="min-w-0">Multikills<\/span><\/h2>/);
+    expect(html).toMatch(/<h2 id="multikills-title"[^>]*>[\s\S]*?<span class="min-w-0 self-baseline">Multikills<\/span><\/h2>/);
     expect(shownOf(html, "multikill-basis")).toBe("Ranked by multikill performance relative to the champions and roles played.");
     expect(html).toContain('aria-label="How the multikill score works"');
     expect(html).toContain("Multikills earn 2–5 points. The score compares a player&#x27;s points with typical results for their champions and roles, accounting for games played.");
     expect(html).not.toContain("multikill-explain-point");
     expect(shownOf(html, "multikill-score-legend")).toBe("Below 100 below typical100 typicalAbove 100 above typicalFrom 31 of 32 games");
+    // How many games the counts come from: in the legend's line from a 35rem board, on the title's row on a 26-35rem board (1366 and 1440:
+    // beside the legend it took it a second line, Release 19), so the legend is one line there.
+    expect(html).toMatch(/<div class="ml-auto min-w-0 max-sm:basis-full hidden @min-\[26rem\]\/list:@max-\[35rem\]\/list:flex"><span class="text-xs text-fg-muted" data-testid="multikill-short-title">From 31 of 32 games<\/span><\/div>/);
+    expect(html).toContain('@min-[26rem]/list:@max-[35rem]/list:hidden" data-testid="multikill-short"');
     // The counting rule, for the Production check (it reads no ⓘ).
     expect(html).toMatch(/data-testid="multikill-score-legend" data-counting-rule="nested" data-counting-shown="true"/);
     // Never a raw percentage: no "30% more".

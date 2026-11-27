@@ -97,7 +97,7 @@ export function PlayersDirectory({ entries, championsById, archived = null, myPr
           actions={
             myProfile ? (
               <Link href="/overview" className={buttonClass("ghost", "sm", "-mr-1.5")} data-testid="players-my-profile">
-                My profile <ChevronRight className="h-3.5 w-3.5" aria-hidden />
+                My Profile <ChevronRight className="h-3.5 w-3.5" aria-hidden />
               </Link>
             ) : null
           }

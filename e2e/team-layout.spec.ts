@@ -70,9 +70,9 @@ test("the header is centred over the cards and sits close to them", async ({ pag
   const edit = (await page.getByTestId("edit-lineup").boundingBox())!;
   for (const part of [name, edit]) expect(part.y >= header.y - 1 && part.y + part.height <= header.y + header.height + 1).toBe(true);
   expect(edit.x).toBeGreaterThan(name.x + name.width);
-  // The team's identity from a tablet up: the "Team Overview" eyebrow shown over the name, the name
+  // The team's identity from a tablet up: the "Team overview" eyebrow (sentence case since Release 19, D4) shown over the name, the name
   // large (30px on a tablet, 36px on a desktop), and the lineup's state under it.
-  const eyebrow = (await page.getByTestId("team-header").getByText("Team Overview").boundingBox())!;
+  const eyebrow = (await page.getByTestId("team-header").getByText("Team overview", { exact: true }).boundingBox())!;
   expect(eyebrow.width, "the eyebrow is shown, not left to screen readers").toBeGreaterThan(40);
   expect(eyebrow.y + eyebrow.height, "the eyebrow over the name").toBeLessThanOrEqual(name.y + 1);
   const size = await page.getByTestId("team-name").evaluate((h) => parseFloat(getComputedStyle(h).fontSize));

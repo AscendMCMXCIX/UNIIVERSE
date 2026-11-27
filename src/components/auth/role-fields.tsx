@@ -38,8 +38,8 @@ export function RoleFields({ initialPrimary, initialSecondary, onChange }: { ini
       <input type="hidden" name="secondaryRole" value={secondary ?? ""} />
       <div>
         <Label>
-          PRIMARY ROLE *{" "}
-          <span className={primary ? "font-normal normal-case tracking-normal text-fg-muted" : "font-normal normal-case tracking-normal text-warn"} data-testid="primary-role-status">
+          Primary role *{" "}
+          <span className={primary ? "font-normal text-fg-muted" : "font-normal text-warn"} data-testid="primary-role-status">
             {primary ? `· ${ROLE_LABELS[primary]}` : "· Not selected"}
           </span>
         </Label>
@@ -48,7 +48,7 @@ export function RoleFields({ initialPrimary, initialSecondary, onChange }: { ini
         </div>
       </div>
       <div>
-        <Label>OFF ROLE (optional)</Label>
+        <Label>Off role (optional)</Label>
         {secondary ? (
           <div className="flex flex-wrap items-center gap-1.5" data-testid="secondary-role">
             {chip(secondary, true, false, () => setAddingSecondary(true))}

@@ -23,8 +23,10 @@ describe("the text hierarchy facts", () => {
   it("pass with the tiers deployed, the disabled tone only on disabled controls and no capitals", () => {
     expect(tiersDeployed(TEXT_TIERS)).toBe(true);
     expect(statuses(typeVerdicts({ kind: "desktop", page: "profile", facts: facts(), tiers: true, sentenceCase: true }))).toEqual(["PASS", "PASS", "PASS"]);
-    // Team Overview keeps its approved capitals: its page is judged without the sentence-case fact.
-    expect(statuses(typeVerdicts({ kind: "phone", page: "team", facts: facts({ capitals: ["dt in lineup-row-MID"] }) }))).toEqual(["PASS"]);
+    // Team Overview's labels are sentence case since 27 Nov 2026 (the owner's decision D4): its page is judged with the fact, and a
+    // label in capitals there fails as anywhere (the check calls it with sentenceCase).
+    expect(statuses(typeVerdicts({ kind: "phone", page: "team", facts: facts(), tiers: true, sentenceCase: true }))).toEqual(["PASS", "PASS", "PASS"]);
+    expect(statuses(typeVerdicts({ kind: "phone", page: "team", facts: facts({ capitals: ["dt in lineup-row-MID"] }), sentenceCase: true }))).toEqual(["PASS", "FAIL"]);
   });
 
   it("fail on a missing or old tier, live text in the disabled tone, or capitals where labels are sentence case", () => {

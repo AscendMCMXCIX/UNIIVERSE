@@ -3,7 +3,7 @@ import type { AssignmentStatus } from "@/domain/roster";
 import { cn } from "@/lib/cn";
 
 /**
- * Main Role / Off Role: whether the position a player holds is their Primary Role
+ * Main role / Off role (sentence case since Release 19, D4): whether the position a player holds is their Primary Role
  * (`assignmentStatus`). One size and style wherever a lineup player is shown: the Team page cards.
  * The badge says it in words, so it carries no hover text (TT.T15). On a card under 12rem (five
  * across from a 56rem lineup, a 1280px window with the sidebar open) it shows "Main" or "Off", the
@@ -26,7 +26,7 @@ export function RoleStatusBadge({ status, role, className }: { status: Assignmen
     >
       {main ? "Main" : "Off"}
       {/* A non-breaking space: as a flex item of its own, a leading plain space would not be drawn. */}
-      <span className="@max-[12rem]/card:sr-only">{"\u00a0Role"}</span>
+      <span className="@max-[12rem]/card:sr-only">{"\u00a0role"}</span>
     </span>
   );
 }

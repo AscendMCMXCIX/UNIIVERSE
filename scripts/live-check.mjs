@@ -60,7 +60,7 @@
     screen.
   - Team Overview (November 2026: the approved design, before #275), on whatever lineup production
     has: at 1440 the lineup centred in the height under the section tabs (or starting at the top
-    when taller than the window), and the header's 80px logo and "Team Overview" eyebrow with the
+    when taller than the window), and the header's 80px logo and "Team overview" eyebrow with the
     five cards on the stage's floor, hidden from screen readers; on the phone the first lineup card
     above the tab bar; at every width no bench of substitutes under the lineup (a substitute is on
     their starter's card). A fact whose precondition does not hold (no lineup five across, no tab
@@ -107,8 +107,10 @@
     progress and Recent form where drawn) end within the window; Leaderboards' multikills and milestones
     show every row with no Show all, and no board leaves a blank band (its last line within 24px of its
     end unless its rows have grown to their cap, 3.5rem a row on average; the multikills' legend right
-    under their last row); a profile's pool showing fewer rows than it has says so in its Show all.
-    Positions, counts and the Show all's words only. At every width,
+    under their last row); a profile's pool showing fewer rows than it has says so in its Show all;
+    and (Release 19) the lowest section ends at least 12px above the page's own bottom padding (a
+    warning with less, the window being the hard limit). Positions, counts and the Show all's words
+    only. At every width,
     Records & achievements' old address (/leaderboards?view=records) opens the same page, the view gone
     from its address, at the season records (in view, focused). Counts, heights and true/false only.
   - settings: the picture and display-name help name the public team page, and Settings never
@@ -161,8 +163,10 @@
   - type (25 Nov 2026, the owner's readability request; scripts/type-facts.mjs): at every width the
     four text tiers are deployed with their values (primary, secondary, tertiary, disabled); on Team
     Overview, the teammate's profile and Settings no live text is drawn in the disabled tone (only a
-    disabled control or its label); on the profile and Settings, whose labels are sentence case, no
-    text in capitals outside a round pill and a member's own name style; on All Champions' table (not
+    disabled control or its label); on Team Overview (sentence case since 27 Nov 2026, the owner's
+    decision D4), the profile and Settings, whose labels are sentence case, no text in capitals
+    outside a round pill, a member's own name style and Team's backdrop lettering (artwork, hidden
+    from screen readers); on All Champions' table (not
     on narrow rows), every figure primary (a dash or zero tertiary), semibold only in the sorted
     column, under the one semibold heading. Counts, values and tags only.
   - reach (PR 2b; S4a, 20 Nov 2026): from the end of Match History, on the desktop and the tablet the
@@ -790,7 +794,7 @@ async function accountMenuFirstTap(page, kind, trigger) {
  * - desktop (1440 × 900, the sidebar open), five across: the header and the cards are centred in
  *   the height under the section tabs (as much room above the header as under the cards, the frame
  *   reaching the window's foot), or start at the top when they are taller than the window; and the
- *   header shows the logo at 80px and the "Team Overview" eyebrow over the name, with the cards on
+ *   header shows the logo at 80px and the "Team overview" eyebrow over the name, with the cards on
  *   the stage's floor (drawn from just under them, hidden from screen readers);
  * - phone (390 × 844): the first lineup card ends above the tab bar, and the lineup is the carousel
  *   (23 Nov 2026): no pager over it, one card on screen, centred in the page's gutter, and five
@@ -814,7 +818,8 @@ async function teamFacts(page, kind) {
     const track = q("[data-testid=lineup-overview]");
     const floor = q("[data-testid=lineup-stage-floor]");
     const logo = header?.querySelector("img, [data-testid=brand-mark-text]");
-    const eyebrow = header ? [...header.querySelectorAll("p")].find((p) => p.textContent.trim() === "Team Overview") : null;
+    // The eyebrow in sentence case since 27 Nov 2026 (the owner's decision D4).
+    const eyebrow = header ? [...header.querySelectorAll("p")].find((p) => p.textContent.trim() === "Team overview") : null;
     const nav = [...document.querySelectorAll("nav[aria-label=Primary]")].find(shown);
     const at = (el, side) => (el ? Math.round(el.getBoundingClientRect()[side]) : null);
     return {
@@ -874,7 +879,7 @@ async function teamFacts(page, kind) {
     }
     // The team's identity at its approved size, and the stage the cards stand on: the floor lit from
     // just under them (its top in their last 48px), decoration hidden from screen readers.
-    const stage = "1440: the Team header's 80px logo and Team Overview eyebrow, and the five cards on the stage's floor (hidden from screen readers)";
+    const stage = "1440: the Team header's 80px logo and \"Team overview\" eyebrow, and the five cards on the stage's floor (hidden from screen readers)";
     if (!fiveAcross) check("team", stage, "PASS", notFive);
     else {
       const logo = !!f.logo && Math.abs(f.logo.w - 80) <= 1 && Math.abs(f.logo.h - 80) <= 1;
@@ -2218,8 +2223,8 @@ async function reachFacts(page, kind) {
 /**
  * The text hierarchy (the owner's readability request, 25 Nov 2026; scripts/type-facts.mjs): on the
  * page just opened, no live text in the disabled tone; with `tiers`, the four text tiers deployed;
- * with `sentenceCase`, no capitals outside a pill (the profile's Overview and Settings, whose labels
- * are sentence case; Team Overview keeps its approved capitals, so it is judged without).
+ * with `sentenceCase`, no capitals outside a pill (Team Overview, the profile's Overview and Settings,
+ * whose labels are sentence case: Team Overview's since 27 Nov 2026, the owner's decision D4).
  */
 async function typeFacts(page, kind, name, { tiers = false, sentenceCase = false } = {}) {
   const facts = await page.evaluate(readTypeFacts);
@@ -2487,7 +2492,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
       await axe(page, kind, "team");
       await teamFacts(page, kind);
       await guarded("security", `${kind}: Team's management controls`, () => managementFacts(page, kind, "team"));
-      await guarded("type", `${kind}: Team Overview's text`, () => typeFacts(page, kind, "team", { tiers: true }));
+      await guarded("type", `${kind}: Team Overview's text`, () => typeFacts(page, kind, "team", { tiers: true, sentenceCase: true }));
       await guarded("team", `${kind}: shared kit`, () => sharedKitFacts(page, kind));
     }
   });

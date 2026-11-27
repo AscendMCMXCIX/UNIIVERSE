@@ -34,7 +34,8 @@ export function CompleteProfileForm({ defaultPlatform }: { defaultPlatform: stri
           <RiotAccountsFields defaultPlatform={defaultPlatform} onChange={setAccounts} />
           <RoleFields onChange={setRoles} />
           {error ? <p className="text-sm text-bad">{error}</p> : null}
-          <Button type="submit" variant="primary" disabled={busy}>
+          {/* Its words wrap on a phone at a large text size (Release 19: at 150% on a 320px phone the page scrolled sideways). */}
+          <Button type="submit" variant="primary" wrap className="max-w-full" disabled={busy}>
             {busy ? "Creating…" : "Create my player profile"}
           </Button>
         </form>

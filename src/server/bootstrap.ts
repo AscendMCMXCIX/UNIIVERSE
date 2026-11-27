@@ -2,7 +2,7 @@ import type { Db } from "@/server/db/types";
 import { getDbHandle, type DbHandle } from "@/server/db/client";
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { runJob } from "@/server/jobs";
-import { applyScreenshotFixture, seedDemoAccounts, seedDemoRoster, seedDemoVerificationAccount } from "@/server/demo/seed";
+import { applyFullRosterFixture, applyScreenshotFixture, seedDemoAccounts, seedDemoRoster, seedDemoVerificationAccount } from "@/server/demo/seed";
 import { applyDemoEncounters } from "@/server/demo/encounters-fixture";
 import { applyDemoBuilds } from "@/server/demo/builds-fixture";
 import { seedDemoHighElo } from "@/server/demo/high-elo";
@@ -45,6 +45,8 @@ async function bootstrap(handle: DbHandle): Promise<void> {
     await seedChampionAbilitiesFromFixture(db).catch((err) => console.error("[bootstrap] champion abilities not stored:", err));
     await seedDemoRoster(db);
     await seedDemoAccounts(db);
+    // Layout checks of a full roster: the two members in setup play too, so nine are active (in-memory demo only).
+    if (process.env.UNIIVERSE_DEMO_FULL_ROSTER === "1" && handle.mode === "pglite-memory") await applyFullRosterFixture(db);
     // Distinct other players per demo game, with a few recurring ones (synthetic DEMO_ games only).
     if (handle.mode !== "postgres") await applyDemoEncounters(db);
     // Champion Intel's builds: a few champions' games on the current patch, one with two builds (synthetic DEMO_ games only).

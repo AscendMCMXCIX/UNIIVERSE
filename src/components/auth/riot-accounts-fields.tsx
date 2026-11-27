@@ -22,16 +22,17 @@ export function RiotAccountsFields({ defaultPlatform, initial, onChange, compact
   return (
     <div className="space-y-3">
       <div>
-        <Label htmlFor="riotId">PRIMARY RIOT ID *</Label>
+        <Label htmlFor="riotId">Primary Riot ID *</Label>
         <Input id="riotId" name="riotId" value={primary.riotId} onChange={(e) => { const p = { ...primary, riotId: e.target.value }; setPrimary(p); emit(p, extras); }} placeholder="GameName#TAG" spellCheck={false} autoComplete="off" required />
         {/* The server is confirmed by Riot during verification; the configured default is only a fallback. */}
         <input type="hidden" name="platform" value={primary.platform} />
         {!compact ? <p className="mt-1 text-xs text-fg-subtle">Exactly as shown in the League client, including the #TAG. Unicode names are fine; the server you play on is confirmed by Riot automatically.</p> : null}
       </div>
       <div>
-        <div className="flex items-center justify-between">
-          <Label>ADDITIONAL RIOT ACCOUNTS (optional)</Label>
-          <Button type="button" size="sm" variant="ghost" onClick={() => { const e = [...extras, { riotId: "", platform: primary.platform }]; setExtras(e); emit(primary, e); }}>
+        {/* The button goes under the label where both do not fit one line (a phone at a large text size: Release 19, /me ran 54-179px past a 320px phone at 150-200%). */}
+        <div className="flex flex-wrap items-center justify-between gap-x-3">
+          <Label>Additional Riot accounts (optional)</Label>
+          <Button type="button" size="sm" variant="ghost" wrap className="max-w-full" onClick={() => { const e = [...extras, { riotId: "", platform: primary.platform }]; setExtras(e); emit(primary, e); }}>
             <Plus className="h-3.5 w-3.5" /> Add another account
           </Button>
         </div>

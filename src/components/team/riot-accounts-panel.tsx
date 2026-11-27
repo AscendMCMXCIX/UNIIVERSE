@@ -1,5 +1,6 @@
 "use client";
 
+import { cn } from "@/lib/cn";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { ChevronDown, ChevronUp, ExternalLink, MoreHorizontal, Pencil, Plus, RefreshCw, Star, Trash2 } from "lucide-react";
@@ -124,7 +125,7 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
           {announce}
         </p>
         {accounts.length === 0 ? <p className="text-sm text-fg-muted">No Riot account linked yet{editable ? `. Add one so ${your} statistics can be measured.` : "."}</p> : null}
-        <ul className="grid gap-2.5 md:grid-cols-2" data-testid="riot-accounts">
+        <ul className="grid md:grid-cols-2 md:gap-x-6" data-testid="riot-accounts">
           {ordered.map((a, index) => {
             const sync = describeAccountSync({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, resolveAttempts: a.resolveAttempts, history: a.historyBackfill, riotConfigured });
             const main = a.label === "main";
@@ -147,7 +148,10 @@ export function RiotAccountsPanel({ playerId, accounts, riotConfigured, editable
               // min-w-0: a grid item is otherwise at least as wide as its widest word, and a long Riot ID at
               // 200% text made the row (and the page) wider than a phone, so the page under it (Data
               // diagnostics' summary) took no tap where it was drawn. The Riot ID wraps, never cut.
-              <li key={a.id} className={`flex min-w-0 flex-col gap-2 rounded-panel border bg-bg-elevated p-3 ${main ? "border-accent/40" : "border-border"}`} data-testid="riot-account-row" data-label={a.label}>
+              // A row on the panel's own surface between hairlines (Release 19, the visual review's V3: each account was a bordered
+              // card inside the bordered panel); the main account keeps its accent as a 2px bar at its start, as your own row on a board.
+              <li key={a.id} className={cn("relative flex min-w-0 flex-col gap-2 border-t border-border/60 py-3 ps-3 first:border-t-0 md:[&:nth-child(2)]:border-t-0")} data-testid="riot-account-row" data-label={a.label} data-main={main || undefined}>
+                {main ? <span aria-hidden className="pointer-events-none absolute inset-y-3 start-0 w-0.5 rounded-full bg-accent" data-testid="riot-account-main-bar" /> : null}
                 <div className="flex flex-wrap items-start gap-x-2 gap-y-1">
                   <div className="min-w-0 flex-1 basis-[5em]">
                     <div className="flex flex-wrap items-center gap-1.5">

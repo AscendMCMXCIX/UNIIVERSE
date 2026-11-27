@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "./test";
+import { widenText } from "./wide-text";
 import { closeGame, opensFullScreen, openGame, pastGameHeader, showGamePage } from "./match-history";
 import { NARROW_MOUSE_WINDOWS, expectInReach } from "./reach";
 import { AxeBuilder } from "@axe-core/playwright";
@@ -847,6 +848,9 @@ test("a phone at 200% text (390 × 844, 375 × 667): the game window never scrol
 // every common desktop size, the sidebar open or collapsed. Every role's first games, read once the
 // timeline, the groups and the ranks have settled (with reduced motion every style change still runs
 // for 0.01ms, globals.css). The Production check holds 1440 × 900 and 1280 × 720 on real games.
+/** The least room the opened game keeps under it at the desktop sizes (Release 19; CI's text runs wider: e2e/wide-text.ts). */
+const OPENED_SPARE = 12;
+
 for (const sidebar of ["expanded", "collapsed"] as const) {
   test(`desktop, the sidebar ${sidebar}: every opened game and its card fit the window with nothing inside scrolling, at 1280 × 720, 1366 × 768, 1440 × 900 and 1920 × 1080`, async ({ page, baseURL }, info) => {
     test.skip(info.project.name !== "desktop", "the desktop's one-screen post-game view");
@@ -866,7 +870,8 @@ for (const sidebar of ["expanded", "collapsed"] as const) {
           await settled(breakdown);
           grouped += (await breakdown.getByTestId("possible-group").count()) > 0 ? 1 : 0;
           const label = `${size.width}×${size.height}, ${role} game ${i + 1}`;
-          await expect.poll(async () => { const f = await openedFit(page); return f.height - f.room; }, { message: `${label}: the card and its game within the room under the pinned bars`, timeout: 5_000 }).toBeLessThanOrEqual(0);
+          // With 12px to spare (Release 19: no layout held to a measure without a margin; it had 34px or more at 1280 × 720).
+          await expect.poll(async () => { const f = await openedFit(page); return f.height - f.room; }, { message: `${label}: the card and its game within the room under the pinned bars, 12px to spare`, timeout: 5_000 }).toBeLessThanOrEqual(-OPENED_SPARE);
           expect(await insideFaults(breakdown), label).toEqual([]);
           await closeGame(card);
         }
@@ -874,5 +879,19 @@ for (const sidebar of ["expanded", "collapsed"] as const) {
     }
     // The demo's recurring pair is in some of these games: a possible group's line is covered.
     expect(grouped).toBeGreaterThan(0);
+    // Once more with CI's wider text (e2e/wide-text.ts), at the smallest size, each role's first game.
+    if (sidebar === "expanded") {
+      await widenText(page);
+      await page.setViewportSize({ width: 1280, height: 720 });
+      for (const role of ["TOP", "JUNGLE", "MID", "ADC", "SUPPORT"]) {
+        await openHistory(page, role);
+        const card = page.getByTestId("match-card").first();
+        const breakdown = await openGame(card);
+        await settled(breakdown);
+        await expect.poll(async () => { const f = await openedFit(page); return f.height - f.room; }, { message: `1280×720, ${role}, wider text: 12px to spare`, timeout: 5_000 }).toBeLessThanOrEqual(-OPENED_SPARE);
+        expect(await insideFaults(breakdown), `${role}, wider text`).toEqual([]);
+        await closeGame(card);
+      }
+    }
   });
 }

@@ -23,21 +23,21 @@ export function SignupForm({ action, kind, token, needsKey = false, defaultPlatf
       {token ? <input type="hidden" name="token" value={token} /> : null}
       {kind === "invite" ? <input type="hidden" name="mode" value="new" /> : null}
       <div>
-        <Label htmlFor="username">USERNAME *</Label>
+        <Label htmlFor="username">Username *</Label>
         <Input id="username" name="username" defaultValue={v.username || suggestedUsername} required minLength={2} maxLength={32} autoComplete="username" autoFocus spellCheck={false} />
         <p className="mt-1 text-xs text-fg-subtle">How teammates see you, and what you sign in with.</p>
       </div>
       <RiotAccountsFields defaultPlatform={v.platform || defaultPlatform} initial={v.riotId ? { primary: { riotId: v.riotId, platform: v.platform || defaultPlatform }, extras: (v.extraRiotIds || "").split("\n").filter(Boolean).map((riotId, i) => ({ riotId, platform: (v.extraPlatforms || "").split("\n")[i] || v.platform || defaultPlatform })) } : undefined} />
       <RoleFields initialPrimary={(v.primaryRole as "TOP" | "JUNGLE" | "MID" | "ADC" | "SUPPORT") || null} initialSecondary={(v.secondaryRole as "TOP" | "JUNGLE" | "MID" | "ADC" | "SUPPORT") || null} />
       <div>
-        <Label htmlFor="password">{passwordRequired ? "PASSWORD *" : "PASSWORD (optional)"}</Label>
+        <Label htmlFor="password">{passwordRequired ? "Password *" : "Password (optional)"}</Label>
         <Input id="password" name="password" type="password" autoComplete="new-password" required={passwordRequired} minLength={passwordRequired ? 10 : undefined} />
-        <p className="mt-1 text-xs text-fg-subtle">{passwordRequired ? "At least 12 characters; a few words together work well. The owner account always has one." : "At least 12 characters; a few words together work well. Skip it for now and you stay signed in on this device; set one under My profile before signing in elsewhere. No email is used anywhere."}</p>
+        <p className="mt-1 text-xs text-fg-subtle">{passwordRequired ? "At least 12 characters; a few words together work well. The owner account always has one." : "At least 12 characters; a few words together work well. Skip it for now and you stay signed in on this device; set one under My Profile before signing in elsewhere. No email is used anywhere."}</p>
       </div>
       {needsKey ? (
         <div>
           {/* As the other fields: the label, then what it is under the field (the variable's name breaks only at its underscores). */}
-          <Label htmlFor="setupKey">SETUP KEY *</Label>
+          <Label htmlFor="setupKey">Setup key *</Label>
           <Input id="setupKey" name="setupKey" type="password" required aria-describedby="setupKey-hint" />
           <p id="setupKey-hint" className="mt-1 text-xs text-fg-subtle">
             The UNIIVERSE_<wbr />ACCESS_<wbr />PASSWORD value you configured.

@@ -36,7 +36,7 @@ import { formatOrdinal } from "@/lib/format";
   src/server: the pieces render in server components (Leaderboards) and client trees alike.
 */
 
-export type Density = "slim" | "compact" | "dense" | "regular" | "two-line";
+export type Density = "slim" | "compact" | "rank" | "dense" | "regular" | "two-line";
 /** One density at every width, or one per tier of the board: narrow (under 36rem), medium (from 36rem), wide (from 58rem). */
 export type DensityByWidth = Density | { narrow: Density; medium?: Density; wide?: Density };
 export type TiePosition = "start" | "mid" | "end";
@@ -116,11 +116,15 @@ export function DataGroup({ as: List = "ol", label, caption, captionTestId, capt
  * 52px, two lines 64px; with a 32px picture (Release 16, the one-screen Leaderboards) compact 40px (a
  * name over a line of small text, or one line) and slim 36px (one line beside a 28px chip). On a
  * touch screen compact and slim rows are 44px, the target's size.
+ * `rank` (Release 19, Leaderboards' rankings): a compact row whose height follows the roster, the
+ * `--rank-row` its board sets (40px for up to seven players, 38px for eight, 36px for nine or more:
+ * leaderboards-dashboard.tsx, RANK_ROW), with no padding or gap of its own, so a name over its dates
+ * (35px of text) still fits 36px; 40px where nothing sets it; 44px on a touch screen.
  */
 const DENSITY = {
-  narrow: { slim: "min-h-9 py-0.5 pointer-coarse:min-h-11", compact: "min-h-10 py-0.5 pointer-coarse:min-h-11", dense: "min-h-11 py-1", regular: "min-h-13 py-1.5", "two-line": "min-h-16 py-2" },
-  medium: { slim: "@min-[36rem]/list:min-h-9 @min-[36rem]/list:py-0.5 pointer-coarse:@min-[36rem]/list:min-h-11", compact: "@min-[36rem]/list:min-h-10 @min-[36rem]/list:py-0.5 pointer-coarse:@min-[36rem]/list:min-h-11", dense: "@min-[36rem]/list:min-h-11 @min-[36rem]/list:py-1", regular: "@min-[36rem]/list:min-h-13 @min-[36rem]/list:py-1.5", "two-line": "@min-[36rem]/list:min-h-16 @min-[36rem]/list:py-2" },
-  wide: { slim: "@min-[58rem]/list:min-h-9 @min-[58rem]/list:py-0.5 pointer-coarse:@min-[58rem]/list:min-h-11", compact: "@min-[58rem]/list:min-h-10 @min-[58rem]/list:py-0.5 pointer-coarse:@min-[58rem]/list:min-h-11", dense: "@min-[58rem]/list:min-h-11 @min-[58rem]/list:py-1", regular: "@min-[58rem]/list:min-h-13 @min-[58rem]/list:py-1.5", "two-line": "@min-[58rem]/list:min-h-16 @min-[58rem]/list:py-2" },
+  narrow: { slim: "min-h-9 py-0.5 pointer-coarse:min-h-11", compact: "min-h-10 py-0.5 pointer-coarse:min-h-11", rank: "min-h-[var(--rank-row,2.5rem)] py-0 gap-y-0! pointer-coarse:min-h-11", dense: "min-h-11 py-1", regular: "min-h-13 py-1.5", "two-line": "min-h-16 py-2" },
+  medium: { slim: "@min-[36rem]/list:min-h-9 @min-[36rem]/list:py-0.5 pointer-coarse:@min-[36rem]/list:min-h-11", compact: "@min-[36rem]/list:min-h-10 @min-[36rem]/list:py-0.5 pointer-coarse:@min-[36rem]/list:min-h-11", rank: "@min-[36rem]/list:min-h-[var(--rank-row,2.5rem)] @min-[36rem]/list:py-0 @min-[36rem]/list:gap-y-0 pointer-coarse:@min-[36rem]/list:min-h-11", dense: "@min-[36rem]/list:min-h-11 @min-[36rem]/list:py-1", regular: "@min-[36rem]/list:min-h-13 @min-[36rem]/list:py-1.5", "two-line": "@min-[36rem]/list:min-h-16 @min-[36rem]/list:py-2" },
+  wide: { slim: "@min-[58rem]/list:min-h-9 @min-[58rem]/list:py-0.5 pointer-coarse:@min-[58rem]/list:min-h-11", compact: "@min-[58rem]/list:min-h-10 @min-[58rem]/list:py-0.5 pointer-coarse:@min-[58rem]/list:min-h-11", rank: "@min-[58rem]/list:min-h-[var(--rank-row,2.5rem)] @min-[58rem]/list:py-0 @min-[58rem]/list:gap-y-0 pointer-coarse:@min-[58rem]/list:min-h-11", dense: "@min-[58rem]/list:min-h-11 @min-[58rem]/list:py-1", regular: "@min-[58rem]/list:min-h-13 @min-[58rem]/list:py-1.5", "two-line": "@min-[58rem]/list:min-h-16 @min-[58rem]/list:py-2" },
 } as const;
 
 export function densityClasses(density: DensityByWidth): string {
