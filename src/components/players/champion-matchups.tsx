@@ -883,6 +883,8 @@ function WorkspacePairing({ id, me, them, o, role, isOwn, data, onMatch, onBack,
             <>
               <span className="font-semibold text-fg">{kda.perfect ? "Perfect KDA" : `KDA ${kda.ratio.toFixed(2)}`}</span> · {kda.kills.toFixed(1)} / {kda.deaths.toFixed(1)} / {kda.assists.toFixed(1)}{" "}
               <span className="text-fg-subtle">{kda.games === pairing.games.length ? (kda.games === 1 ? "in this game" : `over these ${formatCount(kda.games)} games`) : `over the ${plural(kda.games, "game")} with a full record`}</span>
+              {/* One paragraph in the workspace: the KDA's words end where the sentence begins. */}
+              {sentence ? "." : null}
             </>
           ) : null}
           {sentence ? (

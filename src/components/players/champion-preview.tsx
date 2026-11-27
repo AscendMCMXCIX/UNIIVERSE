@@ -281,8 +281,9 @@ export function PreviewContent({ playerId, isOwn, row, role, vs, champ, data, on
     <div id="champion-preview" className={cn("@container/detail flex flex-col gap-4", ws && "ws:flex-1 ws:gap-0")} data-testid="champion-preview-content" data-champion={row.championId} data-role={role ?? ""}>
       {/* In the sheet (its controls are the window's), the identity goes under the portrait where less than 10rem is left beside
           it (a 320px phone at 200% text), rather than squeeze "Mastery 167K" past the sheet's edge. */}
-      {/* The workspace's P1: one line where it fits (the portrait 36px), not pinned (nothing scrolls). */}
-      <header className={cn("flex items-start gap-3", pane ? "sticky top-[calc(var(--bar-top)+var(--tabs-top))] z-[2] -mx-5 border-b border-border/70 bg-surface px-5 pb-3 pt-4" : "flex-wrap", ws && "ws:static ws:items-center ws:pb-2 ws:pt-2")} data-testid="champion-preview-header">
+      {/* The workspace's P1: one line where it fits (the portrait 36px), not pinned (nothing scrolls); its corners the
+          card's, as the pane no longer clips in the workspace (docs/RESPONSIVE.md, "All Champions' workspace"). */}
+      <header className={cn("flex items-start gap-3", pane ? "sticky top-[calc(var(--bar-top)+var(--tabs-top))] z-[2] -mx-5 border-b border-border/70 bg-surface px-5 pb-3 pt-4" : "flex-wrap", ws && "ws:static ws:items-center ws:rounded-t-card ws:pb-2 ws:pt-2")} data-testid="champion-preview-header">
         <ChampionPortrait champion={me} size="md" className={cn("h-12 w-12 shrink-0 rounded-lg ring-1 ring-border-strong/60", ws && "ws:h-9 ws:w-9")} />
         <div className={cn("min-w-0", pane ? "flex-1" : "grow basis-40", ws && "ws:flex ws:flex-wrap ws:items-baseline ws:gap-x-3 ws:gap-y-0.5")}>
           {pane ? (
