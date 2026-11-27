@@ -22,6 +22,7 @@ import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/s
 import { moveRolePatch, roleOrder, useProfileAutosave, type ProfileState } from "./use-profile-autosave";
 import { formatCompactCount } from "@/lib/format";
 import { screenHeight } from "@/lib/screen";
+import { fitLimit } from "@/components/ui/fit-rows";
 
 /** Role choice as a row of icon chips; the current choice is highlighted, changes save at once. */
 export function RolePicker({
@@ -99,7 +100,12 @@ export const PRIMARY_POOL_PHONE_TOP = 3;
  * hides at least two.
  */
 export const PRIMARY_POOL_TOP = 5;
-/** The longest primary pool shown whole on tablets and desktops (PRIMARY_POOL_TOP). */
+/**
+ * The longest primary pool shown whole on tablets and desktops (PRIMARY_POOL_TOP), except in the
+ * Overview's 2×2 where its six rows would end within the guard band of the window's bottom (Release
+ * 19, the owner's decision O1 of 26 Nov 2026: at 1920 × 950 six rows left the page 4px): there it
+ * shows five and "Show all 6", as a longer pool does (usePoolFit).
+ */
 export const PRIMARY_POOL_FOLD_OVER = 6;
 
 export function PoolSection({
@@ -123,6 +129,7 @@ export function PoolSection({
   phoneTop,
   top,
   foldOver,
+  fitFold,
   children,
 }: {
   /**
@@ -139,6 +146,13 @@ export function PoolSection({
   top?: number;
   /** Fold only a pool longer than this (at least `top`), so a Show all never hides one or two rows. */
   foldOver?: number;
+  /**
+   * In the profile Overview's 2×2 only (the rail beside the pools' column), fold a pool of `foldOver`
+   * or fewer past `top` as well where it would end within the guard band of the window's bottom, and
+   * only where that brings the column above it (else the page scrolls anyway, and the pool shows
+   * whole): usePoolFit. Measured once the page is interactive; the server draws the pool whole.
+   */
+  fitFold?: boolean;
   /**
    * Shown as a one-line summary (the role, its champions as small portraits) until opened: off
    * roles on the profile, so the page leads with the primary pool. Opening shows the full,
@@ -174,14 +188,18 @@ export function PoolSection({
   const bodyId = React.useId();
   const closed = !!collapsible && !collapsible.open;
   const fold = usePhoneFold(`pool-${testId}`);
-  // A long pool folds at every width past `top` (its Show all at the list's end, for phones too);
+  const sectionRef = React.useRef<HTMLElement>(null);
+  const display = top !== undefined && !!stats && !editable && !closed;
+  // A pool of up to `foldOver` in the Overview's 2×2: folded past `top` only where its rows would end too near the window's bottom.
+  const fitted = usePoolFit(sectionRef, display && !!fitFold && ids.length > top! && ids.length <= Math.max(top!, foldOver ?? top!), ids.length);
+  // A long pool folds at every width past `top` (its Show all on its heading's line, for phones too);
   // else a pool longer than `phoneTop` folds on phones only (its Show all by the heading).
-  const foldsWide = top !== undefined && !!stats && !editable && !closed && ids.length > Math.max(top, foldOver ?? top);
+  const foldsWide = display && (ids.length > Math.max(top!, foldOver ?? top!) || fitted);
   const folds = !foldsWide && phoneTop !== undefined && !!stats && !editable && !closed && ids.length > phoneTop;
   const grouped = folds || foldsWide;
   const addChampion = (compact: boolean) => <AddChampion role={role} champions={champions} exclude={selected} onAdd={(id) => onChange([...ids, id])} testId={testId} compact={compact} />;
   return (
-    <section className={cn("space-y-2", closed && "space-y-0", grouped && fold.groupProps.className)} data-testid={testId} data-open={collapsible ? collapsible.open : undefined} data-fold={grouped ? fold.groupProps["data-fold"] : undefined}>
+    <section ref={sectionRef} className={cn("@container/pool space-y-2", closed && "space-y-0", grouped && fold.groupProps.className)} data-testid={testId} data-open={collapsible ? collapsible.open : undefined} data-fold={grouped ? fold.groupProps["data-fold"] : undefined} data-fit-fold={fitted ? "folded" : undefined}>
       <div className="flex min-h-6 flex-wrap items-center gap-x-3 gap-y-2">
         {/* One line: the role (its menu while editing), how many champions, and what the role is to the player. */}
         <h3 className="flex min-w-0 flex-wrap items-center gap-x-2.5 gap-y-1 text-sm font-semibold">
@@ -190,8 +208,14 @@ export function PoolSection({
           <span className="whitespace-nowrap font-normal text-fg-subtle" data-testid={`${testId}-count`}>
             {ids.length} champion{ids.length === 1 ? "" : "s"}
           </span>
-          {eyebrow ? <span className={cn("whitespace-nowrap rounded-full border px-2 py-px text-2xs font-semibold uppercase tracking-label", eyebrowClassName ?? "border-accent-2/40 bg-accent-2/10 text-accent-2")}>{eyebrow}</span> : null}
+          {/* What the role is to the player, in sentence case as every label (Release 19: it was the page's last pill in capitals). */}
+          {eyebrow ? <span className={cn("whitespace-nowrap rounded-full border px-2 py-px text-2xs font-semibold", eyebrowClassName ?? "border-accent-2/40 bg-accent-2/10 text-accent-2")}>{eyebrow}</span> : null}
         </h3>
+        {foldsWide ? (
+          // The rest of a long pool, on the heading's line (Release 19): at the list's end it took a row of its own, as tall as the
+          // row it hid, so a folded pool was no shorter. On a narrow list (a phone) at the line's end, as the phone's own Fold.
+          <PoolFoldToggle open={fold.open} onToggle={fold.toggle} controls={bodyId} label={`${ROLE_LABELS[role]} champions`} count={ids.length} testId={`${testId}-fold`} />
+        ) : null}
         {closed && ids.length ? <PoolPreview ids={ids} championsById={championsById} onInspect={onInspect} inspectHref={inspectHref} testId={`${testId}-preview`} /> : null}
         {actions || (editable && stats && !closed) || collapsible || folds ? (
           <div className="ml-auto flex items-center gap-1">
@@ -212,7 +236,7 @@ export function PoolSection({
         <p className="rounded-panel border border-dashed border-border px-3 py-4 text-sm text-fg-subtle">{editable ? "No champions in this role yet. Add the ones you play here." : "No champions yet."}</p>
       ) : (
         <>
-        {stats ? <PoolColumns role={role} editable={editable} testId={testId} besideHeading={!editable && !collapsible} /> : null}
+        {stats ? <PoolColumns role={role} editable={editable} testId={testId} besideHeading={!editable && !collapsible} toggle={foldsWide} /> : null}
         <SortablePool
           ids={ids}
           championsById={championsById}
@@ -231,12 +255,6 @@ export function PoolSection({
           // never ends in a card-sized blank; the setup form keeps the cell at the end of the list.
           addSlot={editable && !stats ? addChampion(false) : undefined}
         />
-        {foldsWide ? (
-          // Where the rows stop: the rest of the pool, the same Fold as the phone's (its state kept on the history entry).
-          <div className="flex justify-center border-t border-border/50 pt-1.5">
-            <PhoneFoldToggle everywhere open={fold.open} onToggle={fold.toggle} controls={bodyId} label={`${ROLE_LABELS[role]} champions`} showText={`Show all ${ids.length}`} hideText="Show fewer" testId={`${testId}-fold`} />
-          </div>
-        ) : null}
         </>
       )}
       {children}
@@ -316,12 +334,12 @@ const STATS_HIDDEN_WHILE_EDITING = "@max-sm:hidden";
  * phone, and from 175% the names ran past the list); under 8.5rem, where the rows name their
  * figures in words (STATS_COLUMNS), they step aside.
  */
-function PoolColumns({ role, editable, testId, besideHeading = false }: { role: Role; editable: boolean; testId: string; /** On the pool's heading line from a 38rem list (BESIDE_HEADING). */ besideHeading?: boolean }) {
+function PoolColumns({ role, editable, testId, besideHeading = false, toggle = false }: { role: Role; editable: boolean; testId: string; /** On the pool's heading line from a 38rem list (BESIDE_HEADING). */ besideHeading?: boolean; /** The heading's line carries the pool's Show all: beside it from a 42rem list only. */ toggle?: boolean }) {
   return (
     // A row's frame (its 1px transparent border too), so the columns sit over the row's figures.
-    <div aria-hidden className={cn("label-text flex flex-wrap items-center gap-x-1.5 gap-y-0.5 whitespace-nowrap border-x border-transparent pb-0.5 pl-2 pr-1.5 @2xs:gap-x-2 @sm:gap-x-2.5 @lg:gap-x-3 @lg:pl-2.5 @max-[8.5rem]:hidden", besideHeading && BESIDE_HEADING)} data-testid={`${testId}-columns`}>
+    <div aria-hidden className={cn("label-text flex flex-wrap items-center gap-x-1.5 gap-y-0.5 whitespace-nowrap border-x border-transparent pb-0.5 pl-2 pr-1.5 @2xs:gap-x-2 @sm:gap-x-2.5 @lg:gap-x-3 @lg:pl-2.5 @max-[8.5rem]:hidden", besideHeading && (toggle ? BESIDE_HEADING_WITH_TOGGLE : BESIDE_HEADING))} data-testid={`${testId}-columns`}>
       <span className="w-3 shrink-0 @sm:w-4" />
-      <span className={cn("flex-1", besideHeading && "@min-[38rem]:invisible")}>Champion</span>
+      <span className={cn("flex-1", besideHeading && (toggle ? "@min-[42rem]:invisible" : "@min-[38rem]:invisible"))}>Champion</span>
       <span className={cn(STATS_COLUMNS, "text-center", editable && STATS_HIDDEN_WHILE_EDITING)}>
         <span>Games</span>
         <span>
@@ -340,12 +358,109 @@ function PoolColumns({ role, editable, testId, besideHeading = false }: { role: 
  * A display pool's column names on its heading's line, from a 38rem list (Release 16: a line of their
  * own cost the one-screen Overview 28px): drawn up over the heading's 24px line and the 8px under it,
  * at the line's right end, over the figures as ever; "Champion" keeps its room but is not drawn (the
- * heading names the pool). From 38rem the heading ("Support 12 champions PRIMARY ROLE", about 19rem)
+ * heading names the pool). From 38rem the heading ("Support 12 champions Primary role", about 18rem)
  * and the four columns (17rem) fit the line side by side; with large text the list is narrower in rem
  * and the names keep a line of their own. Never while editing or on an off role, whose heading's line
  * holds its buttons at that end.
  */
 const BESIDE_HEADING = "pointer-events-none @min-[38rem]:-mt-8 @min-[38rem]:h-6 @min-[38rem]:pb-0";
+/**
+ * The same with the pool's Show all on the heading's line (Release 19): the heading, the Show all and
+ * the columns need about 41rem side by side ("12 champions", "Primary role", "Show all 12" and the four
+ * columns, with CI's slightly wider text), so from 42rem; on a narrower list (the 2×2 at 1440 with the
+ * sidebar open, 39rem) the names keep a line of their own over the rows.
+ */
+const BESIDE_HEADING_WITH_TOGGLE = "pointer-events-none @min-[42rem]:-mt-8 @min-[42rem]:h-6 @min-[42rem]:pb-0";
+
+/**
+ * The primary pool's Show all and Show fewer on its heading's line (the same Fold, and state, as the
+ * phone's: its open state kept on the history entry). A line's height (24px) with a mouse, so the
+ * heading's line is no taller and the column names beside it stay level; a 44px target on a touch
+ * screen (touch-target). After the heading where the column names stand beside it (from 38rem), at the
+ * line's end on a narrower list (a phone), as the phone's own Fold.
+ */
+function PoolFoldToggle({ open, onToggle, controls, label, count, testId }: { open: boolean; onToggle: () => void; controls: string; label: string; count: number; testId: string }) {
+  const words = open ? "Show fewer" : `Show all ${count}`;
+  return (
+    <button type="button" onClick={onToggle} aria-expanded={open} aria-controls={controls} aria-label={`${words} ${label}`} className="touch-target inline-flex min-h-6 shrink-0 items-center gap-0.5 whitespace-nowrap rounded-md text-xs font-medium text-fg-muted transition-colors duration-150 hover:text-accent focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-accent @max-[38rem]/pool:ml-auto" data-testid={testId}>
+      {words}
+      <ChevronDown className={cn("h-3.5 w-3.5 transition-transform duration-150 motion-reduce:transition-none", open && "rotate-180")} aria-hidden />
+    </button>
+  );
+}
+
+/**
+ * Whether the profile Overview's 2×2 should fold a primary pool of six (or fewer, past `top`): only
+ * where the pools' column sits beside the rail (the 2×2), only where its rows, drawn whole, end within
+ * the guard band (FIT_GUARD_REM) of the window's bottom less the page's padding, and only where folding
+ * brings the column above that line (where it does not, the page scrolls anyway and the pool shows
+ * whole). Decided for each window size (and root size): drawn whole first, then folded and measured
+ * again; the fonts' loading and a change of the page's width decide again. Changes of the page's
+ * height alone (an off role opened) do not, so nothing above it changes under the reader.
+ */
+function usePoolFit(ref: React.RefObject<HTMLElement | null>, active: boolean, key: unknown): boolean {
+  const [state, setState] = React.useState<{ at: string; fold: boolean; settled: boolean } | null>(null);
+  const live = React.useRef(state);
+  React.useLayoutEffect(() => {
+    live.current = state;
+  });
+  React.useEffect(() => {
+    if (!active && live.current) setState(null);
+  }, [active]);
+  React.useLayoutEffect(() => {
+    if (!active) return;
+    const sizeKey = () => `${window.innerWidth}x${window.innerHeight}@${getComputedStyle(document.documentElement).fontSize}|${String(key)}`;
+    const columnBottom = (el: HTMLElement) => {
+      const column = el.closest<HTMLElement>("[data-testid=overview-pools]");
+      const rail = el.closest("[data-testid=overview-dashboard]")?.querySelector<HTMLElement>("[data-testid=overview-ranked]");
+      if (!column || !rail) return null;
+      const c = column.getBoundingClientRect();
+      // The 2×2: the rail to the right of the pools' column (elsewhere Ranked progress sits above them, or beside the season's card).
+      if (rail.getBoundingClientRect().left < c.right - 1) return null;
+      return c.bottom + window.scrollY;
+    };
+    const measure = () => {
+      const el = ref.current;
+      if (!el) return;
+      const at = sizeKey();
+      const s = live.current;
+      const bottom = columnBottom(el);
+      if (bottom === null) {
+        if (!s || s.fold || s.at !== at) setState({ at, fold: false, settled: true });
+        return;
+      }
+      const limit = fitLimit();
+      if (!s || s.at !== at) {
+        // A new size: decided from the pool drawn whole (unfolded first where it was folded).
+        if (s?.fold) setState({ at: "", fold: false, settled: false });
+        else setState({ at, fold: bottom > limit, settled: !(bottom > limit) });
+        return;
+      }
+      // Folded for this size: kept only where the column now ends above the line.
+      if (s.fold && !s.settled) setState({ at, fold: bottom <= limit, settled: true });
+    };
+    measure();
+    const again = () => setState((s) => (s ? { ...s, at: "" } : s));
+    window.addEventListener("resize", measure);
+    void document.fonts?.ready.then(again);
+    // A resize's root size and column widths can settle a frame after its event (fit-rows.tsx, useFit): the page's width changing decides again.
+    const frame = typeof ResizeObserver === "function" ? document.getElementById("content") : null;
+    let width = frame?.clientWidth ?? 0;
+    const observer = frame
+      ? new ResizeObserver(() => {
+          if (frame.clientWidth === width) return;
+          width = frame.clientWidth;
+          again();
+        })
+      : null;
+    if (frame) observer?.observe(frame);
+    return () => {
+      window.removeEventListener("resize", measure);
+      observer?.disconnect();
+    };
+  }, [active, key, ref, state]);
+  return active && !!state?.fold;
+}
 
 /**
  * A champion's season in this role, at its row's end under the column names: games, win rate
@@ -655,6 +770,7 @@ export function ProfileEditor({
       phoneTop={i === 0 ? PRIMARY_POOL_PHONE_TOP : undefined}
       top={i === 0 ? PRIMARY_POOL_TOP : undefined}
       foldOver={i === 0 ? PRIMARY_POOL_FOLD_OVER : undefined}
+      fitFold={i === 0}
     />
   );
 

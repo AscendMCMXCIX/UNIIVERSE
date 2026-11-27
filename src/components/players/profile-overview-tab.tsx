@@ -20,6 +20,7 @@ import { FORM_MIN_GAMES } from "@/domain/recent-form";
 import type { PoolStats } from "@/components/profile/pool-stats";
 import type { OverviewCard } from "@/server/players/overview";
 import { championMap, IdentitySync, refreshFor, type ProfileSearch } from "./profile-sections";
+import { InfoTip } from "@/components/ui/info-tip";
 
 /* The player profile's Overview tab (components/players/profile-sections.tsx has the frame shared by every tab). */
 
@@ -99,18 +100,16 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
   const status = sync
     ? dataStatus({ accounts: overview.accounts.map((a) => a.sync), checkedAt: sync.checkedAt, attemptedAt: sync.attemptedAt, newestGameAt: sync.newestGameAt, season: overview.completeness, multikills: m, details: { games: perf.games, detailed: perf.detailedGames, unavailable: perf.unavailableGames }, unknownRole: overview.summary.unknownRole })
     : null;
-  // The pools' heading (Edit sits at the end of its line) and what the figures on the cards count.
+  // The pools' heading (Edit sits at the end of its line), what the figures on the cards count behind its ⓘ (Release 19: a line
+  // of its own under the heading repeated the section header's scope, and cost the one-screen Overview 20px at 1440 × 900).
   const poolsHeading = (
-    <h2 id="champion-pools" className="text-base font-semibold text-fg">
-      Roles &amp; champion pools
-    </h2>
+    <span className="flex min-w-0 items-center gap-1.5">
+      <h2 id="champion-pools" className="text-base font-semibold text-fg">
+        Roles &amp; champion pools
+      </h2>
+      {showStats ? <InfoTip label="What the pools' figures count" text={`Each champion's figures count its games in that role: ${scope}.`} testId="pool-scope" /> : null}
+    </span>
   );
-  // One quiet line: what the figures count (the rows' numbers already give the order of preference).
-  const poolsIntro = showStats ? (
-    <p className="text-xs text-fg-subtle">
-      <span data-testid="pool-scope">Figures: games in that role · {scope}</span>
-    </p>
-  ) : null;
   // The pools (the player's own choice of roles and champions, in order), with each champion's
   // figures in that role over the page's games; the owner and admins edit them in place.
   const pools = (
@@ -127,7 +126,6 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
               editable,
               stats: showStats ? poolStats(overview.cards) : undefined,
               heading: poolsHeading,
-              intro: poolsIntro,
             }}
             championsPath={`${basePath}/champions`}
             championsScope={championsScope}
@@ -136,10 +134,7 @@ async function ProfileOverviewTabBody({ db, header, session, basePath, search }:
         </div>
       ) : (
         <>
-          <div className="space-y-1">
-            {poolsHeading}
-            {poolsIntro}
-          </div>
+          {poolsHeading}
           <FirstRole playerId={player.id} name={player.displayName} self={self} editable={editable} />
         </>
       )}

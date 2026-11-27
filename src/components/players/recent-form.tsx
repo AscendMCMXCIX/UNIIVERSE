@@ -127,22 +127,26 @@ export function RecentFormStrip({ form, championsById, historyHref, narrowed = n
 
 /**
  * How many of the recent games' champions the 2×2's Recent form lists before "and N more" in the
- * server's drawing (Release 16): Recent form is the rail's last card since Ranked progress went above
- * it, so it lists as many as the window's height holds, by the one-screen tiers of globals.css
- * (board-at-*): two under board-at-mid (1440 × 780), three from it (1920 × 950), four from
- * board-at-short (1440 × 900). Once the page is interactive the list shows as many more as fit above
- * the window's bottom (FitChampions, fit-rows.tsx), every champion of the games where there is room.
+ * server's drawing (Release 16; one row fewer since Release 19): Recent form is the rail's last card
+ * since Ranked progress went above it, so it lists as many as the window's height holds, by the
+ * one-screen tiers of globals.css (board-at-*): one under board-at-mid (1440 × 780), two from it
+ * (1920 × 950), three from board-at-short (1440 × 900). That is a row fewer than fits there, so the
+ * first paint never ends within a few pixels of the window (it did by 1–2px at 1440 × 900, which a
+ * browser that sets text a hair wider turned into a scroll). Once the page is interactive the list
+ * shows as many more as fit above the window's bottom with the guard band (FitChampions,
+ * fit-rows.tsx), every champion of the games where there is room, added at the list's end.
  */
-export const RECENT_CHAMPIONS_SHOWN = 4;
+export const RECENT_CHAMPIONS_SHOWN = 3;
 /**
  * Each row's fold in the server's drawing (the "css" mode), by its index: literal classes, for Tailwind.
  * With an account select in Ranked progress (`fewer`) one row fewer in each height: in a narrow rail
  * (1440 × 900 with the sidebar open) the select takes the card's title onto two lines, and the server's
- * drawing never runs past the window (the fit adds the row back where it fits, at the list's end).
+ * drawing never runs past the window (the fit adds the row back where it fits, at the list's end). The
+ * first row always shows.
  */
 const CHAMPION_ROW_FOLD = (i: number, fewer: boolean) => {
   const at = fewer ? i + 1 : i;
-  return at < 2 ? "" : at === 2 ? "group-data-[fit=css]/fit:board-below-mid:hidden" : at === 3 ? "group-data-[fit=css]/fit:board-below-short:hidden" : "group-data-[fit=css]/fit:hidden";
+  return i === 0 || at < 1 ? "" : at === 1 ? "group-data-[fit=css]/fit:board-below-mid:hidden" : at === 2 ? "group-data-[fit=css]/fit:board-below-short:hidden" : "group-data-[fit=css]/fit:hidden";
 };
 
 /**
@@ -164,11 +168,11 @@ function RecentChampions({ last, champ, fewer }: { last: RecentForm["last"]; cha
     by.set(g.championId, c);
   }
   const rows = [...by.values()].sort((a, b) => b.games - a.games || b.at - a.at);
-  // "and N more" in each height until measured: two, three or four rows shown (one, two or three with `fewer`).
-  const more = (n: number) => Math.max(0, rows.length - (fewer ? n - 1 : n));
+  // "and N more" in each height until measured: one, two or three rows shown (one, one or two with `fewer`: the first always shows).
+  const more = (n: number) => Math.max(0, rows.length - Math.max(1, fewer ? n - 1 : n));
   const counts: Array<[number, string]> = [
-    [more(2), "board-at-mid:hidden"],
-    [more(3), "hidden board-at-mid:board-below-short:inline"],
+    [more(1), "board-at-mid:hidden"],
+    [more(2), "hidden board-at-mid:board-below-short:inline"],
     [more(RECENT_CHAMPIONS_SHOWN), "hidden board-at-short:inline"],
   ];
   // The heading on a 16px line and 4px over the list (25 Nov 2026): the sentence-case label is 12px on desktops where
@@ -180,7 +184,7 @@ function RecentChampions({ last, champ, fewer }: { last: RecentForm["last"]; cha
         total={rows.length}
         heading={<h3 className="label-text leading-4">Champions in these games</h3>}
         cssMore={
-          more(2) ? (
+          more(1) ? (
             <p className="text-xs text-fg-subtle" data-testid="recent-form-champions-more">
               {counts.map(([n, cls], i) => (n ? <span key={i} className={cls}>and {n} more</span> : null))}
             </p>

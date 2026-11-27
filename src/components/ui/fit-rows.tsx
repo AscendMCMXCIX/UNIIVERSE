@@ -12,6 +12,11 @@ import * as React from "react";
   moves); where even the tiers' rows run past the window (a larger team), it shows fewer, down to the
   first row, so nothing runs past it.
 
+  Since Release 19 every fitted list keeps a guard band above the window's bottom (FIT_GUARD_REM), and
+  the server's tiers draw one row fewer than fit the windows they are tuned for, so neither the first
+  paint nor the fitted list ends within a few pixels of the window (CI's browser sets text a little
+  wider than this container's, and two one-screen specs flipped on it in Release 18).
+
   The rows carry `data-ov-rank` (1-based: the order in which they are shown), a caption that heads some
   of them `data-ov-caption` (the rank of its first row). The list's element carries the mode in
   `attribute`: its CSS value ("closed" for a board, "css" for the champions), where the tiers' classes
@@ -27,15 +32,64 @@ export interface Fit {
   ranks: number;
 }
 
+/**
+ * The guard band (Release 19, the owner's request of 26 Nov 2026: no layout that depends on 2px of
+ * spare room): a fitted list never ends within this much of the window's bottom (above the page's
+ * own bottom padding), so a wider run of glyphs (CI's browser sets text about 0.5% wider than this
+ * container's), a late font swap or a chart that loads late cannot push the page past the window.
+ * 1rem: 16px at 1440, about 17.7px at 1920. It costs at most one row, which the list's "and N more"
+ * counts. The profile's primary pool folds by the same margin (profile-editor.tsx, usePoolFit).
+ */
+export const FIT_GUARD_REM = 1;
+
+/** The guard band in px at the page's root size. */
+export function fitGuardPx(): number {
+  return FIT_GUARD_REM * (parseFloat(getComputedStyle(document.documentElement).fontSize) || 16);
+}
+
+/**
+ * Where the first screen ends for a list, in the page's coordinates: the window's bottom less the
+ * page's bottom padding (`#content`'s, so the page does not scroll) and the guard band. With a
+ * `sibling` (the column beside the list's, the Overview's pools) that itself ends further down, the
+ * page scrolls anyway, and the list may run to that column's bottom instead: it then shows every row
+ * that fits beside it, rather than one or two while the page scrolls past them (large text).
+ */
+export function fitLimit(sibling?: string): number {
+  const main = document.getElementById("content");
+  const pad = main ? parseFloat(getComputedStyle(main).paddingBottom) || 0 : 0;
+  // The rows' bottoms are read in the page's coordinates (their box plus the scroll), and the first screen is the page's top.
+  const firstScreen = window.innerHeight - pad - fitGuardPx();
+  const beside = sibling ? document.querySelector(sibling) : null;
+  const besideBottom = beside && beside.getBoundingClientRect().height > 0 ? beside.getBoundingClientRect().bottom + window.scrollY : -Infinity;
+  return Math.max(firstScreen, besideBottom);
+}
+
+/**
+ * The count the rows fit at (pure, for its unit test): from the CSS tiers' count, as many more as
+ * still end at or above `limit`, then fewer, down to the first, while the list ends past it.
+ * `items` are the rows' ranks and heights, `caps` the captions' (each with the rank of its first
+ * row), `bottomAll` where the list (or its card) ends with every row drawn.
+ */
+export function fitCount({ items, caps, bottomAll, limit, cssCount }: { items: ReadonlyArray<{ rank: number; h: number }>; caps: ReadonlyArray<{ first: number; h: number }>; bottomAll: number; limit: number; cssCount: number }): Fit {
+  const ranks = Math.max(...items.map((i) => i.rank));
+  const bottomFor = (k: number) => bottomAll - items.filter((i) => i.rank > k).reduce((s, i) => s + i.h, 0) - caps.filter((c) => c.first > k).reduce((s, c) => s + c.h, 0);
+  let count = Math.max(1, Math.min(cssCount, ranks));
+  while (count < ranks && bottomFor(count + 1) <= limit) count++;
+  // Where even the tiers' rows run past the limit (a larger team lengthening the column above), fewer, down to the first.
+  while (count > 1 && bottomFor(count) > limit) count--;
+  return { count, more: items.filter((i) => i.rank > count).length, ranks };
+}
+
 const shown = (el: Element) => el.getBoundingClientRect().height > 0;
 
 /**
  * How many rows fit: every row drawn for a moment (the `measure` mode), each row's and caption's
- * height read, then the most rows whose list ends at or above the window's bottom less the page's
- * bottom padding (so the page does not scroll): more than the CSS tiers show where there is room, fewer
- * (down to the first row) where even theirs run past it.
+ * height read, then the most rows whose list ends at or above the first screen's end (fitLimit: the
+ * window's bottom less the page's bottom padding and the guard band, or the sibling column's bottom
+ * where the page scrolls anyway): more than the CSS tiers show where there is room, fewer (down to
+ * the first row) where even theirs run past it.
  */
-export function measureFit(el: HTMLElement, attribute: string, cssMode: string, outer?: string): Fit | null {
+export function measureFit(el: HTMLElement, attribute: string, cssMode: string, outer?: string, sibling?: string): Fit | null {
   const before = el.getAttribute(attribute);
   el.setAttribute(attribute, cssMode);
   const rows = [...el.querySelectorAll<HTMLElement>("[data-ov-rank]")];
@@ -50,15 +104,7 @@ export function measureFit(el: HTMLElement, attribute: string, cssMode: string, 
   const items = rows.map((r) => ({ rank: Number(r.dataset.ovRank), h: r.getBoundingClientRect().height }));
   const caps = [...el.querySelectorAll<HTMLElement>("[data-ov-caption]")].map((c) => ({ first: Number(c.dataset.ovCaption), h: c.getBoundingClientRect().height }));
   if (before !== null) el.setAttribute(attribute, before);
-  const main = document.getElementById("content");
-  const limit = window.innerHeight - (main ? parseFloat(getComputedStyle(main).paddingBottom) || 0 : 0);
-  const ranks = Math.max(...items.map((i) => i.rank));
-  const bottomFor = (k: number) => bottomAll - items.filter((i) => i.rank > k).reduce((s, i) => s + i.h, 0) - caps.filter((c) => c.first > k).reduce((s, c) => s + c.h, 0);
-  let count = cssCount;
-  while (count < ranks && bottomFor(count + 1) <= limit + 0.5) count++;
-  // Where even the tiers' rows run past the window (a larger team lengthening the column above), fewer, down to the first.
-  while (count > 1 && bottomFor(count) > limit + 0.5) count--;
-  return { count, more: items.filter((i) => i.rank > count).length, ranks };
+  return fitCount({ items, caps, bottomAll, limit: fitLimit(sibling), cssCount });
 }
 
 /** The rule hiding the rows past the fitted count, scoped to the list (`selector`) in its `fit` mode. */
@@ -74,7 +120,7 @@ export function FitStyle({ selector, fit }: { selector: string; fit: Fit }) {
  * whenever `key` changes (the fold opened or closed, the list's size) and once the fonts have loaded. In a layout effect, so the fitted rows are drawn before the browser
  * paints the interactive page.
  */
-export function useFit(ref: React.RefObject<HTMLElement | null>, attribute: string, cssMode: string, active: (el: HTMLElement) => boolean, key: unknown, outer?: string): Fit | null {
+export function useFit(ref: React.RefObject<HTMLElement | null>, attribute: string, cssMode: string, active: (el: HTMLElement) => boolean, key: unknown, outer?: string, sibling?: string): Fit | null {
   const [fit, setFit] = React.useState<Fit | null>(null);
   // The test of whether to measure, kept current without re-subscribing (it is a function of the element only).
   const activeRef = React.useRef(active);
@@ -84,9 +130,9 @@ export function useFit(ref: React.RefObject<HTMLElement | null>, attribute: stri
   const measure = React.useCallback(() => {
     const el = ref.current;
     if (!el || !activeRef.current(el)) return setFit(null);
-    const next = measureFit(el, attribute, cssMode, outer);
+    const next = measureFit(el, attribute, cssMode, outer, sibling);
     setFit((was) => (was && next && was.count === next.count && was.more === next.more && was.ranks === next.ranks ? was : next));
-  }, [ref, attribute, cssMode, outer]);
+  }, [ref, attribute, cssMode, outer, sibling]);
   React.useLayoutEffect(() => {
     measure();
     window.addEventListener("resize", measure);
@@ -119,7 +165,8 @@ export function wideBoard(el: HTMLElement): boolean {
 export function FitChampions({ total, heading, cssMore, children }: { total: number; heading: React.ReactNode; /** "and N more" by the CSS tiers, until measured. */ cssMore: React.ReactNode; children: React.ReactNode }) {
   const ref = React.useRef<HTMLDivElement>(null);
   const id = React.useId().replace(/:/g, "");
-  const fit = useFit(ref, "data-fit", "css", shown, total, "[data-testid=recent-form]");
+  // Beside the pools' column: where it ends past the window (large text, an off role opened), the page scrolls anyway and the list runs to its bottom.
+  const fit = useFit(ref, "data-fit", "css", shown, total, "[data-testid=recent-form]", "[data-testid=overview-pools]");
   return (
     <div ref={ref} data-fit={fit ? "fit" : "css"} data-fit-id={id} className="group/fit" data-testid="recent-form-champions-fit">
       {fit ? <FitStyle selector={`[data-fit-id="${id}"][data-fit="fit"]`} fit={fit} /> : null}

@@ -1,6 +1,7 @@
 import { expect, test, type Locator, type Page } from "./test";
 import { lineupAtRest } from "./lineup";
 import { playerEntry } from "./players";
+import { widenText } from "./wide-text";
 
 /*
   Team Overview and a profile's Overview as home screens (in-memory demo roster, synthetic data).
@@ -210,10 +211,13 @@ test("profile Overview: a 2×2 dashboard at 1440 (the season beside ranked progr
         const rows = [...document.querySelectorAll("[data-testid=recent-form-champions] [data-champion]")];
         const shown = rows.filter((r) => r.getBoundingClientRect().height > 0);
         const more = document.querySelector("[data-testid=recent-form-champions-more]");
-        return { free: innerHeight - parseFloat(getComputedStyle(document.getElementById("content")!).paddingBottom) - form.getBoundingClientRect().bottom, row: shown[0]?.getBoundingClientRect().height ?? 0, hidden: rows.length - shown.length, more: more && more.getBoundingClientRect().height ? (more as HTMLElement).innerText : null };
+        const guard = parseFloat(getComputedStyle(document.documentElement).fontSize);
+        return { free: innerHeight - parseFloat(getComputedStyle(document.getElementById("content")!).paddingBottom) - form.getBoundingClientRect().bottom, row: shown[0]?.getBoundingClientRect().height ?? 0, guard, hidden: rows.length - shown.length, more: more && more.getBoundingClientRect().height ? (more as HTMLElement).innerText : null };
       });
       expect(fit.more, `1920 × ${height}: "and N more" says what is hidden`).toBe(fit.hidden ? `and ${fit.hidden} more` : null);
-      if (fit.hidden) expect(fit.free, `1920 × ${height}: room for no further champion`).toBeLessThan(fit.row);
+      // The list keeps its guard band (1rem, fit-rows.tsx FIT_GUARD_REM) above the window less the page's padding, and no more than a row besides.
+      expect(fit.free, `1920 × ${height}: the guard band kept`).toBeGreaterThanOrEqual(fit.guard - 1);
+      if (fit.hidden) expect(fit.free, `1920 × ${height}: room for no further champion`).toBeLessThan(fit.row + fit.guard);
     }
     await page.setViewportSize({ width: 1440, height: 900 });
   }
@@ -587,12 +591,41 @@ test("profile Overview's 2×2 without recent form: Ranked progress beside the se
   expect(await page.getByTestId("ranked-progress").evaluate((card) => !!card.lastElementChild?.querySelector("[data-testid=ranked-chart], [data-testid=ranked-no-chart]"))).toBe(true);
 });
 
-test("profile Overview on one screen for every seeded member, at 1920 × 950 and 1440 × 900 with the sidebar open or folded and at 1920 × 1080, a second Riot account's select included", async ({ page, context, baseURL }, info) => {
+/**
+ * The Overview's room under its columns (Release 19: "spare", not "fits"): the window's height less the page's bottom padding
+ * and the lowest card's end, with the bottoms of the parts, the pool's rows shown and in all, and the rail's champions. In px.
+ */
+const overviewSpare = (page: Page) =>
+  page.evaluate(() => {
+    const ids = ["season-figures", "ranked-progress", "recent-form", "champion-pools"];
+    const bottoms = ids.map((id) => document.querySelector(`[data-testid=${id}]`)?.getBoundingClientRect().bottom ?? 0);
+    const pad = parseFloat(getComputedStyle(document.getElementById("content")!).paddingBottom);
+    const pool = [...document.querySelectorAll("[data-testid=primary-pool] [data-testid=pool-item]")];
+    const fit = document.querySelector("[data-testid=recent-form-champions-fit]");
+    return {
+      spare: Math.round(innerHeight - pad - Math.max(...bottoms)),
+      left: Math.round(innerHeight - pad - Math.max(bottoms[0]!, bottoms[3]!)),
+      right: Math.round(innerHeight - pad - Math.max(bottoms[1]!, bottoms[2]!)),
+      bottoms: bottoms.map(Math.round),
+      scrolls: document.documentElement.scrollHeight > innerHeight,
+      pool: `${pool.filter((r) => r.getBoundingClientRect().height > 0).length}/${pool.length}`,
+      fitted: !fit || fit.getAttribute("data-fit") === "fit",
+      select: !!document.querySelector("[data-testid=ranked-account-select]"),
+    };
+  });
+
+/** The least room the Overview keeps under its columns at the sizes it is held to (Release 19; CI's text runs wider: e2e/wide-text.ts). */
+const OVERVIEW_SPARE = 12;
+
+test("profile Overview on one screen with room to spare for every seeded member, at 1920 × 950 and 1440 × 900 with the sidebar open or folded and at 1920 × 1080, a second Riot account's select included, and with wider text", async ({ page, context, baseURL }, info) => {
   test.skip(info.project.name !== "desktop", "explicit window sizes");
-  test.setTimeout(240_000);
+  test.setTimeout(360_000);
   // The review's M5: a jungler's six-row pool with its off roles ran 9px past 1920 × 950. Every member the demo seeds,
   // each pool size it has; a second account (linked as progress.spec does, to the member no other ranked test reads)
-  // puts Ranked progress's account select on its title row.
+  // puts Ranked progress's account select on its title row. Release 19 (the owner's request of 26 Nov 2026: no layout that
+  // depends on 2px of spare room): every column ends at least OVERVIEW_SPARE above the page's bottom padding, not merely
+  // in the window (1-4px had been left at 1440 × 900 and 1920 × 950, and CI's slightly wider text scrolled the page); the
+  // rail's fitted champions keep the guard band (fit-rows.tsx), and a six-row pool that would end in it folds its sixth row.
   await page.goto("/players");
   const sub = (await playerEntry(page, "Demo Sub (Support)").first().getAttribute("href"))!;
   await page.goto(`${sub}/accounts`);
@@ -614,27 +647,59 @@ test("profile Overview on one screen for every seeded member, at 1920 × 950 and
   }
   expect(profiles.length, "the seeded members").toBeGreaterThanOrEqual(7);
   let selects = 0;
-  for (const [width, height, sidebar] of [
-    [1920, 950, "collapsed"],
-    [1920, 950, "expanded"],
-    [1920, 1080, "expanded"],
-    [1440, 900, "expanded"],
-    [1440, 900, "collapsed"],
-  ] as const) {
+  let folded = 0;
+  const sizes = [
+    [1920, 950, "collapsed", false],
+    [1920, 950, "expanded", false],
+    [1920, 1080, "expanded", false],
+    [1440, 900, "expanded", false],
+    [1440, 900, "collapsed", false],
+    // CI's wider text, last (it stays on the tab from here): the two tightest sizes.
+    [1440, 900, "expanded", true],
+    [1920, 950, "expanded", true],
+  ] as const;
+  for (const [width, height, sidebar, wide] of sizes) {
+    if (wide) await widenText(page);
     await context.addCookies([{ name: "uniiverse_sidebar", value: sidebar, url: baseURL! }]);
     await page.setViewportSize({ width, height });
     for (const [name, href] of profiles) {
       await page.goto(href);
       await expect(page.getByTestId("season-figures")).toBeVisible();
-      const f = await page.evaluate(() => ({
-        height: document.documentElement.scrollHeight,
-        bottoms: ["season-figures", "ranked-progress", "recent-form", "champion-pools"].map((id) => Math.round(document.querySelector(`[data-testid=${id}]`)?.getBoundingClientRect().bottom ?? 0)),
-        select: !!document.querySelector("[data-testid=ranked-account-select]"),
-      }));
+      const at = `${name} at ${width} × ${height}, sidebar ${sidebar}${wide ? ", wider text" : ""}`;
+      // Measured once the rail's champions are fitted (and the pool's fold decided, in the same pass): the room settles there.
+      await expect.poll(async () => (await overviewSpare(page)).fitted, { message: `${at}: the rail's champions fitted` }).toBe(true);
+      await expect.poll(async () => (await overviewSpare(page)).spare, { message: `${at}: room under the columns` }).toBeGreaterThanOrEqual(OVERVIEW_SPARE);
+      const f = await overviewSpare(page);
       if (f.select) selects++;
-      const at = `${name} at ${width} × ${height}, sidebar ${sidebar}${f.select ? ", account select" : ""}`;
-      expect(f.height, `${at}: the page does not scroll (cards end at ${f.bottoms.join(", ")})`).toBeLessThanOrEqual(height);
+      if (/^5\/6$/.test(f.pool)) folded++;
+      expect(f.scrolls, `${at}: the page does not scroll (cards end at ${f.bottoms.join(", ")}, pool ${f.pool})`).toBe(false);
+      // A pool of six folds only where six would not keep the margin: then five show, and its Show all says six.
+      if (f.pool === "5/6") await expect(page.getByTestId("primary-pool-fold"), `${at}: the folded sixth row is behind its Show all`).toHaveText(/^Show all 6/);
     }
   }
-  expect(selects, "the member with two accounts showed its select at each size").toBeGreaterThanOrEqual(5);
+  expect(selects, "the member with two accounts showed its select at each size").toBeGreaterThanOrEqual(7);
+  // At 1920 × 950 six rows and the off roles left 4px (Release 18): those pools fold there.
+  expect(folded, "a six-row pool folded where six would end too near the window's bottom").toBeGreaterThan(0);
+});
+
+test("profile Overview at 125% text on a 1920 × 1080 window: the page scrolls once for the pools' column, and the rail lists its champions down to that column's end", async ({ page, context, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "explicit window sizes");
+  // The browser's own text size (as a member who sets "Large" in Chrome): the rem media queries move with it, so the 2×2 still applies.
+  const cdp = await context.newCDPSession(page);
+  await cdp.send("Page.setFontSizes", { fontSizes: { standard: 20, fixed: 16 } });
+  await context.addCookies([{ name: "uniiverse_sidebar", value: "collapsed", url: baseURL! }]);
+  await page.setViewportSize({ width: 1920, height: 1080 });
+  await openTeammate(page);
+  await expect.poll(() => page.getByTestId("recent-form-champions-fit").getAttribute("data-fit")).toBe("fit");
+  const f = await page.evaluate(() => {
+    const r = (id: string) => document.querySelector(`[data-testid=${id}]`)!.getBoundingClientRect();
+    const rows = [...document.querySelectorAll("[data-testid=recent-form-champions] [data-champion]")];
+    return { pools: r("overview-pools"), form: r("recent-form"), ranked: r("overview-ranked"), shown: rows.filter((x) => x.getBoundingClientRect().height > 0).length, all: rows.length, window: innerHeight };
+  });
+  test.skip(f.ranked.left < f.pools.right, "the 2×2 does not apply at this text size");
+  if (f.pools.bottom > f.window) {
+    // The page scrolls anyway for the pools: the rail runs to their end, not to the window's (where it showed one or two rows).
+    expect(f.form.bottom, "the rail ends no lower than the pools' column").toBeLessThanOrEqual(f.pools.bottom + 1);
+    expect(f.shown, "the rail lists its champions down to the pools' end").toBeGreaterThanOrEqual(Math.min(3, f.all));
+  }
 });
