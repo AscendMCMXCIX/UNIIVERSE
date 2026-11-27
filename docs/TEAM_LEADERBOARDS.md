@@ -142,7 +142,7 @@ The owner asked (26 Nov 2026) for the multikill score to be reassessed against i
 | M1b | opportunity: M0 × the role's rate in games as bloody (the other players' kills ÷ their average, 8 buckets) | +40 |
 | M1c | opportunity: M0 × the game's minutes ÷ the role's average | +40 |
 | M1d | opportunity: M0 × the role's rate in the same queue group (ranked, draft, quickplay and blind, Swiftplay) | +40 |
-| M0eb | M0 | empirical Bayes: its size read from the board's own spread |
+| M0eb | M0 | empirical Bayes: its size read from the board's own spread (held within 0.08–0.35 for scoring) |
 | M4 | per-kind rates for each champion and role, each shrunk by the information behind it | empirical Bayes |
 | **M5** | M0 × the member's **own-games factor**: (the other players' multikill points in that member's games + 200) ÷ (what M0 expects of them + 200) | +40 |
 | M5eb | M4 × the own-games factor | empirical Bayes |
@@ -179,7 +179,7 @@ The owner asked (26 Nov 2026) for the multikill score to be reassessed against i
 - **R1, keep M0** (record the figures here in place of the breakdown's "not measured" caveat): the members' own games do not differ beyond chance (spread under 0.04 and homogeneity p over 0.05), every queue group with 300+ games within ±8% of 1, and M0's placebo does not follow the member's score (|ρ| under 0.3).
 - **R2, M5 a candidate:** own games differ (spread 0.05+, p under 0.01); allies and opponents agree (ρ 0.5+, mean |log ratio| under 0.05; if only this fails, build the factor from allies only); M0's placebo follows the member (|ρ| 0.4+) and M5's at most half as much. **Then still** re-run the simulation calibrated with the audit's own figures (`MULTIKILL_SIM_CALIBRATED`, scripts/research/multikill-sim/sim.ts) and change the formula only if M5 is first at least 0.04 more often and correlates 0.05 higher than M0 (more than 2 standard errors), never more than 0.02 worse where there is nothing to fix, and **the owner approves**: a changed formula moves places on an approved board.
 - **R3, per-kind champion rates too (M5eb):** R2, and the high-propensity champions' triples and larger above equal tendency (95% interval above 1.15), and the calibrated simulation showing M5eb first 0.03 more often than M5.
-- **R4, the cushion stays 40** unless the EB spread lies outside 0.12–0.40 in two audits a month apart (nine members are too few for one run).
+- **R4, the cushion stays 40** unless the EB spread lies outside 0.12–0.40 in two audits a month apart (nine members are too few for one run). The spread R4 reads is the board's own moment estimate before any clamp (`tauRaw` in the printed models): the EB models score with it held within 0.08–0.35 (`TAU_RANGE`, printed as `tau`), and a clamped figure could never pass 0.40, so R4 can hold on either side (a unit test: a board of members far apart, spread above 0.40, meets it).
 - **Never:** M1a, M1c, M2, M3, Mflat, or no cushion.
 
 **After the audit.** The coordinator runs it once after this release deploys and writes its outcome here. Keep: the evidence replaces the breakdown's caveat ("All supported Summoner's Rift queues are compared together, per game.") with the measured one. Candidate: a separate release, after the calibrated simulation and the owner's approval, with the change set out in the design (one multiplier on typical, "In their games ×1.08 → 72.5", shown in the breakdown, the Production check's recomputation kept and a new fact for the factor).

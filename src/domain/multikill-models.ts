@@ -57,8 +57,8 @@ export const PACE_EDGES: readonly number[] = [0.6, 0.8, 0.9, 1.0, 1.1, 1.25, 1.5
 export const KILLS_CAP = 20;
 /** Bootstrap draws (each member's games resampled; the comparison held fixed). */
 export const BOOTSTRAP_DRAWS = 300;
-/** The EB cushion's skill spread is held within these (a board of nine members cannot tell more). */
-const TAU_RANGE: readonly [number, number] = [0.08, 0.35];
+/** The EB cushion's skill spread is held within these when scoring (a board of nine members cannot tell more). Rule R4 reads the spread before this clamp. */
+export const TAU_RANGE: readonly [number, number] = [0.08, 0.35];
 
 /** The queue groups the audit compares (the supported Summoner's Rift queues). */
 export const QUEUE_GROUPS = ["ranked", "draft", "quickplay", "swiftplay"] as const;
@@ -249,13 +249,22 @@ export function ebScore(points: number, expected: number, variance: number, tau:
   return (100 * (points + c)) / (expected + c);
 }
 
-/** The board's skill spread for the EB cushion, by moments: the ratios' spread beyond what chance gives, held within TAU_RANGE. */
-export function ebTau(parts: ReadonlyArray<{ P: number; X: number; V: number }>): number {
+/** The board's squared skill spread by moments: the variance of the members' ratios P ÷ X beyond what chance gives them (negative when chance explains more than the spread). */
+function momentTau2(parts: ReadonlyArray<{ P: number; X: number; V: number }>): number {
   const ok = parts.filter((p) => p.X > 0);
   const rho = ok.map((p) => p.P / p.X);
   const v = ok.map((p) => p.V / p.X ** 2);
-  const tau2 = (sd(rho) ** 2 || 0) - mean(v);
-  return Math.sqrt(Math.min(TAU_RANGE[1] ** 2, Math.max(TAU_RANGE[0] ** 2, tau2)));
+  return (sd(rho) ** 2 || 0) - mean(v);
+}
+
+/** The board's skill spread for the EB cushion, by moments: the ratios' spread beyond what chance gives, held within TAU_RANGE (the models score with this). */
+export function ebTau(parts: ReadonlyArray<{ P: number; X: number; V: number }>): number {
+  return Math.sqrt(Math.min(TAU_RANGE[1] ** 2, Math.max(TAU_RANGE[0] ** 2, momentTau2(parts))));
+}
+
+/** The same spread before the clamp (0 when chance explains it all): what the board itself says, which rule R4 reads on both sides of 0.12–0.40. */
+export function ebTauRaw(parts: ReadonlyArray<{ P: number; X: number; V: number }>): number {
+  return Math.sqrt(Math.max(0, momentTau2(parts)));
 }
 
 /* ---------------- the models ---------------- */
@@ -283,7 +292,10 @@ export interface ModelResult {
   key: ModelKey;
   /** Each ranked member's score, in `input.members` order (internal: the summary prints aggregates only). */
   scores: number[];
+  /** The EB models' skill spread as scored (held within TAU_RANGE); null for the +40 models. */
   tau: number | null;
+  /** The same spread before the clamp (rule R4 reads it); null for the +40 models. */
+  tauRaw: number | null;
   rankCorrelationWithM0: number | null;
   sameFirstAsM0: boolean;
   sameTopThreeAsM0: boolean;
@@ -552,10 +564,10 @@ export function evaluateMultikillModels(input: AuditInput, options: { draws?: nu
     }
     return { P, X, V };
   };
-  const scoresOf = (model: number, parts: Array<{ P: number; X: number; V: number }>): { scores: number[]; tau: number | null } => {
-    if (models[model]!.scoring === "cushion") return { scores: parts.map((p) => (100 * (p.P + MULTIKILL_CUSHION)) / (p.X + MULTIKILL_CUSHION)), tau: null };
+  const scoresOf = (model: number, parts: Array<{ P: number; X: number; V: number }>): { scores: number[]; tau: number | null; tauRaw: number | null } => {
+    if (models[model]!.scoring === "cushion") return { scores: parts.map((p) => (100 * (p.P + MULTIKILL_CUSHION)) / (p.X + MULTIKILL_CUSHION)), tau: null, tauRaw: null };
     const tau = ebTau(parts);
-    return { scores: parts.map((p) => ebScore(p.P, p.X, p.V, tau)), tau };
+    return { scores: parts.map((p) => ebScore(p.P, p.X, p.V, tau)), tau, tauRaw: ebTauRaw(parts) };
   };
 
   // Guard: M0 here is production's score (scoreMember) for every member.
@@ -592,7 +604,7 @@ export function evaluateMultikillModels(input: AuditInput, options: { draws?: nu
 
   const results: Partial<Record<ModelKey, ModelResult>> = {};
   models.forEach((model, mIndex) => {
-    const { scores, tau } = scoresOf(mIndex, members.map((_, mi) => scoreParts(mi, mIndex)));
+    const { scores, tau, tauRaw } = scoresOf(mIndex, members.map((_, mi) => scoreParts(mi, mIndex)));
     const places = placesOf(scores);
     const first = order(scores)[0]!;
     const top3 = new Set(order(scores).slice(0, 3));
@@ -634,6 +646,7 @@ export function evaluateMultikillModels(input: AuditInput, options: { draws?: nu
       key: model.key,
       scores,
       tau,
+      tauRaw,
       rankCorrelationWithM0: spearman(scores, m0Full),
       sameFirstAsM0: first === m0First,
       sameTopThreeAsM0: top3.size === m0Top3.size && [...top3].every((i) => m0Top3.has(i)),
@@ -737,7 +750,8 @@ export interface AuditDecision {
  *     others), M0's placebo follows the member (|ρ| ≥ 0.4) and M5's placebo at most half as much.
  *  R3 per-kind champion rates too (M5eb): R2, and the high-propensity champions' larger kinds above
  *     equal tendency (95% interval above 1.15).
- *  R4 the cushion stays 40 unless the EB spread lies outside 0.12–0.40 (to confirm a month later).
+ *  R4 the cushion stays 40 unless the EB spread lies outside 0.12–0.40 (to confirm a month later):
+ *     the board's spread before TAU_RANGE's clamp, which holds only the scoring, so both sides can hold.
  * A candidate still needs the simulation re-run with these figures and the owner's approval.
  */
 export function decideMultikillAudit(e: Evaluation): AuditDecision {
@@ -763,8 +777,9 @@ export function decideMultikillAudit(e: Evaluation): AuditDecision {
   };
   const ci = e.pool.highPropensityLargerKinds.ci95;
   const r3 = { met: r2.met && ci !== null && ci[0] > 1.15, why: [`high-propensity champions' triples and larger against equal tendency: ${f(e.pool.highPropensityLargerKinds.ratio)} (95% ${ci ? `${f(ci[0])}–${f(ci[1])}` : "n/a"}; lower bound above 1.15 needed)`] };
-  const tau = e.models.M0eb?.tau ?? null;
-  const r4 = { met: tau !== null && (tau < 0.12 || tau > 0.4), why: [`EB skill spread ${f(tau)} (a cushion other than 40 only outside 0.12–0.40, in two audits a month apart)`] };
+  // The spread before the clamp: the clamped one (TAU_RANGE, at most 0.35) could never pass 0.40.
+  const tau = e.models.M0eb?.tauRaw ?? null;
+  const r4 = { met: tau !== null && Number.isFinite(tau) && (tau < 0.12 || tau > 0.4), why: [`EB skill spread ${f(tau)} before the scoring's clamp to ${TAU_RANGE[0]}–${TAU_RANGE[1]} (a cushion other than 40 only outside 0.12–0.40, in two audits a month apart)`] };
   const outcome: AuditOutcome = !r0.met ? "not-enough-data" : r2.met ? "candidate" : r1.met ? "keep" : "inconclusive";
   const next =
     outcome === "candidate"
@@ -823,6 +838,7 @@ export function auditSummary(e: Evaluation, extra: { season: number; counting: s
             {
               label: MODEL_LABELS[key],
               tau: r(m.tau),
+              tauRaw: r(m.tauRaw),
               rankCorrelationWithM0: r(m.rankCorrelationWithM0),
               sameFirstAsM0: m.sameFirstAsM0,
               sameTopThreeAsM0: m.sameTopThreeAsM0,
