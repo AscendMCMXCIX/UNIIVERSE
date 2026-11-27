@@ -117,7 +117,7 @@ Whenever any backup is restored, into production or a copy, apply the newest era
    Instead, once a deployment points at the restored database and the Owner can sign in: Personal data → **Import records**, which also re-applies them (the Owner only, with REAPPLY typed, as the `erasure-reconcile` job from Admin).
 3. Check before going further:
    - Personal data lists every record as "In force" or "Released", none as "Cannot be applied";
-   - a Data jobs `erasure-reconcile` run against that deployment reports nothing found again. To see first what it would change without changing anything, run `erasure-reconcile-count` (Release 19, a read-only check: the same reads, counts only; `tests/db/privacy-erasure.test.ts` proves its counts equal what `erasure-reconcile` then changes).
+   - a Data jobs `erasure-reconcile` run against that deployment reports nothing found again. To see first what it would change without changing anything, run `erasure-reconcile-count` (Release 19, a read-only check: the same reads, counts only; `tests/db/privacy-erasure.test.ts` proves its counts equal what `erasure-reconcile` then changes, also when an erased person's Riot account turns up on someone else's profile with games that carry it: such a stray account and each erasure record whose identity is still in stored games or logs count one each in both).
 4. Only then switch production to it.
 
 The daily `integrity` job also re-applies the records to anything stored in the last two days, as a safety net. It is not a substitute for step 2.

@@ -422,6 +422,30 @@ describe("personal-data erasure", () => {
     }
   }, 120_000);
 
+  it("counts what full mode changes when an erased identity turns up on someone else's profile (a stray Riot account) with games carrying it", async () => {
+    const exported = await exportErasures(handle.db);
+    const restored = await testDb();
+    try {
+      await seed(restored.db);
+      await importErasures(restored.db, JSON.parse(JSON.stringify(exported)));
+      expect(await reconcileErasures(restored.db, { mode: "full" })).toMatchObject({ people: 1 });
+      // Her main Riot account again, on Bob's profile (test-only rows, as a restored backup could hold), and a game stored with her in it.
+      await restored.db.insert(riotAccounts).values({ id: randomUUID(), ownerType: "player", playerId: id.bobPlayer, gameName: "AliceMain", tagLine: "OCE", platform: "oc1", puuid: "puuid-alice-main", label: "stray" });
+      await restored.db.insert(matchDetails).values({ matchId: "OC1_STRAY", platform: "oc1", queueId: 420, gameCreation: 2, gameDuration: 1800, teams: [], participants: [part("puuid-alice-main", "AliceMain#OCE", 100, "Ahri", "MIDDLE"), part("puuid-bob", "Bob#OCE", 100, "Garen", "TOP"), ...strangers(100, 3, 70), ...strangers(200, 5, 75)] });
+      const before = await tableCounts(restored.db);
+      const counted = await reconcileErasures(restored.db, { mode: "count" });
+      expect(await tableCounts(restored.db)).toEqual(before);
+      const result = await reconcileErasures(restored.db, { mode: "full" });
+      // The stray account (1) and the game's trace, found by her PUUID after the account's row is gone (1): counted as full mode changes them.
+      expect(result).toMatchObject({ people: 0, traces: 2 });
+      expect({ people: counted.people, traces: counted.traces }).toEqual({ people: result.people, traces: result.traces });
+      expect(await whereTraces(restored.db, ["AliceMain", "puuid-alice-main"])).toEqual([]);
+      expect(await reconcileErasures(restored.db, { mode: "count" })).toMatchObject({ people: 0, traces: 0 });
+    } finally {
+      await restored.close();
+    }
+  }, 120_000);
+
   it("lets an administrator release her Riot accounts when she asks to come back", async () => {
     const db = handle.db;
     const [record] = await db.select().from(privacyErasures);
