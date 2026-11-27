@@ -407,43 +407,44 @@ function usePoolFit(ref: React.RefObject<HTMLElement | null>, active: boolean, k
   React.useEffect(() => {
     if (!active && live.current) setState(null);
   }, [active]);
+  const measure = React.useCallback(() => {
+    const el = ref.current;
+    if (!el) return;
+    const at = `${window.innerWidth}x${window.innerHeight}@${getComputedStyle(document.documentElement).fontSize}|${String(key)}`;
+    const s = live.current;
+    const column = el.closest<HTMLElement>("[data-testid=overview-pools]");
+    const rail = el.closest("[data-testid=overview-dashboard]")?.querySelector<HTMLElement>("[data-testid=overview-ranked]");
+    const c = column?.getBoundingClientRect();
+    // The 2×2 only: the rail to the right of the pools' column (elsewhere Ranked progress sits above them, or beside the season's card).
+    if (!c || !rail || rail.getBoundingClientRect().left < c.right - 1) {
+      if (!s || s.fold || s.at !== at) setState({ at, fold: false, settled: true });
+      return;
+    }
+    const bottom = c.bottom + window.scrollY;
+    const limit = fitLimit();
+    if (!s || s.at !== at) {
+      // A new size: decided from the pool drawn whole (unfolded first where it was folded).
+      if (s?.fold) setState({ at: "", fold: false, settled: false });
+      else setState({ at, fold: bottom > limit, settled: !(bottom > limit) });
+      return;
+    }
+    // Folded for this size: kept only where the column now ends above the line.
+    if (s.fold && !s.settled) setState({ at, fold: bottom <= limit, settled: true });
+  }, [ref, key]);
+  // After every decision, in the same frame: a new one is checked against the layout it drew (two steps at most, then settled).
+  React.useLayoutEffect(() => {
+    if (active) measure();
+  }, [active, state, measure]);
+  // What asks for a new decision, subscribed once: a resize, the fonts' loading, the page's width changing (a resize's root size
+  // and column widths can settle a frame after its event: fit-rows.tsx, useFit). The page's height alone (an off role opened) never.
   React.useLayoutEffect(() => {
     if (!active) return;
-    const sizeKey = () => `${window.innerWidth}x${window.innerHeight}@${getComputedStyle(document.documentElement).fontSize}|${String(key)}`;
-    const columnBottom = (el: HTMLElement) => {
-      const column = el.closest<HTMLElement>("[data-testid=overview-pools]");
-      const rail = el.closest("[data-testid=overview-dashboard]")?.querySelector<HTMLElement>("[data-testid=overview-ranked]");
-      if (!column || !rail) return null;
-      const c = column.getBoundingClientRect();
-      // The 2×2: the rail to the right of the pools' column (elsewhere Ranked progress sits above them, or beside the season's card).
-      if (rail.getBoundingClientRect().left < c.right - 1) return null;
-      return c.bottom + window.scrollY;
+    let gone = false;
+    const again = () => {
+      if (!gone) setState((s) => (s ? { ...s, at: "" } : s));
     };
-    const measure = () => {
-      const el = ref.current;
-      if (!el) return;
-      const at = sizeKey();
-      const s = live.current;
-      const bottom = columnBottom(el);
-      if (bottom === null) {
-        if (!s || s.fold || s.at !== at) setState({ at, fold: false, settled: true });
-        return;
-      }
-      const limit = fitLimit();
-      if (!s || s.at !== at) {
-        // A new size: decided from the pool drawn whole (unfolded first where it was folded).
-        if (s?.fold) setState({ at: "", fold: false, settled: false });
-        else setState({ at, fold: bottom > limit, settled: !(bottom > limit) });
-        return;
-      }
-      // Folded for this size: kept only where the column now ends above the line.
-      if (s.fold && !s.settled) setState({ at, fold: bottom <= limit, settled: true });
-    };
-    measure();
-    const again = () => setState((s) => (s ? { ...s, at: "" } : s));
     window.addEventListener("resize", measure);
     void document.fonts?.ready.then(again);
-    // A resize's root size and column widths can settle a frame after its event (fit-rows.tsx, useFit): the page's width changing decides again.
     const frame = typeof ResizeObserver === "function" ? document.getElementById("content") : null;
     let width = frame?.clientWidth ?? 0;
     const observer = frame
@@ -455,10 +456,11 @@ function usePoolFit(ref: React.RefObject<HTMLElement | null>, active: boolean, k
       : null;
     if (frame) observer?.observe(frame);
     return () => {
+      gone = true;
       window.removeEventListener("resize", measure);
       observer?.disconnect();
     };
-  }, [active, key, ref, state]);
+  }, [active, measure]);
   return active && !!state?.fold;
 }
 
