@@ -1,6 +1,6 @@
 {
   "id": "f404e0fa-16f4-4eb5-baa8-ee0c1ffbf3a3",
-  "prevId": "d0c9c885-5a08-45bd-9983-9139eef3e7ac",
+  "prevId": "d370f382-00e4-45ce-a1b5-1a89287fda81",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3011,6 +3011,131 @@
       },
       "foreignKeys": {},
       "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.match_multikills": {
+      "name": "match_multikills",
+      "schema": "",
+      "columns": {
+        "match_id": {
+          "name": "match_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slot": {
+          "name": "slot",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "puuid": {
+          "name": "puuid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "champion_id": {
+          "name": "champion_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "queue_id": {
+          "name": "queue_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "duration_s": {
+          "name": "duration_s",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "team_id": {
+          "name": "team_id",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kills": {
+          "name": "kills",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "team_kills": {
+          "name": "team_kills",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "doubles": {
+          "name": "doubles",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "triples": {
+          "name": "triples",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quadras": {
+          "name": "quadras",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pentas": {
+          "name": "pentas",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "largest": {
+          "name": "largest",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "match_multikills_match_id_match_details_match_id_fk": {
+          "name": "match_multikills_match_id_match_details_match_id_fk",
+          "tableFrom": "match_multikills",
+          "tableTo": "match_details",
+          "columnsFrom": [
+            "match_id"
+          ],
+          "columnsTo": [
+            "match_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "match_multikills_match_id_slot_pk": {
+          "name": "match_multikills_match_id_slot_pk",
+          "columns": [
+            "match_id",
+            "slot"
+          ]
+        }
+      },
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},

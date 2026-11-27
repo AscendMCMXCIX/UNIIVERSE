@@ -1,6 +1,6 @@
 {
   "id": "f2a42f79-6430-454e-afa1-ea441e21597a",
-  "prevId": "d0c9c885-5a08-45bd-9983-9139eef3e7ac",
+  "prevId": "f404e0fa-16f4-4eb5-baa8-ee0c1ffbf3a3",
   "version": "7",
   "dialect": "postgresql",
   "tables": {
@@ -3016,6 +3016,131 @@
       "checkConstraints": {},
       "isRLSEnabled": false
     },
+    "public.match_multikills": {
+      "name": "match_multikills",
+      "schema": "",
+      "columns": {
+        "match_id": {
+          "name": "match_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "slot": {
+          "name": "slot",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "puuid": {
+          "name": "puuid",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "position": {
+          "name": "position",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "champion_id": {
+          "name": "champion_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "queue_id": {
+          "name": "queue_id",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "duration_s": {
+          "name": "duration_s",
+          "type": "integer",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "team_id": {
+          "name": "team_id",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kills": {
+          "name": "kills",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "team_kills": {
+          "name": "team_kills",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "doubles": {
+          "name": "doubles",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "triples": {
+          "name": "triples",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "quadras": {
+          "name": "quadras",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "pentas": {
+          "name": "pentas",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "largest": {
+          "name": "largest",
+          "type": "smallint",
+          "primaryKey": false,
+          "notNull": false
+        }
+      },
+      "indexes": {},
+      "foreignKeys": {
+        "match_multikills_match_id_match_details_match_id_fk": {
+          "name": "match_multikills_match_id_match_details_match_id_fk",
+          "tableFrom": "match_multikills",
+          "tableTo": "match_details",
+          "columnsFrom": [
+            "match_id"
+          ],
+          "columnsTo": [
+            "match_id"
+          ],
+          "onDelete": "cascade",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {
+        "match_multikills_match_id_slot_pk": {
+          "name": "match_multikills_match_id_slot_pk",
+          "columns": [
+            "match_id",
+            "slot"
+          ]
+        }
+      },
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {},
+      "isRLSEnabled": false
+    },
     "public.match_timelines": {
       "name": "match_timelines",
       "schema": "",
@@ -4788,6 +4913,246 @@
       "uniqueConstraints": {},
       "policies": {},
       "checkConstraints": {},
+      "isRLSEnabled": false
+    },
+    "public.matchup_notes": {
+      "name": "matchup_notes",
+      "schema": "",
+      "columns": {
+        "id": {
+          "name": "id",
+          "type": "uuid",
+          "primaryKey": true,
+          "notNull": true,
+          "default": "gen_random_uuid()"
+        },
+        "scope": {
+          "name": "scope",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "role": {
+          "name": "role",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "opponent_id": {
+          "name": "opponent_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "champion_id": {
+          "name": "champion_id",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "status": {
+          "name": "status",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'draft'"
+        },
+        "points": {
+          "name": "points",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true
+        },
+        "sources": {
+          "name": "sources",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "'[]'::jsonb"
+        },
+        "reviewed_by": {
+          "name": "reviewed_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewed_at": {
+          "name": "reviewed_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewed_patch": {
+          "name": "reviewed_patch",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "reviewed_version": {
+          "name": "reviewed_version",
+          "type": "text",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "kit_hashes": {
+          "name": "kit_hashes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "ability_hashes": {
+          "name": "ability_hashes",
+          "type": "jsonb",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_by": {
+          "name": "created_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "created_at": {
+          "name": "created_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        },
+        "updated_by": {
+          "name": "updated_by",
+          "type": "uuid",
+          "primaryKey": false,
+          "notNull": false
+        },
+        "updated_at": {
+          "name": "updated_at",
+          "type": "timestamp with time zone",
+          "primaryKey": false,
+          "notNull": true,
+          "default": "now()"
+        }
+      },
+      "indexes": {
+        "matchup_notes_live_idx": {
+          "name": "matchup_notes_live_idx",
+          "columns": [
+            {
+              "expression": "scope",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "role",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "opponent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "coalesce(\"champion_id\", '')",
+              "asc": true,
+              "isExpression": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": true,
+          "where": "\"matchup_notes\".\"status\" <> 'retired'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        },
+        "matchup_notes_read_idx": {
+          "name": "matchup_notes_read_idx",
+          "columns": [
+            {
+              "expression": "role",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            },
+            {
+              "expression": "opponent_id",
+              "isExpression": false,
+              "asc": true,
+              "nulls": "last"
+            }
+          ],
+          "isUnique": false,
+          "where": "\"matchup_notes\".\"status\" = 'published'",
+          "concurrently": false,
+          "method": "btree",
+          "with": {}
+        }
+      },
+      "foreignKeys": {
+        "matchup_notes_reviewed_by_users_id_fk": {
+          "name": "matchup_notes_reviewed_by_users_id_fk",
+          "tableFrom": "matchup_notes",
+          "tableTo": "users",
+          "columnsFrom": [
+            "reviewed_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "matchup_notes_created_by_users_id_fk": {
+          "name": "matchup_notes_created_by_users_id_fk",
+          "tableFrom": "matchup_notes",
+          "tableTo": "users",
+          "columnsFrom": [
+            "created_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        },
+        "matchup_notes_updated_by_users_id_fk": {
+          "name": "matchup_notes_updated_by_users_id_fk",
+          "tableFrom": "matchup_notes",
+          "tableTo": "users",
+          "columnsFrom": [
+            "updated_by"
+          ],
+          "columnsTo": [
+            "id"
+          ],
+          "onDelete": "set null",
+          "onUpdate": "no action"
+        }
+      },
+      "compositePrimaryKeys": {},
+      "uniqueConstraints": {},
+      "policies": {},
+      "checkConstraints": {
+        "matchup_notes_scope_check": {
+          "name": "matchup_notes_scope_check",
+          "value": "\"matchup_notes\".\"scope\" IN ('opponent', 'pair') AND ((\"matchup_notes\".\"scope\" = 'pair') = (\"matchup_notes\".\"champion_id\" IS NOT NULL))"
+        },
+        "matchup_notes_role_check": {
+          "name": "matchup_notes_role_check",
+          "value": "\"matchup_notes\".\"role\" IN ('TOP', 'JUNGLE', 'MID', 'ADC', 'SUPPORT')"
+        },
+        "matchup_notes_status_check": {
+          "name": "matchup_notes_status_check",
+          "value": "\"matchup_notes\".\"status\" IN ('draft', 'published', 'retired')"
+        },
+        "matchup_notes_review_check": {
+          "name": "matchup_notes_review_check",
+          "value": "\"matchup_notes\".\"status\" <> 'published' OR (\"matchup_notes\".\"reviewed_at\" IS NOT NULL AND \"matchup_notes\".\"reviewed_patch\" IS NOT NULL AND \"matchup_notes\".\"kit_hashes\" IS NOT NULL)"
+        }
+      },
       "isRLSEnabled": false
     },
     "public.high_elo_counts": {
