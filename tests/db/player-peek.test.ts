@@ -13,7 +13,7 @@ const state = vi.hoisted(() => ({ db: null as unknown, session: null as unknown 
 vi.mock("@/server/bootstrap", () => ({ getAppDb: async () => state.db }));
 vi.mock("@/server/auth/session", async (orig) => ({ ...(await orig<object>()), getSession: async () => state.session }));
 
-import { testDb } from "./helpers";
+import { makeSeason2026Current, testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { accountMatches, champions, players, riotAccounts } from "@/server/db/schema";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
@@ -30,6 +30,9 @@ const viewer = (over: Partial<Session> = {}): Session => ({ ...base, role: "play
 beforeAll(async () => {
   handle = await testDb();
   state.db = handle.db;
+  // The games below are Season 2026's (patch 16.20): that season is the current one, never the
+  // calendar year's (a time bomb from 1 January 2027 otherwise: STANDARDS.md, "Dates in tests").
+  await makeSeason2026Current(handle.db);
   const teamId = (await getOrCreateTeam(handle.db)).id;
   await handle.db.insert(champions).values({ id: "Gwen", key: 887, name: "Gwen", imageFull: "Gwen.png", firstSeenVersion: "16.20.1", lastSeenVersion: "16.20.1" }).onConflictDoNothing();
   ace = (await createPlayer(handle.db, teamId, { displayName: "Ace", primaryRole: "TOP", primaryPool: ["Gwen"] })).id;

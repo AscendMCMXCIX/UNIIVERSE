@@ -4,16 +4,21 @@ import { accountMatches, jobRuns, rankSnapshots } from "@/server/db/schema";
 import { listPlayers, getOrCreateTeam } from "@/server/repositories/team";
 import { listAccountsForPlayers } from "@/server/accounts/repository";
 import { attributeLp, isCountedGame, mergeReadings, storedCountAt, type LpRecord, type QueueGame, type RankReadingRow } from "@/domain/lp-attribution";
-import { RANKED_SEASONS_2026, RANKED_YEAR_START, rankedSeasonOfPatch } from "@/domain/ranked-year";
+import { RANKED_YEAR_START, RANKED_YEARS, rankedSeasonName, rankedSeasonOfPatch, rankedYearOfPatch, YEAR_RESET_LEAD_DAYS } from "@/domain/ranked-year";
 import { rankLabel, type RankQueue } from "@/domain/rank-progress";
+import { rankTimeline } from "@/domain/rank-timeline";
+import { seasonLabel } from "@/domain/season";
 import { canonicalPatch } from "@/domain/patch";
 
 /*
-  Read-only audit of ranked history for the 2026 ranked year (from 8 January): for every linked
-  account of the team's players and each ranked queue, Riot's own count of the year's games
-  against the stored games, the stored rank readings and what lies between them, and how many
-  games have an LP change recorded under domain/lp-attribution's rules (with a few recent examples
-  to check by hand). Also when each 2026 season's first patch first appears in the stored games,
+  Read-only audit of ranked history for the ranked years (from 8 January 2026; domain/ranked-year):
+  for every linked account of the team's players and each ranked queue, Riot's own count of each
+  year's games against the stored games, the stored rank readings and what lies between them, the
+  ladder each account is on now (opened by its own reset reading near a year's start, or by date),
+  and how many games have an LP change recorded under domain/lp-attribution's rules (with a few
+  recent examples to check by hand). Also how many accounts a new year's reset has reached (counts
+  only, and whether that year's first day is still an estimate), when each season's first patch
+  first appears in the stored games,
   the account syncs and the rank changes of each of the last 21 days, and the year's games and
   rank changes week by week. A stored reading is a row of rank_snapshots, one per rank change (an
   unchanged reading only confirms the last row), so every count of readings here counts changes,
@@ -52,7 +57,7 @@ function lpTally(records: Iterable<LpRecord>) {
 defineJob({
   key: "rank-audit",
   kind: "check",
-  description: "Read-only: the 2026 ranked year's rank history per account and queue (Riot's game count against the stored games, the rows stored without a length or a champion by kind, the stored readings (one per rank change) and the gaps between them, the games with a recorded LP change and why the others have none), the 2026 seasons' first patches, the account syncs and rank changes per day, and the year's games and rank changes by week. Accounts as P1/A1 only. Changes nothing.",
+  description: "Read-only: the ranked years' rank history per account and queue (Riot's game count against the stored games, the rows stored without a length or a champion by kind, the stored readings (one per rank change) and the gaps between them, the ladder each account is on now, the games with a recorded LP change and why the others have none), how many accounts a new year's reset has reached, the seasons' first patches, the account syncs and rank changes per day, and the games and rank changes by week. Accounts as P1/A1 only. Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,
   run: async (ctx) => {
@@ -76,8 +81,10 @@ defineJob({
             .where(and(inArray(accountMatches.accountId, ids), inArray(accountMatches.queueId, [420, 440]), or(gte(accountMatches.gameCreation, RANKED_YEAR_START - 7 * DAY), eq(accountMatches.gameCreation, 0)))),
         ])
       : [[], []];
-    // The 2026 ranked year's games: those on a 16.x patch (a game of December 2025 is not one).
-    const yearGames = games.filter((g) => (g.patch ? rankedSeasonOfPatch(g.patch) !== null : g.gameCreation >= RANKED_YEAR_START));
+    // The ranked years' games: those on a 16.x or 17.x patch (a game of December 2025 is not one).
+    const yearGames = games.filter((g) => (g.patch ? rankedYearOfPatch(g.patch) !== null : g.gameCreation >= RANKED_YEAR_START));
+    // The years begun, or within the reset's lead of their (estimated) first day.
+    const yearsBegun = RANKED_YEARS.filter((y) => y.from - YEAR_RESET_LEAD_DAYS * DAY <= now);
 
     const perAccount = accounts.map((a) => {
       const queues = Object.fromEntries(
@@ -94,7 +101,20 @@ defineJob({
           const first = readings[0] ?? null;
           const countedGames = list.filter(isCountedGame);
           // Riot's count of the year's games at the first reading, against the stored games ended by then.
-          const check = first && first.wins !== null && first.losses !== null ? { riotCount: first.wins + first.losses, ...storedCountAt(first.capturedAt, list) } : null;
+          const firstYear = rankedYearOfPatch(list.find((g) => g.patch)?.patch) ?? RANKED_YEARS[0]!;
+          const check = first && first.wins !== null && first.losses !== null ? { riotCount: first.wins + first.losses, ...storedCountAt(first.capturedAt, list.filter((g) => !g.patch || rankedYearOfPatch(g.patch) === firstYear)) } : null;
+          // The ladder the account is on now (domain/rank-timeline ladderOf), and on a later year's
+          // ladder Riot's count at its first reading against that year's stored games.
+          const timeline = rankTimeline(
+            snapshots.filter((s) => s.accountId === a.id && s.queue === queue).map((s) => ({ queue, tier: s.tier, division: s.division, leaguePoints: s.leaguePoints, wins: s.wins, losses: s.losses, capturedAt: s.capturedAt.getTime(), confirmedAt: s.confirmedAt?.getTime() ?? null })),
+            now,
+          );
+          const ladder = timeline.ladder;
+          const ladderFirst = timeline.readings[0] ?? null;
+          const ladderCheck =
+            ladder.year !== RANKED_YEARS[0] && ladderFirst && ladderFirst.wins !== null && ladderFirst.losses !== null
+              ? { riotCount: ladderFirst.wins + ladderFirst.losses, ...storedCountAt(ladderFirst.from, list.filter((g) => rankedYearOfPatch(g.patch) === ladder.year)) }
+              : null;
           // The queue's rows without a champion, which no page counts. A listed game Riot refused
           // for good is recorded with no start time (refusedForGood), so it is on no page and in no
           // count here. Every other row the sync stores without a champion (a remake, a game whose
@@ -119,7 +139,8 @@ defineJob({
           }
           const bySeason: Record<string, number> = {};
           for (const g of countedGames) {
-            const s = rankedSeasonOfPatch(g.patch)?.label ?? "unknown patch";
+            const season = rankedSeasonOfPatch(g.patch);
+            const s = season ? rankedSeasonName(season) : "unknown patch";
             bySeason[s] = (bySeason[s] ?? 0) + 1;
           }
           const samples = countedGames
@@ -165,6 +186,7 @@ defineJob({
               lastReading: iso(last?.capturedAt),
               lastRank: last ? (last.tier ? `${rankLabel(last.tier, last.division)} ${last.leaguePoints} LP` : "Unranked") : null,
               riotCountCheck: check ? { ...check, agrees: check.riotCount >= check.certain && check.riotCount <= check.possible } : null,
+              ladder: { year: ladder.year.year, opened: ladder.opened, since: readings.length ? isoDay(ladder.from) : null, riotCountCheck: ladderCheck ? { ...ladderCheck, agrees: ladderCheck.riotCount >= ladderCheck.certain && ladderCheck.riotCount <= ladderCheck.possible } : null },
               withoutChampion,
               gamesBetweenReadings: gaps,
               medianMinutesBetweenReadings: median(minutes),
@@ -174,21 +196,34 @@ defineJob({
           ];
         }),
       );
-      return { account: accountNo.get(a.id) ?? "?", label: a.label, platform: a.platform, seasonHistoryComplete: a.historyBackfill?.season === 16 ? !!a.historyBackfill.completedAt : false, queues };
+      return { account: accountNo.get(a.id) ?? "?", label: a.label, platform: a.platform, seasonHistory: a.historyBackfill ? { season: seasonLabel(a.historyBackfill.season), complete: !!a.historyBackfill.completedAt } : null, queues };
     });
 
-    // When each 2026 season's first patch first appears among the stored games (all queues).
-    // Games store the client's version as written ("26.9" or "16.9" for the same patch): both are asked.
-    const patchNames = RANKED_SEASONS_2026.flatMap((s) => [s.firstPatch, s.firstPatch.replace(/^16\./, "26.")]);
+    // When each season's first patch first appears among the stored games (all queues): a check of
+    // Riot's dates, the 2027 estimate's too. Games store the client's version as written ("26.9" or
+    // "16.9" for the same patch): both are asked.
+    const allSeasons = yearsBegun.flatMap((y) => y.seasons);
+    const patchNames = allSeasons.flatMap((s) => [s.firstPatch, s.firstPatch.replace(/^(\d+)\./, (_, major: string) => `${Number(major) + 10}.`)]);
     const firstOnPatch = rowsOf<{ patch: string; first: number | string }>(
       await db.execute(sql`SELECT patch, min(game_creation) AS first FROM account_matches WHERE patch IN (${sql.join(patchNames.map((p) => sql`${p}`), sql`, `)}) GROUP BY patch`),
     );
-    const seasons = RANKED_SEASONS_2026.map((s) => {
+    const seasons = allSeasons.map((s) => {
       const firsts = firstOnPatch.filter((r) => canonicalPatch(r.patch) === s.firstPatch).map((r) => Number(r.first));
-      return { season: s.label, from: isoDay(s.from), firstPatch: s.firstPatch, firstStoredGameOnPatch: firsts.length ? iso(Math.min(...firsts)) : null };
+      return { season: rankedSeasonName(s), from: isoDay(s.from), firstPatch: s.firstPatch, firstStoredGameOnPatch: firsts.length ? iso(Math.min(...firsts)) : null };
     });
+    // How far each later year's reset has reached: the account queues on its ladder, by what opened
+    // it, and those still on the year before (no reset reading yet). Counts only.
+    const ladders = perAccount.flatMap((a) => Object.values(a.queues).filter((q) => q.readings > 0).map((q) => q.ladder));
+    const yearStarts = yearsBegun.slice(1).map((y) => ({
+      year: y.year,
+      from: isoDay(y.from),
+      fromConfirmed: y.confirmed,
+      resetReadings: ladders.filter((l) => l.year === y.year && l.opened === "reset").length,
+      openedByDate: ladders.filter((l) => l.year === y.year && l.opened === "date").length,
+      stillOnEarlierYear: ladders.filter((l) => l.year < y.year).length,
+    }));
 
-    // The team's 2026 ranked games and rank changes (stored readings) by week, from the week of 8 January.
+    // The team's ranked games and rank changes (stored readings) by week, from the week of 8 January 2026.
     const weeks = new Map<string, { solo: number; flex: number; soloReadings: number; flexReadings: number }>();
     for (let w = Date.parse(`${weekOf(RANKED_YEAR_START)}T00:00:00Z`); w <= now; w += 7 * DAY) weeks.set(isoDay(w), { solo: 0, flex: 0, soloReadings: 0, flexReadings: 0 });
     for (const g of yearGames) {
@@ -222,11 +257,12 @@ defineJob({
     const totals: Record<string, number> = {};
     for (const t of allLp) for (const [k, v] of Object.entries(t)) totals[k] = (totals[k] ?? 0) + v;
     const firstReading = snapshots.reduce<number | null>((m, s) => (m === null || s.capturedAt.getTime() < m ? s.capturedAt.getTime() : m), null);
-    ctx.log(`rank-audit: ${accounts.length} accounts, ${yearGames.length} ranked rows of 2026 stored, ${snapshots.length} stored rank readings (one per change) since ${iso(firstReading) ?? "never"}; LP recorded for ${totals.lp ?? 0} games`);
+    ctx.log(`rank-audit: ${accounts.length} accounts, ${yearGames.length} ranked rows of the ranked years stored, ${snapshots.length} stored rank readings (one per change) since ${iso(firstReading) ?? "never"}; LP recorded for ${totals.lp ?? 0} games`);
     return {
       ok: true,
       summary: {
         year: { from: isoDay(RANKED_YEAR_START), seasons },
+        yearStarts,
         firstReading: iso(firstReading),
         accounts: perAccount,
         lpTotals: totals,

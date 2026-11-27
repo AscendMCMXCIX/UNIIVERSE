@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { rankProgress, type RankQueue } from "@/domain/rank-progress";
 import { rankMovement, rankTimeline, type RankMovement, type RankTimeline, type TimelineReading } from "@/domain/rank-timeline";
-import { RANKED_YEAR, rankedSeasonAt } from "@/domain/ranked-year";
+import { rankedSeasonName, seasonOfYearAt } from "@/domain/ranked-year";
 import type { RankHistoryAccount } from "@/server/accounts/rank-history";
 import { InfoTip } from "@/components/ui/info-tip";
 import { PhoneFoldSection, PhoneFoldToggle } from "@/components/ui/phone-fold";
@@ -21,7 +21,8 @@ export type RankedProgressHref = (change: { rq?: RankQueue; ra?: string | null }
 
 /**
  * Ranked progress of one linked account (the Main account unless another is chosen), one queue at
- * a time, in the 2026 ranked year. Compact: where the account stands now (Riot's current rank, LP
+ * a time, on the account's current ranked ladder (its ranked year, ended by its own reset reading:
+ * domain/rank-timeline `ladderOf`). Compact: where the account stands now (Riot's current rank, LP
  * and the year's wins, losses and win rate) beside how it moved in the last 30 days; under them the
  * queue and account choice in one row, then a small chart of the stretch UNIIVERSE has read. Riot
  * reports no past ranks, so nothing before the first reading is drawn. The card ends with the chart
@@ -53,13 +54,15 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
   const timeline = rankTimeline(snapshots, now);
   const movement = rankMovement(timeline, now);
   const names = accountShortNames(accounts);
-  const seasonNow = rankedSeasonAt(now);
-  const season = seasonNow ? `${RANKED_YEAR} ${seasonNow.label}` : null;
+  // The year of the ladder shown (the readings decide; the date only without a reading), and its
+  // season now: "2026 Season 3" in January before the account's reset reading, "2027 Season 1" after.
+  const ladderYear = timeline.ladder.year;
+  const season = rankedSeasonName(seasonOfYearAt(ladderYear, now));
   // The ranked readings (consecutive identical ones are already one), and how often the rank or LP
   // changed between them: a chart from two changes; fewer are said in a line (fewReadings).
   const ranked = timeline.readings.filter((r) => r.score !== null);
   const chartable = rankChanges(ranked) >= CHART_MIN_CHANGES;
-  const tracking = `${account.riotId}${season ? ` · ${season}` : ""}${timeline.trackingSince ? ` · rank recorded since ${formatDate(timeline.trackingSince)}` : " · no rank recorded yet"}`;
+  const tracking = `${account.riotId} · ${season}${timeline.trackingSince ? ` · rank recorded since ${formatDate(timeline.trackingSince)}` : " · no rank recorded yet"}`;
   return (
     // A grid of two columns, so from md in a card of 24rem or more (the Overview's rail) the queue and account choice share the
     // title's row (Release 16: a row of their own cost the one-screen Overview 48px); elsewhere every part spans both, one under
@@ -123,7 +126,7 @@ export function RankedProgress({ accounts, queue, accountId, href, now }: { acco
                     {/* Its scope: the ranked year at every width (Riot's count covers the whole year, not this
                         season alone), its source too from a 21rem card; read out on a narrower one (a phone),
                         where "· 2026 (Riot)" would take the record to a second line beside the 30-day change. */}
-                    <span data-testid="ranked-record-year"> · {RANKED_YEAR}</span>
+                    <span data-testid="ranked-record-year"> · {ladderYear.year}</span>
                     <span className="@max-[21rem]/rank:sr-only"> (Riot)</span>
                   </p>
                 ) : null}

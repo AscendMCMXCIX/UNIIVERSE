@@ -88,7 +88,7 @@ function liveCheckStep(): string {
   return body.map((l) => l.slice(margin)).join("\n");
 }
 
-type Step = { status: number | null; out: string; summary: string; curlCalled: boolean; curlArgs: string[]; seen: { user: string | null; password: string | null; required: string | null; cron: string | null; own: string | null } | null };
+type Step = { status: number | null; out: string; summary: string; curlCalled: boolean; curlArgs: string[]; seen: { user: string | null; password: string | null; required: string | null; cron: string | null; own: string | null } | null; audits: { cron: boolean } | null; activePlayers: string | null };
 
 /**
  * Runs the step with the app's answer `answer` (null: no answer) and the repository's secrets
@@ -105,7 +105,13 @@ function runStep(answer: string | null, secrets: Record<string, string>): Step {
     chmodSync(path.join(bin, "curl"), 0o755);
     writeFileSync(
       path.join(dir, "scripts", "live-check.mjs"),
-      `import { writeFileSync } from "node:fs";\nconst e = process.env;\nwriteFileSync("seen.json", JSON.stringify({ user: e.UNIIVERSE_VERIFY_USER || null, password: e.UNIIVERSE_VERIFY_PASSWORD || null, required: e.LIVE_REQUIRE_SIGN_IN || null, cron: e.CRON_SECRET || null, own: e.VERIFY_ACCOUNT_SECRET || null }));\n`,
+      `import { writeFileSync } from "node:fs";\nconst e = process.env;\nwriteFileSync("seen.json", JSON.stringify({ user: e.UNIIVERSE_VERIFY_USER || null, password: e.UNIIVERSE_VERIFY_PASSWORD || null, required: e.LIVE_REQUIRE_SIGN_IN || null, cron: e.CRON_SECRET || null, own: e.VERIFY_ACCOUNT_SECRET || null }));\nwriteFileSync("active.txt", e.LIVE_ACTIVE_PLAYERS ?? "");\n`,
+    );
+    // The production audits (Release 19, scripts/production-audits.mjs): they run while the step holds
+    // CRON_SECRET and hand the live check their counts through audits.env.
+    writeFileSync(
+      path.join(dir, "scripts", "production-audits.mjs"),
+      `import { writeFileSync } from "node:fs";\nwriteFileSync("audits-seen.json", JSON.stringify({ cron: !!process.env.CRON_SECRET }));\nwriteFileSync(process.argv[3], "- ok: leaderboard-audit: 7 active.\\n");\nwriteFileSync(process.argv[4], "LIVE_ACTIVE_PLAYERS=7\\n");\n`,
     );
     const script = path.join(dir, "step.sh");
     writeFileSync(script, liveCheckStep());
@@ -134,13 +140,35 @@ function runStep(answer: string | null, secrets: Record<string, string>): Step {
     } catch {
       curlCalled = false;
     }
-    return { status: r.status, out: `${r.stdout}${r.stderr}`, summary: readFileSync(summary, "utf8"), curlCalled, curlArgs, seen };
+    let audits: Step["audits"] = null;
+    try {
+      audits = JSON.parse(readFileSync(path.join(dir, "audits-seen.json"), "utf8")) as Step["audits"];
+    } catch {
+      audits = null;
+    }
+    let activePlayers: string | null = null;
+    try {
+      activePlayers = readFileSync(path.join(dir, "active.txt"), "utf8");
+    } catch {
+      activePlayers = null;
+    }
+    return { status: r.status, out: `${r.stdout}${r.stderr}`, summary: readFileSync(summary, "utf8"), curlCalled, curlArgs, seen, audits, activePlayers };
   } finally {
     rmSync(dir, { recursive: true, force: true });
   }
 }
 
 const answer = (summary: Record<string, string>, extra: Record<string, unknown> = {}) => JSON.stringify({ ok: true, ...extra, summary: { username: "verify", ...summary }, deployment: {} });
+
+describe("the Live check step's production audits (Release 19)", () => {
+  it("runs them with CRON_SECRET, before it is unset, and hands their counts to the live check, which never holds the secret", () => {
+    const step = runStep(answer({ state: "unchanged", key: "CRON_SECRET" }), { CRON_SECRET: "a-made-up-cron-secret-of-enough-length" });
+    expect(step.audits).toEqual({ cron: true });
+    expect(step.activePlayers).toBe("7");
+    expect(step.seen?.cron).toBeNull();
+    expect(step.summary).toContain("- ok: leaderboard-audit: 7 active.");
+  });
+});
 
 describe("the Live check step signs in with the key the app names", () => {
   it("derives from CRON_SECRET while the app uses it, or answers no key's name (an app from before)", () => {

@@ -1,5 +1,5 @@
 import { afterAll, beforeAll, describe, expect, it } from "vitest";
-import { testDb } from "./helpers";
+import { makeSeason2026Current, testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { accountMatches, matchDetails, riotAccounts, type MatchParticipantDetail } from "@/server/db/schema";
 import { currentSeason } from "@/server/accounts/sync";
@@ -37,6 +37,9 @@ beforeAll(async () => {
   handle = await testDb();
   const db = handle.db;
   await syncStaticData(db, new FixtureStaticProvider(), { fingerprint: false });
+  // The current season from a Season 2026 patch, never the fixture's calendar year (a time bomb from
+  // 1 January 2027 otherwise: STANDARDS.md, "Dates in tests").
+  await makeSeason2026Current(db);
   season = await currentSeason(db);
   teamId = (await getOrCreateTeam(db)).id;
   id.Ash = (await createPlayer(db, teamId, { displayName: "Ash", primaryRole: "MID", primaryPool: ["Ahri"] })).id;

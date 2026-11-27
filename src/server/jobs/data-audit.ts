@@ -3,6 +3,7 @@ import { sql } from "drizzle-orm";
 import { defineJob } from "./registry";
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { MIN_LANE_GAME_SECONDS, timelineCoverage } from "@/server/accounts/timeline-backfill";
+import { figuresCoverage } from "@/server/accounts/figures-backfill";
 import { SYNC_QUEUE_IDS, currentSeason } from "@/server/accounts/sync";
 import { loadSeasonGames } from "@/server/players/season-games";
 import { gameRole, gamesFor, seasonsInGames } from "@/domain/season-stats";
@@ -32,7 +33,7 @@ defineJob({
   key: "data-audit",
   kind: "check",
   cost: "Reads every stored game, a large read from the database: run it when you need its answer.",
-  description: "Read-only check of the data actually stored: linked-account sync, matches per queue, Solo/Duo vs Flex classification, mastery, Matchups timeline coverage, the stored lane opponents against the lane opponent rule (games that disagree, unclear, and with Riot's two positions kept), multikill counts, the ranks shown in match windows (coverage and lookups per day), OP.GG link coverage and why links are missing, whether each stored game's record and timeline agree (gold, CS, kills, objectives), how many members the proposed Recent performance boards would rank, patches. Changes nothing.",
+  description: "Read-only check of the data actually stored: linked-account sync, matches per queue, Solo/Duo vs Flex classification, mastery, Matchups timeline coverage, the stored lane opponents against the lane opponent rule (games that disagree, unclear, and with Riot's two positions kept), multikill counts, the figures backfill's coverage (games with the extra figures, unavailable, still to fetch), the ranks shown in match windows (coverage and lookups per day), OP.GG link coverage and why links are missing, whether each stored game's record and timeline agree (gold, CS, kills, objectives), how many members the proposed Recent performance boards would rank, patches. Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,
   run: async (ctx) => {
@@ -216,6 +217,9 @@ defineJob({
         linkedAccounts: linked,
         matchups,
         multikills,
+        // The figures backfill's own coverage (Release 19): the offered seasons' games, those with
+        // the extra figures, those Riot no longer serves (marked unavailable) and those still to fetch.
+        figures: await figuresCoverage(db),
         queueClassification,
         leaderboardSamples,
         participantRanks: await rankCoverage(db),
