@@ -11,9 +11,9 @@ import { RankedProgress } from "./ranked-progress";
 const NOW = Date.UTC(2026, 10, 4, 12);
 const D = (m: number, d: number, h = 12) => Date.UTC(2026, m - 1, d, h);
 const snap = (at: number, tier: string | null, division: string | null, lp: number | null, wins: number | null, losses: number | null, confirmedAt: number | null = null): RankSnapshot => ({ queue: "solo", tier, division, leaguePoints: lp, wins, losses, capturedAt: at, confirmedAt });
-const render = (snapshots: RankSnapshot[]) => {
+const render = (snapshots: RankSnapshot[], now = NOW) => {
   const account: RankHistoryAccount = { id: "a1", label: "main", riotId: "Name#TAG", snapshots };
-  return renderToStaticMarkup(createElement(RankedProgress, { accounts: [account], queue: "solo", accountId: null, href: () => "#", now: NOW }));
+  return renderToStaticMarkup(createElement(RankedProgress, { accounts: [account], queue: "solo", accountId: null, href: () => "#", now }));
 };
 const text = (html: string, testId: string) => {
   const m = new RegExp(`data-testid="${testId}"[^>]*>([^<]*)<`).exec(html);
@@ -156,5 +156,42 @@ describe("RankedProgress", () => {
     expect(html).toContain("104W 92L · 53%<span data-testid=\"ranked-record-year\"> · 2026</span><span class=\"@max-[21rem]/rank:sr-only\"> (Riot)</span>");
     expect(html).toContain('data-testid="ranked-peak-stat"');
     expect(html).toMatch(/data-testid="ranked-chart"[\s\S]*<\/section>$/);
+  });
+
+  describe("across the 2027 ranked year's reset (fixed clocks)", () => {
+    const Y = (y: number, m: number, d: number, h = 12) => Date.UTC(y, m - 1, d, h);
+    const december = [snap(Y(2026, 12, 20), "GOLD", "II", 40, 150, 140), snap(Y(2027, 1, 2), "GOLD", "I", 10, 151, 140), snap(Y(2027, 1, 4), "GOLD", "I", 30, 152, 140)];
+    const reset = [snap(Y(2027, 1, 8), "IRON", "IV", 0, 0, 0), snap(Y(2027, 1, 10), "IRON", "III", 20, 2, 0)];
+    const peakScore = (html: string) => /Highest recorded: ([A-Za-z]+ [IV]+)/.exec(html)?.[1];
+
+    it("on 31 Dec 2026: 2026's Season 3 and Riot's 2026 count", () => {
+      const html = render(december.slice(0, 1), Y(2026, 12, 31));
+      expect(text(html, "ranked-tracking")).toContain("2026 Season 3");
+      expect(text(html, "ranked-record-year")).toBe(" · 2026");
+    });
+
+    it("on 4 Jan 2027, before the account's reset reading: still 2026, January's readings in it, the highest recorded never below the current rank", () => {
+      const html = render(december, Y(2027, 1, 4, 18));
+      expect(text(html, "ranked-tracking")).toContain("2026 Season 3");
+      expect(text(html, "ranked-record-year")).toBe(" · 2026");
+      expect(text(html, "ranked-current")).toBe("Gold I · 30\u00a0LP");
+      expect(peakScore(html)).toBe("Gold I");
+    });
+
+    it("after the reset reading: 2027's Season 1, Riot's 2027 count, and only the new ladder's highest rank", () => {
+      const html = render([...december, ...reset], Y(2027, 1, 12));
+      expect(text(html, "ranked-tracking")).toMatch(/2027 Season 1 · rank recorded since 8 Jan 2027$/);
+      expect(text(html, "ranked-record-year")).toBe(" · 2027");
+      expect(text(html, "ranked-current")).toBe("Iron III · 20\u00a0LP");
+      expect(peakScore(html)).toBe("Iron III");
+      // The 30-day change never reaches across the reset to December's Gold.
+      expect(text(html, "ranked-change")).toBe("+1 division");
+    });
+
+    it("on 1 Mar 2027: an account linked in February is on 2027 by date", () => {
+      const html = render([snap(Y(2027, 2, 10), "SILVER", "II", 30, 12, 9)], Y(2027, 3, 1));
+      expect(text(html, "ranked-tracking")).toContain("2027 Season 1");
+      expect(text(html, "ranked-record-year")).toBe(" · 2027");
+    });
   });
 });

@@ -124,8 +124,19 @@ export function readOneScreen(input) {
     const cap = list ? parseFloat(getComputedStyle(list).maxHeight) : NaN;
     return { board, present: true, rows: rows.length, spare: round(end - (f ? f.getBoundingClientRect().bottom : last)), footGap: f ? round(f.getBoundingClientRect().top - last) : null, grown: !!list && Number.isFinite(cap) && list.getBoundingClientRect().height >= cap - 1 };
   });
-  return { window: innerHeight, width: innerWidth, height: document.documentElement.scrollHeight, boxes, folds, words, ...(fills ? { spare } : {}) };
+  // The page's own bottom padding (#content's): the room under the sections is measured above it (Release 19, ROOM_MIN).
+  const content = document.getElementById("content");
+  const pad = content ? Math.round(parseFloat(getComputedStyle(content).paddingBottom) || 0) : 0;
+  return { window: innerHeight, width: innerWidth, height: document.documentElement.scrollHeight, pad, boxes, folds, words, ...(fills ? { spare } : {}) };
 }
+
+/**
+ * The room the one-screen pages keep under their sections, above the page's own bottom padding, in px
+ * (Release 19, the owner's request of 26 Nov 2026: no layout that depends on 2px of spare room). On
+ * production a section ending in the window with less room is a warning, not a failure: real names
+ * and rosters vary, and the window itself is the hard limit (the fact above).
+ */
+export const ROOM_MIN = 12;
 
 /** The input readOneScreen takes for a page. */
 export const oneScreenInput = (page) => ({ sections: ONE_SCREEN_SECTIONS[page], overviews: OVERVIEWS[page], whole: WHOLE[page], fills: FILLS[page] });
@@ -165,6 +176,11 @@ export function oneScreenVerdicts({ page, size, read }) {
     const says = f.button && all === f.total && (page === "profile" || more === f.total - f.shown);
     const ok = f.shown === f.total ? !f.button : says;
     fact(`${label}: ${f.shown === f.total ? "every row shown, no Show all" : "the rows not shown are behind a Show all that says how many"}`, ok, { rows: f.total, shown: f.shown, button: f.button, says: f.words ? [all, more] : null });
+  }
+  // The room under the sections (Release 19): a reading with the page's padding (the check's reader always has it).
+  if (typeof read.pad === "number" && drawn.length) {
+    const room = Math.min(...drawn.map((b) => read.window - read.pad - b.bottom));
+    out.push({ name: `${size}: room to spare: every section ends at least ${ROOM_MIN}px above the page's own bottom padding`, status: room >= ROOM_MIN ? "PASS" : "WARN", detail: { room, min: ROOM_MIN, pad: read.pad } });
   }
   if (read.words) {
     const w = read.words;

@@ -1,5 +1,5 @@
 import { sql } from "drizzle-orm";
-import { bigint, boolean, index, integer, jsonb, pgTable, primaryKey, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
+import { bigint, boolean, index, integer, jsonb, pgTable, primaryKey, smallint, text, timestamp, uniqueIndex, uuid } from "drizzle-orm/pg-core";
 import { accountOwnerEnum, roleEnum, timestamps } from "./common";
 import { players } from "./team";
 import type { ObjectiveKind } from "@/domain/match-events";
@@ -235,6 +235,40 @@ export const matchDetails = pgTable("match_details", {
   // records of one champion instead of every record. The statement uses the same expression.
   index("match_details_champions_idx").using("gin", sql`(jsonb_path_query_array(${t.participants}, '$[*].championId'))`).with({ fastupdate: false }),
 ]);
+
+/**
+ * Each counted player of a stored record, for the multikill score's comparison
+ * (server/leaderboards/multikill-baseline) and its by-hand fairness check (jobs/multikill-audit):
+ * Riot's position, champion, side, kills and four multikill counters, with the game's queue, length
+ * and each side's champion kills. Copied by the database itself from `match_details` (trigger
+ * `match_multikills_rows`, migration 0070) whenever a record is stored or its players, teams, queue
+ * or length are rewritten (the figures backfill, an erasure's redaction), and deleted with the
+ * record, so it never disagrees with it. A removed player, and a player whose record has no Riot
+ * counters, has no row. The comparison reads these ~150 bytes a player instead of opening every
+ * record from TOAST storage (docs/PERFORMANCE.md, 27 Nov 2026). Server-side only, like the records.
+ */
+export const matchMultikills = pgTable("match_multikills", {
+  matchId: text("match_id").notNull().references(() => matchDetails.matchId, { onDelete: "cascade" }),
+  /** The player's place in the record's list (0–9): with the match, the row's key. */
+  slot: smallint("slot").notNull(),
+  /** "" when the record has none; read only to leave the team's own accounts out, never shown. */
+  puuid: text("puuid").notNull(),
+  position: text("position"),
+  championId: text("champion_id"),
+  queueId: integer("queue_id"),
+  durationS: integer("duration_s").notNull(),
+  /** Riot's side (100 blue, 200 red); null when the record has none. */
+  teamId: smallint("team_id"),
+  kills: smallint("kills"),
+  /** The champion kills of the player's side (Riot's team objectives); null when the record has none. */
+  teamKills: smallint("team_kills"),
+  doubles: smallint("doubles").notNull(),
+  triples: smallint("triples").notNull(),
+  quadras: smallint("quadras").notNull(),
+  pentas: smallint("pentas").notNull(),
+  /** Riot's largestMultiKill; null when it sent none. */
+  largest: smallint("largest"),
+}, (t) => [primaryKey({ columns: [t.matchId, t.slot] })]);
 
 /**
  * What a match's timeline says about each player, kept once per match when a player first opens the

@@ -179,7 +179,11 @@ describe("team leaderboards data", () => {
     const comparison = steps.find((s) => s.name === "leaderboards.multikill-baseline")!;
     expect(comparison.error).toBeUndefined();
     expect(comparison.note).toMatch(/^\d+ comparison games · \d+ roles · \d+ role and champion groups · counting (nested|separate|assumed nested)$/);
-    expect(`${form.note} ${records.note} ${comparison.note}`).not.toMatch(/Ace|Bea/);
+    // Its statement explained (27 Nov 2026): pages and the one table it reads, the players' counters, never the records.
+    const statement = steps.find((s) => s.name === "leaderboards.multikill-statement")!;
+    expect(statement.error).toBeUndefined();
+    expect(statement.note).toMatch(/^[\d.]+ ms in the database · \d+ pages from its cache · \d+ read · \d+ temporary · reads match_multikills$/);
+    expect(`${form.note} ${records.note} ${comparison.note} ${statement.note}`).not.toMatch(/Ace|Bea/);
     // Match History's member counts for the busiest player: counts only, never a name.
     const members = steps.find((s) => s.name === "profile.historyMembers")!;
     expect(members.error).toBeUndefined();

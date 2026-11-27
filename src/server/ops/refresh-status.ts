@@ -18,16 +18,21 @@ export type JobKey =
   | "data-audit"
   | "skin-audit"
   | "proficiency-audit"
+  | "multikill-audit"
   | "rank-audit"
+  | "leaderboard-audit"
   | "db-usage"
   | "egress"
   | "erasure-reconcile"
+  | "erasure-reconcile-count"
   | "history-rescan"
   | "rank-schedule"
   | "rank-schedule-off"
   | "rank-schedule-status"
   | "verify-account"
   | "lane-opponent-recompute"
+  | "builds-audit"
+  | "high-elo-sample"
   | "tick";
 
 export interface JobOutcome {

@@ -55,9 +55,16 @@ describe("job registry", () => {
     const byKey = new Map(listJobs().map((j) => [j.key, j]));
     expect(byKey.get("perf-probe")?.cost).toMatch(/6 MB/);
     expect(byKey.get("data-audit")?.cost).toMatch(/every stored game/);
+    expect(byKey.get("multikill-audit")?.cost).toMatch(/stored games and the players' multikill counters/);
     expect(byKey.get("static-sync")?.asks).toBeTruthy();
     // Every job the scheduler runs is a refresh: a check or a setup job never runs by itself.
     expect(listJobs().filter((j) => j.defaultIntervalMinutes !== null && j.kind !== "refresh").map((j) => j.key)).toEqual([]);
+  });
+
+  it("registers the multikill fairness check as a read-only check, run by hand only", () => {
+    const job = listJobs().find((j) => j.key === "multikill-audit");
+    expect(job).toMatchObject({ kind: "check", defaultIntervalMinutes: null, allowConcurrent: true });
+    expect(job?.description).toMatch(/Changes nothing/);
   });
 
   it("registers the stored lane opponents' repair, run by hand only (never by the scheduler)", () => {

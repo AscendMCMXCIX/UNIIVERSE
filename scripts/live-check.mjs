@@ -60,7 +60,7 @@
     screen.
   - Team Overview (November 2026: the approved design, before #275), on whatever lineup production
     has: at 1440 the lineup centred in the height under the section tabs (or starting at the top
-    when taller than the window), and the header's 80px logo and "Team Overview" eyebrow with the
+    when taller than the window), and the header's 80px logo and "Team overview" eyebrow with the
     five cards on the stage's floor, hidden from screen readers; on the phone the first lineup card
     above the tab bar; at every width no bench of substitutes under the lineup (a substitute is on
     their starter's card). A fact whose precondition does not hold (no lineup five across, no tab
@@ -107,8 +107,10 @@
     progress and Recent form where drawn) end within the window; Leaderboards' multikills and milestones
     show every row with no Show all, and no board leaves a blank band (its last line within 24px of its
     end unless its rows have grown to their cap, 3.5rem a row on average; the multikills' legend right
-    under their last row); a profile's pool showing fewer rows than it has says so in its Show all.
-    Positions, counts and the Show all's words only. At every width,
+    under their last row); a profile's pool showing fewer rows than it has says so in its Show all;
+    and (Release 19) the lowest section ends at least 12px above the page's own bottom padding (a
+    warning with less, the window being the hard limit). Positions, counts and the Show all's words
+    only. At every width,
     Records & achievements' old address (/leaderboards?view=records) opens the same page, the view gone
     from its address, at the season records (in view, focused). Counts, heights and true/false only.
   - settings: the picture and display-name help name the public team page, and Settings never
@@ -161,8 +163,10 @@
   - type (25 Nov 2026, the owner's readability request; scripts/type-facts.mjs): at every width the
     four text tiers are deployed with their values (primary, secondary, tertiary, disabled); on Team
     Overview, the teammate's profile and Settings no live text is drawn in the disabled tone (only a
-    disabled control or its label); on the profile and Settings, whose labels are sentence case, no
-    text in capitals outside a round pill and a member's own name style; on All Champions' table (not
+    disabled control or its label); on Team Overview (sentence case since 27 Nov 2026, the owner's
+    decision D4), the profile and Settings, whose labels are sentence case, no text in capitals
+    outside a round pill, a member's own name style and Team's backdrop lettering (artwork, hidden
+    from screen readers); on All Champions' table (not
     on narrow rows), every figure primary (a dash or zero tertiary), semibold only in the sorted
     column, under the one semibold heading. Counts, values and tags only.
   - reach (PR 2b; S4a, 20 Nov 2026): from the end of Match History, on the desktop and the tablet the
@@ -174,10 +178,14 @@
 */
 import { chromium } from "@playwright/test";
 import { AxeBuilder } from "@axe-core/playwright";
-import { redact } from "./redact.mjs";
-import { riotKeysOnPage } from "./riot-keys.mjs";
+import { hideTerms, redact } from "./redact.mjs";
+import { riotFiguresOnPage, riotKeysOnPage } from "./riot-keys.mjs";
+import { accountsPageVerdict, bookmarkVerdict, jobsSessionVerdict, MANAGEMENT_CONTROLS, managementVerdict, noProfileVerdict, readBookmarkControls, readManagementControls } from "./boundary-facts.mjs";
+import { auditCounts, leaderboardScopeVerdicts, readLeaderboardScope } from "./leaderboard-facts.mjs";
 import { rosterRowLines } from "./roster-lines.mjs";
 import { championLookupVerdicts, readChampionLookup, readChampionWindow } from "./champion-lookup-facts.mjs";
+import { buildsVerdicts, probeFrom, probePath, readBuildsColumns } from "./builds-facts.mjs";
+import { MATCHUP_READ, matchupVerdicts, readMatchup } from "./matchup-facts.mjs";
 import { fitVerdicts, postGameVerdicts, readFit, readInspection, readPostGame, switchVerdicts } from "./post-game-facts.mjs";
 import { championPreviewVerdicts, readChampionPreview, readChampionRows, targetRow } from "./champion-preview-facts.mjs";
 import { breakdownKeyboardVerdicts, breakdownVerdicts, MULTIKILL_ROLE_LABEL, multikillVerdicts, readBreakdownFocus, readMultikillBoard, readMultikillBreakdown } from "./multikill-facts.mjs";
@@ -234,7 +242,7 @@ function http(path, cookie, headers = []) {
 }
 const turnedAway = (r) => ((r.status >= 300 && r.status < 400 && /\/login/.test(r.redirect)) || r.status === 401 || r.status === 403);
 /** Admin Mode's pages the security facts reach since 19 Nov 2026, and the sign-in previews (Platform Settings → Previews). */
-const ADMIN_PAGES_LATER = ["/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources"];
+const ADMIN_PAGES_LATER = ["/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/matchup-notes"];
 const PREVIEW_PAGES = ["/preview/login", "/preview/setup"];
 /** What only Admin Mode's pages carry (their test ids and the dashboard's data), in a body or a redirect's. */
 const ADMIN_MARKERS = /admin-dashboard|dashboard-accounts|admin-activity|system-status|health-answers|adminAccounts/;
@@ -253,8 +261,10 @@ async function deployment() {
       body = null;
     }
     report.deployment = body?.deployment ?? null;
-    report.health = body ? { ok: body.ok === true, db: body.db?.ok ?? null, notices: Array.isArray(body.notices) ? body.notices.length : null, patch: typeof body.patch === "string" ? body.patch : null } : null;
+    report.health = body ? { ok: body.ok === true, db: body.db?.ok ?? null, notices: Array.isArray(body.notices) ? body.notices.length : null, patch: typeof body.patch === "string" ? body.patch : null, highElo: typeof body.highElo?.collection === "string" ? body.highElo.collection : null } : null;
     report.healthNotices = Array.isArray(body?.notices) ? body.notices : [];
+    // Matchup Intel's reviewed notes by state (numbers only): null where the endpoint names none.
+    report.healthMatchupNotes = body && "matchupNotes" in body ? body.matchupNotes : undefined;
     if (!expected || report.deployment?.commit === expected || Date.now() > deadline) break;
     await new Promise((r) => setTimeout(r, 15_000));
   }
@@ -262,6 +272,12 @@ async function deployment() {
   // What is off by choice (server/ops/health-notices.ts): a warning each, never a failure. The
   // endpoint's words only (what is off, since which day); who turned it off is in Admin's Audit Logs.
   for (const notice of report.healthNotices) warn("health", `/api/health notice: ${String(notice?.message ?? notice?.kind ?? "unnamed").slice(0, 200)}`, { kind: notice?.kind ?? null, since: notice?.since ?? null, jobs: notice?.jobs ?? null });
+  // Matchup Intel's notes (27 Nov 2026): four counts that are whole and not negative, the fresh, not re-checked and hidden adding up to the published; or none named (the counts failed to read: logged there, never the check's failure).
+  if (report.healthMatchupNotes !== undefined) {
+    const m = report.healthMatchupNotes;
+    const whole = (v) => Number.isInteger(v) && v >= 0;
+    pass("health", "/api/health counts Matchup Intel's reviewed notes: published, fresh, not re-checked and hidden, whole numbers that add up", m === null || (whole(m.published) && whole(m.fresh) && whole(m.stale) && whole(m.hidden) && m.fresh + m.stale + m.hidden === m.published), m);
+  }
   if (expected) pass("deploy", `production answers from the commit just deployed (${expected})`, report.deployment?.commit === expected, { answering: report.deployment?.commit ?? null, waitedUpToSeconds: waitSeconds });
   else check("deploy", "the deployed commit", "PASS", report.deployment?.commit ?? "unknown");
   // Response times, measured where the check runs: slow is a warning (a cold start can be), not a failure.
@@ -290,7 +306,7 @@ function healthAndSecurity(playerId) {
   // Every Admin Mode page (#258; the rest since 19 Nov 2026) and the sign-in previews Admin Mode
   // opens. /admin/users and /admin/players redirect to /admin/people; /admin/public-access to /admin/branding#brand-public.
   // (Written out, not spread: src/server/ops/live-check-boundary.test.ts reads this list against docs/LIVE_VALIDATION.md.)
-  const paths = ["/team", "/players", "/matches", "/leaderboards", "/overview", "/overview/accounts", "/me", "/settings", "/lookup", "/admin", "/admin/players", "/admin/people", "/admin/audit", "/admin/system", "/admin/data", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/settings", "/preview/login", "/preview/setup"];
+  const paths = ["/team", "/players", "/matches", "/leaderboards", "/overview", "/overview/accounts", "/me", "/settings", "/lookup", "/admin", "/admin/players", "/admin/people", "/admin/audit", "/admin/system", "/admin/data", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/matchup-notes", "/admin/settings", "/preview/login", "/preview/setup"];
   playerId ??= publicPlayerId();
   if (playerId) paths.push(`/players/${playerId}`, `/players/${playerId}/champions`, `/players/${playerId}/matches`, `/players/${playerId}/accounts`);
   else warn("security", "a member's own pages were not tried", "no player id: not signed in, and the public team page lists no member");
@@ -340,6 +356,10 @@ function riotCompliance() {
   // CI pins the public card's fields, this reads the page production serves. Counts only.
   const riotKeys = riotKeysOnPage(team.text);
   pass("riot", "the public team page's HTML and RSC payload carry no puuid, gameName, tagLine or riotId key", riotKeys.total === 0 && riotKeys.chunks > 0 && riotKeys.unreadable === 0, { ...riotKeys.keys, payloadChunks: riotKeys.chunks, unreadableChunks: riotKeys.unreadable });
+  // Nor any Riot figure in the page's data (Release 19, scripts/riot-keys.mjs riotFiguresOnPage): no
+  // statistics shown, no games, figures, rank or tier on any card or pool champion. Counts only.
+  const figures = riotFiguresOnPage(team.text);
+  pass("riot", "the public team page's HTML and RSC payload carry no Riot figure (statistics hidden, no games, win rate, KDA, CS, mastery, LP, tier or last game)", figures.total === 0 && figures.chunks > 0 && figures.unreadable === 0, { ...figures.figures, statsVisible: figures.statsVisible, gamesAboveZero: figures.games, tiers: figures.tiers, payloadChunks: figures.chunks });
 }
 
 /**
@@ -348,7 +368,7 @@ function riotCompliance() {
  * document is loaded and no field measurement is sent), GET only, and only the status, the address
  * it is sent to and true/false are reported.
  */
-async function memberRefusals(context) {
+async function memberRefusals(context, playerId) {
   const outsideAdmin = (to) => !!to && !new URL(to, base).pathname.startsWith("/admin") && !new URL(to, base).pathname.startsWith("/login");
   for (const path of ["/admin", "/admin/people", "/admin/audit", "/admin/system", "/admin/data", "/admin/settings", ...ADMIN_PAGES_LATER, ...PREVIEW_PAGES]) {
     const res = await context.request.get(`${base}${path}`, { maxRedirects: 0 });
@@ -363,6 +383,29 @@ async function memberRefusals(context) {
   const to = mode.headers()["location"] ?? "";
   const adminCookie = /uniiverse_view=admin/.test(mode.headers()["set-cookie"] ?? "");
   pass("security", "signed in as a member: the mode switch to Admin Mode keeps Player Mode", mode.status() >= 300 && mode.status() < 400 && outsideAdmin(to) && !adminCookie, { status: mode.status(), to: to.replace(base, ""), adminCookie });
+  // The permission boundaries (Release 19, scripts/boundary-facts.mjs): a session never opens the
+  // jobs endpoint; a teammate's Riot accounts open with no control to change them; My Profile shows
+  // an account with no profile no one else's profile or accounts. GET only, counts and statuses.
+  const tick = await context.request.get(`${base}/api/jobs/tick`, { maxRedirects: 0 });
+  const v1 = jobsSessionVerdict({ status: tick.status() });
+  check("security", v1.name, v1.status, v1.detail);
+  if (playerId) {
+    const accounts = await context.request.get(`${base}/players/${playerId}/accounts`, { maxRedirects: 0 });
+    const v2 = accountsPageVerdict({ status: accounts.status(), text: await accounts.text() });
+    check("security", v2.name, v2.status, v2.detail);
+  } else warn("security", "signed in as a member: a teammate's Riot accounts page was not tried", "no lineup player to open");
+  for (const path of ["/overview", "/overview/accounts"]) {
+    const mine = await context.request.get(`${base}${path}`, { maxRedirects: 0 });
+    const v3 = noProfileVerdict(path, { status: mine.status(), text: await mine.text() });
+    check("security", v3.name, v3.status, v3.detail);
+  }
+}
+
+/** A page's management controls the verification account must not be offered (scripts/boundary-facts.mjs); the local demo's visitor is the owner. */
+async function managementFacts(page, kind, where) {
+  if (local) return check("security", `${kind}: ${where}: no management controls for a member without the right`, "PASS", "not applicable: LIVE_LOCAL=1, the demo build's visitor is the local owner, who may manage everything (e2e/permission-boundaries.spec.ts checks a member on demo data)");
+  const v = managementVerdict(kind, where, await page.evaluate(readManagementControls, MANAGEMENT_CONTROLS[where]));
+  check("security", v.name, v.status, v.detail);
 }
 
 // ── Browser ───────────────────────────────────────────────────────────────────────────────────
@@ -449,8 +492,8 @@ const settle = async (page) => {
 };
 const shot = (page, file, fullPage = false) => page.screenshot({ path: `${out}/${file}.png`, fullPage }).catch(() => {});
 
-/** Opens a page and checks what every page must meet; returns false when it did not load. */
-async function visit(page, log, kind, name, path, { fullPage = true, publicPage = false } = {}) {
+/** Opens a page and checks what every page must meet; returns false when it did not load. `shownPath`: the path written in its place (an address naming the builds audit's champions). */
+async function visit(page, log, kind, name, path, { fullPage = true, publicPage = false, shownPath } = {}) {
   const from = { c: log.console.length, e: log.pageErrors.length, f: log.failed.length };
   const res = await page.goto(`${base}${path}`, { waitUntil: "domcontentloaded", timeout: 45_000 });
   await settle(page);
@@ -467,9 +510,10 @@ async function visit(page, log, kind, name, path, { fullPage = true, publicPage 
   await shot(page, `${kind}-${name}`, fullPage);
   const consoleErrors = log.console.slice(from.c), pageErrors = log.pageErrors.slice(from.e), failed = log.failed.slice(from.f);
   const status = res?.status() ?? 0;
-  report.pages.push({ kind, name, path, status, ...facts, consoleErrors, pageErrors, failed });
+  const said = shownPath ?? path;
+  report.pages.push({ kind, name, path: said, status, ...facts, ...(shownPath ? { at: shownPath } : {}), consoleErrors, pageErrors, failed });
   const loaded = status > 0 && status < 400 && (publicPage || (!facts.at.startsWith("/login") && !facts.at.startsWith("/no-access") && !facts.screen));
-  pass(kind, `${name}: loads${publicPage ? "" : " signed in"} (${path})`, loaded, { status, at: facts.at, ...(facts.screen ? { screen: facts.screen } : {}) });
+  pass(kind, `${name}: loads${publicPage ? "" : " signed in"} (${said})`, loaded, { status, at: shownPath ?? facts.at, ...(facts.screen ? { screen: facts.screen } : {}) });
   if (!loaded) return false;
   pass(kind, `${name}: no sideways scroll`, facts.scrollX <= 1, facts.scrollX);
   pass(kind, `${name}: no page error or app console error`, pageErrors.length + consoleErrors.length === 0, [...pageErrors, ...consoleErrors].slice(0, 3));
@@ -750,7 +794,7 @@ async function accountMenuFirstTap(page, kind, trigger) {
  * - desktop (1440 × 900, the sidebar open), five across: the header and the cards are centred in
  *   the height under the section tabs (as much room above the header as under the cards, the frame
  *   reaching the window's foot), or start at the top when they are taller than the window; and the
- *   header shows the logo at 80px and the "Team Overview" eyebrow over the name, with the cards on
+ *   header shows the logo at 80px and the "Team overview" eyebrow over the name, with the cards on
  *   the stage's floor (drawn from just under them, hidden from screen readers);
  * - phone (390 × 844): the first lineup card ends above the tab bar, and the lineup is the carousel
  *   (23 Nov 2026): no pager over it, one card on screen, centred in the page's gutter, and five
@@ -774,7 +818,8 @@ async function teamFacts(page, kind) {
     const track = q("[data-testid=lineup-overview]");
     const floor = q("[data-testid=lineup-stage-floor]");
     const logo = header?.querySelector("img, [data-testid=brand-mark-text]");
-    const eyebrow = header ? [...header.querySelectorAll("p")].find((p) => p.textContent.trim() === "Team Overview") : null;
+    // The eyebrow in sentence case since 27 Nov 2026 (the owner's decision D4).
+    const eyebrow = header ? [...header.querySelectorAll("p")].find((p) => p.textContent.trim() === "Team overview") : null;
     const nav = [...document.querySelectorAll("nav[aria-label=Primary]")].find(shown);
     const at = (el, side) => (el ? Math.round(el.getBoundingClientRect()[side]) : null);
     return {
@@ -834,7 +879,7 @@ async function teamFacts(page, kind) {
     }
     // The team's identity at its approved size, and the stage the cards stand on: the floor lit from
     // just under them (its top in their last 48px), decoration hidden from screen readers.
-    const stage = "1440: the Team header's 80px logo and Team Overview eyebrow, and the five cards on the stage's floor (hidden from screen readers)";
+    const stage = "1440: the Team header's 80px logo and \"Team overview\" eyebrow, and the five cards on the stage's floor (hidden from screen readers)";
     if (!fiveAcross) check("team", stage, "PASS", notFive);
     else {
       const logo = !!f.logo && Math.abs(f.logo.w - 80) <= 1 && Math.abs(f.logo.h - 80) <= 1;
@@ -1291,11 +1336,21 @@ async function resourcesFacts(page, kind) {
  * server), read at 1440 × 900 on the aligned board, swapped (one request), read, and the first
  * column's ✕ pressed (one request), which leaves the first champion alone; each read with the
  * champion's builds and runes (streamed in after the abilities, waited for); then Matchup Intel's old address
- * (/resources/matchups?champion=Riven&vs=Mordekaiser), which must land on Champion Intel with
- * Mordekaiser. What is read and asserted is in scripts/champion-lookup-facts.mjs, beside its unit
+ * (/resources/matchups?role=top&champion=Riven&vs=Mordekaiser), which must land on Champion Intel's
+ * Compare with both champions and the lane (lane=TOP). What is read and asserted is in scripts/champion-lookup-facts.mjs, beside its unit
  * test. It reads nothing beyond what the page itself reads (the session, the cached roster and
  * patch, the chosen champions' stored abilities and their cached build totals).
  */
+/** /api/health's Master+ collection state ("on", "off", or null when it does not say): no page load. */
+function healthHighEloNow() {
+  try {
+    const body = JSON.parse(http("/api/health").text);
+    return typeof body?.highElo?.collection === "string" ? body.highElo.collection : null;
+  } catch {
+    return null;
+  }
+}
+
 /** /api/health's current patch (null when it names none or does not answer): no page load. */
 function healthPatchNow() {
   try {
@@ -1362,13 +1417,125 @@ async function championLookupFacts(page, kind) {
     else if (read && step === "swap") swapped = read;
     else if (read) removed = read;
   }
-  // Matchup Intel's old address: one redirect, to Champion Intel with its enemy.
-  await page.goto(`${base}/resources/matchups?champion=Riven&vs=Mordekaiser`, { waitUntil: "domcontentloaded" });
+  // Matchup Intel's old address: one redirect, to Champion Intel's Compare with both champions and the lane.
+  await page.goto(`${base}/resources/matchups?role=top&champion=Riven&vs=Mordekaiser`, { waitUntil: "domcontentloaded" });
   await page.getByTestId("lookup-panel").waitFor({ timeout: 20_000 }).catch(() => {});
   const legacy = await page.evaluate(readChampionLookup);
   // The patch /api/health names (read at the start against production; a local run asks once here).
   const healthPatch = report.health ? report.health.patch : healthPatchNow();
-  for (const v of championLookupVerdicts({ kind, champion: "Ahri", at, wide, hastedRead, all, search, dual, swapped, removed, stopped, legacy, healthPatch })) check("champion-lookup", v.name, v.status, v.detail);
+  // Whether the Master+ builds' collection is on (/api/health; docs/HIGH_ELO_EVIDENCE.md): off, the page offers no Master+ source.
+  const healthHighElo = report.health ? report.health.highElo : healthHighEloNow();
+  for (const v of championLookupVerdicts({ kind, champion: "Ahri", at, wide, hastedRead, all, search, dual, swapped, removed, stopped, legacy, healthPatch, healthHighElo })) check("champion-lookup", v.name, v.status, v.detail);
+}
+
+/**
+ * CHAMPION INTEL's populated builds (docs/LIVE_VALIDATION.md, "What it checks"; scripts/builds-facts.mjs):
+ * the champions the builds audit found builds for (LIVE_BUILDS_CHAMPIONS, opened from its sealed probe
+ * by the workflow; LIVE_LOCAL=1: the demo's Thresh and Leona), side by side, one page load. Their names
+ * are hidden from everything written. Then, in the page and with no request: the "Highest win rate"
+ * view where offered, each other role, Ranked Flex in the queue choice (and the offer of another
+ * queue where there is one), Ranked Solo/Duo again; then Swap with Ranked Flex chosen (one request).
+ * With no probe (no champion has enough games yet), one WARN, never a failure.
+ */
+async function buildsChampionFacts(page, log, kind) {
+  const probe = probeFrom(process.env.LIVE_BUILDS_CHAMPIONS, local);
+  const healthPatch = report.health ? report.health.patch : healthPatchNow();
+  const say = (input) => {
+    for (const v of buildsVerdicts({ kind, probe, healthPatch, ...input })) check("builds", v.name, v.status, v.detail);
+  };
+  if (!probe.length) return say({});
+  hideTerms(probe.map((p) => p.champion));
+  if (!(await visit(page, log, kind, "builds", probePath(probe), { fullPage: false, shownPath: "/lookup?champion=<builds champion>" }))) return;
+  await page.getByTestId("lookup-view").and(page.locator("[data-ready=true]")).waitFor({ timeout: 20_000 }).catch(() => {});
+  for (let n = 1; n <= probe.length; n++) await page.locator(`[data-panel="${n}"] [data-testid="lookup-builds-view"]`).waitFor({ timeout: 20_000 }).catch(() => {});
+  // Their names as the page writes them (an id is not always the name): hidden too.
+  hideTerms(await page.locator('[data-testid="lookup-name"]').allTextContents().catch(() => []));
+  await axe(page, kind, "builds", "[data-testid=lookup-builds]");
+  const column = (n) => page.locator(`[data-testid="lookup-panel"][data-panel="${n}"] [data-testid="lookup-builds-view"]`);
+  const read = () => page.evaluate(readBuildsColumns);
+  const at = await read();
+  const input = { at, roles: [] };
+  // A page load from here on would drop this mark: the queue's facts say whether one happened.
+  await page.evaluate(() => (window.__buildsMark = true));
+  const one = at.columns[0];
+  try {
+    if (one?.offersHighest) {
+      await column(1).locator('[data-testid="lookup-build-mode"] [data-value="highest"]').click({ timeout: 5_000 });
+      await page.locator('[data-panel="1"] [data-testid="lookup-builds-view"][data-mode="highest"]').waitFor({ timeout: 5_000 });
+      input.highest = await read();
+      await column(1).locator('[data-testid="lookup-build-mode"] [data-value="common"]').click({ timeout: 5_000 });
+    }
+    for (const r of one?.roles.slice(1) ?? []) {
+      await column(1).locator(`[data-testid="lookup-build-role"] [data-value="${r.role}"]`).click({ timeout: 5_000 });
+      await page.locator(`[data-panel="1"] [data-testid="lookup-builds-view"][data-role="${r.role}"]`).waitFor({ timeout: 5_000 });
+      input.roles.push(await read());
+    }
+    if (one && one.roles.length > 1) await column(1).locator(`[data-testid="lookup-build-role"] [data-value="${one.roles[0].role}"]`).click({ timeout: 5_000 });
+  } catch {
+    // A step that did not finish leaves its read undefined: its fact names it.
+  }
+  // The page's queue: the choice in the first column (the desktop's popover), Ranked Flex, then Ranked Solo/Duo.
+  const choose = async (value) => {
+    const control = column(1).getByTestId("lookup-build-queue");
+    if ((await control.evaluate((e) => e.tagName)) === "SELECT") await control.selectOption(value);
+    else {
+      await control.click({ timeout: 5_000 });
+      await page.locator(`[id="${await control.getAttribute("aria-controls")}"] [role=option][data-value="${value}"]`).click({ timeout: 5_000 });
+    }
+    await page.locator(`[data-panel="1"] [data-testid="lookup-builds-view"][data-queue="${value}"]`).waitFor({ timeout: 5_000 });
+  };
+  try {
+    await choose("flex");
+    input.flex = await read();
+    const offer = page.locator('[data-testid="lookup-build-other-queue"]').first();
+    if (await offer.count()) {
+      const to = await offer.getAttribute("data-queue");
+      await offer.click({ timeout: 5_000 });
+      await page.locator(`[data-panel="1"] [data-testid="lookup-builds-view"][data-queue="${to}"]`).waitFor({ timeout: 5_000 });
+      input.offered = await read();
+    }
+    await choose("solo");
+    await page.waitForFunction(() => !new URLSearchParams(location.search).has("queue"), null, { timeout: 5_000 }).catch(() => {});
+    input.back = await read();
+    if (probe.length > 1) {
+      await choose("flex");
+      await page.getByTestId("lookup-swap").click({ timeout: 5_000 });
+      await page.waitForFunction((first) => new URLSearchParams(location.search).get("champion") !== first, probe[0].champion, { timeout: 20_000 });
+      await page.locator('[data-testid="lookup-view"][data-ready=true]').waitFor({ timeout: 20_000 });
+      await page.waitForFunction(() => !document.querySelector('[data-testid="lookup-panel"][aria-busy]'), null, { timeout: 20_000 }).catch(() => {});
+      input.swapped = await read();
+    }
+  } catch {
+    // As above: the facts name the step that could not be read.
+  }
+  say(input);
+}
+
+/**
+ * MATCHUP INTEL, one page load and one request (docs/LIVE_VALIDATION.md, "What it checks";
+ * docs/MATCHUP_INTEL.md): Champion Intel's Compare with a lane, a common pair (Ahri against Zed in
+ * Mid) at the check's 1440 × 900, the band waited for (streamed after the abilities), read; then
+ * Swap (one request), read again. What is read and asserted is in scripts/matchup-facts.mjs, beside
+ * its unit test. It reads what the page reads: the two champions' stored abilities, the pair's lane
+ * totals (cached six hours) and its published notes; counts and the page's own words only.
+ */
+async function matchupFacts(page) {
+  await page.getByTestId("lookup-view").and(page.locator("[data-ready=true]")).waitFor({ timeout: 20_000 });
+  await page.getByTestId("matchup-band").waitFor({ timeout: 20_000 }).catch(() => {});
+  const at = await page.evaluate(readMatchup, MATCHUP_READ);
+  let swapped;
+  let stopped;
+  try {
+    await page.getByTestId("lookup-swap").click({ timeout: 5_000 });
+    await page.waitForFunction(() => new URLSearchParams(location.search).get("champion") === "Zed", null, { timeout: 20_000 });
+    await page.locator('[data-testid="matchup-band"][data-a="Zed"]').waitFor({ timeout: 20_000 });
+    swapped = await page.evaluate(readMatchup, MATCHUP_READ);
+  } catch {
+    stopped = "swap";
+  }
+  const healthPatch = report.health ? report.health.patch : healthPatchNow();
+  // The verification account holds the default access, which may see teammates' statistics.
+  for (const v of matchupVerdicts({ at, swapped, stopped, healthPatch, mayStats: true })) check("matchup", v.name, v.status, v.detail);
 }
 
 /**
@@ -1920,6 +2087,11 @@ async function teamMatches(page, log, kind, context) {
   if (!(await games.first().waitFor({ timeout: 20_000 }).then(() => true, () => false))) return warn("games", `${kind}: Team Matches lists no games`, "nothing to open");
   // Each member's performance score and place (25 Nov 2026; scripts/card-score-facts.mjs readTogetherScores).
   for (const v of togetherScoreVerdicts({ kind, games: await page.evaluate(readTogetherScores) })) check("games", v.name, v.status, v.detail);
+  // A teammate's bookmark shows as a state, with no control to remove it (scripts/boundary-facts.mjs).
+  if (!local) {
+    const b = bookmarkVerdict(kind, await page.evaluate(readBookmarkControls));
+    check("security", b.name, b.status, b.detail);
+  }
   const game = games.first();
   if (kind === "phone") return phoneGame(page, kind, "Team Matches", "team-matches", () => game.getByTestId("together-card").click({ position: { x: 24, y: 12 } }));
   // A game with four or more members lists them two to a row (their column is 34rem wide on the
@@ -2051,8 +2223,8 @@ async function reachFacts(page, kind) {
 /**
  * The text hierarchy (the owner's readability request, 25 Nov 2026; scripts/type-facts.mjs): on the
  * page just opened, no live text in the disabled tone; with `tiers`, the four text tiers deployed;
- * with `sentenceCase`, no capitals outside a pill (the profile's Overview and Settings, whose labels
- * are sentence case; Team Overview keeps its approved capitals, so it is judged without).
+ * with `sentenceCase`, no capitals outside a pill (Team Overview, the profile's Overview and Settings,
+ * whose labels are sentence case: Team Overview's since 27 Nov 2026, the owner's decision D4).
  */
 async function typeFacts(page, kind, name, { tiers = false, sentenceCase = false } = {}) {
   const facts = await page.evaluate(readTypeFacts);
@@ -2319,7 +2491,8 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
       playerId ??= await page.locator("[data-testid^=lineup-row-][data-player-id]").first().getAttribute("data-player-id").catch(() => null);
       await axe(page, kind, "team");
       await teamFacts(page, kind);
-      await guarded("type", `${kind}: Team Overview's text`, () => typeFacts(page, kind, "team", { tiers: true }));
+      await guarded("security", `${kind}: Team's management controls`, () => managementFacts(page, kind, "team"));
+      await guarded("type", `${kind}: Team Overview's text`, () => typeFacts(page, kind, "team", { tiers: true, sentenceCase: true }));
       await guarded("team", `${kind}: shared kit`, () => sharedKitFacts(page, kind));
     }
   });
@@ -2335,6 +2508,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
     await guarded(kind, "profile", async () => {
       if (await visit(page, log, kind, "profile", `/players/${playerId}`)) {
         await noteProfileTabs(page, kind, "overview");
+        await guarded("security", `${kind}: a teammate's profile's management controls`, () => managementFacts(page, kind, "profile"));
         await axe(page, kind, "profile");
         await guarded("type", `${kind}: the profile's text`, () => typeFacts(page, kind, "profile", { sentenceCase: true }));
         await guarded("ranked", `${kind}: Ranked progress`, () => rankedProgressEnds(page, kind));
@@ -2348,6 +2522,10 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
   await guarded(kind, "leaderboards", async () => {
     if (await visit(page, log, kind, "leaderboards", "/leaderboards")) {
       await leaderboardsFacts(page, kind);
+      // The 30-day rule against the leaderboard audit's own count (scripts/leaderboard-facts.mjs).
+      await guarded("leaderboards", `${kind}: the 30-day rule`, async () => {
+        for (const v of leaderboardScopeVerdicts({ kind, read: await page.evaluate(readLeaderboardScope), ...auditCounts() })) check("leaderboards", v.name, v.status, v.detail);
+      });
       await recordsFacts(page, kind);
       await multikillFacts(page, kind);
       if (kind === "desktop") await guarded("leaderboards", "desktop: the four boards on one screen", () => oneScreenFacts(page, "leaderboards", "leaderboards"));
@@ -2392,6 +2570,15 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
         await championLookupFacts(page, kind);
       }
     });
+    // The builds of champions the team's data has builds for (the builds audit's probe): one page load, one Swap.
+    await guarded("builds", `${kind}: Champion Intel's populated builds`, async () => buildsChampionFacts(page, log, kind));
+    // Matchup Intel: Compare with a lane, one page load and the swap.
+    await guarded("matchup", `${kind}: Matchup Intel`, async () => {
+      if (await visit(page, log, kind, "matchup", "/lookup?champion=Ahri&champion2=Zed&lane=MID", { fullPage: false })) {
+        await axe(page, kind, "matchup");
+        await matchupFacts(page);
+      }
+    });
   }
   // Wide screens in the desktop's own context (signed in already): four pages at 2560 × 1440.
   if (kind === "desktop") await guarded("frame", "the profile's tabs", async () => profileTabsLevel());
@@ -2400,7 +2587,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
   if (kind === "phone") await guarded("frame", "phone held sideways (844 × 390)", () => sidewaysFrame(page, log, playerId));
   // Last in the desktop context, so a mode switch that went wrong cannot affect the other checks. Not
   // under LIVE_LOCAL: the demo build's visitor is the local owner, an administrator.
-  if (kind === "desktop" && !local) await guarded("security", "a member's refusals", () => memberRefusals(context));
+  if (kind === "desktop" && !local) await guarded("security", "a member's refusals", () => memberRefusals(context, playerId));
   await context.close();
 }
 await browser.close();

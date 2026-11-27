@@ -27,7 +27,8 @@ import { formatCompactCount, formatCount } from "@/lib/format";
  */
 export function CardRoleChip({ role, label, className, labelClassName }: { role: Role | null; label: string; className?: string; labelClassName?: string }) {
   return (
-    <span className={cn("inline-flex items-center gap-1.5 rounded-full bg-bg/85 px-3 py-1 text-sm font-semibold uppercase tracking-label text-fg", className)} data-testid="assigned-role">
+    // The role's name in sentence case ("Top", "Support": Release 19, the owner's decision D4), its chip and icon as approved.
+    <span className={cn("inline-flex items-center gap-1.5 rounded-full bg-bg/85 px-3 py-1 text-sm font-semibold text-fg", className)} data-testid="assigned-role">
       {role ? (
         <span style={{ color: "var(--card-accent)" }} className="inline-flex">
           <RoleIcon role={role} className="h-4 w-4" decorative />
@@ -83,7 +84,8 @@ export function CardIdentity({ look, name, avatarUrl, rank, showRank = true, isY
       {/* Under 12rem of card (five across from a 56rem lineup; larger text on a phone) the picture is 44px, so three links still share its row; 44px too beside the name on a phone (PHONE_SIDE). */}
       <CardAvatar look={look} name={name} src={avatarUrl} size={size} className={size === "lg" ? cn("@max-[12rem]/card:[&>*]:size-11", phoneSide && "@max-xl/lineup:@min-[15rem]/card:[&>*]:size-11") : undefined} />
       {isYou ? (
-        <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 rounded-full bg-accent px-1.5 text-2xs font-bold uppercase leading-4 tracking-wide text-bg shadow-sm shadow-black/40" data-testid="card-you">
+        // "You" in sentence case, as the Leaderboards' badge (Release 19, D4).
+        <span className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 rounded-full bg-accent px-1.5 text-2xs font-bold leading-4 text-bg shadow-sm shadow-black/40" data-testid="card-you">
           You
         </span>
       ) : null}
@@ -232,7 +234,8 @@ export function CardPerformance({ season, support, roleLabel, placeholder = fals
   const decided = (wins ?? 0) + (losses ?? 0);
   const per = (n: number | null | undefined) => (n == null ? "–" : n.toFixed(1));
   const kdaLine = season && season.kills != null && season.deaths != null && season.assists != null ? `${per(season.kills)} / ${per(season.deaths)} / ${per(season.assists)}` : null;
-  const label = "block whitespace-nowrap text-2xs font-medium uppercase tracking-label text-fg-subtle";
+  // A figure's label in sentence case, secondary (Release 19, D4: the capitals were 11px and tertiary; label-text is the 12px floor on desktops).
+  const label = "label-text block whitespace-nowrap";
   const sub = "block truncate text-2xs tabular-nums text-fg-subtle";
   // KDA and CS/min (vision) on a narrow card: one above the other in the right-hand column, each its
   // label over its figure, right-aligned (a label and figure side by side did not fit "VISION 79.3").
@@ -497,12 +500,12 @@ const POOL_TILE_GRID = "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center ga
 
 /** The column names over the pool list, where it has the columns (narrower, each champion's figures in a short block). */
 export function PoolColumnNames({ support }: { support: boolean }) {
-  // The window keeps its approved capitals (25 Nov 2026); its column names are labels, so the secondary grey.
-  const head = "whitespace-nowrap text-right text-2xs font-semibold uppercase tracking-label text-fg-muted";
+  // Column names are labels: sentence case, the secondary grey (Release 19, D4).
+  const head = "label-text whitespace-nowrap text-right";
   return (
     <div className={cn(POOL_TILE_GRID, "hidden border-b border-border/70 bg-bg/30 px-3 py-1.5 @min-[28rem]/pool:grid")} aria-hidden data-testid="pool-columns">
       <span className="w-10" />
-      <span className="text-2xs font-semibold uppercase tracking-label text-fg-muted">Champion</span>
+      <span className="label-text">Champion</span>
       <span className={head}>Win rate</span>
       <span className={head}>Games</span>
       <span className={head}>KDA</span>
@@ -541,7 +544,7 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
             clipped second line), never the name's letters: the row's 1 and its accent bar still mark it. */}
         <span className="flex max-h-5 min-w-0 flex-wrap items-baseline gap-x-2 overflow-hidden @max-[15.5rem]/pool:col-span-2 @max-[15.5rem]/pool:self-center">
           <span className="truncate text-sm font-semibold text-fg" data-testid="pool-champion-name">{champion.name}</span>
-          {first ? <span className="shrink-0 text-2xs font-semibold uppercase tracking-label text-[var(--card-accent)]">First choice</span> : null}
+          {first ? <span className="shrink-0 text-2xs font-semibold text-[var(--card-accent)]">First choice</span> : null}
         </span>
         {withStats ? (
           <span className="mt-0.5 block @max-[15.5rem]/pool:col-span-3 @max-[15.5rem]/pool:col-start-1 @max-[15.5rem]/pool:row-start-2 @max-[15.5rem]/pool:mt-0 @max-[15.5rem]/pool:py-1">
@@ -574,8 +577,14 @@ export function PoolChampionTile({ index, champion, row, support, withStats = tr
           // would leave the name one letter: there it takes a line of its own under the name instead.
           <span className="min-w-0 text-right @max-[28rem]/pool:col-span-2 @max-[28rem]/pool:col-start-2 @max-[28rem]/pool:row-start-2 @max-[28rem]/pool:pt-1 @max-[28rem]/pool:text-left @min-[28rem]/pool:col-span-4 @max-[15.5rem]/pool:col-span-3 @max-[15.5rem]/pool:col-start-1 @max-[15.5rem]/pool:row-start-3" data-testid="pool-champion-stats">
             {row.masteryPoints ? (
+              // Two right-aligned lines in the figures' columns (Release 19, the visual review's V10: on one line the note ran left to the
+              // name's column, flush against its experience label); one line under the name in a narrow list.
               <span className="text-xs tabular-nums text-fg-muted" title={`${formatCount(row.masteryPoints)} mastery points`}>
-                <span className="font-semibold">{formatCompactCount(row.masteryPoints)}</span> mastery (all-time) · no games this season
+                <span className="@min-[28rem]/pool:block">
+                  <span className="font-semibold">{formatCompactCount(row.masteryPoints)}</span> mastery (all-time)
+                </span>
+                <span className="@min-[28rem]/pool:hidden"> · </span>
+                <span className="@min-[28rem]/pool:block">no games this season</span>
               </span>
             ) : (
               <span className="text-xs text-fg-subtle">No games this season</span>

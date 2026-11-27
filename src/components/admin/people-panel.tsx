@@ -263,7 +263,7 @@ export function PeoplePanel({
       key: "no-profile",
       title: "Accounts without a player profile",
       rows: shown.filter((p) => !p.player && !p.account?.keptAutomatically),
-      note: "An account from before automatic profiles, or the Owner's after a recovery, which the Owner completes under My profile.",
+      note: "An account from before automatic profiles, or the Owner's after a recovery, which the Owner completes under My Profile.",
     },
   ];
   const accountless = shown.filter((p) => p.player && !p.account);

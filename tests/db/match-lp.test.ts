@@ -65,3 +65,44 @@ describe("LP on a page of games", () => {
     expect((await lpForGames(handle.db, page(["F1"]))).get("F1")).toMatchObject({ kind: "lp", delta: 21 });
   });
 });
+
+describe("LP across the 2027 ranked year's reset", () => {
+  // The last 2026 readings in December, Riot's reset to Iron IV in January (the count restarting),
+  // then 17.1 games: each gets its figure from the 2027 readings, none across the reset.
+  const J0 = Date.UTC(2027, 0, 8, 8, 0);
+  const jan = (min: number) => J0 + min * 60_000;
+  let yearAccount: string;
+  const rows: Array<typeof accountMatches.$inferInsert> = [];
+  const yearPage = (ids: string[]) => ids.map((matchId) => ({ matchId, accountId: yearAccount, queueId: 420, gameCreation: rows.find((g) => g.matchId === matchId)!.gameCreation }));
+
+  beforeAll(async () => {
+    const db = handle.db;
+    const team = await getOrCreateTeam(db);
+    const p = await createPlayer(db, team.id, { displayName: "New Year", primaryRole: "TOP", primaryPool: ["Garen"] });
+    const [a] = await db.insert(riotAccounts).values({ ownerType: "player", playerId: p.id, gameName: "NewYear", tagLine: "T", platform: "oc1", puuid: "p-new-year", label: "main" }).returning({ id: riotAccounts.id });
+    yearAccount = a!.id;
+    const g = (matchId: string, created: number, minutes: number, win: boolean, patch: string) => ({ accountId: yearAccount, matchId, gameCreation: created, gameDuration: minutes * 60, queueId: 420, win, patch, championId: "Garen" });
+    rows.push(
+      g("D1", Date.UTC(2026, 11, 20, 9), 25, true, "16.24"), // read in: 2026's own figure
+      g("X1", Date.UTC(2027, 0, 5, 9), 25, false, "16.24"), // after the last 2026 reading, before the reset reading
+      g("J1", jan(20), 25, true, "17.1"), // the first 2027 game: Iron IV to Iron III
+      g("J2", jan(80), 25, true, "17.1"), // then an LP figure
+    );
+    await db.insert(accountMatches).values(rows);
+    await db.insert(rankSnapshots).values([
+      { accountId: yearAccount, queue: "solo", tier: "GOLD", division: "II", leaguePoints: 46, wins: 150, losses: 140, capturedAt: new Date(Date.UTC(2026, 11, 20, 8, 50)), confirmedAt: new Date(Date.UTC(2026, 11, 20, 9, 10)) },
+      { accountId: yearAccount, queue: "solo", tier: "GOLD", division: "II", leaguePoints: 70, wins: 151, losses: 140, capturedAt: new Date(Date.UTC(2026, 11, 20, 9, 30)), confirmedAt: new Date(Date.UTC(2027, 0, 5, 8, 0)) },
+      { accountId: yearAccount, queue: "solo", tier: "IRON", division: "IV", leaguePoints: 0, wins: 0, losses: 0, capturedAt: new Date(jan(0)), confirmedAt: new Date(jan(30)) },
+      { accountId: yearAccount, queue: "solo", tier: "IRON", division: "III", leaguePoints: 20, wins: 1, losses: 0, capturedAt: new Date(jan(55)), confirmedAt: new Date(jan(85)) },
+      { accountId: yearAccount, queue: "solo", tier: "IRON", division: "III", leaguePoints: 60, wins: 2, losses: 0, capturedAt: new Date(jan(115)) },
+    ]);
+  }, 60_000);
+
+  it("gives the 17.1 games their figures from the 2027 readings, the game across the reset none, and 2026's game its own", async () => {
+    const lp = await lpForGames(handle.db, yearPage(["D1", "X1", "J1", "J2"]));
+    expect(lp.get("D1")).toMatchObject({ kind: "lp", delta: 24 });
+    expect(lp.get("X1")).toMatchObject({ kind: "none", reason: "season-reset" });
+    expect(lp.get("J1")).toMatchObject({ kind: "promoted", before: { label: "Iron IV" }, after: { label: "Iron III" } });
+    expect(lp.get("J2")).toMatchObject({ kind: "lp", delta: 40 });
+  });
+});

@@ -2,7 +2,7 @@ import { Readable } from "node:stream";
 import { describe, expect, it } from "vitest";
 import { createNodeInlinedDataStream } from "next/dist/server/app-render/stream-ops.node";
 import { createInlinedDataReadableStream } from "next/dist/server/app-render/use-flight-response";
-import { RIOT_KEYS, riotKeysOnPage } from "../../../scripts/riot-keys.mjs";
+import { RIOT_FIGURE_KEYS, RIOT_KEYS, riotFiguresOnPage, riotKeysOnPage } from "../../../scripts/riot-keys.mjs";
 
 /*
   The live check's look at the public team page's Riot keys (scripts/riot-keys.mjs): no `puuid`,
@@ -131,5 +131,28 @@ describe("the public team page's Riot keys, in scripts Next.js did not write", (
     expect(riotKeysOnPage(html)).toEqual({ keys: { puuid: 0, gameName: 0, tagLine: 0, riotId: 1 }, total: 1, chunks: 0, unreadable: 1 });
     // A page without the payload at all reads as no chunks, which the live check reports as a failure.
     expect(riotKeysOnPage("<html><body>Team</body></html>")).toMatchObject({ total: 0, chunks: 0, unreadable: 0 });
+  });
+});
+
+/** A pool champion and a card as the public page carries them with Riot data off (server/public/team.ts), and with it on. */
+const OFF = '1:["$","div",null,{"slots":[{"role":"MID","player":{"id":"p-2","rank":null,"season":null,"statsVisible":false,"seasonLabel":""},"champions":[{"championId":"Ahri","games":0,"wins":0,"losses":0,"winRate":null,"kdaRatio":null,"csPerMinute":null,"visionPerGame":null,"masteryPoints":null,"tier":"unknown","tierLabel":"","lastPlayedAt":null}]}]}]\n';
+const ON = '1:["$","div",null,{"slots":[{"role":"MID","player":{"id":"p-2","rank":{"tier":"GOLD","division":"II","leaguePoints":46},"season":{"games":12,"winRate":58,"kda":3.1},"statsVisible":true},"champions":[{"championId":"Ahri","games":9,"winRate":55,"kdaRatio":2.5,"csPerMinute":7.1,"masteryPoints":120000,"tier":"strong","lastPlayedAt":"2026-11-20T10:00:00.000Z"}]}]}]\n';
+
+for (const { name, write } of WRITERS) describe(`the public team page's Riot figures, its payload written by Next.js's ${name} writer`, () => {
+  const page = async (pieces: readonly Piece[]) => `<!DOCTYPE html><html><body><main>Team</main>${await write(pieces)}</body></html>`;
+
+  it("reads none on a page with Riot data off: statistics hidden, games 0, figures null, tier unknown, no rank", async () => {
+    const r = riotFiguresOnPage(await page(['0:{"P":null}\n', OFF]));
+    expect(r).toMatchObject({ total: 0, statsVisible: 0, games: 0, tiers: 0, chunks: 2, unreadable: 0 });
+    expect(Object.keys(r.figures)).toEqual([...RIOT_FIGURE_KEYS]);
+  });
+
+  it("finds every figure of a page with Riot data on, cut anywhere, and counts only", async () => {
+    const at = ON.indexOf('"winRate"');
+    for (const cut of [at - 1, at + 3, at + 12]) {
+      const r = riotFiguresOnPage(await page([ON.slice(0, cut), ON.slice(cut)]));
+      expect(r, `cut at ${cut - at}`).toMatchObject({ statsVisible: 1, games: 2, tiers: 2, figures: { winRate: 2, kda: 1, kdaRatio: 1, csPerMinute: 1, masteryPoints: 1, leaguePoints: 1, lastPlayedAt: 1 } });
+      expect(JSON.stringify(r)).not.toMatch(/GOLD|Ahri|120000|2026-11-20/);
+    }
   });
 });

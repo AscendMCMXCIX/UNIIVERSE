@@ -156,6 +156,13 @@ export function percent(value: number, digits = 1): string {
   return `${(value * 100).toFixed(digits)}%`;
 }
 
+/** A likely range of shares as whole percents, with an en dash: "43–64%" (the low end never above the high one). */
+export function percentRange(low: number, high: number): string {
+  const lo = Math.round(Math.min(low, high) * 100);
+  const hi = Math.round(Math.max(low, high) * 100);
+  return `${lo}–${hi}%`;
+}
+
 export function signedPoints(value: number, digits = 1): string {
   const pts = value * 100;
   return `${pts >= 0 ? "+" : ""}${pts.toFixed(digits)}`;

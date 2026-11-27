@@ -18,6 +18,8 @@ export interface OneScreenRead {
   window: number;
   width: number;
   height: number;
+  /** The page's own bottom padding (#content's), in px: the room under the sections is measured above it (Release 19). Absent in older readings. */
+  pad?: number;
   boxes: OneScreenBox[];
   folds: OneScreenFold[];
   /** Leaderboards only: words drawn across two lines (tiles: none since 25 Nov 2026, the tiles having gone). */
@@ -50,6 +52,8 @@ export interface Verdict {
 export const ONE_SCREEN_SECTIONS: Record<OneScreenPage, Array<[string, string]>>;
 export const FILL_ROW_MAX_REM: number;
 export const FILL_SPARE_MAX: number;
+/** The room the one-screen pages keep under their sections, above the page's bottom padding, in px (a warning under it). */
+export const ROOM_MIN: number;
 export function oneScreenInput(page: OneScreenPage): OneScreenInput;
 export function readOneScreen(input: OneScreenInput): OneScreenRead;
 export function showAllCounts(words: string | null | undefined): [number | null, number | null];

@@ -12,7 +12,9 @@ import "./db-usage";
 import "./egress";
 import "./skin-audit";
 import "./proficiency-audit";
+import "./multikill-audit";
 import "./rank-audit";
+import "./leaderboard-audit";
 import "./perf-probe";
 import "./riot-check";
 import "./privacy";
@@ -20,6 +22,8 @@ import "./history-rescan";
 import "./rank-schedule";
 import "./verify-account";
 import "./lane-opponents";
+import "./builds-audit";
+import "./high-elo-sample";
 
 export * from "./registry";
 export * from "./scheduler";

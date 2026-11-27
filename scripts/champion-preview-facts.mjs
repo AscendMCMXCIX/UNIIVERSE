@@ -94,6 +94,8 @@ export function readChampionPreview(rowIndex) {
     // The link opens Champion Intel with the preview's champion and the opened opponent side by side.
     lookupPage: new URL(href || "/", location.origin).pathname === "/lookup",
     lookupChampion: !!opened && q.get("champion") === content.getAttribute("data-champion") && q.get("champion2") === opened,
+    // Matchup Intel (since 27 Nov 2026): the preview's position as the lane (the bot lane's carry written BOTTOM).
+    lookupLane: !!opened && q.get("lane") === ({ TOP: "TOP", JUNGLE: "JUNGLE", MID: "MID", ADC: "BOTTOM", SUPPORT: "SUPPORT" }[role] ?? "?"),
     address: { champion: new URLSearchParams(location.search).get("champion") === content.getAttribute("data-champion"), role: new URLSearchParams(location.search).get("crole") === role },
   };
 }
@@ -143,7 +145,7 @@ export function championPreviewVerdicts({ kind, at, step, escaped, kept }) {
     const list = at.opponents ?? [];
     fact('every opponent row carries its "N games" and its win rate, and there is at least one', list.length > 0 && list.every((o) => o.games > 0 && o.says && o.rate), { rows: list.length, without: list.filter((o) => !(o.games > 0 && o.says && o.rate)).length });
     fact("every lane opponent is in one table, most games first, the small samples (1–2 games) marked, none folded away", (at.folded ?? 0) === 0 && list.every((o, i) => i === 0 || list[i - 1].games >= o.games) && list.every((o) => o.small === o.games < 3), { rows: list.length, folded: at.folded ?? 0, small: list.filter((o) => o.small).length });
-    fact("an opened opponent shows one link to Champion Intel, with the champion and that opponent side by side (champion=, champion2=)", at.lookup === 1 && at.lookupPage && at.lookupChampion, { links: at.lookup, page: at.lookupPage, champions: at.lookupChampion });
+    fact("an opened opponent shows one link to Matchup Intel: both champions side by side and the position as its lane (champion=, champion2=, lane=)", at.lookup === 1 && at.lookupPage && at.lookupChampion && at.lookupLane === true, { links: at.lookup, page: at.lookupPage, champions: at.lookupChampion, lane: at.lookupLane });
   }
   if (step === null) out.push({ name: `${kind}: skipped: ↓ has no next row (the list has one champion)`, status: "WARN", detail: null });
   else fact("↓ moves the preview to the next row, replacing the address (no new history entry)", step.next && step.address && step.replaced, step);

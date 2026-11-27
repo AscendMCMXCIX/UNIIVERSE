@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LOOKUP_PATH, hasteFromAddress, intelHref, legacyMatchupRedirect, lookupHref, paramOf, roleFromAddress, swappedHref, withoutHref } from "./address";
+import { LOOKUP_PATH, hasteFromAddress, intelHref, laneFromAddress, legacyMatchupRedirect, lookupHref, paramOf, queueFromAddress, roleFromAddress, sourceFromAddress, swappedHref, withoutHref } from "./address";
 import { parseRecent, withRecent, RECENT_MAX } from "./recent";
 
 /* Champion Intel's address and Matchup Intel's old links (docs/CHAMPION_INTEL.md, "Address"), and the device's Recent list. */
@@ -62,6 +62,32 @@ describe("the address", () => {
     expect(lookupHref("Ahri")).toBe("/lookup?champion=Ahri");
   });
 
+  it("carries the builds' queue for the page (Ranked Solo/Duo left out), after both champions, kept by Swap and ✕", () => {
+    expect(intelHref({ id: "Thresh", haste: 0, role: "SUPPORT" }, null, { queue: "flex" })).toBe("/lookup?champion=Thresh&role=SUPPORT&queue=flex");
+    expect(intelHref({ id: "Thresh", haste: 0 }, null, { queue: "solo" })).toBe("/lookup?champion=Thresh");
+    expect(intelHref({ id: "Thresh", haste: 10 }, { id: "Leona", haste: 0, role: "ADC" }, { queue: "clash" })).toBe("/lookup?champion=Thresh&haste=10&champion2=Leona&role2=ADC&queue=clash");
+    expect(swappedHref({ id: "Thresh", haste: 0 }, { id: "Leona", haste: 0 }, { queue: "draft" })).toBe("/lookup?champion=Leona&champion2=Thresh&queue=draft");
+    expect(withoutHref({ id: "Thresh", haste: 0 }, { id: "Leona", haste: 0 }, 0, { queue: "flex" })).toBe("/lookup?champion=Leona&queue=flex");
+    // The Master+ builds are Ranked Solo/Duo by definition, but the page's queue is Matchup Intel's band's too: kept beside the source, so a reload and Swap keep the band's queue.
+    expect(intelHref({ id: "Thresh", haste: 0 }, null, { queue: "flex", source: "master" })).toBe("/lookup?champion=Thresh&queue=flex&source=master");
+    expect(intelHref({ id: "Thresh", haste: 0 }, null, { queue: "solo", source: "master" })).toBe("/lookup?champion=Thresh&source=master");
+    expect(swappedHref({ id: "Ahri", haste: 20 }, { id: "Zed", haste: 0 }, { lane: "MID", queue: "flex", source: "master" })).toBe("/lookup?champion=Zed&champion2=Ahri&haste2=20&lane=MID&queue=flex&source=master");
+    expect(withoutHref({ id: "Ahri", haste: 0 }, { id: "Zed", haste: 0 }, 1, { lane: "MID", queue: "draft", source: "master" })).toBe("/lookup?champion=Ahri&queue=draft&source=master");
+    // Read back as the page's queue and source.
+    const back = new URL("https://x.invalid/lookup?champion=Zed&champion2=Ahri&lane=MID&queue=flex&source=master").searchParams;
+    expect([queueFromAddress(back.get("queue") ?? undefined), sourceFromAddress(back.get("source") ?? undefined)]).toEqual(["flex", "master"]);
+    expect(intelHref({ id: "Thresh", haste: 0 }, null, { source: "team" })).toBe("/lookup?champion=Thresh");
+    // No champion, no page parts.
+    expect(intelHref(null, null, { queue: "flex" })).toBe("/lookup");
+    expect(queueFromAddress("flex")).toBe("flex");
+    expect(queueFromAddress("FLEX")).toBe("flex");
+    expect(queueFromAddress(["clash", "flex"])).toBe("clash");
+    for (const v of [undefined, "", "420", "aram", "solo duo", "x".repeat(80)]) expect(queueFromAddress(v), String(v)).toBe("solo");
+    expect(sourceFromAddress("master")).toBe("master");
+    expect(sourceFromAddress("Master")).toBe("master");
+    for (const v of [undefined, "", "team", "challenger"]) expect(sourceFromAddress(v), String(v)).toBe("team");
+  });
+
   it("hands the server a parameter's first value, trimmed, or nothing", () => {
     expect(paramOf(" Jinx ")).toBe("Jinx");
     expect(paramOf(["Jinx", "Ahri"])).toBe("Jinx");
@@ -79,15 +105,56 @@ describe("the address", () => {
   });
 });
 
+describe("Matchup Intel's lane and the page's queue", () => {
+  it("write the lane only with two champions, after both, and the queue only when it is not Ranked Solo/Duo", () => {
+    expect(intelHref({ id: "Riven", haste: 0 }, { id: "Darius", haste: 0 }, { lane: "TOP" })).toBe("/lookup?champion=Riven&champion2=Darius&lane=TOP");
+    expect(intelHref({ id: "Jinx", haste: 0, role: "ADC" }, { id: "Caitlyn", haste: 10 }, { lane: "ADC", queue: "flex" })).toBe("/lookup?champion=Jinx&role=ADC&champion2=Caitlyn&haste2=10&lane=BOTTOM&queue=flex");
+    expect(intelHref({ id: "Riven", haste: 0 }, null, { lane: "TOP" })).toBe("/lookup?champion=Riven");
+    expect(intelHref({ id: "Riven", haste: 0 }, null, { queue: "clash" })).toBe("/lookup?champion=Riven&queue=clash");
+    expect(intelHref({ id: "Riven", haste: 0 }, { id: "Darius", haste: 0 }, { lane: null, queue: "solo" })).toBe("/lookup?champion=Riven&champion2=Darius");
+  });
+
+  it("keep the lane and the queue on Swap (the other side of the same lane); drop the lane, never the queue, on ✕", () => {
+    const a = { id: "Riven", haste: 0 };
+    const b = { id: "Darius", haste: 20 };
+    expect(swappedHref(a, b, { lane: "TOP", queue: "draft" })).toBe("/lookup?champion=Darius&haste=20&champion2=Riven&lane=TOP&queue=draft");
+    expect(withoutHref(a, b, 1, { lane: "TOP", queue: "draft" })).toBe("/lookup?champion=Riven&queue=draft");
+    expect(withoutHref(a, b, 0, { lane: "TOP" })).toBe("/lookup?champion=Darius&haste=20");
+  });
+
+  it("read a lane in any spelling of a position, and a queue key in any case, Ranked Solo/Duo for anything else", () => {
+    expect(laneFromAddress("MID")).toBe("MID");
+    expect(laneFromAddress("BOTTOM")).toBe("ADC");
+    expect(laneFromAddress(["bot", "top"])).toBe("ADC");
+    expect(laneFromAddress("support")).toBe("SUPPORT");
+    expect(laneFromAddress("middle")).toBe("MID");
+    expect(laneFromAddress("nowhere")).toBeNull();
+    expect(laneFromAddress("x".repeat(40))).toBeNull();
+    expect(laneFromAddress(undefined)).toBeNull();
+    expect(queueFromAddress("FLEX")).toBe("flex");
+    expect(queueFromAddress(["clash", "draft"])).toBe("clash");
+    expect(queueFromAddress("aram")).toBe("solo");
+    expect(queueFromAddress(undefined)).toBe("solo");
+  });
+});
+
 describe("Matchup Intel's old links", () => {
-  it("carry one champion: the enemy where named, else yours, else the other enemy, else the duo partner", () => {
+  // Changed on 27 Nov 2026 (the owner's request to bring Matchup Intel back inside Champion Intel's
+  // Compare): both champions and the lane are carried, where until then only one champion was.
+  it("carry both champions and the lane: your champion first, the enemy second", () => {
     expect(legacyMatchupRedirect({})).toBe("/lookup");
-    expect(legacyMatchupRedirect({ champion: "Riven", vs: "Mordekaiser" })).toBe("/lookup?champion=Mordekaiser");
-    expect(legacyMatchupRedirect({ champion: "Riven" })).toBe("/lookup?champion=Riven");
-    expect(legacyMatchupRedirect({ role: "adc", champion: "Jinx", ally: "Lulu", vs: "Caitlyn", vs2: "Lux" })).toBe("/lookup?champion=Caitlyn");
+    expect(legacyMatchupRedirect({ role: "top", champion: "Riven", vs: "Mordekaiser" })).toBe("/lookup?champion=Riven&champion2=Mordekaiser&lane=TOP");
+    expect(legacyMatchupRedirect({ champion: "Riven", vs: "Mordekaiser" })).toBe("/lookup?champion=Riven&champion2=Mordekaiser");
+    expect(legacyMatchupRedirect({ role: "adc", champion: "Jinx", ally: "Lulu", vs: "Caitlyn", vs2: "Lux" })).toBe("/lookup?champion=Jinx&champion2=Caitlyn&lane=BOTTOM");
+    expect(legacyMatchupRedirect({ role: "nowhere", champion: "Ahri", vs: "Zed" })).toBe("/lookup?champion=Ahri&champion2=Zed");
+  });
+
+  it("carry one champion alone, with no lane: the enemy or yours, else the other enemy, else the duo partner", () => {
+    expect(legacyMatchupRedirect({ vs: "Mordekaiser", role: "top" })).toBe("/lookup?champion=Mordekaiser");
+    expect(legacyMatchupRedirect({ champion: "Riven", role: "top" })).toBe("/lookup?champion=Riven");
     expect(legacyMatchupRedirect({ role: "adc", ally: "Lulu", vs2: "Lux" })).toBe("/lookup?champion=Lux");
     expect(legacyMatchupRedirect({ role: "support", ally: "Lulu" })).toBe("/lookup?champion=Lulu");
-    // The lane and an ability's details are dropped.
+    // An ability's details are dropped.
     expect(legacyMatchupRedirect({ role: "mid", ability: "Ahri.Q" })).toBe("/lookup");
     // A repeated parameter reads its first; an empty one names nothing; a value too long to be a champion is left out.
     expect(legacyMatchupRedirect({ vs: ["Zed", "Ahri"] })).toBe("/lookup?champion=Zed");

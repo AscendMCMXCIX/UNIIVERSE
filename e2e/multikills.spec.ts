@@ -132,6 +132,10 @@ test("Overview: the multikill totals as figures of their own, from the same game
   const solo = await seasonGames(page);
   await expect(page.getByTestId("multikills")).toHaveAttribute("data-coverage", "complete");
   expect(solo).toBeGreaterThan(0);
+  // Clicked once the page has settled: as it hydrates, the filters swap the server's Game mode select for the app's own (e2e/select.ts,
+  // `data-ready`), 2px wider, and at 1440 × 900 Season performance's scope line goes under its title, so the whole Overview moves
+  // 14px down; a click aimed at the link a moment before landed beside it and the page stayed (as in Release 18).
+  await expect(page.locator("#overview-mode")).toHaveAttribute("data-ready", "true");
   await page.getByTestId("multikills-by-champion").click();
   await expect(page).toHaveURL(/\/champions\?.*mode=solo.*sort=multikills/);
   const rows = page.getByTestId("top-champion");
@@ -286,6 +290,21 @@ test("All Champions: multikills sort from their headings (or Sort by on phones) 
   expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth)).toBeLessThanOrEqual(1);
 });
 
+/** How many of the page's multikill marks are drawn in the accent colour (text or background). */
+const accentMarks = (page: Page, testId: string) =>
+  page.evaluate((id) => {
+    const probe = document.createElement("span");
+    probe.style.color = "var(--color-accent)";
+    document.body.append(probe);
+    const accent = getComputedStyle(probe).color;
+    probe.remove();
+    const rgb = accent.replace(/^rgba?\(|\)$/g, "").split(",").slice(0, 3).map((n) => n.trim()).join(",");
+    return [...document.querySelectorAll(`[data-testid=${id}]`)].filter((el) => {
+      const s = getComputedStyle(el);
+      return s.color === accent || s.backgroundColor.replace(/\s/g, "").includes(rgb.replace(/\s/g, ""));
+    }).length;
+  }, testId);
+
 test("Match History marks a game's largest multikill, and nothing else", async ({ page }) => {
   const href = await profileOf(page, "Demo Top");
   await page.goto(`${href}/matches`);
@@ -293,6 +312,8 @@ test("Match History marks a game's largest multikill, and nothing else", async (
   const marks = page.getByTestId("match-multikill");
   await expect(marks.first()).toBeVisible();
   for (const text of await marks.allTextContents()) expect(text.trim()).toMatch(/^(Double kill|Triple kill|Quadra kill|Pentakill)$/);
+  // On the text hierarchy, never in the accent (the links' colour) beside the card's Victory, MVP and ACE (Release 19, V6).
+  expect(await accentMarks(page, "match-multikill"), "no multikill drawn in the accent").toBe(0);
   // The card's button names it too, for screen readers.
   const marked = page.getByTestId("match-card").filter({ has: marks.first() }).first();
   await expect(marked.getByTestId("match-row")).toHaveAttribute("aria-label", /, (double kill|triple kill|quadra kill|pentakill)\. Show the match details\.$/);
@@ -306,6 +327,7 @@ test("Team Matches marks each member's largest multikill beside their K/D/A", as
   for (const text of await marks.allTextContents()) expect(text.trim()).toMatch(/^(Double kill|Triple kill|Quadra kill|Pentakill)$/);
   // Each one inside a member's cell, never on its own.
   expect(await page.getByTestId("together-member").locator("[data-testid='together-multikill']:visible").count()).toBe(await marks.count());
+  expect(await accentMarks(page, "together-multikill"), "no multikill drawn in the accent").toBe(0);
 });
 
 test("a member's multikills read the same on the profile and on Team Leaderboards: each multikill once, at its largest", async ({ page }) => {

@@ -37,14 +37,19 @@ import { mapWithConcurrency } from "@/server/riot/static/sync";
     (`partype`, `tags`, `stats`), plain numbers and words Riot gives for every champion
     (src/domain/champion-lookup/stats.ts says which are shown);
   - since rules format 4, the full description (up to DESCRIPTION_MAX characters, which no
-    description at 16.22.1 reaches).
+    description at 16.22.1 reaches);
+  - since rules format 5: each spell's `range` array as Riot gives it. Its number has no type (a
+    cast range, a dash, a radius around the champion, or a placeholder such as 0, 1, 20 or 25000:
+    81 spells at 16.22.1), so the page shows it only where the committed review says what it
+    measures and Riot's spell id, range and text are still the ones reviewed
+    (src/domain/champion-lookup/range.ts, ability-ranges.reviewed.json). `rangeBurn` is not kept:
+    it is the same numbers as a string (0 of 692 differ).
   Never read for their words or numbers: tooltip (hashed only), leveltip, effect/effectBurn, vars,
-  datavalues, range/rangeBurn, costType (their numbers are templates and placeholders, or wrong for
-  many abilities: at 16.22.1 only 10 of 692 tooltips have every placeholder filled by the ability's
-  own Data Dragon values, even counting effectBurn, and 275 of the range values are 25000, 0 or 20,
-  a self-cast's or a placeholder, not a reach), and maxammo is never taken for a recharge time.
+  datavalues, rangeBurn, costType (their numbers are templates and placeholders, or wrong for many
+  abilities: at 16.22.1 only 10 of 692 tooltips have every placeholder filled by the ability's own
+  Data Dragon values, even counting effectBurn), and maxammo is never taken for a recharge time.
   When the sync reads a champion at a new version it compares the new record with the one held
-  (src/domain/champion-lookup/changes.ts): which abilities' text, cooldowns or cost changed, and
+  (src/domain/champion-lookup/changes.ts): which abilities' text, cooldowns, cost or range changed, and
   whether the base stats did, never the numbers themselves.
 
   scripts/static/build-ability-fixture.mjs applies the same rules under plain Node to write
@@ -58,7 +63,7 @@ const KEY = "champion_abilities";
  * under another is read again from Data Dragon on the next run (the fixture must be rebuilt too:
  * abilities.test.ts fails until it is).
  */
-export const ABILITY_RULES_FORMAT = 4;
+export const ABILITY_RULES_FORMAT = 5;
 /** The Data Dragon version the committed fixture was built from. */
 export const ABILITY_FIXTURE_VERSION = "16.22.1";
 /** Data Dragon champion ids ("Riven", "MonkeyKing"): checked before any id reaches a query or a URL. */
@@ -176,6 +181,8 @@ const spellSchema = z.object({
   // Rules format 4: kept as Riot gives them; one that is not this shape is left out, never the champion.
   cost: z.array(z.number().min(0).max(100_000)).max(10).optional().catch(undefined),
   resource: z.string().max(200).optional().catch(undefined),
+  // Rules format 5: kept as Riot gives it (4294967295, Janna's W, is Riot's too); one that is not this shape is left out, never the champion.
+  range: z.array(z.number().finite().min(0).max(4_294_967_295)).max(10).optional().catch(undefined),
 });
 const tipList = z.array(z.unknown()).max(40).optional();
 /** A stat's name as Data Dragon writes it ("hp", "attackspeedperlevel") and its value, a finite number. */
@@ -224,6 +231,7 @@ export function compactChampionAbilities(detail: unknown, version: string): Ddra
         const spell: DdragonAbility = { slot, id: s.id, name: s.name, icon: s.image.full, maxRank: s.maxrank, cooldown: [...s.cooldown], charges: chargesOf(s.maxammo), description: cleanDescription(s.description ?? ""), textHash: riotTextHash(s.description ?? "", s.tooltip ?? "") };
         if (s.cost) spell.cost = [...s.cost];
         if (typeof s.resource === "string") spell.resource = s.resource;
+        if (s.range) spell.range = [...s.range];
         return spell;
       }),
     ];
@@ -486,7 +494,9 @@ const storedAbility = z.object({
   // One in another shape is left out, never the ability.
   cost: z.array(z.number()).max(10).optional().catch(undefined),
   resource: z.string().max(200).optional().catch(undefined),
-  changed: z.object({ since: z.string().max(20), text: z.boolean(), cooldown: z.boolean(), cost: z.boolean() }).nullable().optional().catch(undefined),
+  // Rules format 5 (absent before): Riot's range as given, and whether it changed. One in another shape is left out, never the ability.
+  range: z.array(z.number()).max(10).optional().catch(undefined),
+  changed: z.object({ since: z.string().max(20), text: z.boolean(), cooldown: z.boolean(), cost: z.boolean(), range: z.boolean().optional() }).nullable().optional().catch(undefined),
 });
 // Tips are absent on a record stored under rules format 2, until the next sync re-reads it.
 const storedTips = z.object({ ally: z.array(z.string()), enemy: z.array(z.string()) }).optional();

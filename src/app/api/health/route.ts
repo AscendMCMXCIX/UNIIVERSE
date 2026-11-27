@@ -14,6 +14,8 @@ import { log } from "@/server/observability/log";
 import { digestHealth } from "@/server/riot/static/digests";
 import { staticDataHealth } from "@/server/ops/static-health";
 import { STATIC_ATTEMPT_KEY, type StaticAttempt } from "@/server/riot/static/assets";
+import { highEloGate } from "@/server/champion-builds/high-elo/switch";
+import { notesCounts } from "@/server/matchup/notes-store";
 
 export const dynamic = "force-dynamic";
 
@@ -34,7 +36,10 @@ const RANK_SCHEDULE_SILENT_MS = 20 * 60_000;
  * refresh's state (server/ops/static-health.ts: ok, failed validation or stale; patch names and counts only), listed in
  * `failingJobs` as "static-data" when not ok. `notices` says what is off by choice
  * (server/ops/health-notices.ts): the five-minute schedule turned off after it was on, and jobs set
- * to 0 in Admin; they warn in the Production check and never fail a scheduled run.
+ * to 0 in Admin; they warn in the Production check and never fail a scheduled run. `highElo` says
+ * whether the Master+ builds' collection is on or off (server/champion-builds/high-elo/switch.ts),
+ * nothing more. `matchupNotes`
+ * counts Matchup Intel's published notes by their state now (numbers only).
  */
 export async function GET() {
   const started = performance.now();
@@ -115,6 +120,15 @@ export async function GET() {
       log("warn", "health.digests_failed", { error });
       return null;
     });
+    // Matchup Intel's reviewed notes (server/matchup/notes-store.ts): how many are published and how
+    // many of those show as fresh, not re-checked, or hidden now. Numbers only, cached ten minutes
+    // per instance; a failure lists none rather than failing the check.
+    const matchupNotes = await notesCounts(handle.db)
+      .then(({ published, fresh, stale, hidden }) => ({ published, fresh, stale, hidden }))
+      .catch((error: unknown) => {
+        log("warn", "health.matchup_notes_failed", { error });
+        return null;
+      });
     const accountsReadAt = read?.cursor ? new Date(Number(read.cursor) * 1000) : null;
     return NextResponse.json({
       ...base,
@@ -125,8 +139,11 @@ export async function GET() {
       failingJobs: failing,
       notices,
       digests,
+      matchupNotes,
       staticData,
       riot: { credential: credential.state },
+      // Champion Intel's Master+ builds (docs/HIGH_ELO_EVIDENCE.md): whether collection is on, only (no counts, no reasons).
+      highElo: { collection: highEloGate().on ? "on" : "off" },
       ms: Math.round((performance.now() - started) * 10) / 10,
     });
   } catch (err) {

@@ -1,7 +1,7 @@
 import { inArray, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { players, riotAccounts, users } from "@/server/db/schema";
-import { eraseSubject, type ErasureSubject } from "./erasure";
+import { eraseSubject, memberSubject, type ErasureSubject } from "./erasure";
 import { usableRecords } from "./ledger";
 import { normaliseRiotId, riotIdToken, tagged } from "./tokens";
 
@@ -14,10 +14,17 @@ import { normaliseRiotId, riotIdToken, tagged } from "./tokens";
     this would catch it if it did. Small reads only.
   - "full", by hand after restoring a backup made before an erasure (docs/BACKUPS.md: import the
     erasure records first): every stored game and job log is checked.
+  - "count" (Release 19, OD21's prerequisite): what "full" would change, counted and changed
+    nothing: the same reads, no erasure. The identities of the accounts and profiles it would
+    erase are left out of the traces it counts, as "full" erases them with their owner first, so
+    the counts equal what "full" then changes. A stray Riot account (found by an erased identity
+    on a profile that is not theirs) is not such an identity: "full" only deletes its row, and
+    finds its identity in stored games and logs afterwards like any other trace, so "count" counts
+    those traces too.
 */
 
 export interface ReconcileResult {
-  mode: "recent" | "full";
+  mode: "recent" | "full" | "count";
   /** Records made with this deployment's key (the others cannot be applied: a replaced secret). */
   records: number;
   unusable: number;
@@ -39,8 +46,11 @@ export function riotIdsInLog(text: string): string[] {
   return [...out];
 }
 
-export async function reconcileErasures(db: Db, options: { mode: "recent" | "full"; now?: Date } = { mode: "recent" }): Promise<ReconcileResult> {
+export async function reconcileErasures(db: Db, options: { mode: "recent" | "full" | "count"; now?: Date } = { mode: "recent" }): Promise<ReconcileResult> {
   const now = options.now ?? new Date();
+  // Count mode reads what full mode reads and writes nothing.
+  const writes = options.mode !== "count";
+  const everything = options.mode !== "recent";
   const all = await db.execute(sql`SELECT count(*) AS n FROM privacy_erasures`);
   const total = Number(rowsOf<{ n: number | string }>(all)[0]?.n ?? 0);
   const records = total ? await usableRecords(db) : [];
@@ -79,7 +89,7 @@ export async function reconcileErasures(db: Db, options: { mode: "recent" | "ful
   }
   for (const playerId of profiles) if (!covered.has(playerId)) targets.push({ playerId });
   for (const target of targets) {
-    await eraseSubject(db, null, target, { record: false });
+    if (writes) await eraseSubject(db, null, target, { record: false });
     result.people++;
   }
   // (Those on an erased profile went with it.)
@@ -88,9 +98,24 @@ export async function reconcileErasures(db: Db, options: { mode: "recent" | "ful
     return !a.playerId || (!covered.has(a.playerId) && !profiles.has(a.playerId));
   });
   if (remaining.length) {
-    await db.delete(riotAccounts).where(inArray(riotAccounts.id, remaining));
+    if (writes) await db.delete(riotAccounts).where(inArray(riotAccounts.id, remaining));
     result.traces += remaining.length;
   }
+  // In count mode nothing above was erased: every identity full mode would have erased with its
+  // owner (the erasure's own reading of them, memberSubject, which only reads) is not counted again
+  // as a trace below. The stray accounts' identities are not among them: full mode deletes only
+  // their rows above (no game, rank or log is touched), so step 2 finds and counts their traces in
+  // both modes.
+  const gonePuuids = new Set<string>();
+  const goneRiotIds = new Set<string>();
+  if (!writes) {
+    for (const target of targets) {
+      const subject = await memberSubject(db, target);
+      for (const p of subject.puuids) gonePuuids.add(p);
+      for (const r of subject.riotIds) goneRiotIds.add(riotIdToken(r) ?? "");
+    }
+  }
+  const counted = (puuid: string | null, riotId: string | null) => (puuid !== null && gonePuuids.has(puuid)) || (riotId !== null && goneRiotIds.has(riotIdToken(riotId) ?? "-"));
 
   // 2. Traces: Riot identities in stored games (and, in full mode, old job logs).
   if (!riot.size) return result;
@@ -102,7 +127,7 @@ export async function reconcileErasures(db: Db, options: { mode: "recent" | "ful
     if (riotId) f.riotIds.add(riotId);
     found.set(recordId, f);
   };
-  const recent = options.mode === "recent" ? sql`AND d.stored_at > ${new Date(now.getTime() - 2 * 86_400_000).toISOString()}::timestamptz` : sql``;
+  const recent = !everything ? sql`AND d.stored_at > ${new Date(now.getTime() - 2 * 86_400_000).toISOString()}::timestamptz` : sql``;
   const participants = rowsOf<{ puuid: string | null; name: string | null }>(
     await db.execute(sql`
       SELECT DISTINCT p->>'puuid' AS puuid, p->>'name' AS name
@@ -110,18 +135,21 @@ export async function reconcileErasures(db: Db, options: { mode: "recent" | "ful
       WHERE coalesce(p->>'removed', '') <> 'true' ${recent}`),
   );
   for (const p of participants) {
+    if (counted(p.puuid, p.name)) continue;
     const byPuuid = p.puuid ? riot.get(tagged("puuid", p.puuid)) : undefined;
     const byName = riot.get(riotIdToken(p.name) ?? "");
     if (byPuuid || byName) note(byPuuid ?? byName, p.puuid, p.name && normaliseRiotId(p.name) ? p.name : null);
   }
-  if (options.mode === "full") {
+  if (everything) {
     for (const r of rowsOf<{ puuid: string }>(await db.execute(sql`SELECT puuid FROM last_known_ranks`))) {
+      if (counted(r.puuid, null)) continue;
       const id = riot.get(tagged("puuid", r.puuid));
       if (id) note(id, r.puuid, null);
     }
     // Old sync log lines named accounts; only lines that still contain a "#" are read.
     for (const r of rowsOf<{ text: string }>(await db.execute(sql`SELECT summary::text || ' ' || coalesce(error, '') AS text FROM job_runs WHERE strpos(summary::text || coalesce(error, ''), '#') > 0 UNION ALL SELECT details::text || ' ' || coalesce(last_error, '') FROM data_refresh_status WHERE strpos(details::text || coalesce(last_error, ''), '#') > 0`))) {
       for (const riotId of riotIdsInLog(r.text)) {
+        if (counted(null, riotId)) continue;
         const id = riot.get(riotIdToken(riotId) ?? "");
         if (id) note(id, null, riotId);
       }
@@ -129,7 +157,7 @@ export async function reconcileErasures(db: Db, options: { mode: "recent" | "ful
   }
   for (const f of found.values()) {
     const subject: ErasureSubject = { kind: "former", userId: null, playerId: null, username: null, displayName: null, role: null, isAdmin: false, names: [], accountIds: [], puuids: [...f.puuids], riotIds: [...f.riotIds] };
-    await eraseSubject(db, null, subject, { record: false });
+    if (writes) await eraseSubject(db, null, subject, { record: false });
     result.traces++;
   }
   return result;

@@ -181,7 +181,7 @@ The workflow comment used to say the hourly schedule costs about 720 minutes a m
 
 ## Protecting `main`
 
-On GitHub Free, branch protection rules and rulesets are not available for **private** repositories. The owner now has GitHub Pro, which does allow them, but none is configured: checked on 15 Oct 2026, the API reports `main` as not protected. Turning protection on is a settings change for the owner (see point 3 below for what to set and the docs-only caveat); until then `main` cannot require pull requests or passing checks on the server.
+**State on 27 Nov 2026 (GitHub's REST API, read for Release 19):** the ruleset **"Protect main"** (id 27873087, active since 23 Nov 2026, on the default branch, no bypass) refuses deleting `main`, force pushes, and changes that do not come through a pull request (0 approvals). Its "Require status checks to pass" rule is on with an **empty list of checks**, so **`CI gate` is not yet required**: GitHub would let a pull request with red, pending or cancelled CI be merged. Until the owner adds it (point 3, and docs/OWNER_ACTIONS.md), a green CI before merging is a rule people and coding agents keep (CLAUDE.md), not one GitHub enforces. (Before 23 Nov nothing protected `main`: on 15 Oct 2026 the API reported it as not protected.)
 
 The same rules are applied without cost:
 1. **Pushing to `main` is blocked locally.**
@@ -191,7 +191,7 @@ The same rules are applied without cost:
    - A deliberate exception: `ALLOW_MAIN_PUSH=1 git push …`.
 2. **PRs are merged only when CI is green.** A documented rule for people and coding agents (`CLAUDE.md`), and, once the owner's ruleset requires it, GitHub's too (point 3).
    - **Docs-only PRs:** CI runs only its `Changed files` job and the `CI gate`, which passes in seconds, so they never wait for suites that do not apply.
-3. **The required check: `CI gate` (23 Nov 2026).** The owner is configuring an active ruleset "Protect main". The check to require is **`CI gate`** (a GitHub Actions check, the CI workflow's last job):
+3. **The required check: `CI gate` (23 Nov 2026), not yet added (27 Nov 2026).** The ruleset "Protect main" is active, and its required-checks rule holds no check yet. The owner adds it: Settings → Rules → Rulesets → Protect main → Require status checks to pass → Add checks → **`CI gate`** (source: GitHub Actions). Leave "Require branches to be up to date before merging" off: CLAUDE.md §4 already asks for up-to-date pull requests, and strict mode would cost a CI run per update. Optionally, restrict the allowed merge methods to "Merge commit", which CLAUDE.md §4 already asks for. The check is **`CI gate`** (a GitHub Actions check, the CI workflow's last job):
    - Every pull request now runs the CI workflow: the `pull_request` trigger has no `paths-ignore`, because a ruleset waits forever for a check a skipped workflow never sends.
    - The first job, `Changed files`, compares the pull request with its base. A pull request whose every file is documentation (`docs/**`, `**/*.md`, `.env.example`) or one of the production-only workflows (`data-jobs`, `probe`, `smoke`, `webkit`, `production-check`, `workflow-lint`) runs no suite. Anything else, or a diff that cannot be read, runs them all.
    - `CI gate` always runs and passes only when the pull request is documentation only, or typecheck, lint and unit tests, the database suite, the browser suite and WebKit all passed. On the push to `main` it also passes when the pull request's run of the same tree is reused (WebKit does not run on that push).

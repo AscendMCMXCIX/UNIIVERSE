@@ -9,6 +9,7 @@ import { invalidateChampionCaches } from "@/server/repositories/champions";
 import { invalidateCache } from "@/server/observability/cache";
 import { ensureStaticDigests } from "@/server/riot/static/digests";
 import { seedChampionAbilitiesFromFixture, syncChampionAbilities, type AbilitySyncResult } from "@/server/riot/static/abilities";
+import { ensureRangeReviewCounts, type RangeReviewCounts } from "@/server/riot/static/range-review";
 
 /** The longest the champion abilities may take inside a run (their files are requested only on a new version or a first fill). */
 const ABILITY_SYNC_MS = 30_000;
@@ -42,6 +43,17 @@ async function run(ctx: Pick<JobContext, "db" | "log" | "startedAt" | "budgetMs"
     }
   } catch (err) {
     ctx.log(`Champion abilities not refreshed: ${(err as Error).message}`);
+  }
+  // Ability ranges (docs/CHAMPION_INTEL.md, "Ranges"): how the reviewed table stands against the
+  // abilities just stored, counted once per version (and after a deploy that changes the table),
+  // for Admin's Data & Integrations. One small read on an ordinary run; never fails the run.
+  let ranges: RangeReviewCounts | null = null;
+  if (abilities && !abilities.degraded) {
+    try {
+      ranges = await ensureRangeReviewCounts(ctx.db, abilities.version, { changed: abilities.changed, log: ctx.log });
+    } catch (err) {
+      ctx.log(`Ability range counts not recorded: ${(err as Error).message}`);
+    }
   }
   // Card artwork: check splash images of real skins (bounded per run, and none started after the
   // job's budget) and move saved choices off chromas, duplicate images and missing art. Skipped
@@ -104,6 +116,18 @@ async function run(ctx: Pick<JobContext, "db" | "log" | "startedAt" | "budgetMs"
       deferred: abilities.deferred,
       fetched: abilities.fetched,
       degraded: abilities.degraded,
+    },
+    // Counts only, when counted this run (a new version or table): what the page shows of the reviewed ranges.
+    abilityRanges: ranges && {
+      version: ranges.version,
+      shown: ranges.shown,
+      global: ranges.global,
+      self: ranges.self,
+      none: ranges.none,
+      changedSinceReview: ranges.changedSinceReview,
+      hiddenSinceReview: ranges.hiddenSinceReview,
+      notReviewed: ranges.notReviewed,
+      noRangeYet: ranges.noRangeYet,
     },
   };
   if (!result.ok) return { ok: false, error: result.error, summary };

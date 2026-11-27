@@ -12,6 +12,10 @@ import { invalidateCache } from "@/server/observability/cache";
 import { ABILITY_RULES_FORMAT, loadChampionAbilities, riotTextHash, seedChampionAbilitiesFromFixture, syncChampionAbilities } from "@/server/riot/static/abilities";
 import { abilityFixture } from "@/server/riot/static/ability-fixture";
 import { runJob } from "@/server/jobs";
+import { RANGE_TABLE_HASH, rangeReviewsFor } from "@/server/riot/static/ability-ranges";
+import { ensureRangeReviewCounts, readRangeReviewCounts } from "@/server/riot/static/range-review";
+import { lookupChampion } from "@/domain/champion-lookup/view";
+import sample from "../fixtures/ddragon-16.22.1-sample.json";
 
 /*
   Champion Intel's champion abilities in the database (app_settings "champion_abilities"): stored
@@ -517,5 +521,111 @@ describe("version-check job and the champion abilities", () => {
     expect(second.summary).toMatchObject({ changed: false, abilities: { stored: 3, refreshed: 0, fetched: 0, failed: 0 } });
     expect(detailRequests()).toBe(0);
     expect(requested).toEqual(["/api/versions.json"]);
+  });
+});
+
+/*
+  Rules format 5 and the reviewed ability ranges (docs/CHAMPION_INTEL.md, "Ranges"): the
+  version-check stores each spell's range as Data Dragon gives it, re-reads a record stored under
+  format 4, marks a range Riot changed, and counts how the committed table stands against what it
+  stored, once per version (and after a deploy that changes the table), never on an unchanged run.
+  Data Dragon's own files for three champions of the untouched sample; the reviewed table has a row
+  for each of their twelve spells (27 Nov 2026: five reaches, one Global, three cast on the champion,
+  three none).
+*/
+describe("version-check job and the ability ranges", () => {
+  const champions = ["Gangplank", "KogMaw", "Riven"] as const;
+  const requested: string[] = [];
+  /** Data Dragon's own detail file, with one spell's range changed at a later version (`moved`). */
+  let moved: { version: string; id: string; slot: number; range: number[] } | null = null;
+  const detailOf = (id: (typeof champions)[number], version: string) => {
+    const detail = structuredClone(sample.data[id]) as { spells: Array<{ range: number[] }> };
+    if (moved && moved.version === version && moved.id === id) detail.spells[moved.slot]!.range = moved.range;
+    return detail;
+  };
+  let versions = ["16.22.1", "16.21.1"];
+  const answer = (body: unknown) => new Response(JSON.stringify(body), { status: 200, headers: { "content-type": "application/json" } });
+  const ddragon = vi.fn<typeof fetch>(async (input, init) => {
+    const url = new URL(String(input instanceof Request ? input.url : input));
+    requested.push(url.pathname);
+    const version = /\/cdn\/([\d.]+)\//.exec(url.pathname)?.[1] ?? versions[0]!;
+    if (init?.method === "HEAD") return new Response(null, { status: 200, headers: { etag: `"${url.pathname}"`, "content-length": "1000" } });
+    if (url.pathname === "/api/versions.json") return answer(versions);
+    if (url.pathname.endsWith("/data/en_US/champion.json")) return answer({ version, data: Object.fromEntries(champions.map((id, i) => [id, champ(id, 200 + i)])) });
+    const detail = /\/data\/en_US\/champion\/([A-Za-z0-9]+)\.json$/.exec(url.pathname);
+    if (detail && (champions as readonly string[]).includes(detail[1]!)) return answer({ version, data: { [detail[1]!]: detailOf(detail[1]! as (typeof champions)[number], version) } });
+    if (url.pathname.endsWith("/runesReforged.json")) return answer([{ id: 8000, name: "Precision", icon: "p.png", slots: [{ runes: [{ id: 8005, name: "Press the Attack", icon: "a.png" }] }] }]);
+    if (url.pathname.endsWith("/item.json")) return answer({ data: { "1001": { name: "Boots", maps: { "11": true } } } });
+    if (url.pathname.endsWith("/summoner.json")) return answer({ data: { SummonerFlash: { id: "SummonerFlash", key: "4", name: "Flash", cooldown: [300] } } });
+    return new Response("not found", { status: 404 });
+  });
+  let job: DbHandle;
+  beforeAll(async () => {
+    job = await testDb();
+    vi.stubGlobal("fetch", ddragon);
+  }, 60_000);
+  afterAll(async () => {
+    vi.unstubAllGlobals();
+    await job.close();
+  });
+  const rangeOf = async (id: string, slot: string) => (await loadChampionAbilities(job.db, [id])).champions[id]?.abilities.find((a) => a.slot === slot);
+
+  it("stores each spell's range as Data Dragon gives it and counts the reviewed table against it, once: counts only in the summary and the log", async () => {
+    const first = await runJob(job.db, "version-check", "test");
+    expect(first).toMatchObject({ ok: true, degraded: false });
+    expect((await rangeOf("KogMaw", "E"))!.range).toEqual([1200, 1200, 1200, 1200, 1200]);
+    expect((await rangeOf("Riven", "Q"))!.range).toEqual([275, 275, 275, 275, 275]);
+    // Gangplank's Q and E, Kog'Maw's Q and R and Riven's E are reaches, Gangplank's R the whole map; each W is cast on the champion; Kog'Maw's E (unconfirmed) and Riven's Q and R (several abilities) are none.
+    expect(first.summary).toMatchObject({ abilityRanges: { version: "16.22.1", shown: 5, global: 1, self: 3, none: 3, changedSinceReview: 0, hiddenSinceReview: 0, notReviewed: 0, noRangeYet: 0 } });
+    const summary = first.summary as { abilityRanges: unknown; logs: string[] };
+    expect(JSON.stringify(summary.abilityRanges)).not.toMatch(/Gangplank|KogMaw|Riven/);
+    const lines = summary.logs.filter((l) => l.startsWith("Ability ranges"));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(/^Ability ranges 16\.22\.1: 5 shown, 1 global, 3 cast on the champion \(not shown\), 3 not the reach; 0 changed since their review \(0 ranges hidden until reviewed again\); 0 not reviewed \(\d+ rows\)\.$/);
+    expect(lines[0]).not.toMatch(/Gangplank|KogMaw|Riven/);
+    expect(await readRangeReviewCounts(job.db)).toMatchObject({ version: "16.22.1", tableHash: RANGE_TABLE_HASH, spells: 12, shown: 5 });
+    // The page: Kog'Maw's Q and R from the stored record and the table, his W cast on himself, his E and passive none.
+    const kog = lookupChampion({ id: "KogMaw", name: "Kog'Maw", title: "", portrait: "" }, (await loadChampionAbilities(job.db, ["KogMaw"])).champions.KogMaw!, { ranges: rangeReviewsFor("KogMaw") });
+    expect(kog.abilities!.map((a) => a.range?.kind ?? null)).toEqual([null, "reach", "self", null, "reach"]);
+
+    // An unchanged run counts nothing again (one small read of the stored counts).
+    const second = await runJob(job.db, "version-check", "test");
+    expect(second.summary).toMatchObject({ changed: false, abilityRanges: null });
+    expect(await ensureRangeReviewCounts(job.db, "16.22.1")).toBeNull();
+    // Stored counts for another table (a deploy that changed it): counted again.
+    await job.db.execute(sql`UPDATE app_settings SET value = value || '{"tableHash": "0000000000000000"}'::jsonb WHERE key = 'ability_range_review'`);
+    expect(await ensureRangeReviewCounts(job.db, "16.22.1")).toMatchObject({ tableHash: RANGE_TABLE_HASH, shown: 5 });
+    // Counts stored before the hidden ranges were counted apart from the changed rows: read as none, so counted again.
+    await job.db.execute(sql`UPDATE app_settings SET value = value - 'hiddenSinceReview' WHERE key = 'ability_range_review'`);
+    expect(await readRangeReviewCounts(job.db)).toBeNull();
+    expect(await ensureRangeReviewCounts(job.db, "16.22.1")).toMatchObject({ shown: 5, changedSinceReview: 0, hiddenSinceReview: 0 });
+  });
+
+  it("re-reads a record stored under rules format 4 (no range) on the next run, and nothing shows a range until then", async () => {
+    // The index as format 4 wrote it: no range anywhere, every record format 4.
+    await job.db.execute(sql`UPDATE app_settings SET value = value || jsonb_build_object('format', 4, 'champions', (SELECT jsonb_object_agg(e.key, e.value || jsonb_build_object('format', 4, 'abilities', (SELECT jsonb_agg(a - 'range') FROM jsonb_array_elements(e.value->'abilities') AS a))) FROM jsonb_each(value->'champions') AS e)) WHERE key = 'champion_abilities'`);
+    invalidateCache("champion_abilities");
+    const old = (await loadChampionAbilities(job.db, ["KogMaw"])).champions.KogMaw!;
+    expect(old.abilities.some((a) => a.range)).toBe(false);
+    expect(lookupChampion({ id: "KogMaw", name: "Kog'Maw", title: "", portrait: "" }, old, { ranges: rangeReviewsFor("KogMaw") }).abilities!.every((a) => a.range === null)).toBe(true);
+    expect(await ensureRangeReviewCounts(job.db, "16.22.1", { changed: true })).toMatchObject({ shown: 0, global: 0, noRangeYet: 12 });
+    requested.length = 0;
+    const run = await runJob(job.db, "version-check", "test");
+    expect(run.summary).toMatchObject({ abilities: { refreshed: 3 }, abilityRanges: { shown: 5, global: 1, noRangeYet: 0 } });
+    expect((await storedIndex(job.db))!.champions.KogMaw).toMatchObject({ format: ABILITY_RULES_FORMAT });
+    expect((await rangeOf("KogMaw", "E"))!.range).toEqual([1200, 1200, 1200, 1200, 1200]);
+  });
+
+  it("marks a range Riot changed at a new version, and hides it until the table is reviewed again", async () => {
+    versions = ["16.23.1", "16.22.1"];
+    moved = { version: "16.23.1", id: "KogMaw", slot: 0, range: [1280, 1280, 1280, 1280, 1280] };
+    const run = await runJob(job.db, "version-check", "test");
+    expect(run.summary).toMatchObject({ version: "16.23.1", abilityRanges: { version: "16.23.1", shown: 4, global: 1, changedSinceReview: 1, hiddenSinceReview: 1 } });
+    const e = await rangeOf("KogMaw", "Q");
+    expect(e!.range).toEqual([1280, 1280, 1280, 1280, 1280]);
+    expect(e!.changed).toEqual({ since: "16.22.1", text: false, cooldown: false, cost: false, range: true });
+    const kog = lookupChampion({ id: "KogMaw", name: "Kog'Maw", title: "", portrait: "" }, (await loadChampionAbilities(job.db, ["KogMaw"])).champions.KogMaw!, { ranges: rangeReviewsFor("KogMaw") });
+    expect(kog.abilities![1]!.range).toMatchObject({ kind: "changed", reviewedKind: "reach" });
+    expect(kog.abilities![1]!.changed).toMatchObject({ range: true, text: false });
   });
 });

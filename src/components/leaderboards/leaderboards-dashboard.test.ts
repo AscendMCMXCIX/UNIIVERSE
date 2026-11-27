@@ -139,7 +139,7 @@ describe("Leaderboards, one page", () => {
 
   it("places the four boards on one 2 × 2 grid by the page's own width: one column, from 59rem the rankings side by side, then the achievements", () => {
     expect(html).toContain("@container/dash");
-    const grid = /<div class="([^"]*)" data-testid="leaderboards-grid">/.exec(html)![1]!;
+    const grid = /<div class="([^"]*)" style="--rank-row:2.5rem" data-testid="leaderboards-grid" data-rank-rows="\d+">/.exec(html)![1]!;
     // Recent form's column from 36.25rem (its board's medium tier inside its 1px border), the multikills' from 21.75rem (both fit from 59rem).
     expect(grid).toContain("@min-[59rem]/dash:grid-cols-[minmax(36.25rem,1.25fr)_minmax(21.75rem,1fr)]");
     // The rows stretch (the grid's default): the boards in a row share its height. Nothing spans, nothing is placed out of order.

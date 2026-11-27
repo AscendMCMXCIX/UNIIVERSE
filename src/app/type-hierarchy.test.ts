@@ -10,8 +10,9 @@ import path from "node:path";
   and page and refuses what would bring the old habits back:
   - uppercase: a class list with `uppercase` (any variant) or the retired `label-caps`, outside a
     round pill (rounded-full: a badge such as "YOU", which keeps its capitals) and outside ALLOWED,
-    where an approved design keeps its capitals (Team Overview, the Admin mode marker, the admin
-    eyebrow, a member's own name style);
+    where an approved design keeps its capitals (Team Overview's backdrop lettering, the Admin mode
+    marker, the admin eyebrow, a member's own name style; Team Overview's labels went to sentence
+    case on 27 Nov 2026, the owner's decision D4);
   - disabled-opacity: a control dimmed with opacity when disabled (`disabled:opacity-*`,
     `aria-disabled:opacity-*`, or `opacity-*` behind a `disabled &&` / `disabled ?`): the words of a
     disabled control are fg-disabled, `disabled:text-fg-disabled disabled:cursor-not-allowed`, never a
@@ -34,8 +35,7 @@ const SCAN = ["src/components", "src/app"];
 type Kind = "uppercase" | "label-caps" | "disabled-opacity" | "disabled-tone" | "text-alpha";
 
 const ALLOWED: Array<{ file: string; kind: Kind; reason: string }> = [
-  { file: "src/components/team/team-roster.tsx", kind: "uppercase", reason: "Team Overview, approved by the owner: the card's \"TOP POOL\" line, the player window's figure labels, the page's eyebrow and its backdrop lettering keep their capitals" },
-  { file: "src/components/players/player-card.tsx", kind: "uppercase", reason: "Team Overview, approved by the owner: the card's WIN RATE / KDA / CS/MIN labels, the player window's pool column names and \"First choice\" in the card's colour" },
+  { file: "src/components/team/team-roster.tsx", kind: "uppercase", reason: "Team Overview's backdrop lettering (the team's short name at 3.5% opacity behind the lineup): artwork, not a label; its labels are sentence case since Release 19 (the owner's decision D4)" },
   { file: "src/components/app-shell.tsx", kind: "uppercase", reason: "the frame's Admin mode marker under the team's name: the mode's identity (DESIGN_SYSTEM.md §10)" },
   { file: "src/components/mobile-nav.tsx", kind: "uppercase", reason: "the phone bar's Admin mode marker: the mode's identity (DESIGN_SYSTEM.md §10)" },
   { file: "src/components/ui/page-header.tsx", kind: "uppercase", reason: "PageHeader's accent eyebrow, used by Admin Mode pages alone: the mode's identity (DESIGN_SYSTEM.md §10)" },
@@ -45,6 +45,62 @@ const ALLOWED: Array<{ file: string; kind: Kind; reason: string }> = [
   { file: "src/components/profile/avatar-upload.tsx", kind: "disabled-opacity", reason: "the profile picture itself is the button: a picture dims as a whole" },
   { file: "src/components/settings/branding-panel.tsx", kind: "disabled-opacity", reason: "a native range input: the browser draws its track and thumb, which only opacity dims" },
 ];
+
+/** Abbreviations written in capitals wherever they appear (a word of four or more capitals that is not a label). */
+const CAPITALS_OK = new Set(["ARAM", "JPEG", "PUUID", "HTTP", "HTTPS", "JSON", "UNIIVERSE"]);
+/** Words in capitals that stay, each with its file and reason. */
+const CAPITALS_ALLOWED: Array<{ file: string; word: string; reason: string }> = [
+  { file: "src/components/public/sign-in.tsx", word: "PRIVATE", reason: "the sign-in card's eyebrow, spaced as the brand's tagline: the owner's decision O4 of 26 Nov 2026 keeps it, as Admin Mode's markers" },
+];
+
+/** The words of four or more capital letters in a run of text, outside the abbreviations. */
+function capitalsOf(text: string): string[] {
+  return [...text.matchAll(/(?<![\w])[A-Z]{4,}(?![\w])/g)].map((w) => w[0]).filter((w) => !CAPITALS_OK.has(w));
+}
+
+/** Text that is code, not words on the page: an operator, or the `)` that closes one JSX block before the next (`</svg>\n  ),\n  JUNGLE: (`). */
+const CODE = /[=?;+&|]|^\s*\)/;
+
+/**
+ * The words of four or more capitals a component's JSX shows, each with its line, read from the whole
+ * source (Release 19's review: a per-line scan missed the V4 labels on a line of their own and those a
+ * JSX expression returns). Comments are left out; `<wbr />` (a break inside a word, as in an environment
+ * variable's name) joins the parts it splits.
+ * - JSX text: after a tag's `>` (not an arrow's `=>`), over as many lines as it runs, up to the next tag or
+ *   `{` (`<Label>`, then `PRIMARY ROLE *{" "}` on the next line); after an expression's `}`, on its own line,
+ *   up to the next tag (`{n} CHAMPIONS</span>`); never code (CODE).
+ * - What a child expression shows: in a `{…}` after a tag's `>` (and any text) or after another `{…}`, each string it returns, alone
+ *   or in a branch (`{"…"}`, `{required ? "PASSWORD *" : "…"}`, `&& "…"`, `|| "…"`, `?? "…"`), a template's
+ *   text too; never a string the expression compares or passes on (`x === "TOP"`, `cn("…")`).
+ */
+export function capitalWords(source: string): Array<{ word: string; line: number }> {
+  const blank = (s: string) => s.replace(/[^\n]/g, " ");
+  const s = source
+    .replace(/\/\*[\s\S]*?\*\//g, blank)
+    .replace(/(?<![:\w"'`\\])\/\/[^\n]*/g, blank)
+    .replace(/<wbr\s*\/>/g, "");
+  const lineAt = (i: number) => s.slice(0, i).split("\n").length;
+  const out: Array<{ word: string; line: number }> = [];
+  const add = (text: string, at: number) => {
+    for (const word of capitalsOf(text)) out.push({ word, line: lineAt(at + text.indexOf(word)) });
+  };
+  for (const m of s.matchAll(/(?<![=-])>([^<>{}]*)(?=[<{])|\}([^<>{}\n]*)(?=<)/g)) {
+    const text = m[1] ?? m[2]!;
+    if (!CODE.test(text)) add(text, m.index + 1);
+  }
+  // The expression after a tag (and its text), or straight after another (`{a}{b}`); its closing brace is left for the next.
+  for (const m of s.matchAll(/(?:(?<![=-])>([^<>{}]*)|\}(\s*))\{((?:[^{}]|\$\{[^{}]*\})*)(?=\})/g)) {
+    const before = m[1] ?? m[2]!;
+    const expr = m[3]!;
+    if (CODE.test(before) || expr.includes(";")) continue;
+    const start = m.index + 1 + before.length + 1;
+    for (const r of expr.matchAll(/(?:^|\?|:|&&|\|\||\?\?)\s*(?:"([^"]*)"|'([^']*)'|`([^`]*)`)/g)) {
+      const text = (r[1] ?? r[2] ?? r[3] ?? "").replace(/\$\{[^{}]*\}/g, (x) => blank(x));
+      add(text, start + r.index + r[0].length - text.length - 1);
+    }
+  }
+  return out;
+}
 
 function files(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
@@ -129,6 +185,51 @@ describe("the text hierarchy", () => {
     }
     expect(found, "sentence-case labels (label-text), disabled:text-fg-disabled for a disabled control, a tier's own colour for text; or an exception with its reason (docs/STANDARDS.md, Type)").toEqual([]);
     const stale = ALLOWED.filter((a) => !used.has(`${a.file} ${a.kind}`)).map((a) => `${a.file} ${a.kind}`);
+    expect(stale, "exceptions that no longer match anything: remove them").toEqual([]);
+  });
+
+  it("labels written in capitals in the text itself (not by a class) are caught too: no JSX text, and no string a JSX expression shows, with a word of four or more capitals outside the abbreviations and exceptions", () => {
+    // Release 19 (the visual review's V4): "PRIMARY RIOT ID *" and "SETUP KEY *" were capitals typed into the JSX, which the class
+    // scan above cannot see. A word of four or more capital letters in JSX text, or in a string a child expression shows, is one,
+    // unless it is an abbreviation (CAPITALS_OK) or an exception with its reason (CAPITALS_ALLOWED).
+    const words = (source: string) => capitalWords(source).map((c) => c.word);
+    expect(words(`<Label>PRIMARY RIOT ID *</Label>`)).toEqual(["PRIMARY", "RIOT"]);
+    expect(words(`<Label>Primary Riot ID *</Label>`)).toEqual([]);
+    expect(words(`<p>ARAM games, PNG or JPEG</p>`)).toEqual([]);
+    expect(words(`const x = a >= MARGIN ? before : r.right + GAP + width < 0;`)).toEqual([]);
+    // The two shapes the per-line scan missed (8af78d27's role-fields.tsx and signup-form.tsx), with their lines.
+    const roleFields = [`      <div>`, `        <Label>`, `          PRIMARY ROLE *{" "}`, `          <span className="font-normal">{primary ? \`· \${ROLE_LABELS[primary]}\` : "· Not selected"}</span>`, `        </Label>`].join("\n");
+    expect(capitalWords(roleFields)).toEqual([
+      { word: "PRIMARY", line: 3 },
+      { word: "ROLE", line: 3 },
+    ]);
+    expect(capitalWords(`\n        <Label htmlFor="password">{passwordRequired ? "PASSWORD *" : "PASSWORD (optional)"}</Label>`)).toEqual([
+      { word: "PASSWORD", line: 2 },
+      { word: "PASSWORD", line: 2 },
+    ]);
+    expect(words(`<span>{n} CHAMPIONS</span>`)).toEqual(["CHAMPIONS"]);
+    expect(words(`<p>{open && "SHOW LESS"}{\`\${count} MORE\`}</p>`)).toEqual(["SHOW", "LESS", "MORE"]);
+    expect(words(`<p>{"USERNAME *"}</p>`)).toEqual(["USERNAME"]);
+    // Never code: keys between two JSX blocks, a comparison, a class list, a comment, an environment variable's name broken at its underscores.
+    expect(words(`const ICONS = {\n  TOP: (\n    <svg />\n  ),\n  JUNGLE: (\n    <svg />\n  ),\n};`)).toEqual([]);
+    expect(words(`<p>{role === "SUPPORT" ? "Support" : cn("TEXT", "Other")}</p>`)).toEqual([]);
+    expect(words(`<p className={wide ? "UPPER" : "lower"}>Words</p>`)).toEqual([]);
+    expect(words(`<p>{/* NOTE: KEEP THIS */}Words</p>\n// <p>OLD LABEL</p>`)).toEqual([]);
+    expect(words(`<p>The UNIIVERSE_<wbr />ACCESS_<wbr />PASSWORD value you configured.\n</p>`)).toEqual([]);
+    const found: string[] = [];
+    const used = new Set<string>();
+    for (const dir of SCAN) {
+      for (const file of files(path.join(ROOT, dir)).filter((f) => f.endsWith(".tsx"))) {
+        const rel = path.relative(ROOT, file).split(path.sep).join("/");
+        for (const { word, line } of capitalWords(readFileSync(file, "utf8"))) {
+          const allowed = CAPITALS_ALLOWED.find((a) => a.file === rel && a.word === word);
+          if (allowed) used.add(`${rel} ${word}`);
+          else found.push(`${rel}:${line}: "${word}"`);
+        }
+      }
+    }
+    expect(found, "labels in sentence case (\"Primary Riot ID\"), capitals only for abbreviations; or an exception with its reason").toEqual([]);
+    const stale = CAPITALS_ALLOWED.filter((a) => !used.has(`${a.file} ${a.word}`)).map((a) => `${a.file} ${a.word}`);
     expect(stale, "exceptions that no longer match anything: remove them").toEqual([]);
   });
 

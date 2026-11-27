@@ -50,10 +50,17 @@ export interface DdragonAbility {
   /** Riot's resource line as Data Dragon gives it ("{{ cost }} {{ abilityresourcename }}", "No Cost"); its placeholders are never shown. */
   resource?: string;
   /**
+   * Data Dragon's `range` per rank, exactly as Riot gives it (rules format 5): the number the game's
+   * range indicator draws, with no type (a cast range, a dash, a radius around the champion, or a
+   * placeholder such as 0, 1, 20 or 25000). Shown only under the reviewed rule (./range.ts). Absent
+   * on the passive and on a record stored before format 5.
+   */
+  range?: number[];
+  /**
    * What changed in Riot's data for this ability since the champion's previous stored version (the
    * sync compares the two when it reads a new game version; rules format 4): Riot's text (its hash),
-   * the base cooldowns, the cost. Never the numbers themselves. Null or absent: nothing changed, or
-   * no earlier version was held to compare.
+   * the base cooldowns, the cost and (rules format 5) the range. Never the numbers themselves. Null
+   * or absent: nothing changed, or no earlier version was held to compare.
    */
   changed?: AbilityChange | null;
 }
@@ -65,6 +72,8 @@ export interface AbilityChange {
   text: boolean;
   cooldown: boolean;
   cost: boolean;
+  /** Riot's range array differs; absent when either record is from before rules format 5 (unknown, never a change). */
+  range?: boolean;
 }
 
 /**

@@ -6,14 +6,18 @@ import { accountStatesForPlayers } from "@/server/proficiency/provenance";
 import { getScheduleOverrides, TICK_JOB_ORDER } from "@/server/jobs/scheduler";
 import { healthNotices } from "@/server/ops/health-notices";
 import { failuresInARow, RETIRED_JOB_KEYS } from "@/server/ops/refresh-status";
-import { formatDate, isoDay } from "@/lib/format";
+import { formatCount, formatDate, isoDay } from "@/lib/format";
+import { notesCounts } from "@/server/matchup/notes-store";
+import { getCurrentPatch } from "@/server/repositories/champions";
+import { publicPatchName } from "@/domain/patch";
 
 /*
   The Dashboard's "Needs you" card (the overhaul's S9c): what an administrator should act on, each
   item a sentence with a link to where it is done. The schedule items name who did it and when, from
   the audit log: Admin is the only place that names them (/api/health and the Production check give
   the day alone, S1a). Reads small tables only: accounts, Riot account states, job status rows, the
-  schedule overrides and a few audit rows.
+  schedule overrides, a few audit rows, and Matchup Intel's notes that need re-review after a patch
+  (counts only, from the notes' freshness: server/matchup/notes-store.ts).
 */
 
 export interface NeedsYouItem {
@@ -75,6 +79,13 @@ export async function loadNeedsYou(db: Db, accounts: AccountView[], now = new Da
         items.push({ key: `off-${job}`, text: `${job} is off (interval 0)${by ? `, set${by.who ? ` by ${by.who}` : ""} on ${formatDate(by.at)}` : ""}.`, href: by ? `/admin/audit?category=data&from=${day(by.at)}&to=${day(by.at)}` : "/admin/data", tone: "warn" });
       }
     }
+  }
+  // Matchup Intel's reviewed notes no longer fresh: not re-checked, or hidden since Riot changed a champion or four patches passed.
+  const notes = await notesCounts(db).catch(() => null);
+  const review = notes ? notes.stale + notes.hidden : 0;
+  if (review) {
+    const current = await getCurrentPatch(db).catch(() => null);
+    items.push({ key: "matchup-notes", text: `${formatCount(review)} matchup ${review === 1 ? "note needs" : "notes need"} re-review${current && !current.isFixture ? ` after patch ${publicPatchName(current.patch)}` : ""}.`, href: "/admin/matchup-notes", tone: "warn" });
   }
   return items;
 }

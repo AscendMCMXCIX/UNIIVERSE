@@ -34,6 +34,7 @@ export function erasureLines(c: ErasureCounts): string[] {
   if (c.lanePartners) lines.push(`${n(c.lanePartners, "teammate's game no longer records", "teammates' games no longer record")} them as the lane opponent.`);
   if (c.evidenceRows) lines.push(`${n(c.evidenceRows, "stored preparation record of those games is", "stored preparation records of those games are")} deleted.`);
   if (c.notes) lines.push(`${n(c.notes, "note written by someone else names", "notes written by others name")} them: their names become "[removed]", the rest of each note stays.`);
+  if (c.matchupNotes) lines.push(`${n(c.matchupNotes, "matchup note they wrote or reviewed keeps its text", "matchup notes they wrote or reviewed keep their text")}; the links to their account are removed.`);
   if (c.auditEntries) lines.push(`${n(c.auditEntries, "admin log entry names", "admin log entries name")} them "Erased member" from now on.`);
   if (c.jobLogs) lines.push(`${n(c.jobLogs, "job log loses", "job logs lose")} their Riot ID.`);
   if (c.otherRecords) lines.push(`${n(c.otherRecords, "other record about them is", "other records about them are")} removed (ranks, scouting).`);

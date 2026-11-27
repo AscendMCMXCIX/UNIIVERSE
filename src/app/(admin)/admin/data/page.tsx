@@ -15,6 +15,9 @@ import { jobsFreshness } from "@/server/ops/freshness";
 import { FreshnessWatcher } from "@/components/ui/freshness-watcher";
 import { staticDiffHealth } from "@/server/riot/static/digests";
 import { StaticDiffCard } from "@/components/admin/static-diff";
+import { readRangeReviewCounts } from "@/server/riot/static/range-review";
+import { HighEloStateCard } from "@/components/admin/high-elo-state";
+import { highEloState } from "@/server/champion-builds/high-elo/state";
 import { log } from "@/server/observability/log";
 
 export const dynamic = "force-dynamic";
@@ -29,13 +32,23 @@ export default async function AdminDataPage() {
   const owner = isOwner(session);
   const db = await getAppDb();
   // The per-version diff of Riot's static data (counts and patch names only); one query failing never fails the page.
-  const [health, handle, overrides, version, diff] = await Promise.all([
+  const [health, handle, overrides, version, diff, ranges, highElo] = await Promise.all([
     getDataHealth(db),
     getDbHandle(),
     getScheduleOverrides(db),
     jobsFreshness(db),
     staticDiffHealth(db).catch((error: unknown) => {
       log("warn", "admin.static_diff_failed", { error });
+      return null;
+    }),
+    // Champion Intel's reviewed ability ranges against the stored abilities (the version-check's counts).
+    readRangeReviewCounts(db).catch((error: unknown) => {
+      log("warn", "admin.range_review_failed", { error });
+      return null;
+    }),
+    // The Master+ builds' collection (counts only; switched off until the owner turns it on).
+    highEloState(db).catch((error: unknown) => {
+      log("warn", "admin.high_elo_state_failed", { error });
       return null;
     }),
   ]);
@@ -78,7 +91,8 @@ export default async function AdminDataPage() {
         <PanelHeader title="Data health" subtitle={`Patch ${health.patch?.id ?? "—"} (Data Dragon ${health.patch?.ddragonVersion ?? "—"}) · ${handle.description}`} />
         <PanelBody className="space-y-3 text-sm">
           <DatasetsList datasets={health.datasets} />
-          {diff ? <StaticDiffCard diff={diff} /> : null}
+          {diff ? <StaticDiffCard diff={diff} ranges={ranges} /> : null}
+          {highElo ? <HighEloStateCard state={highElo} /> : null}
           {health.warnings.length === 0 ? <p className="text-good">No job failures.</p> : null}
           {health.warnings.map((w) => (
             <p key={w} className="text-warn [overflow-wrap:anywhere]">

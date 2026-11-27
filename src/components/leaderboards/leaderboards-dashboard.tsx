@@ -1,3 +1,4 @@
+import type * as React from "react";
 import type { PortraitChampion } from "@/components/champion-portrait";
 import { DataStatusNote } from "@/components/ui/data-status";
 import { SectionIndex } from "@/components/ui/section-index";
@@ -66,6 +67,19 @@ const ACTIVE_TIP = `Players with a game and a data update in the last ${LEADERBO
 */
 const GRID = "grid min-w-0 grid-cols-[minmax(0,1fr)] gap-4 @min-[59rem]/dash:grid-cols-[minmax(36.25rem,1.25fr)_minmax(21.75rem,1fr)]";
 
+/*
+  The rankings' row height follows the roster (Release 19, the owner's request of 26 Nov 2026: the
+  full active roster of eight or nine on one screen, without tiny text): 40px for up to seven ranked
+  players (the boards as approved in Release 18), 38px for eight, 36px for nine or more, for Recent
+  form's and the multikills' rows alike (DataRow's `rank` density reads it). The text keeps its size
+  (names 14px, dates and figures' units 12px): only the rows' padding goes. 44px on a touch screen.
+  With nine players the two rankings end in the window at 1366 × 768 and all four boards at 1440 ×
+  900, 1920 × 950 and 1920 × 1080 with room to spare (docs/TEAM_LEADERBOARDS.md, One screen).
+*/
+export function rankRow(rows: number): string {
+  return rows <= 7 ? "2.5rem" : rows === 8 ? "2.375rem" : "2.25rem";
+}
+
 export function LeaderboardsDashboard({ view, champions, status, peekable }: { view: LeaderboardsView; /** The members' page: who has a player Peek (a main role chosen); the other rows open the profile. */ peekable?: readonly string[]; champions: Record<string, PortraitChampion>; /** The members' page: the team's data status. */ status?: DataStatus | null }) {
   const player = (id: string) => view.players[id]!;
   const champ = (id: string | null) => (id ? (champions[id] ?? { id, name: id, portraitUrl: "" }) : null);
@@ -133,7 +147,7 @@ export function LeaderboardsDashboard({ view, champions, status, peekable }: { v
           <LeaderboardsPinnedIndex anchorId="leaderboards-header" items={PINNED_INDEX} phoneItems={PHONE_INDEX} />
           <LeaderboardsPeek ids={peekIds} names={peekNames} viewerPlayerId={view.viewer} multikills={Object.fromEntries(records.multikills.rows.map((r) => [r.playerId, r.breakdown]))} seasonLabel={records.seasonLabel}>
           <RecordGamePeek games={recordGames} championsById={champions}>
-          <div className={GRID} data-testid="leaderboards-grid">
+          <div className={GRID} style={{ "--rank-row": rankRow(Math.max(view.form.rows.length, records.multikills.rows.length)) } as React.CSSProperties} data-testid="leaderboards-grid" data-rank-rows={Math.max(view.form.rows.length, records.multikills.rows.length)}>
             <RecentForm form={view.form} player={player} />
             <Multikills records={records} player={player} champions={champions} />
             <SeasonRecords records={records} player={player} champ={champ} viewer={view.viewer} />

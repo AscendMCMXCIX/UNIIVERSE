@@ -3,6 +3,7 @@ import { breakdownKeyboardVerdicts, breakdownVerdicts, MULTIKILL_ROLE_LABEL, mul
 import { FILL_ROW_MAX_REM, oneScreenInput, oneScreenVerdicts, readOneScreen } from "../scripts/one-screen-facts.mjs";
 import { RECORD_YOURS, RECORD_YOURS_VALUE } from "../src/components/leaderboards/record-yours";
 import { expect, test, type Page } from "./test";
+import { widenText } from "./wide-text";
 
 /*
   Team Leaderboards (docs/LEADERBOARDS_MODEL.md, docs/TEAM_LEADERBOARDS.md), one page since 19 Nov 2026,
@@ -790,8 +791,13 @@ const boards = (page: Page) =>
       recordRows: bottoms("season-record"),
       height: document.documentElement.scrollHeight,
       window: innerHeight,
+      /** The page's own bottom padding (#content's): the room under the boards is measured above it (Release 19: "spare", not "fits"). */
+      pad: parseFloat(getComputedStyle(document.getElementById("content")!).paddingBottom),
     };
   });
+
+/** The least room under the boards at the owner's sizes (Release 19: a one-screen layout never depends on a pixel or two; CI's text runs wider, e2e/wide-text.ts). */
+const BOARD_SPARE = 12;
 
 /**
  * A member's own bests, as a member with a best on every record sees them ("Your best: 9 · 4 Oct
@@ -826,11 +832,13 @@ const addOwnBests = (page: Page) =>
     { line: RECORD_YOURS, value: RECORD_YOURS_VALUE },
   );
 
-test("one screen from a 59rem page: a 2 × 2 grid, the rankings side by side and the achievements under them, each pair as tall as each other, all four ending in the window at 1366 × 768, 1440 × 900, 1920 × 950 and 1920 × 1080, nothing folded", async ({ page, context, baseURL }, info) => {
+test("one screen from a 59rem page: a 2 × 2 grid, the rankings side by side and the achievements under them, each pair as tall as each other, all four ending in the window with room to spare at 1366 × 768, 1440 × 900, 1920 × 950 and 1920 × 1080, nothing folded, with CI's wider text too", async ({ page, context, baseURL }, info) => {
   test.skip(info.project.name !== "desktop", "explicit window sizes");
-  test.setTimeout(240_000);
-  for (const sidebar of ["expanded", "collapsed"] as const) {
-    await context.addCookies([{ name: "uniiverse_sidebar", value: sidebar, url: baseURL! }]);
+  test.setTimeout(360_000);
+  // The last pass with CI's wider text (e2e/wide-text.ts), which stays on the tab from then on.
+  for (const sidebar of ["expanded", "collapsed", "wide"] as const) {
+    if (sidebar === "wide") await widenText(page);
+    await context.addCookies([{ name: "uniiverse_sidebar", value: sidebar === "wide" ? "expanded" : sidebar, url: baseURL! }]);
     for (const [width, height, oneScreen] of [
       [1280, 800, false],
       // The owner's smallest desktop window.
@@ -847,7 +855,7 @@ test("one screen from a 59rem page: a 2 × 2 grid, the rankings side by side and
       await page.setViewportSize({ width, height });
       await openRecords(page);
       const f = await boards(page);
-      const at = `${width} × ${height}, sidebar ${sidebar} (a ${f.page.toFixed(1)}rem page)`;
+      const at = `${width} × ${height}, sidebar ${sidebar === "wide" ? "expanded, wider text" : sidebar} (a ${f.page.toFixed(1)}rem page)`;
       await noOverflow(page);
       // Names whole (M4): no word broken across lines.
       expect(await brokenWords(page), `${at}: no word broken across two lines`).toEqual([]);
@@ -868,9 +876,10 @@ test("one screen from a 59rem page: a 2 × 2 grid, the rankings side by side and
         expect(Math.abs(g.milestones.left - g.multikills.left) + Math.abs(g.milestones.right - g.multikills.right), `${who}: the milestones in the multikills' column`).toBeLessThanOrEqual(1);
         expect(Math.abs(g.milestones.top - g.records.top), `${who}: the milestones beside the records`).toBeLessThanOrEqual(1);
         expect(Math.abs(g.milestones.bottom - g.records.bottom), `${who}: the records and the milestones one height`).toBeLessThanOrEqual(1);
-        // The owner's sizes: all four boards end in the window, and the page does not scroll.
+        // The owner's sizes: all four boards end in the window with room to spare (BOARD_SPARE above the page's own bottom padding:
+        // Release 19), and the page does not scroll.
         if (oneScreen && seeded && fits) {
-          for (const [name, b] of [["Recent form", g.form], ["the multikills", g.multikills], ["the records", g.records], ["the milestones", g.milestones]] as const) expect(b.bottom, `${who}: ${name} within the window`).toBeLessThanOrEqual(g.window);
+          for (const [name, b] of [["Recent form", g.form], ["the multikills", g.multikills], ["the records", g.records], ["the milestones", g.milestones]] as const) expect(g.window - g.pad - b.bottom, `${who}: room under ${name}`).toBeGreaterThanOrEqual(BOARD_SPARE);
           expect(g.height, `${who}: the page does not scroll`).toBeLessThanOrEqual(g.window);
         }
       };
@@ -975,18 +984,20 @@ test("on a phone: one column, the index of the sections below Recent form jumpin
   await noOverflow(page);
 });
 
-test("tablet: one column, the season records two to a row, the streak across both, the index of the sections below Recent form", async ({ page }, info) => {
+test("tablet: one column, the season records two to a row, the streak a cell like the others, the index of the sections below Recent form", async ({ page }, info) => {
   test.skip(info.project.name !== "tablet", "a tablet's column");
   await openRecords(page);
   await expect(page.getByTestId("section-index")).toBeVisible();
   const cells = await page.getByTestId("season-record").evaluateAll((rows) => rows.map((r) => r.closest("li")!.getBoundingClientRect()));
   expect(cells).toHaveLength(7);
-  // Two columns: the first six in three rows of two, the seventh across both.
+  // Two columns: the first six in three rows of two, the seventh (the streak) a cell of the left column like the others (Release 19:
+  // it went across both, the STATUS follow-up of Release 18).
   for (let i = 0; i < 6; i += 2) {
     expect(Math.abs(cells[i]!.top - cells[i + 1]!.top), `cells ${i + 1} and ${i + 2} side by side`).toBeLessThanOrEqual(1);
     expect(cells[i + 1]!.left).toBeGreaterThan(cells[i]!.right - 1);
   }
-  expect(cells[6]!.width, "the streak across both columns").toBeGreaterThanOrEqual(cells[1]!.right - cells[0]!.left - 1);
+  expect(Math.abs(cells[6]!.width - cells[0]!.width), "the streak as wide as the other cells").toBeLessThanOrEqual(1);
+  expect(Math.abs(cells[6]!.left - cells[0]!.left), "in the left column").toBeLessThanOrEqual(1);
   // Recent form across the page, then the multikills, the records and the milestones under each other.
   const f = await boards(page);
   expect(f.multikills.top).toBeGreaterThanOrEqual(f.form.bottom);

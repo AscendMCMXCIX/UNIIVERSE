@@ -2,8 +2,8 @@
 
 import * as React from "react";
 import { ChevronRight } from "lucide-react";
-import type { BuildChoice, BuildIcon, BuildPart, ChampionBuildsView, RoleBuilds, RunePageValue, SkillOrderValue, StartValue } from "@/domain/champion-builds";
-import { hasPerformer, shownRole } from "@/domain/champion-builds";
+import type { BuildChoice, BuildIcon, BuildPart, BuildQueueKey, ChampionBuildsView, ChampionBuildsViews, RoleBuilds, RunePageValue, SkillOrderValue, StartValue } from "@/domain/champion-builds";
+import { BUILD_QUEUE_KEYS, hasPerformer, otherQueueOffer, shownRole } from "@/domain/champion-builds";
 import {
   BUILDS_TITLE,
   CORE_ORDER_WORDS,
@@ -15,23 +15,37 @@ import {
   MOST_COMMON_TIP,
   NO_BOOTS,
   PART_LABELS,
+  MASTER_GROUP,
+  MASTER_OPTION,
+  MASTER_WHERE_TIP,
+  QUEUE_LABELS,
   QUEUE_TIP,
+  TEAM_GROUP,
   RANK_TIP,
   RUNE_PAGE_WORDS,
+  SMALL_SAMPLE_WORDS,
   SOURCE_TIP,
   UNAVAILABLE_WORDS,
+  WIN_RATE_TIP,
   choiceFigures,
   choiceTip,
   fewTip,
   fewWords,
+  firmWinRate,
   FIRST_POINTS_WORDS,
   fullTip,
   gamesTip,
   gamesWords,
+  masterFewTip,
+  masterFewWords,
+  masterGamesTip,
+  masterGamesWords,
+  masterSourceWords,
+  otherQueueWords,
   partEmptyWords,
   patchTip,
   patchWords,
-  queueWords,
+  queueSelectLabel,
   roleSwitchLabel,
   sourceWords,
   type BuildPartKey,
@@ -39,23 +53,30 @@ import {
 import { ROLE_LABELS } from "@/domain/roles";
 import { IconImg, iconInitials } from "@/components/match-history/icon-img";
 import { RoleIcon } from "@/components/role-icon";
+import { Button } from "@/components/ui/button";
 import { InfoTip } from "@/components/ui/info-tip";
 import { RoleSegmented, segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
+import { Select, type SelectOption } from "@/components/ui/select";
 import { formatCount } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { useBuildsRole } from "./builds-role";
+import { useBuildsChoice } from "./builds-choice";
 
 /*
   CHAMPION INTEL's builds and runes for one champion (docs/CHAMPION_INTEL.md, "Builds and runes"):
-  what the players of the team's stored matches chose on it in one role, on the current patch (or
-  with the previous one added, said so), as compact icon rows: runes, stat shards, summoner spells,
-  skill order, starting items, boots, core items and the full build, each with its win rate and its
-  pick rate, and its own sample in plain words behind the win rate. The source line says what was
-  counted (games, the team's matches, the patch, all ranks, the queues), each part behind its own ⓘ.
-  "Most common" by default; where any part has a choice with a clearly higher win rate among common
-  ones, "Highest win rate" shows those instead (the rows that differ marked). A role choice where
-  the champion has enough games in more than one role (kept in the address by the page). Fewer
-  games than the section needs: one honest line. Factual statistics only: no advice, no verdict.
+  what the players of the team's stored matches chose on it in one role and one queue, on the
+  current patch (or with the previous one added, said so), as compact icon rows: runes, stat
+  shards, summoner spells, skill order, starting items, boots, core items and the full build, each
+  with its win rate and its pick rate, and its own sample and likely range in plain words behind
+  the win rate (a win rate from fewer than 30 games drawn quieter, said so). The queue is a choice
+  in the heading (Ranked Solo/Duo by default; Ranked Flex, Normal Draft and Clash each on its own,
+  never mixed; the page's, so both columns of Compare read the same queue), changed here with no
+  request. The source line says what was counted (games, the team's matches, the patch, all ranks),
+  each part behind its own ⓘ. "Most common" by default; where any part has a choice that won
+  clearly more (30 games or more, 99% sure, D6), "Highest win rate" shows those instead (the rows
+  that differ marked). A role choice where the champion has enough games in more than one role
+  (kept in the address by the page). Fewer games than the section needs in the queue chosen: one
+  honest line naming the queue, and an offer of another queue that has builds (the reader chooses;
+  it never switches by itself). Factual statistics only: no advice, no verdict.
 
   Laid out by its own width: two groups of rows side by side where there is room (one champion on
   a desktop), one group in a column of Compare, the label over its icons on a phone. In Compare the
@@ -122,8 +143,10 @@ function SkillKeys({ v }: { v: SkillOrderValue }) {
           </span>
         </React.Fragment>
       ))}
-      {/* The words wrap where the column is narrow (a phone at 200% text); the three keys stay together. */}
-      <span aria-hidden className="ml-1 text-xs text-fg-subtle">
+      {/* The words wrap where the column is narrow (a phone at 200% text); the three keys stay together. In a single champion's group
+          under 33rem (1366 with the sidebar open) the words take the line under the keys by design, so the board's height never depends
+          on a glyph's width (Release 19: beside the keys they dropped under them with text a hair wider, and the board ran past the window). */}
+      <span aria-hidden className="ml-1 text-xs text-fg-subtle @max-[33rem]/group:ml-0 @max-[33rem]/group:basis-full">
         {FIRST_POINTS_WORDS} <span className="whitespace-nowrap">{v.first.join(" ")}</span>
       </span>
     </span>
@@ -211,7 +234,9 @@ const FORMS = {
     span: "col-span-full text-xs text-fg-subtle @min-[24rem]/group:col-span-3",
     choice: "col-span-full min-w-0 @min-[15rem]/group:col-span-1",
     figure: "text-sm tabular-nums @min-[15rem]/group:text-right",
-    headFigure: "label-text @min-[15rem]/group:text-right",
+    // One line where the figures have their 3.25rem columns ("Pick rate" wrapped there at 1366 with text a hair wider, Release 19): at the column's end, any
+    // excess into the gap before it. Where the table stacks (a narrow phone at a large text size) a heading may wrap, so nothing reaches past the column.
+    headFigure: "label-text @min-[15rem]/group:justify-self-end @min-[15rem]/group:whitespace-nowrap @min-[15rem]/group:text-right",
     partHead: "sr-only @min-[24rem]/group:not-sr-only",
   },
   compare: {
@@ -222,7 +247,7 @@ const FORMS = {
     span: "col-span-full text-xs text-fg-subtle @min-[53.25rem]/board:col-span-3",
     choice: "col-span-full min-w-0 @min-[16.5rem]/board:@max-[22rem]/board:col-span-1 @min-[35.25rem]/board:col-span-1",
     figure: "text-sm tabular-nums @min-[16.5rem]/board:@max-[22rem]/board:text-right @min-[35.25rem]/board:text-right",
-    headFigure: "label-text @min-[16.5rem]/board:@max-[22rem]/board:text-right @min-[35.25rem]/board:text-right",
+    headFigure: "label-text @min-[16.5rem]/board:@max-[22rem]/board:justify-self-end @min-[16.5rem]/board:@max-[22rem]/board:whitespace-nowrap @min-[16.5rem]/board:@max-[22rem]/board:text-right @min-[35.25rem]/board:justify-self-end @min-[35.25rem]/board:whitespace-nowrap @min-[35.25rem]/board:text-right",
     partHead: "sr-only @min-[53.25rem]/board:not-sr-only",
   },
 } as const;
@@ -245,7 +270,7 @@ function PartRow({ part, built, mode, form }: { part: BuildPartKey; built: Build
   const label = PART_LABELS[part];
   if (built.state !== "shown")
     return (
-      <div role="row" className={ROW} data-testid="lookup-build-part" data-part={part} data-state={built.state}>
+      <div role="row" className={ROW} data-testid="lookup-build-part" data-part={part} data-state={built.state} data-total={Math.round(built.total)}>
         <span role="rowheader" className={form.label}>
           {label}
         </span>
@@ -257,8 +282,24 @@ function PartRow({ part, built, mode, form }: { part: BuildPartKey; built: Build
   const highest = mode === "highest" && built.performer !== null;
   const c: BuildChoice<unknown> = highest ? built.performer! : built.standard;
   const { win, pick } = choiceFigures(c);
+  // A win rate from fewer than 30 games swings by ±17 points or more: quieter, and said so (its ⓘ gives its range).
+  const firm = firmWinRate(c);
   return (
-    <div role="row" className={ROW} data-testid="lookup-build-part" data-part={part} data-state="shown" data-choice={highest ? "highest" : "common"} data-games={c.games}>
+    <div
+      role="row"
+      className={ROW}
+      data-testid="lookup-build-part"
+      data-part={part}
+      data-state="shown"
+      data-choice={highest ? "highest" : "common"}
+      data-games={Math.round(c.games)}
+      data-wins={Math.round(c.wins)}
+      data-total={Math.round(c.total)}
+      data-key={c.key}
+      data-common-games={highest ? Math.round(built.standard.games) : undefined}
+      data-common-wins={highest ? Math.round(built.standard.wins) : undefined}
+      data-common-key={highest ? built.standard.key : undefined}
+    >
       <span role="rowheader" className={form.label}>
         {label}
         {highest ? <Differs /> : null}
@@ -266,10 +307,11 @@ function PartRow({ part, built, mode, form }: { part: BuildPartKey; built: Build
       <span role="cell" className={form.choice} data-testid="lookup-build-choice">
         <ChoiceIcons part={part} value={c.value} />
       </span>
-      <span role="cell" className={cn(form.figure, "font-semibold text-fg")}>
+      <span role="cell" className={cn(form.figure, firm ? "font-semibold text-fg" : "text-fg-subtle")} data-firm={firm ? "true" : "false"}>
         <InfoTip text={choiceTip(part, c)} testId="lookup-build-win">
           {win}
         </InfoTip>
+        {firm ? null : <span className="sr-only"> {SMALL_SAMPLE_WORDS}</span>}
       </span>
       <span role="cell" className={cn(form.figure, "text-fg-muted")} data-testid="lookup-build-pick">
         {pick}
@@ -283,7 +325,18 @@ function FullRow({ b, mode, form }: { b: RoleBuilds; mode: Mode; form: Form }) {
   const highest = mode === "highest" && b.core.state === "shown" && b.core.performer !== null;
   const full = highest ? b.fullHighest : b.full;
   return (
-    <div role="row" className={ROW} data-testid="lookup-build-part" data-part="full" data-state={full ? "shown" : "varied"} data-choice={highest ? "highest" : "common"}>
+    <div
+      role="row"
+      className={ROW}
+      data-testid="lookup-build-part"
+      data-part="full"
+      data-state={full ? "shown" : "varied"}
+      data-choice={highest ? "highest" : "common"}
+      data-fourth-games={full ? Math.round(full.fourth.games) : undefined}
+      data-fourth-total={full ? Math.round(full.fourth.total) : undefined}
+      data-fifth-games={full?.fifth ? Math.round(full.fifth.games) : undefined}
+      data-fifth-total={full?.fifth ? Math.round(full.fifth.total) : undefined}
+    >
       <span role="rowheader" className={form.label}>
         {full ? (
           <InfoTip text={fullTip(full, highest)} testId="lookup-build-full">
@@ -308,7 +361,7 @@ function FullRow({ b, mode, form }: { b: RoleBuilds; mode: Mode; form: Form }) {
 }
 
 /** One group of rows with its column headings: what the choices are, their win rate and pick rate. */
-function Group({ parts, b, mode, label, full, form, className }: { parts: BuildPartKey[]; b: RoleBuilds; mode: Mode; label: string; full?: boolean; form: Form; className?: string }) {
+function Group({ parts, b, mode, label, full, form, className, tips = false }: { parts: BuildPartKey[]; b: RoleBuilds; mode: Mode; label: string; full?: boolean; form: Form; className?: string; /** The first group's headings carry the columns' ⓘ (the second's say the same). */ tips?: boolean }) {
   return (
     <div className={cn(form.group, className)} data-testid="lookup-build-group">
       <div role="table" aria-label={label} className={form.table}>
@@ -320,7 +373,13 @@ function Group({ parts, b, mode, label, full, form, className }: { parts: BuildP
             {mode === "highest" ? <InfoTip text={HIGHEST_TIP}>{HIGHEST_WIN_RATE}</InfoTip> : <InfoTip text={MOST_COMMON_TIP}>{MOST_COMMON}</InfoTip>}
           </span>
           <span role="columnheader" className={form.headFigure}>
-            Win rate
+            {tips ? (
+              <InfoTip text={WIN_RATE_TIP} testId="lookup-build-win-head">
+                Win rate
+              </InfoTip>
+            ) : (
+              "Win rate"
+            )}
           </span>
           <span role="columnheader" className={form.headFigure}>
             Pick rate
@@ -343,7 +402,8 @@ const Sep = () => (
 
 function Heading({ id, children, className }: { id: string; children?: React.ReactNode; className?: string }) {
   return (
-    <div className={cn("flex flex-wrap items-center gap-x-4 gap-y-1", className)} data-testid="lookup-build-heading">
+    // min-w-0: in a row of its own (the few state) it may be narrower than the queue choice's widest name, which then ends in an ellipsis.
+    <div className={cn("flex min-w-0 max-w-full flex-wrap items-center gap-x-4 gap-y-1", className)} data-testid="lookup-build-heading">
       <h3 id={id} className="text-sm font-semibold text-fg">
         {BUILDS_TITLE}
       </h3>
@@ -352,82 +412,172 @@ function Heading({ id, children, className }: { id: string; children?: React.Rea
   );
 }
 
-/**
- * The builds section of one champion. `view` comes from the server (server/champion-builds); the
- * role is the page's (useBuildsRole), the view of choices this section's own.
- */
-export function ChampionBuilds({ view }: { view: ChampionBuildsView }) {
-  const headingId = `${React.useId()}-builds`;
-  const { role: asked, setRole, compare = false } = useBuildsRole();
-  const [mode, setMode] = React.useState<Mode>("common");
+/** The queue choice: the team's four queues, each its own counts, and Master+ where the page offers it (D2). */
+function QueueChoice({ championName, value, master, onChange }: { championName: string; value: BuildQueueKey | "master"; master: boolean; onChange: (v: BuildQueueKey | "master") => void }) {
+  const options: SelectOption[] = [
+    ...BUILD_QUEUE_KEYS.map((q) => ({ value: q, label: QUEUE_LABELS[q], ...(master ? { group: TEAM_GROUP } : {}) })),
+    ...(master ? [{ value: "master", label: MASTER_OPTION, group: MASTER_GROUP }] : []),
+  ];
+  return (
+    <span className="-my-1 inline-flex max-w-full min-w-0 items-center gap-1 pr-1 pointer-coarse:pr-3.5" data-testid="lookup-build-queue-choice">
+      <Select aria-label={queueSelectLabel(championName)} value={value} options={options} onValueChange={(v) => onChange(v as BuildQueueKey | "master")} className="w-auto" data-testid="lookup-build-queue" />
+      <InfoTip label="About queues" text={QUEUE_TIP} testId="lookup-build-queue-tip" />
+    </span>
+  );
+}
 
-  if (view.status !== "shown") {
+/** Each champion's section its own name (Compare holds two: one landmark each). */
+const sectionName = (championName: string) => `${championName}'s builds and runes`;
+
+/**
+ * The builds section of one champion. `views` come from the server (server/champion-builds): every
+ * queue's on its own; the role, the queue and the source are the page's (useBuildsChoice), the
+ * view of choices this section's own.
+ */
+export function ChampionBuilds({ views }: { views: ChampionBuildsViews }) {
+  const headingId = `${React.useId()}-builds`;
+  const sectionRef = React.useRef<HTMLElement>(null);
+  const { role: asked, setRole, queue, setQueue, source: askedSource, setSource, compare = false, lane = null } = useBuildsChoice();
+  const [mode, setMode] = React.useState<Mode>("common");
+  // The other queue's offer, once pressed, hands the focus to the queue choice (the offer is gone).
+  const focusQueue = React.useRef(false);
+  React.useEffect(() => {
+    if (!focusQueue.current) return;
+    focusQueue.current = false;
+    sectionRef.current?.querySelector<HTMLElement>('[data-testid="lookup-build-queue"]')?.focus({ preventScroll: true });
+  });
+
+  if (views.status !== "counted") {
     return (
-      <section aria-labelledby={headingId} className="flex flex-wrap items-baseline gap-x-4 gap-y-1" data-testid="lookup-builds-view" data-status={view.status}>
+      <section aria-label={sectionName(views.championName)} className="flex flex-wrap items-baseline gap-x-4 gap-y-1" data-testid="lookup-builds-view" data-status="unavailable">
         <Heading id={headingId} />
-        {view.status === "few" ? (
-          <p className="flex items-center gap-1.5 text-sm text-fg-muted">
-            <span data-testid="lookup-build-few">{fewWords(view.currentPatch)}</span>
-            <InfoTip label="About builds" text={fewTip(view.games, view.role)} testId="lookup-build-few-tip" />
-          </p>
-        ) : (
-          <p className="text-sm text-fg-muted" data-testid="lookup-build-unavailable">
-            {UNAVAILABLE_WORDS}
-          </p>
-        )}
+        <p className="text-sm text-fg-muted" data-testid="lookup-build-unavailable">
+          {UNAVAILABLE_WORDS}
+        </p>
       </section>
     );
   }
 
-  const role = shownRole(view, asked);
+  const masterView = views.master;
+  const source = askedSource === "master" && masterView ? "master" : "team";
+  const view: ChampionBuildsView = source === "master" ? masterView! : views.queues[queue];
+  const choose = (v: BuildQueueKey | "master") => {
+    if (v === "master") setSource("master");
+    else {
+      setSource("team");
+      setQueue(v);
+    }
+  };
+  const queueChoice = <QueueChoice championName={views.championName} value={source === "master" ? "master" : view.queue} master={!!masterView} onChange={choose} />;
+  const sectionData = { "data-queue": view.queue, "data-source": source } as const;
+
+  if (view.status !== "shown") {
+    const offer = source === "team" ? otherQueueOffer(views.queues, view.queue, asked ?? lane ?? view.role) : null;
+    return (
+      <section ref={sectionRef} aria-label={sectionName(views.championName)} className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2" data-testid="lookup-builds-view" data-status="few" {...sectionData}>
+        <Heading id={headingId}>{queueChoice}</Heading>
+        <p className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-muted">
+          {/* Room for the ⓘ's target past its mark (24px under a mouse, 44px on a touch screen) where the words fill the line. */}
+          <span className="inline-flex items-center gap-1.5 pr-1 pointer-coarse:pr-3.5">
+            <span data-testid="lookup-build-few">{source === "master" ? masterFewWords(view.games, view.currentPatch) : fewWords(view.queue, view.currentPatch)}</span>
+            <InfoTip label="About builds" text={source === "master" ? masterFewTip(view.games, view.role) : fewTip(view.games, view.role, view.queue)} testId="lookup-build-few-tip" />
+          </span>
+          {offer ? (
+            <Button
+              variant="outline"
+              size="sm"
+              // The offer's words wrap wherever the line is short (a column of Compare, a large text size), the button growing with them.
+              className="h-auto min-h-7 max-w-full whitespace-normal py-1 text-left"
+              onClick={() => {
+                focusQueue.current = true;
+                setSource("team");
+                setQueue(offer.queue);
+                const next = views.queues[offer.queue];
+                // The role the offer names, kept as a choice only where the queue would not open on it by itself (its default, or the lane's role).
+                setRole(next.status === "shown" && offer.role !== shownRole(next, null, lane) ? offer.role : null);
+              }}
+              data-testid="lookup-build-other-queue"
+              data-queue={offer.queue}
+            >
+              {otherQueueWords(offer)}
+            </Button>
+          ) : null}
+        </p>
+      </section>
+    );
+  }
+
+  // With Matchup Intel's lane, the lane's role is the default where the champion has builds in it (20 games or more: the section's own rule),
+  // also where the role chosen has none in this queue (chosen in another queue, or a shared link): a role chosen wins only where it has builds.
+  const fallback = shownRole(view, null, lane);
+  const role = shownRole(view, asked, lane);
   const b = view.builds[role]!;
   const offersHighest = hasPerformer(b);
   const shown: Mode = offersHighest ? mode : "common";
   const form = compare ? FORMS.compare : FORMS.single;
-  const source = (
+  const master = source === "master";
+  const sourceLine = (
     // One champion: beside the title where the section is wide (a desktop); narrower, on a line of its own under the title, the role and the view switch. Compare: its own row.
-    <p className={cn("min-w-0 text-xs text-fg-muted", compare ? undefined : "order-last basis-full @min-[52rem]/builds:order-none @min-[52rem]/builds:basis-auto")} data-testid="lookup-build-source" data-line={sourceWords(b)} data-games={b.games} data-patches={b.patches.join(",")} data-current-games={b.currentGames}>
-      <InfoTip text={gamesTip(b)} testId="lookup-build-games">
-        {gamesWords(b)}
-      </InfoTip>{" "}
-      <InfoTip text={SOURCE_TIP} testId="lookup-build-where">
-        in the team&apos;s matches
-      </InfoTip>
-      <Sep />
-      <InfoTip text={patchTip(b)} testId="lookup-build-patch">
-        <span className={cn(b.widened && "text-warn")}>{patchWords(b)}</span>
-      </InfoTip>
-      <Sep />
-      <InfoTip text={RANK_TIP} testId="lookup-build-ranks">
-        all ranks
-      </InfoTip>
-      <Sep />
-      <InfoTip text={QUEUE_TIP} testId="lookup-build-queues">
-        {queueWords(b.queues)}
-      </InfoTip>
+    <p className={cn("min-w-0 text-xs text-fg-muted", compare ? undefined : "order-last basis-full @min-[52rem]/builds:order-none @min-[52rem]/builds:basis-auto")} data-testid="lookup-build-source" data-line={master ? masterSourceWords(b) : sourceWords(b)} data-games={Math.round(b.games)} data-observed={b.observed} data-patches={b.patches.join(",")} data-current-games={Math.round(b.currentGames)} data-timeline-games={Math.round(b.timelineGames)}>
+      {master ? (
+        <>
+          <InfoTip text={masterGamesTip(b)} testId="lookup-build-games">
+            {masterGamesWords(b)}
+          </InfoTip>
+          <Sep />
+          <InfoTip text={MASTER_WHERE_TIP} testId="lookup-build-where">
+            all regions
+          </InfoTip>
+          <Sep />
+          <InfoTip text={patchTip(b)} testId="lookup-build-patch">
+            <span className={cn(b.widened && "text-warn")}>{patchWords(b)}</span>
+          </InfoTip>
+        </>
+      ) : (
+        <>
+          <InfoTip text={gamesTip(b)} testId="lookup-build-games">
+            {gamesWords(b)}
+          </InfoTip>{" "}
+          <InfoTip text={SOURCE_TIP} testId="lookup-build-where">
+            in the team&apos;s matches
+          </InfoTip>
+          <Sep />
+          <InfoTip text={patchTip(b)} testId="lookup-build-patch">
+            <span className={cn(b.widened && "text-warn")}>{patchWords(b)}</span>
+          </InfoTip>
+          <Sep />
+          <InfoTip text={RANK_TIP} testId="lookup-build-ranks">
+            all ranks
+          </InfoTip>
+        </>
+      )}
     </p>
   );
   return (
     <section
-      aria-labelledby={headingId}
+      ref={sectionRef}
+      aria-label={sectionName(views.championName)}
       // Compare: twelve rows of the board (the heading, the source line, each group's headings and parts), as a subgrid.
       className={cn("min-w-0 space-y-2", compare ? "@min-[22rem]/board:row-span-12 @min-[22rem]/board:grid @min-[22rem]/board:grid-rows-subgrid" : "@container/builds")}
       data-testid="lookup-builds-view"
       data-status="shown"
       data-role={role}
+      data-roles={view.roles.map((r) => `${r.role}:${Math.round(r.games)}`).join(",")}
       data-mode={shown}
+      {...sectionData}
     >
       {/* In Compare the heading measures itself for its switches (the section, a subgrid, cannot be a container). */}
       <Heading id={headingId} className={compare ? "@container/builds" : undefined}>
         {view.roles.length > 1 ? (
-          <RoleSegmented label={roleSwitchLabel(view.championName)} roles={view.roles.map((r) => r.role)} value={role} onChange={(r) => r && setRole(r === view.defaultRole ? null : r)} testId="lookup-build-role" className="-my-1" />
+          <RoleSegmented label={roleSwitchLabel(view.championName)} roles={view.roles.map((r) => r.role)} value={role} onChange={(r) => r && setRole(r === fallback ? null : r)} testId="lookup-build-role" className="-my-1" />
         ) : (
           <span className="-my-1 inline-flex min-h-9 items-center gap-1.5 text-xs font-medium text-fg-muted pointer-coarse:min-h-11" data-testid="lookup-build-one-role">
             <RoleIcon role={role} className="h-3.5 w-3.5" decorative />
             {ROLE_LABELS[role]}
           </span>
         )}
-        {compare ? null : source}
+        {queueChoice}
+        {compare ? null : sourceLine}
         {offersHighest ? (
           <div role="radiogroup" aria-label={`${view.championName}'s choices`} className={segmentedGroupClass("-my-1 @min-[30rem]/builds:ml-auto")} data-testid="lookup-build-mode">
             {(["common", "highest"] as const).map((m) => (
@@ -438,9 +588,9 @@ export function ChampionBuilds({ view }: { view: ChampionBuildsView }) {
           </div>
         ) : null}
       </Heading>
-      {compare ? source : null}
+      {compare ? sourceLine : null}
       <div className={cn("grid gap-x-8 gap-y-1", compare ? "@min-[22rem]/board:row-span-10 @min-[22rem]/board:grid-rows-subgrid @min-[22rem]/board:gap-y-0" : "@min-[52rem]/builds:grid-cols-2")}>
-        <Group parts={["runes", "shards", "spells", "skills"]} b={b} mode={shown} form={form} label={`${view.championName}'s runes, spells and skill order (${formatCount(b.games)} games)`} />
+        <Group parts={["runes", "shards", "spells", "skills"]} b={b} mode={shown} form={form} tips label={`${view.championName}'s runes, spells and skill order (${formatCount(b.games)} games)`} />
         <Group parts={["start", "boots", "core"]} b={b} mode={shown} form={form} label={`${view.championName}'s items (${formatCount(b.timelineGames)} games with a timeline)`} full className={compare ? "@min-[22rem]/board:pt-1" : undefined} />
       </div>
     </section>

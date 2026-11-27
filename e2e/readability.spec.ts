@@ -32,15 +32,16 @@ test.describe("the text hierarchy", () => {
     await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
   });
 
-  test("the four tiers are deployed; the profile and Settings draw no capitals outside a pill and no live text in the disabled tone; Team Overview keeps its capitals", async ({ page }) => {
+  test("the four tiers are deployed; Team Overview, the profile and Settings draw no capitals outside a pill and no live text in the disabled tone", async ({ page }) => {
     const id = await midPlayer(page);
     await settle(page);
     const team = await page.evaluate(readTypeFacts);
     expect(tiersDeployed(team.tiers), JSON.stringify(team.tiers)).toBe(true);
     expect(team.tiers).toEqual(TEXT_TIERS);
     expect(team.disabledTone.live, "Team Overview: live text in the disabled tone").toBe(0);
-    // Team Overview is approved with its capitals (the card's labels): they are still there.
-    expect(team.capitals.length, "Team Overview keeps its approved capitals").toBeGreaterThan(0);
+    // Team Overview's labels are sentence case since 27 Nov 2026 (the owner's decision D4; its backdrop lettering, artwork hidden
+    // from screen readers, and a member's own name style keep their capitals, and the reader leaves both out).
+    expect(team.capitals, "Team Overview: text in capitals outside a pill").toEqual([]);
     for (const path of [`/players/${id}`, `/players/${id}/champions`, "/settings"]) {
       await page.goto(path);
       await settle(page);

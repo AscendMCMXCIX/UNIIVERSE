@@ -202,6 +202,11 @@ expected of a record.
     docs/TEAM_LEADERBOARDS.md, "The Score breakdown"); the player Peek leads with it in short.
   - **Fairness:** reviewed on 25 Nov 2026 (docs/TEAM_LEADERBOARDS.md, "Fairness review"): no change
     to the maths; the limits (queue mix, games without a role, the team-wide fallback) are disclosed.
+    Reassessed on 27 Nov 2026 (docs/TEAM_LEADERBOARDS.md, "Fairness evaluation, 27 Nov 2026"): twelve
+    models compared in a seeded simulation (role and champion adjustment and the +40 cushion confirmed;
+    own kills and per-minute rejected; the member's own game environment the one demonstrated weakness)
+    and on the stored games by the read-only `multikill-audit` job, with a decision rule written before
+    it runs. No formula change until the audit, a calibrated simulation and the owner say so.
 - **Champion milestones**, under their own "Milestones" heading ("Lifetime and milestones" until 19 Nov 2026):
   - games on one champion this season (25, 50, 100);
   - Riot mastery points on a champion (100,000, 500,000, 1,000,000).

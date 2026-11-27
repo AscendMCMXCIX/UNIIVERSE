@@ -14,7 +14,7 @@ import { listTeamBookmarks, sharedGameRows, type TeamBookmark } from "@/server/m
 import type { Session } from "@/server/auth/permissions";
 import { filterTogether, summariseTogether } from "@/domain/played-together";
 import { seasonLabel, seasonOfGame } from "@/domain/season";
-import { chooseSeason, isOfferedSeason, offeredCurrentSeason, offeredSeasons } from "@/domain/season";
+import { chooseSeason, FIRST_SEASON, isOfferedSeason, offeredCurrentSeason, offeredSeasons } from "@/domain/season";
 import { currentSeason } from "@/server/accounts/sync";
 import { PlayedTogetherView, TOGETHER_QUEUES, type TogetherFilters, type TogetherListGame } from "@/components/matches/played-together";
 import { encountersRedirect } from "@/lib/nav";
@@ -52,7 +52,7 @@ export default async function MatchesPage({ searchParams }: { searchParams: Prom
 
 /** What the games on this page prove and do not prove: the detail behind (i) beside the summary. */
 const TOGETHER_CAVEAT =
-  "Games where two or more members were on the same team, from Season 2026. Riot doesn't say who queued together, so not necessarily a party.";
+  `Games where two or more members were on the same team, from ${seasonLabel(FIRST_SEASON)}. Riot doesn't say who queued together, so not necessarily a party.`;
 
 /**
  * Games with two or more members that this page cannot list (which side each member was on is not

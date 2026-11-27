@@ -35,6 +35,7 @@ const DEMO: ChampionPreviewRead = {
   lookup: 1,
   lookupPage: true,
   lookupChampion: true,
+  lookupLane: true,
   address: { champion: true, role: true },
 };
 const STEP = { next: true, address: true, replaced: true };
@@ -80,6 +81,8 @@ describe("All Champions' preview facts", () => {
     expect(failed({ ...DEMO, opponents: [{ games: 7, says: false, rate: true, small: false }] })).toHaveLength(1);
     expect(failed({ ...DEMO, lookup: 2 })).toHaveLength(1);
     expect(failed({ ...DEMO, lookupChampion: false })).toHaveLength(1);
+    // The link carries the position as Matchup Intel's lane (since 27 Nov 2026).
+    expect(failed({ ...DEMO, lookupLane: false })).toHaveLength(1);
   });
   it("fail a preview that is not a pane beside the list: a window, past the screen's edge, or laid over the list or the row's name", () => {
     const where = "desktop: the preview opens in a pane beside the list (no window), within the screen, the list and the row's name clear of it";

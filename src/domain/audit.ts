@@ -51,6 +51,13 @@ export const AUDIT_ACTIONS = {
   "resources.edit": "Changed a resource",
   "resources.remove": "Removed a resource",
   "resources.restore": "Restored removed default resources",
+  "matchup-note.create": "Wrote a matchup note draft",
+  "matchup-note.update": "Changed a matchup note draft",
+  "matchup-note.publish": "Published a matchup note",
+  "matchup-note.confirm": "Confirmed a matchup note for a new patch",
+  "matchup-note.unpublish": "Unpublished a matchup note",
+  "matchup-note.retire": "Retired a matchup note",
+  "matchup-note.delete-draft": "Deleted a matchup note draft",
   // Earlier entries only: Clash Scout was retired (23 Oct 2026).
   "clash.scout-delete": "Deleted a Clash scout",
   "privacy.erase": "Permanently erased a person's personal data",
@@ -69,7 +76,7 @@ export type AuditAction = keyof typeof AUDIT_ACTIONS;
 export const AUDIT_CATEGORIES = {
   access: { label: "Access & permissions", actions: ["account.role", "account.access", "account.groups", "account.permissions", "account.admin-grant", "account.admin-revoke", "preset.save", "preset.delete"] },
   accounts: { label: "Accounts & passwords", actions: ["owner.setup", "owner.recover", "account.create", "account.password-reset", "account.password-withdrawn", "account.activate", "account.deactivate", "account.delete", "account.team-member", "account.display-name", "account.username", "account.sign-out-everywhere", "account.picture-replace", "account.picture-remove", "account.link-hide", "account.link-remove", "riot.link", "riot.unlink", "riot.replace", "riot.main", "profile.delete", "profile.archive", "profile.restore", "profile.edit", "password.change", "self.username", "self.display-name", "self.picture", "self.picture-remove"] },
-  settings: { label: "Platform settings", actions: ["branding.save", "branding.reset", "branding.asset", "branding.asset-remove", "branding.public-site", "resources.add", "resources.edit", "resources.remove", "resources.restore"] },
+  settings: { label: "Platform settings", actions: ["branding.save", "branding.reset", "branding.asset", "branding.asset-remove", "branding.public-site", "resources.add", "resources.edit", "resources.remove", "resources.restore", "matchup-note.create", "matchup-note.update", "matchup-note.publish", "matchup-note.confirm", "matchup-note.unpublish", "matchup-note.retire", "matchup-note.delete-draft"] },
   data: { label: "Data & jobs", actions: ["clash.scout-delete", "jobs.schedule", "jobs.run", "demo.data"] },
   privacy: { label: "Personal data", actions: ["privacy.erase", "privacy.release", "privacy.reconcile", "privacy.export", "privacy.import"] },
 } as const satisfies Record<string, { label: string; actions: readonly AuditAction[] }>;

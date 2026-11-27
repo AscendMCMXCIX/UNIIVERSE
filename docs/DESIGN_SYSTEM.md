@@ -501,9 +501,13 @@ disabled variant or condition.
 **Labels are sentence case** (25 Nov 2026, the owner's readability request): `label-text` for column
 headings and small labels (`text-2xs`, medium, `fg-muted`), `SectionLabel` a small `fg` heading for
 a part inside a panel, `Metric` a `fg-muted` label over its figure with no box of its own. Capitals
-stay only where an approved design keeps them (Team Overview's card and window, the Admin mode
-marker and the admin eyebrow, pill badges), listed in `src/app/type-hierarchy.test.ts` with their
-reasons. **Uppercase labels** that remain keep one letter spacing, `tracking-label`, at every width:
+stay only where an approved design keeps them (Team Overview's backdrop lettering, the Admin mode
+marker and the admin eyebrow, the sign-in card's eyebrow, pill badges), listed in
+`src/app/type-hierarchy.test.ts` with their reasons. Team Overview's labels went to sentence case
+on 27 Nov 2026 (the owner's decision D4: "Team overview", the role chip's "Top", "Win rate", "Top
+pool", the player window's column names, "First choice", "You", "Main role"), its card design,
+spacing, artwork and colours unchanged; the labels are `label-text` (the 12px floor on desktops,
+secondary), and the team's backdrop lettering and a member's "wide" name style keep their capitals. **Uppercase labels** that remain keep one letter spacing, `tracking-label`, at every width:
 no width or container variant may change it (`design-tokens.test.ts`; the Team card's WIN RATE was
 0.44px on a laptop and 1.32px on a phone before S2b).
 
@@ -1207,7 +1211,7 @@ deliberately. Each needs its own small PR. Check STATUS.md for the Actions-minut
 |---|---|---|
 | Hover on panels | About 50 controls use `hover:bg-surface-2`, a few `hover:bg-surface-2/70` or `bg-fg/5` | Converge on §5: surface steps on panels, fg overlays on the frame. `DataList` rows follow §5 already (`ROW_STATES`) |
 | Page headers | Players, Matches and Resources open with `PageHeader`. Leaderboards (one page since 19 Nov 2026) opens with its title, member count and data status on one line (its own header: the line `PageHeader` would put under the title stands beside it, so the boards start one line higher); Settings (64rem, both modes) leads with its account card (`surface-lead`) beside or above its sections, its title over them | Intended by STANDARDS.md's three tiers |
-| Eyebrows | `PageHeader`'s eyebrow is `accent`, in capitals; `SectionLabel` is a small sentence-case heading in `fg` since 25 Nov 2026 (an uppercase `fg-subtle` label before) | Keep `accent` eyebrows, and their capitals, to Team Overview's header (from `sm` in a window taller than 480px; on a phone held either way it is left to screen readers, since the selected tab says it), admin pages (`PageHeader`) and the sign-in frames (`BrandFrame`); every other label is sentence case |
+| Eyebrows | `PageHeader`'s eyebrow is `accent`, in capitals; `SectionLabel` is a small sentence-case heading in `fg` since 25 Nov 2026 (an uppercase `fg-subtle` label before) | Keep `accent` eyebrows to Team Overview's header ("Team overview" in sentence case since 27 Nov 2026, the owner's decision D4; from `sm` in a window taller than 480px; on a phone held either way it is left to screen readers, since the selected tab says it), admin pages (`PageHeader`, in capitals: the mode's identity, the owner's decision O4) and the sign-in frames (`BrandFrame`, in capitals); every other label is sentence case |
 | Tablet and phone mode switch | A row on the phone's account screen and an item of a tablet's avatar menu, each in the accent on the way to Admin Mode; a quiet row in the sidebar | Deliberate (§7). Revisit only with the owner, since phones were verified |
 
 ## 11. Working on the design

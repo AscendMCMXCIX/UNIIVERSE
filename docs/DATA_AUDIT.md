@@ -3,6 +3,10 @@
 > A dated snapshot. Meta & Trends was removed on 19 Oct 2026: the global ranked, professional and
 > aggregation pipelines described below no longer run, and `data-audit` now reports linked-account
 > sync, matches per queue, queue classification, mastery and Matchups timeline coverage only.
+>
+> See also: `multikill-audit` (27 Nov 2026), the read-only check of the multikill score against
+> alternative models on the stored games, anonymous aggregates only (docs/TEAM_LEADERBOARDS.md,
+> "Fairness evaluation, 27 Nov 2026").
 
 Read-only audit of the production database, taken **2026-10-14 06:06 UTC** on deployment `76100a9`
 (Vercel syd1, Supabase Postgres) with the `data-audit` job (stored data per account, region, rank and

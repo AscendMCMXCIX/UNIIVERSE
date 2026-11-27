@@ -97,9 +97,9 @@ its row; from Release 16 to 25 Nov 2026 a panel docked at the window's right edg
    timeline ("At 10:00 you had more gold than Nasus in 5 of 6 games with a timeline (+623 on
    average)", "Gwen had" on a teammate's profile: `src/domain/viewer-words.ts`), every game as a
    compact row (W/L, K/D/A, CS, the gold difference at 10:00 or "no timeline", the date), each
-   opening the match window; and "Gwen and Nasus in Champion Intel" (`/lookup?champion=Gwen&champion2=Nasus`,
-   the two side by side: Matchup Intel's place since 23 Nov 2026; positions are not part of
-   Champion Intel).
+   opening the match window; and "Gwen vs Nasus in Matchup Intel" (`/lookup?champion=Gwen&champion2=Nasus&lane=TOP`:
+   the two side by side in Champion Intel's Compare, the position as Matchup Intel's lane, since 27 Nov
+   2026; docs/MATCHUP_INTEL.md).
 6. **Foot line:** "Lane opponent: the enemy Riot placed in your position" ("their position" on a
    teammate's), with "Known in N of M games" when some games name none.
 

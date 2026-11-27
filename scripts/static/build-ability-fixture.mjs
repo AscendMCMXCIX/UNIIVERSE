@@ -21,7 +21,7 @@ import { dirname, join, resolve } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { z } from "zod";
 
-export const ABILITY_RULES_FORMAT = 4;
+export const ABILITY_RULES_FORMAT = 5;
 export const DESCRIPTION_MAX = 1000;
 const CHAMPION_ID = /^[A-Za-z0-9]{1,40}$/;
 const VERSION = /^\d{1,4}(?:\.\d{1,4}){1,3}$/;
@@ -95,6 +95,7 @@ const spellSchema = z.object({
   image: z.object({ full: icon }),
   cost: z.array(z.number().min(0).max(100_000)).max(10).optional().catch(undefined),
   resource: z.string().max(200).optional().catch(undefined),
+  range: z.array(z.number().finite().min(0).max(4_294_967_295)).max(10).optional().catch(undefined),
 });
 const tipList = z.array(z.unknown()).max(40).optional();
 const statsSchema = z.record(z.string().regex(/^[a-z]{2,30}$/), z.number().finite().min(-1_000).max(100_000)).optional().catch(undefined);
@@ -138,6 +139,7 @@ export function compactChampionAbilities(detail, version) {
         const spell = { slot, id: s.id, name: s.name, icon: s.image.full, maxRank: s.maxrank, cooldown: [...s.cooldown], charges: chargesOf(s.maxammo), description: cleanDescription(s.description ?? ""), textHash: riotTextHash(s.description ?? "", s.tooltip ?? "") };
         if (s.cost) spell.cost = [...s.cost];
         if (typeof s.resource === "string") spell.resource = s.resource;
+        if (s.range) spell.range = [...s.range];
         return spell;
       }),
     ];
@@ -190,9 +192,9 @@ export function serialiseFixture(fixture) {
 /* ---------- The digest: Data Dragon's own numbers, which CI checks the fixture against ---------- */
 
 const DIGEST_NOTE =
-  "Data Dragon's own numbers for every champion (championFull.json, en_US), copied as Riot gives them with no rule applied: each spell as [id, maxrank, cooldown, maxammo, cost, resource] (maxammo, cost and resource null when absent); Riot's tips as Riot gives them (allytips, enemytips; null when absent); and each champion's partype, tags and stats (null when absent). Written with the offline fixture by scripts/static/build-ability-fixture.mjs; src/server/riot/static/abilities.test.ts holds every champion of the fixture to it, so CI needs no championFull.json.";
+  "Data Dragon's own numbers for every champion (championFull.json, en_US), copied as Riot gives them with no rule applied: each spell as [id, maxrank, cooldown, maxammo, cost, resource, range] (maxammo, cost, resource and range null when absent); Riot's tips as Riot gives them (allytips, enemytips; null when absent); and each champion's partype, tags and stats (null when absent). Written with the offline fixture by scripts/static/build-ability-fixture.mjs; src/server/riot/static/abilities.test.ts holds every champion of the fixture to it, so CI needs no championFull.json.";
 
-/** Each champion's four spells as Data Dragon gives them, [id, maxrank, cooldown, maxammo, cost, resource], its tips and its facts (partype, tags, stats). Throws when a champion has no four spells. */
+/** Each champion's four spells as Data Dragon gives them, [id, maxrank, cooldown, maxammo, cost, resource, range], its tips and its facts (partype, tags, stats). Throws when a champion has no four spells. */
 export function buildDigest(full) {
   const version = full?.version;
   if (typeof version !== "string" || !VERSION.test(version)) throw new Error(`championFull.json has no usable version (${JSON.stringify(version)})`);
@@ -205,7 +207,7 @@ export function buildDigest(full) {
   for (const id of Object.keys(data).sort()) {
     const spells = data[id]?.spells;
     if (!Array.isArray(spells) || spells.length < 4) unreadable.push(id);
-    else champions[id] = spells.slice(0, 4).map((s) => [s?.id ?? null, s?.maxrank ?? null, s?.cooldown ?? null, s?.maxammo ?? null, s?.cost ?? null, s?.resource ?? null]);
+    else champions[id] = spells.slice(0, 4).map((s) => [s?.id ?? null, s?.maxrank ?? null, s?.cooldown ?? null, s?.maxammo ?? null, s?.cost ?? null, s?.resource ?? null, s?.range ?? null]);
     tips[id] = { ally: data[id]?.allytips ?? null, enemy: data[id]?.enemytips ?? null };
     facts[id] = { partype: data[id]?.partype ?? null, tags: data[id]?.tags ?? null, stats: data[id]?.stats ?? null };
   }

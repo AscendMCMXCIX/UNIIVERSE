@@ -1,4 +1,5 @@
 import { defineJob } from "./registry";
+import { FIRST_SEASON, seasonLabel } from "@/domain/season";
 import { createRiotClient } from "@/server/riot/api/client";
 import { describeRateLimits } from "@/server/riot/api/rate-limiter";
 import { accountsForSyncRun } from "@/server/accounts/repository";
@@ -87,7 +88,7 @@ defineJob({
 defineJob({
   key: "figures-backfill",
   kind: "refresh",
-  description: "Fetch again, once, the full record of the linked players' games stored before multikills and the other extra figures were kept (Season 2026 on), newest first, a few per run, stopping at the first Riot refusal. Records Riot no longer provides are marked and not asked for again; one Riot cannot serve right now is passed over, a few a run, and asked for again later.",
+  description: `Fetch again, once, the full record of the linked players' games stored before multikills and the other extra figures were kept (${seasonLabel(FIRST_SEASON)} on), newest first, a few per run, stopping at the first Riot refusal. Records Riot no longer provides are marked and not asked for again; one Riot cannot serve right now is passed over, a few a run, and asked for again later.`,
   defaultIntervalMinutes: 60,
   run: async (ctx) => {
     const deadline = ctx.startedAt + ctx.budgetMs;

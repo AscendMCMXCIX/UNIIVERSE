@@ -76,7 +76,10 @@ opens with Enter or Space, by find-in-page, and before the page's code runs).
     the key as a plain tile where the icon is missing or fails); a screen reader hears "Q: Orb of
     Deception" (the slot name is in the heading, the tile is drawn);
   - the ability's **name** (text-md semibold, the primary colour) and the **chips** of what Riot's
-    description names (below), crowd control first, then "Changed since 26.22" where it is known;
+    description names (below), crowd control first, then its **range** where the review of what
+    Riot's number measures is current ("Range 970", "Global": small and secondary, in the same flow,
+    under the chips where the row has no room, never a grid line of its own; "Ranges", below), then
+    "Changed since 26.22" where it is known;
   - the **cooldown at every rank** in aligned rank columns (tabular figures, the primary colour,
     semibold): at a haste above 0 the cooldown at that haste is *the* cooldown, and the base sits
     under each value, smaller and secondary, labelled "base"; at 0 the base alone;
@@ -90,7 +93,8 @@ opens with Enter or Space, by find-in-page, and before the page's code runs).
   The fold's chevron at the row's end.
 - **Opened**: Riot's whole description (the primary colour), the words behind each chip marked in it
   (an accent underline); why a cooldown has no number, in full ("Riot's data doesn't say which one its
-  cooldown is. Riot lists 10 / 9 / 8 / 7 / 6 s for the slot."); and, where the sync knows it, what Riot
+  cooldown is. Riot lists 10 / 9 / 8 / 7 / 6 s for the slot."); where the range comes from and who
+  decided what it measures, or why it waits for a review ("Ranges", below); and, where the sync knows it, what Riot
   changed in the last patch ("Riot changed this ability's text and cooldowns since patch 26.22. The
   numbers shown are the current ones."). A row opened grows the page; nothing scrolls inside it.
 - **Layout.** The rank grid is a 3rem label column and one 3.25rem column per rank (4rem on a wide
@@ -123,9 +127,9 @@ opens with Enter or Space, by find-in-page, and before the page's code runs).
   source that holds them in a machine-readable form, CommunityDragon's copy of the game files, is
   permitted by RIOT_COMPLIANCE.md for rank crests and role icons only; using it for numbers is an
   owner decision, not taken here. The wiki's terms forbid automated use.
-- **Per-ability range is not shown** (owner decision recorded 25 Nov 2026, below and in "For the
-  owner"): the owner's request lists "range"; only the champion's attack range is honest (Cost,
-  below).
+- **Per-ability ranges** are shown only where a committed review says what Riot's number measures
+  and Riot's data is still what was reviewed (the owner's decision D3 of 26 Nov 2026; "Ranges",
+  below). The champion's attack range is in its facts, once.
 
 ## Cost
 
@@ -147,12 +151,162 @@ from the ability's own data:
 
 At 16.22.1: 552 per rank, 93 no cost, 5 in Riot's words, 42 nothing (`cost.test.ts`).
 
-**Per-ability range is not shown.** Data Dragon's `range` is a cast range for some abilities, an
-effect radius for others, 25000 for self-casts and globals (129 rank values at 16.22.1), 0 or 20 for
-others (146); no field tells which, and no line of Riot's names it, so no rule could be validated
-across the roster, and it is not stored (rules format 4). The page shows the champion's attack range
-once, in its facts. Showing ability ranges would need the owner's decision and a new reviewed rule
-(`ABILITY_RULES_FORMAT` 5, a fixture rebuild and a roster-wide rule like the cost rule).
+## Ranges
+
+`src/domain/champion-lookup/range.ts` (the rule), `src/server/riot/static/ability-ranges.reviewed.json`
+(the reviewed table), `scripts/static/review-ability-ranges.mjs` (the drafting and checking script).
+The owner's decision D3 (26 Nov 2026): "Include ability ranges where they can be reliably sourced,
+reviewed and maintained across patches. Do not invent or estimate unavailable values."
+
+**Why a review.** Data Dragon gives every spell a `range`, one number per rank (all 692 at 16.22.1;
+the passive has none), the number the game's range indicator draws. The number has no type: a cast
+range, a skillshot's length, a dash, a radius around the champion (Garen's E, 325, is his spin), an
+attack modifier (Kog'Maw's W, 530), the engine's "unlimited" (25000 on 32 spells, about 7 of them
+global) or a placeholder (0, 1, 20, 40; 81 spells hold a number of 50 or less, or 10,000 or more),
+and nothing in Riot's data says which. Riot's text names a range for one ability of 692 (Twisted
+Fate's R, through a placeholder). A one-off research comparison with the game's files (41
+champions, CommunityDragon's copy; a measurement, never a source) found Data Dragon's number is the
+game's indicator value or cast range for 155 of 164 spells: current, not hand-kept, though it differs
+from the mechanical cast range by 10 to 100 units for about 17% of real reaches (Morgana's Q 1,250
+against 1,300). Taken as given, 26% of the numbers that are not placeholders mislead as a reach (a
+hand classification of that sample). So a number is shown only where a review says what it measures.
+
+**The rule** (`rangeDisplay`). A spell's range is shown only when:
+1. its stored record carries Data Dragon's `range` (rules format 5; Q, W, E or R);
+2. the table has a row for its champion and slot with the same Data Dragon spell id, the same range
+   array element for element, and the same text hash (Riot's description and tooltip, `textHash`);
+3. the row's kind is `reach` and the numbers pass validation (one per rank, each above 50 and below
+   10,000, never smaller at a higher rank, not a slot of two abilities: " / " or " | " in its name),
+   or `global` and Riot's number is 5,000 or more.
+
+Then "Range 970" (one number where every rank has the same), "Range 2,000 / 2,500 / 3,000" (per rank
+where they differ, through `formatCount`), or "Global". A row of kind `self` (cast on the champion)
+shows nothing (the owner's decision, Release 19), as do `none` (the number is not the reach), no row,
+the passive and a record from before format 5. When the key no longer matches (Riot changed the spell
+id, its range or its text), the range is hidden and the opened row says "Range not shown: Riot changed
+this ability after patch 26.23, when its range was last checked." Nothing is estimated, carried over
+or rounded: the number shown is always Data Dragon's current one, which is then the reviewed one, and
+no number from the table is ever shown on its own. A mid-patch hotfix Data Dragon does not publish is
+not reflected until the next version, as with cooldowns.
+
+**On the page.** Folded, a short item after the chips (text-xs, the secondary colour, tabular
+figures), in the name-and-chips flow, spaced like a chip: on the name's line where there is room,
+under the chips where there is none, never a grid line or column of its own, so the measured
+one-screen fits hold ("Fit and measurements"); a per-rank range wraps between values only, each "/"
+with the value before it, and a screen reader hears "Range 970 units". The row is marked
+`data-range-status` "shown", "self", "changed" or "none" (the tests and the Production check read
+it). Opened, one line: "Range from Riot's data, in game units. Classified by fixed rules from Riot's
+text on patch 26.23, not by a person." for an automated draft ("Reviewed against Riot's text by an
+automated review on patch 26.23, not by a person." for an automated review, "Reviewed by the team on
+patch 26.23." for the owner's), or the line above when it waits for a review; nothing for a row
+without a range. The abilities' ⓘ: "Mechanics come from Riot's descriptions; ranges only where checked
+against Riot's text. Riot's data has no damage values or scaling, and no cooldown for passives (—)."
+In Compare each column shows its own, with no difference, colour or comparing word. Never
+"estimated", "about", "approximately", "accurate" or "verified" (`words.test.ts`).
+
+**The table.** One row per reviewed spell, one per line, by champion and slot: champion, slot, Data
+Dragon's spell id, `kind` (`reach`, `global`, `self`, or `none` with `why`: `placeholder`,
+`two-forms`, `not-the-reach`, `scales-in-game`, `several-abilities`), Data Dragon's range array as
+reviewed (written out so a reviewer reads it against Riot's file, and compared element for element:
+no separate hash is needed), the text hash, the Data Dragon `version` reviewed at, the date, the
+`reviewer` by role (`automated draft`, `automated review` or `owner`; never a name, the repository is
+public) and, for a draft, the `rule` that decided. A row applies at any version where its key still
+matches: the rows drafted at 16.23.1 match 16.22.1 (the browser tests' pin) row for row. It is read on
+the server only (`src/server/riot/static/ability-ranges.ts`, joined in
+`src/server/champion-lookup/view.ts`; `client-imports.test.ts` keeps `src/server` out of browser
+code): the browser gets each ability's computed range. It changes through pull requests, so git
+history is the review log. A committed file rather than a database table: no migration, no grants,
+reviewable as a diff, held to the offline fixture in CI.
+
+**The drafting rules** (`draftRange`, fixed, no champion named; each spell's draft with its
+evidence, Riot's description and tooltip with the markup taken out, from `--draft`):
+- `none`, high confidence: not one number per rank, two abilities in the slot, a number of 50 or
+  less, a range smaller at a higher rank;
+- `global`, high: every rank 10,000 or more and Riot's text says the whole map ("regardless of
+  distance", "anywhere on the map", "across the map", "all enemy champions"…); 10,000 or more
+  without those words is `none`, medium (a map-wide projectile the words miss is left to a
+  reviewer);
+- `reach`, high: Riot's description or tooltip aims the ability in its first sentence (thrown,
+  fired, launched; the champion dashes, leaps or blinks; cast at a target, a location or in a
+  direction), or the tooltip says "the first enemy hit", and nothing anywhere in Riot's text casts
+  doubt: no radius or change to attacks ("nearby", "around him", "next attack", "attack range",
+  "gains", "empowered"…), no parts or modes ("Passive:", "Recast:", "instead", "at 2 stacks"), no
+  charge or hold, no words about range or distance, not the whole map, not equal to the champion's
+  attack range (Tristana's E grows with it in a game), not a projectile shorter than the champion's
+  attack range (Xayah's Q, 400: its cast field, not the daggers' flight), and between 100 and 5,000;
+- `self`, high: the description's first sentence is about the champion itself (its next attack, a
+  toggle, a passive, an area around it) and Riot's text has no sign of aim at all;
+- anything else is medium or low confidence, "needs a reviewer", and the script never writes it.
+
+Measured on Data Dragon 16.23.1 against the hand classification of 41 champions (164 spells) made
+for the design: the high-confidence reaches were right 33 of 33 (finding 33 of the sample's 106 real
+reaches) and the globals 6 of 6; the other high-confidence rows show nothing either way. The table
+first held the rules' high-confidence drafts only (165 rows: 89 reaches, 7 Global, 2 self, 67 none).
+
+**The review** (27 Nov 2026, Data Dragon 16.23.1; every row is now `automated review`). Every one of
+the 692 spells was classified by two independent automated reviewers from the same evidence as the
+drafts, without the draft (the brief: `scripts/static/range-review-brief.md`). They agreed with each
+other on 641 and with the draft on 353. The verdicts are combined by fixed rules (in the brief):
+- both reviewers give the drafting rules' kind: that kind (353);
+- both say `self`, or both `none`: so (112; nothing is shown either way);
+- both say `reach` or `global` where the rules did not (103): two adjudicators, a verifier and a
+  skeptic, judge each from the same evidence; written so only when both confirm it (99; Bard's E,
+  Illaoi's E, Syndra's R and Zoe's E were not);
+- anything else, a reviewer unsure or the two split: `none`, why `unconfirmed`, never shown, and
+  `--write` never drafts it again (124, with the 4 above).
+
+The review is stricter than the drafts about the number itself: a reviewer who recalled a different
+in-game reach (Ezreal's Q, 1,150 in Data Dragon against the 1,200 often cited; Caitlyn's Q, Thresh's
+Q, Morgana's Q) made it `unconfirmed`, so where Data Dragon's indicator value and the mechanical
+range are known to differ, nothing is shown rather than a number a player may read as wrong. It also
+took back two high-confidence drafts that were wrong (Kled's Q, two forms; Ziggs's Q, whose bomb
+bounces past Data Dragon's 850). The table holds 692 rows: **269 reaches and 11 Global shown**, 181
+cast on the champion, 231 not the reach (128 of them `unconfirmed`); at 16.22.1 (the browser tests'
+pin) the same, but Mel's W, which Riot changed at 16.23.1 (a self row). The owner may confirm or
+change any row (reviewer `owner`), and spot-check rows on the page ("For the owner").
+
+**Each patch** (after the version-check reads a new version; part of the patch-day procedure):
+1. `node scripts/static/review-ability-ranges.mjs --version <new> --check` (or `--from
+   championFull.json`; `--was <previous championFull.json>` adds Riot's old and new text): the rows
+   Riot changed (spell id, range, text), rows whose spell is gone, and the count of spells with no
+   row; exit 1 when a row no longer matches. Admin → Data & Integrations shows the same as a count,
+   and how many of those abilities showed a range the page now hides (a changed ability reviewed as
+   cast on the champion or not the reach showed nothing either way): "Riot changed 3 reviewed
+   abilities since their review: review them again. 2 of their ranges are hidden until then."
+2. Review each changed row against Riot's new text, as the first review did (`--draft out.json`
+   writes every spell's draft and evidence; the changed rows go to two independent reviewers with
+   `scripts/static/range-review-brief.md`, the draft taken out, and the verdicts are combined by its
+   rules); `--write` keeps the matching rows, keeps a confirmed row that no longer matches (hidden
+   until reviewed again), redrafts a stale automated draft from the fixed rules, and adds the new
+   high-confidence drafts. It never deletes a reviewed row: one whose spell is not in the file (a
+   partial or older file, or a spell Riot removed) stays, counted as `keptGone`, and the check it
+   runs after writing lists it as gone (exit 1); delete such a row by hand only once Riot has removed
+   the spell. A reviewed row gets the new version, date and reviewer.
+3. Open a pull request; the table is in `src/`, so it deploys (batch it with other merges). Until
+   then only the changed rows' ranges are hidden; every other range stays.
+
+Measured churn (the design's drift measurements): rows whose key moves, 0 at 16.22.1 → 16.23.1 for
+the committed table, about 7 a patch averaged over 2026 (155 spells over 21 patches, 139 of them a
+tooltip change only); a rework moves 4 at once, spell ids included (Shyvana's, Skarner's), which the
+key catches. Without a re-review coverage erodes by about 1% of spells a patch, which the counts make
+visible.
+
+**Counts.** The version-check job counts the table against the stored abilities once per version,
+and again after a deploy that changes the table (`RANGE_TABLE_HASH`): ranges shown, "Global", cast
+on the champion, not the reach, reviewed abilities Riot changed since their review (`changedSinceReview`,
+each to review again) and of those the ones that showed a range, now hidden until reviewed again
+(`hiddenSinceReview`: reviewed as a reach or Global), not reviewed, and stored before rules format 5.
+It stores them in `app_settings` "ability_range_review" (a few hundred bytes; counts stored before
+`hiddenSinceReview` existed are counted again), logs one line ("Ability ranges 16.23.1: 269 shown, 11
+global, 181 cast on the champion (not shown), 231 not the reach; 0 changed since their review (0
+ranges hidden until reviewed again); 0 not reviewed (692 rows).") and adds them to its summary
+(`abilityRanges`): counts only, no champion named. An ordinary run reads only the stored counts.
+Admin → Data & Integrations shows them under "Riot's static data between patches".
+
+**Sources.** Data Dragon only, for the number and the text. No wiki: its values are often the
+mechanical cast range and would contradict the number shown for about 17% of reaches, and its terms
+forbid automated use. No CommunityDragon: RIOT_COMPLIANCE.md permits it for rank crests and role
+icons only; it was read once to measure Data Dragon (above), and never by a job, a test or the table.
 
 ## Cooldowns
 
@@ -229,8 +383,10 @@ tone: the one group a player reacts to), then mobility, damage (said "Magic dama
 damage", "True damage"), sustain, defence and how it is cast (neutral chips). The word is the chip,
 never the colour alone; no duration, no number, no judgement. Opened, the row's description marks the
 words each chip comes from. Where the descriptions name none, the row has no chips. The abilities' ⓘ
-says where they come from ("Mechanics are named from the words of Riot's descriptions. Riot's data
-has no damage values or scaling, and no cooldown for passives (—).", `DATA_LIMIT_WORDS`). The
+says where they come from ("Mechanics come from Riot's descriptions; ranges only where checked
+against Riot's text. Riot's data has no damage values or scaling, and no cooldown for passives (—).",
+`DATA_LIMIT_WORDS`; until 27 Nov 2026 "Mechanics are named from the words of Riot's descriptions.").
+The
 grouped block under the header (each kind with the keys of its abilities) was removed on 25 Nov 2026:
 it repeated the chips.
 
@@ -339,9 +495,19 @@ name then focused. No compare is forced, and it is no destination of its own.
   for the other column meanwhile keeps the one still loading ("Loading Lux and Caitlyn…"). A haste
   typed, or a builds role chosen, while the page's own change is on its way stays when it arrives:
   the page tells its own address from one opened elsewhere (a link, Back), which brings its own.
-- **Neutral.** Two references, never a verdict: no colour or word says which value is better, no
-  difference is computed, nothing is "faster" (RIOT_COMPLIANCE.md item 9; the browser spec checks the
-  words).
+- **Neutral.** Two references, never a verdict: no colour or word says which value is better,
+  nothing is "faster" (RIOT_COMPLIANCE.md item 9; the browser spec checks the words). Without a lane
+  no difference is computed; only with a lane chosen does Matchup Intel's band state differences of
+  the same quantity in neutral words ("22 more for Darius", "the same"), never better, worse, faster,
+  favoured or a verdict (27 Nov 2026).
+- **Matchup Intel** (27 Nov 2026, the owner's request of 26 Nov 2026, item 4; [MATCHUP_INTEL.md](MATCHUP_INTEL.md)):
+  the **Lane** control beside Swap (icons, the chosen lane named; "No lane" first, Compare as it
+  was) puts the early-lane band between the title and the board: Reviewed notes, In the team's
+  matches (accounts that may see teammates' statistics) and From Riot's data, each named in words.
+  The first column reads "Playing", the second "Against"; each ability row's rank-1 cell is tinted.
+  A lane is chosen like a champion (the server builds the band; Swap and ✕ wait meanwhile); Swap
+  keeps it and shows the other side of the same games; ✕ drops it; each column's builds open on the
+  lane's role where the champion has builds in it.
 - **Every width.** From a board of 22rem (a 390px phone at 100% text) up both champions sit side by
   side in every row (a phone's columns use the line form, values wrapping between ranks, the
   abilities' names and cooldowns a size smaller; the portrait above the name, the name a size
@@ -360,7 +526,10 @@ sample; Standard and Highest-performing apart, one where they are effectively th
 sample, patch, rank and queue filters and the data source said). What players chose on the
 champion in the team's stored matches, counted in the database and shown as compact icon rows
 (`champion-builds.tsx`; rules in `src/domain/champion-builds.ts`, words in
-`src/domain/champion-builds-words.ts`, the counts in `src/server/champion-builds/`).
+`src/domain/champion-builds-words.ts`, the counts in `src/server/champion-builds/`). The owner's
+request of 26 Nov 2026 (Release 19) added two rules: **D5**, Ranked Solo/Duo is the default source
+and Ranked Flex, Normal Draft and Clash are kept apart, never mixed; **D6**, a build with very few
+games is never presented as the best because of its raw win rate (both below).
 
 **The source.** Legitimate sources were checked first: Data Dragon is static (no usage figures);
 Riot's API has no aggregate statistics; reading OP.GG, U.GG and the like is forbidden
@@ -375,15 +544,33 @@ teams**, by Riot's position, an erased player never. `account_match_prep` is not
 retired Matchup Intel's members-only rows, about 55% complete and frozen since 23 Nov 2026); its
 rules were reused, written afresh.
 
+**The queue (D5).** One statement counts every queue at once and every counted row carries its
+queue (`readBuildCounts`); each queue is a view of its own (`championBuildsViews`), never added to
+another. **Ranked Solo/Duo** is the default; **Ranked Flex**, **Normal Draft** and **Clash** are each
+a choice in the section's heading (the shared `Select`: the popover from 768px, the phone's own
+picker below; its accessible name "Thresh's builds: queue"; its ⓘ: "Each queue is counted on its
+own and never mixed. Swiftplay, Quickplay, Blind Pick and ARAM are not counted."). The queue is the
+page's, not a column's: in Compare both columns read the same queue (one population side by side),
+changing either changes both, and Swap, ✕ and a new champion keep it. Choosing a queue reads nothing
+(every queue's counts came with the page) and only rewrites the address (`queue=flex|draft|clash`,
+left out for Ranked Solo/Duo; anything else reads as Solo/Duo). A queue with too few games says so
+in its own words ("Not enough Ranked Flex games on patch 26.22 in the team's matches yet", its ⓘ:
+"Builds need 20 games in one role and queue. The team's Ranked Flex games have 18 as Support on this
+patch and the one before.") and, where another queue has builds, offers it as a button: "Show Ranked
+Solo/Duo (50 games as Support)" (the queue with the most games in the role asked, else in its own
+most played role). Nothing switches by itself: the reader chooses, and the focus then goes to the
+queue choice. Solo/Duo alone cuts the team's samples (the demo's Thresh: 50 of his 68 games), so more
+champions show the honest line than before; that is the honest outcome.
+
 **The patch.** The game's current patch (the stored static data's); where the champion has fewer
-than 20 games in a role on it, the previous patch is added and the source line says so ("patches
+than 20 games in a role and queue on it, the previous patch is added (per queue and per role: Solo/Duo
+may be widened while Flex is not) and the source line says so ("patches
 26.21–26.22", in the warning colour, its ⓘ giving both counts). Where the current patch has no game
 yet (the first days of every patch), the line names the previous patch alone, as that: "patch 26.21,
 none yet on 26.22" (its ⓘ: "Patch 26.22 has no games yet, so only the 25 games on 26.21 are
 counted."), never a range that would put the current patch in the sample. Never across a season;
-with fewer than 20 games on the two together the section is one honest line,
-"Not enough games on patch 26.22 in the team's matches yet" (its ⓘ: how many there are, and that
-builds show from 20 in one role).
+with fewer than 20 games on the two together the section is one honest line naming its queue, as
+above.
 
 **The parts** (each counts its own games, said in its row's ⓘ):
 
@@ -396,7 +583,7 @@ builds show from 20 in one role).
 | Starting items | timelines | bought in the first minute, less what was sold in it (timelines kept from 20 Nov 2026 hold sales) |
 | Boots | timelines | the first boots of the second tier bought (Gunmetal Greaves, which has no Boots tag, counts as boots), or "No boots" for a game that completed three items without any |
 | Core items | timelines | the first three **completed** items, in the order bought: purchasable, 1,000 gold or more, not boots, a consumable or a trinket, and building into nothing a player can buy (so Manamune, Archangel's Staff, Winter's Approach and Whispering Circlet count when bought, as they only turn into Muramana, Seraph's Embrace, Fimbulwinter and Diadem of Songs) |
-| Full build | timelines | the most common core, then the item most often bought fourth after it and the one most often bought fifth, each common enough on its own; a composition, so its ⓘ gives each later item's share instead of a win rate. In the "Highest win rate" view it starts from the core with the highest win rate, and its ⓘ says so ("The core items with the highest win rate, then those most often bought fourth …") |
+| Full build | timelines | the most common core, then the item most often bought fourth after it and the one most often bought fifth, each common enough on its own; a composition, so its ⓘ gives each later item's share instead of a win rate. In the "Highest win rate" view it starts from the core with the highest win rate, and its ⓘ says so ("The core items with the highest win rate, then those most often bought fourth …"). No row where the core items name no choice (too few recorded, or none common): it follows the core |
 
 A game whose timeline holds an item the current static data does not know is left out of the item
 parts (an old item is never skipped over, which would shift the order). The items' rules read
@@ -408,17 +595,37 @@ parts (an old item is never skipped over, which would shift the order). The item
   their most common order, said to a screen reader), the same keystone and secondary tree with other
   minor runes (shown as its most common page, said to a screen reader), the same skill order with
   other first points (shown as "most often first Q E W"). The figures count the whole choice, and the
-  words say what was counted together: "Won 54% of the 87 games with this keystone and secondary
-  tree", "… with these core items in any order" (26 Nov 2026, the review: "with this rune page"
-  claimed the whole family's games for one exact page).
+  words say what was counted together: "Won 54% of 87 games with this keystone and secondary tree,
+  likely 43–64%", "… with these core items in any order" (26 Nov 2026, the review: "with this rune
+  page" claimed the whole family's games for one exact page).
 - **Most common** (the default, the Standard build): the choice made in the most games among those
   made in at least 10 games and a tenth of the part's games.
-- **Highest win rate** (the Highest-performing build): among choices made in at least 20 games and
-  15% of the part's games, the one with the best **95% Wilson lower bound** of its win rate (the
-  rate a few lucky games cannot lift), shown only where it is another choice, its bound higher and its
-  win rate at least 2 points above the most common's. Where any part has one, a two-way switch ("Most
-  common", "Highest win rate") shows those, the rows that differ marked with a dot; where none does,
-  the switch is not there and one build is shown. A small sample never wins.
+- **Highest win rate** (the Highest-performing build; D6, 26 Nov 2026): a statement that one choice
+  won more, so it must hold up against chance. Among the other choices made in at least **30 games**
+  and **15%** of the part's games, the one with the best 95% Wilson lower bound is shown only where
+  **the 99% interval of its win rate's difference from the most common's lies wholly above 0**
+  (Newcombe 1998, method 10, from the two Wilson intervals: `differenceInterval`), it won at least
+  **2 points** more, and **no one player holds more than a third of its games** (a main's skill is
+  not a build's: the most games one player had with each value is counted inside the database, the
+  player never leaving it, and the family's sum is the upper bound used). Its ⓘ: "Among choices of 30
+  games or more, one that won clearly more than the most common, 99% sure not by chance. Shown only
+  then." Where any part has one, a two-way switch ("Most common", "Highest win rate") shows those,
+  the rows that differ marked with a dot; where none does, the switch is not there and one build is
+  shown.
+- **Why (the simulation, map2-builds-elo §2.2, 4,000 seeded trials a size):** the old rule (20
+  games, the two Wilson lower bounds compared) offered the "Highest win rate" switch in **93% of
+  100-game sections where no build was better**, most of it from fewer than 30 games; the D6 rule in
+  at most **about 4%** (1.5% at 100 games), and **never from fewer than 30 games**. The price is
+  power: at the team's sample sizes (sections of 20–300 games) an honest rule will almost never show
+  "Highest win rate": a choice 10 points better in a section of 250 games has about an 8% chance.
+  The demo's Thresh shows the case D6 is for: a less common rune page of 20 games with 16 wins (80%)
+  is a choice with its win rate, never the "Highest win rate". The Master+ source (below, thousands
+  of games) is where the view becomes useful.
+- **Every win rate's likely range.** Its ⓘ gives the 95% Wilson interval ("likely 43–64%",
+  `percentRange` in `src/lib/format.ts`). A win rate from fewer than **30** games (±17 points or
+  wider) is drawn in the tertiary colour, not bold, and read out as "(small sample)"; the "Win rate"
+  heading's ⓘ says why: "Win rates from fewer than 30 games are greyed: they swing a lot. Each one's ⓘ
+  gives its likely range."
 - A part with fewer than 20 games recorded says "Too few recorded yet (12 games)"; one whose
   choices are all rarer than the threshold, "No common choice in 31 games". Nothing is filled in.
 
@@ -427,21 +634,25 @@ parts (an old item is never skipped over, which would shift the order). The item
 - Title "Builds and runes", the role (its icon and name; a switch where the champion has 20 games
   or more in more than one role, the most played on the current patch first and the default; the
   role chosen joins the address as `role` or `role2`, left out for the default, and a role the
-  champion has too few games in opens the default), and, where a part has a choice that wins
-  clearly more, the switch of the two views.
-- The source line, "From 143 games in the team's matches · patch 26.22 · all ranks · Draft and
-  Ranked", each part its own ⓘ: the games (runes and spells from all of them; items and skills from
+  champion has too few games in opens the default; in Compare with Matchup Intel's lane, the default
+  is the lane's role wherever the champion has builds in it in the queue shown, also when the role
+  chosen has none there, chosen in another queue or in a shared link: `shownRole`), and, where a
+  part has a choice that wins clearly more, the switch of the two views.
+- The queue choice (above), and the source line, "From 143 games in the team's matches · patch
+  26.22 · all ranks" (the queue left the line on 26 Nov 2026: the choice beside it says it), each
+  part its own ⓘ: the games (runes and spells from all of them; items and skills from
   those with a timeline; how many are the team's own), the data source ("Counted from the games of
   the team's stored matches (both teams). Not a global sample of League players."), the patch, the
   rank ("Riot's game records hold no rank, so these games are not filtered by rank": other players'
-  ranks are kept only as the latest reading, so a rank filter would drop and misdate most games) and
-  the queues.
+  ranks are kept only as the latest reading, so a rank filter would drop and misdate most games).
 - Two groups of rows (runes, stat shards, summoner spells, skill order; starting items, boots, core
   items, full build), side by side where the section is 52rem wide (one champion on a desktop), one
   under the other in a column of Compare; in each, the part's name, its choice as Riot's icons (20–26px;
   a stand-in tile with the initials where the static data has no picture), its **win rate**
-  (primary, its ⓘ: "Won 54% of the 87 games with this keystone and secondary tree; 61% of the 143
-  games with a full rune page recorded made it.") and its **pick rate**. The label goes over its icons in a narrow
+  (primary from 30 games, its ⓘ: "Won 54% of 87 games with this keystone and secondary tree, likely
+  43–64%. 61% of 143 games with a full rune page recorded made it.") and its **pick rate**. Each row
+  carries its counts for the Production check (`data-games`, `data-wins`, `data-total`, `data-key`:
+  ids only; in the other view the most common's beside them). The label goes over its icons in a narrow
   column, the figures under them in the narrowest (Compare on a small phone).
 - **Single view**: a band across the board under the abilities and the base statistics (the slot
   `ChampionPanel` takes as `builds`). **Compare**: its own twelve rows of the board after R (rows
@@ -461,24 +672,46 @@ parts (an old item is never skipped over, which would shift the order). The item
 members' own games are among the counts, and a champion only one member plays would show that
 member's choices and results. Anyone else sees no section at all.
 
-**Cost.** One statement per champion and patch window (`readBuildCounts`): it opens only that
+**Cost.** One statement per champion and patch window, every queue in it (`readBuildCounts`): it opens only that
 champion's records through `match_details_champions_idx` (a GIN index on the records' champions,
 migration `0069`; the statement's condition is the index's own expression, and the database test
 checks the plan), reads each player's timeline entry inside the database (never the frames or
-events), runs with JIT off, and returns about one short row per counted value: 2–9 KB on the demo
-(Leona's two roles on two patches, the most), estimated 5–20 KB for a popular champion in
-production. Cached six hours in Next's data cache (shared by every server instance), keyed by the
+events), runs with JIT off, and returns about one short row per counted value and queue: 2–11 KB on
+the demo (25–70% more rows than when the queues were pooled, each a few bytes longer), estimated
+7–30 KB for a popular champion in production. Cached six hours in Next's data cache (shared by every server instance), keyed by the
 champion, the patch window, the abilities' ranks, the item data's version and the rules' format
 (`BUILDS_FORMAT`): a new patch is a new key; an erasure drops the tag at once
 (`src/server/privacy/after-erasure.ts`). The in-memory demo is counted every time. A team of about
 eleven opening 20 champions a day: well under 1 MB of egress a day (HOSTING_USAGE.md, "26 Nov 2026").
 
 **The demo** (in-memory only, `src/server/demo/builds-fixture.ts`): its records are all of patch
-16.20 with one build per role, so Thresh's support games move to the current patch with two builds
-(a less common one that wins more: the Highest win rate view), Nasus's top games with one build, and
-Leona's games to the current and previous patches in two roles; everything else stays, so Ahri and
-the other champions the browser tests open show the honest line. The same on every fresh demo
-(`tests/db/champion-builds-demo.test.ts`).
+16.20 with one build per role, so games are moved by queue: Thresh's Ranked Solo/Duo support games
+to the current patch with two builds (a less common one of 20 games and 16 wins: shown as a choice,
+never the "Highest win rate", the D6 case) and his 18 Ranked Flex games too (too few: Flex offers
+Solo/Duo back); Nasus's Solo/Duo top games with one build; Leona's Solo/Duo games to the current and
+previous patches (widened; her bot lane has too few in Solo/Duo, so one role). Everything else stays,
+so Ahri and the other champions the browser tests open show the honest line in every queue. The same
+on every fresh demo (`tests/db/champion-builds-demo.test.ts`). The "Highest win rate" view and a role
+switch between two roles are the Master+ demo's (below).
+
+**The Master+ source (D2: prepared, switched off).** Anonymous counts of Master, Grandmaster and
+Challenger players' Ranked Solo/Duo builds in every region, made by a sampler that stores no player,
+game or Riot ID (docs/HIGH_ELO_EVIDENCE.md). **Collection is off** until Riot's registration describes
+it and the owner switches it on, so production offers no Master+ source (a Production check fact
+holds it to `/api/health`'s `highElo`). When on, the queue choice gains a group "Master+ ranked
+games" with one option, "Ranked Solo/Duo · all regions" (`source=master` in the address; never the
+default: owner decision OB2). The same parts and the same rules, on the counts' **effective number
+of games** ((Σw)²/Σw², never more than the games observed): the source line "From 1,240 Master+ games
+· all regions · patch 26.23" (its ⓘs: "1,240 games observed, worth 810 as a sample once weighted:
+figures and thresholds use 810." and "Anonymous counts from Master, Grandmaster and Challenger
+players' Ranked Solo/Duo games in every region, weighted by each region's players. No player is
+stored."), "No Master+ games counted on patch 26.23 yet" or "Not enough Master+ games on patch 26.23
+yet". No player is known, so the one-player guard has nothing to hold: the 30 effective games and the
+99% test carry the rule. The builds' values are made by `observeBuild`
+(`src/domain/champion-builds-observe.ts`), which `tests/db/champion-builds-observe.test.ts` holds
+equal to the team's statement over every demo record, queue by queue: one rule set for both sources.
+The browser tests show it with a cookie over the in-memory demo's synthetic counts (Thresh with a
+"Highest win rate", Leona in two roles, Nasus too few once weighted, Ahri none).
 
 ## Choosing a champion
 
@@ -499,24 +732,35 @@ the other champions the browser tests open show the honest line. The same on eve
 
 ## Address
 
-`/lookup?champion=<id>&haste=<n>&role=<role>&champion2=<id>&haste2=<n>&role2=<role>` (`address.ts`,
-`intelHref`), so a reload, a bookmark and a shared link open the same champions at the same hastes,
-each builds section on its chosen role (left out for its default; a role is `TOP`, `JUNGLE`, `MID`,
-`ADC` or `SUPPORT` in any case, anything else ignored). A champion may be its Data
+`/lookup?champion=<id>&haste=<n>&role=<role>&champion2=<id>&haste2=<n>&role2=<role>&lane=<lane>&queue=<queue>&source=<source>`
+(`address.ts`, `intelHref`), so a reload, a bookmark and a shared link open the same champions at the
+same hastes, each builds section on its chosen role (left out for its default; a role is `TOP`,
+`JUNGLE`, `MID`, `ADC` or `SUPPORT` in any case, anything else ignored), in Compare Matchup Intel's
+lane (`lane=TOP|JUNGLE|MID|BOTTOM|SUPPORT`, only with two champions), and the page's queue (`solo`,
+the default, left out; `flex`, `draft`, `clash`; anything else reads as Solo/Duo: `queueFromAddress`,
+one parameter for the builds and Matchup Intel's lane figures alike) and the builds' source (`master`
+only where the page offers it). The Master+ builds are Ranked Solo/Duo by definition, but the page's
+queue is still Matchup Intel's band's, so it is written beside `source=master` too
+(`…&lane=MID&queue=flex&source=master`): a reload and Swap keep the band on it (27 Nov 2026; before,
+no queue was written with the source, and the band fell back to Solo/Duo). A champion may be its Data
 Dragon id or its name in any case, accents and punctuation ignored ("wukong" opens MonkeyKing); the
 page writes each champion's own id back. One the roster lacks is left out with a line saying so,
 never repeated back. A second champion with no first (or a first the roster lacks) becomes the first,
 its haste with it. Each haste is a whole number from 0 to 300, held to 300 above it, 0 otherwise and
 left out. All of it is the page's state, like a filter: a change replaces the address and adds no
 history entry, so Back leaves the page in one step. A champion is built on the server
-(`router.replace`); a haste or a builds role changes the page at once and only rewrites the address
-(`history.replaceState`), with no request. A champion changed drops its column's role.
+(`router.replace`); a haste, a builds role, the queue or the source changes the page at once and only
+rewrites the address (`history.replaceState`), with no request. A champion changed drops its column's
+role and keeps the page's queue.
 
-**Old links.** Matchup Intel's address, `/resources/matchups` with any of its parameters, redirects
-here (HTTP 308, `src/proxy.ts`) carrying one champion: the enemy (`vs`) where it names one, else your
-champion, else the bot lane's other enemy, else your duo partner (`legacyMatchupRedirect`).
-`/resources/matchups?champion=Riven&vs=Mordekaiser` lands on `/lookup?champion=Mordekaiser`. All
-Champions' preview links an opened lane opponent here: "Renekton's abilities in Champion Intel →".
+**Old links.** Matchup Intel's old address, `/resources/matchups` with any of its parameters,
+redirects here (HTTP 308, `src/proxy.ts`, `legacyMatchupRedirect`): since 27 Nov 2026 your champion
+(`champion`) and the enemy (`vs`) as the two champions and the old lane (`role`) as the lane, so
+`/resources/matchups?role=top&champion=Riven&vs=Mordekaiser` lands on
+`/lookup?champion=Riven&champion2=Mordekaiser&lane=TOP`; one of the two alone is carried alone (no
+lane); with neither, the bot lane's other enemy, else your duo partner. All Champions' preview links an
+opened lane opponent here: "Riven vs Renekton in Matchup Intel" (both champions, the position as the
+lane).
 
 ## Fit and measurements
 
@@ -532,6 +776,15 @@ holds each; screenshots before and after in the lane's notes, never in the repos
   of the aligned board run a little past the screen, about 800px). One champion at 1440 × 900: the
   last row ends near 600px; at 1366 × 768, near 620px. Two at 1440 × 900: Aurelion Sol and Nunu at 20
   end near 690px, Teemo and Jayce near 840px.
+- **Matchup Intel's band** (27 Nov 2026, Compare with a lane; `e2e/champion-matchup.spec.ts` holds
+  each with 12px to spare, and was checked with every letter 1% wider, as CI's Chromium sets text):
+  at 1440 × 900 with the sidebar open the band ends near 300px (its three blocks side by side) and
+  both champions' five rows near 860px for a typical pair (Ahri and Zed, with the demo's figures and
+  a note: 875px with wider text); Teemo and Jayce's longest rows put R past 900px but P to E end near
+  785px (the documented exception: the band and P–E on screen for every pair, all five rows for the
+  typical ones). At 1366 × 768 the band is on screen (it ends near 300px), at 1920 × 1080 the band
+  and all five rows (near 880px; Teemo and Jayce near 905px). On phones and tablets the blocks stack
+  above the board and the page scrolls; nothing is wider than the screen at 320 to 430px and 200% text.
 - **Names**: the champion's name whole and on one line at 1366, 1440 and 1920, the sidebar open and
   folded, one champion and two ("Nunu & Willump", "Aurelion Sol", "Renata Glasc", "Twisted Fate",
   "Heimerdinger", "Fiddlesticks"); no ability name broken inside a word; on phones of 320, 375, 390
@@ -543,14 +796,28 @@ holds each; screenshots before and after in the lane's notes, never in the repos
   phone (one column under the other at 375px and less, and at large text sizes); the base statistics
   and each part of the builds level too; on a phone the page scrolls, as every phone page does.
 - **Centred** in the room beside the sidebar, open or folded, within 2px.
-- **With the builds** (26 Nov 2026, `e2e/champion-builds.spec.ts`): one champion's whole board,
-  builds included, ends within the screen at 1366 × 768, 1440 × 900, 1920 × 1080 and 2560 × 1440,
-  the sidebar open and folded: Thresh's board ends near 715px at 1366 × 768 and 1440 × 900 (the
-  band 205px; Leona's 725px with the role switch), 791px at 1920 × 1080, 918px at 2560 × 1440; a
-  champion with too few games adds one line (45px). At 1280 × 720 with the sidebar open the band
-  ends near 768px, past the screen (folded, 715px), the five rows still on it. In Compare the builds
-  row comes after R, below the first screen at 1440 × 900 (the board near 1,050px), as the brief
-  allows.
+- **Ranges** (27 Nov 2026, measured with the demo build at 16.22.1, before and after, and again with
+  text widened by 0.01em for CI's Chromium): the item sits after the chips on the name's line where
+  there is room ("Range 975" beside Charm) and otherwise wraps to a line of its own under the chips,
+  aligned with them (Ahri's Q, at 1366 × 768 with the sidebar open: that row 24px taller, the board's
+  last row 512 → 536px, the builds' line 557 → 581px); elsewhere a row grows by 0 to 9px. One
+  champion with builds at 1366 × 768 ends at 717px (Thresh, 743px with widened text) and 724px
+  (Leona, 744px), within the screen with 24px to spare; at 1440 × 900, 714 and 720px. Compare at
+  1440 × 900: Ahri and Jinx 671 → 679px, Teemo and Jayce 694px unchanged; at 1280 × 720 (not held
+  to one screen) Ahri and Jinx 756 → 780px. Phones grow by a line where a row has a range (390 ×
+  844: Ahri 873 → 897px), nothing wider than the screen at 320 to 820px and 200% text.
+- **With the builds** (26 Nov 2026, measured again 27 Nov 2026 with the queue choice in the heading,
+  `e2e/champion-builds.spec.ts`): one champion's whole board, builds included, ends within the
+  screen at 1366 × 768, 1440 × 900, 1920 × 1080 and 2560 × 1440, the sidebar open and folded, with
+  12px to spare (the test's margin, so text drawn a little wider in CI's browser never flips it):
+  Thresh's board ends near 715px at 1366 × 768 and 1440 × 900 (the band 180px; Leona's 725px at
+  1366 × 768 with the sidebar open, her heading on two lines), 791px at 1920 × 1080, 918px at
+  2560 × 1440. A queue with too few games and its offer is one or two lines (Thresh in Ranked Flex:
+  599px at 1366 × 768). The Master+ source (switched on only in the browser tests), its heading
+  wrapping on two lines at 1366 × 768, ends near 746px. At 1280 × 720 with the sidebar open the
+  board ends near 788px, past the screen (folded, 715px), the five rows still on it. In Compare the
+  builds row comes after R, below the first screen at 1440 × 900 (the board near 1,050px), as the
+  brief allows.
 
 ## Data
 
@@ -559,13 +826,18 @@ holds each; screenshots before and after in the lane's notes, never in the repos
   `src/server/riot/static/abilities.ts`; [DATA_PIPELINES.md](DATA_PIPELINES.md), "Champion
   abilities"): the passive and Q, W, E, R, each with its name, icon, ranks, base cooldown array,
   `maxammo`, description, text hash, and (rules format 4) each spell's `cost` and Riot's `resource`
-  line, the champion's `partype`, `tags` and `stats`, and the patch marks. Where the server cannot
+  line, the champion's `partype`, `tags` and `stats`, and the patch marks, and (rules format 5, 27
+  Nov 2026) each spell's `range` as Riot gives it. Where the server cannot
   reach Data Dragon, the committed offline copy (Data Dragon 16.22.1,
   `src/server/riot/fixtures/champion-abilities.fixture.json`, built by
   `scripts/static/build-ability-fixture.mjs`, which can still download it:
   `node scripts/static/build-ability-fixture.mjs --version 16.22.1`) is stored instead, labelled as
-  such, and the first real sync replaces it. Rules format 4 makes the next version-check read all 173
-  champions again; nothing else is needed (no migration).
+  such, and the first real sync replaces it. Rules format 4, and format 5 after it, made the next
+  version-check read all 173 champions again; nothing else is needed (no migration). Until a
+  champion is read under format 5 its record has no range and shows none.
+- **The reviewed ranges** (`ability-ranges.reviewed.json`, "Ranges") are part of the deployed code,
+  read on the server; the version-check counts them against the stored abilities once a version
+  (`app_settings` "ability_range_review").
 - **What the page reads.** The session, the cached roster and current patch, the stored records
   of the one or two champions the address names (one statement, cached ten minutes;
   `src/server/champion-lookup/view.ts`), and, for members who may see teammates' statistics, each
@@ -585,16 +857,20 @@ holds each; screenshots before and after in the lane's notes, never in the repos
 The app-wide checklist is [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md), where Champion Intel is item 9.
 
 - **Data Dragon only.** Riot publishes it for third parties ("All of which can be used by
-  third-party developers", League docs). Names, icons, ranks, base cooldowns, costs, descriptions,
-  base statistics, resource and classes, read once per game version, never while a page renders;
+  third-party developers", League docs). Names, icons, ranks, base cooldowns, costs, ranges (Data
+  Dragon's own number, only where the review of what it measures is current), descriptions, base
+  statistics, resource and classes, read once per game version, never while a page renders;
   icons, portraits and splash art are linked from Riot's CDN, never copied. No wiki, no
   CommunityDragon numbers, no new source.
 - **Static data, for champions chosen by hand.** "Game overlays that provide static data that is
   available prior to the game" are an approved use; this is a web page with the same static data, the
   same before any game and on a second screen during one. Nothing comes from a game in progress or
   from champion select, nothing names a player, and two champions compared are two references, never
-  a verdict on a matchup: aligned side by side, with no better/worse colouring, no difference
-  computed and no "faster" or winner wording.
+  a verdict on a matchup: aligned side by side, with no better/worse colouring and no "faster" or
+  winner wording. Only with a lane chosen (Matchup Intel, [MATCHUP_INTEL.md](MATCHUP_INTEL.md)) does
+  the band state differences of the same quantity in neutral words, beside totals of the team's
+  completed games from 10 games with their 95% ranges and notes the team's administrators review:
+  one pair at a time, chosen by hand, no ranking, counter list or pick suggestion.
 - **No timers.** Base values per rank and their value at a chosen haste only: no timer, countdown,
   "used" or "ready at", and nothing records when an ability was used (`words.test.ts` and the browser
   spec check the words). No advice, ranking or matchup verdict.
@@ -620,12 +896,27 @@ The app-wide checklist is [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md), where Champi
   (the rules on all 865 descriptions, the hard cases both ways, the exceptions pinned), `board.test.ts`
   (rank columns across the roster, the statistics listed and aligned for two champions, the other
   column's label kept, none for a champion without statistics, the chips' order on every ability),
-  `changes.test.ts` (the patch marks), `view.test.ts`, `words.test.ts` (no timer or "verified"; each
-  ⓘ at most 25 words in at most two sentences), `src/components/champion-lookup/address.test.ts` (both
+  `changes.test.ts` (the patch marks, a range change among them), `range.test.ts` (the ranges' rule on
+  every branch, and on every spell of the fixture with the committed table: never on a passive, never
+  a placeholder, the counts at 16.22.1), `view.test.ts`, `words.test.ts` (no timer or "verified";
+  each ⓘ at most 25 words in at most two sentences; the range words, never "estimated" or
+  "approximate"), `src/components/champion-lookup/address.test.ts` (both
   champions in the address, Swap, removing either, the old links), `search.test.ts`;
   `src/server/riot/static/abilities.test.ts` (what is read from Data Dragon, the fixture against Data
-  Dragon's own numbers, the build script).
-- Database: `tests/db/champion-abilities.test.ts` (the sync, the per-champion reads, the patch marks);
+  Dragon's own numbers, ranges included, the build script); `ability-ranges.test.ts` (the reviewed
+  table's shape, one row per spell, every row against the fixture so a stale table fails CI, the
+  drafting script's fixed rules giving its automated drafts unless a review decided the row, `--write`
+  keeping reviewed rows); `src/domain/champion-lookup/range.test.ts` (every spell of the fixture under
+  the rule: 269 reaches, 11 Global; Ahri's Q, E and R);
+  `range-review.test.ts` (the version-check's counts); `src/components/admin/static-diff.test.ts`
+  (Admin's ranges line).
+- Matchup Intel (Compare with a lane): its own tests, listed in [MATCHUP_INTEL.md](MATCHUP_INTEL.md),
+  "Tests" (`src/domain/matchup/*.test.ts`, `tests/db/lane-matchups.test.ts`,
+  `tests/db/matchup-notes.test.ts`, `tests/db/matchup-queue.test.ts`, `e2e/champion-matchup.spec.ts`,
+  `e2e/admin-matchup-notes.spec.ts`).
+- Database: `tests/db/champion-abilities.test.ts` (the sync, the per-champion reads, the patch marks;
+  rules format 5: ranges stored as given, a format-4 record read again, a range change marked and
+  hidden, the counts once per version and table, never on an unchanged run, counts only in the log);
   `tests/db/champion-builds.test.ts` (the counts: only current members' draft games, no remake, both
   teams and both spellings of a position, never an erased player, the item and skill rules the
   domain's, totals only and their size, the champion index in the plan, the section only for
@@ -640,6 +931,9 @@ The app-wide checklist is [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md), where Champi
   counted together, the full build's core in each view), `src/server/champion-builds/query.test.ts`
   (the statement's label in the egress counts, as HOSTING_USAGE.md names it).
 - Browser: `e2e/champion-lookup.spec.ts` (the page, its facts, slot keys, chips and costs per rank,
+  the ranges (Ahri's Q, E and R, "Global", per rank, none on the passive, a two-ability slot, a number
+  that is not the reach or a reach the review could not confirm, the opened row's line, Compare's
+  columns each their own),
   the passive's dash, the chips marked in the description, folds by keyboard, the haste field and every
   invalid input, the special cases, unusual champions, "/" and the search, the window, Compare on one
   aligned board, Swap and ✕ on either column, Swap by keyboard keeping its focus, Swap and ✕ waiting
@@ -649,50 +943,92 @@ The app-wide checklist is [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md), where Champi
   and dual, the rank columns, phones at 320–430px and 200% text with names whole, axe), with the shared specs
   (navigation, journeys, page budgets, quality, design parity, shared controls, WebKit).
 - Browser, builds: `e2e/champion-builds.spec.ts` (icon rows with win and pick rates and the source
-  line, both rune trees, each ⓘ by keyboard and touch, the Highest win rate view and its full build's
-  ⓘ, the honest empty line, two roles in the address with the haste, Compare's parts level row by row
-  in both views and Swap with roles, phones at 320 and 390 at
-  100% and 200%, one screen at the desktop sizes, axe).
-- Production check: `scripts/champion-lookup-facts.mjs` (LIVE_VALIDATION.md, "What it checks"),
-  the builds among its facts.
+  line, both rune trees, each ⓘ by keyboard and touch with its likely range, small samples greyed and
+  said, the D6 case never the highest, the queue chosen in the page with no request and kept in the
+  address and on reload, the offer of another queue and the focus after it, the honest line naming
+  its queue, Compare's parts level row by row with the page's queue in both columns and kept by Swap
+  and ✕, phones at 320 and 390 at 100% and 200% with the queue choice and the offer 44px, one screen
+  at the desktop sizes with 12px to spare, axe; and the Master+ source over the demo's synthetic
+  counts with the browser tests' cookie: not offered without it, chosen in the queue choice, its
+  words, the Highest win rate view and its full build, two roles in the address, too few and none,
+  Compare level in both views, axe); `e2e/webkit.spec.ts` (the queue choice as the iPhone's own
+  picker, the offer a 44px target).
+- Builds, unit and database (Release 19): `src/domain/champion-builds.test.ts` (Newcombe's published
+  intervals, the D6 rule and its old verdict side by side, the one-player guard, weighted counts,
+  queues never pooled, the offer), `src/domain/champion-builds-audit.test.ts`,
+  `src/domain/high-elo/*.test.ts`, `tests/db/champion-builds-observe.test.ts` (observeBuild equal to
+  the statement), `tests/db/builds-audit.test.ts`, `tests/db/high-elo.test.ts`.
+- Production check: `scripts/champion-lookup-facts.mjs` (Ahri: the builds on Ranked Solo/Duo with no
+  queue in the address, one queue named, the honest line naming its queue, no Master+ source while
+  `/api/health` says its collection is off) and `scripts/builds-facts.mjs` (the populated builds of
+  the champions the builds audit found: LIVE_VALIDATION.md, "What it checks").
 
 ## For the owner
 
-**The registration's description** (Riot's Developer Portal) still describes Matchup Intel. Champion
-Intel's static reference shows less than Matchup Intel did (no wiki notes, no reviewed facts, no
-tips; its mechanics are Riot's own descriptions with Riot's sentence beside each). Its builds (25 Nov
-2026) show more: totals of the team's stored completed games, from the records already collected,
-with no new endpoint or request. The description should say both. The owner's action at the next update: paste the proposed description in RIOT_COMPLIANCE.md
-("Proposed description for the registration"), whose Champion Intel part is, word for word
-(`src/server/riot/registration-description.test.ts` keeps the two copies the same):
+**The registration's description** (Riot's Developer Portal) still describes Matchup Intel. The
+proposed description (RIOT_COMPLIANCE.md, "Proposed description for the registration"; the owner's D1
+of 26 Nov 2026) covers everything Release 19 shows or prepares: Champion Intel's static reference,
+the ability ranges where reviewed (D3), the builds by queue with their uncertainty rule (D5, D6),
+Compare's early-lane band (Matchup Intel's return in this form), and the anonymous high-elo
+collection, prepared and switched off until it is reviewed (D2). Its Champion Intel part is, word for
+word (`src/server/riot/registration-description.test.ts` keeps the two copies the same):
 
-> Champion Intel, for signed-in accounts, is a static reference for one or two champions chosen by hand: each ability's name, icon, description, cost and base cooldowns per rank from Data Dragon, those cooldowns at an ability haste the reader chooses, by Riot's published formula, each champion's base statistics from Data Dragon, and the mechanics its ability descriptions name, with Riot's sentence for each. For members who may see teammates' statistics it also shows totals of the rune pages, summoner spells, items and skill orders observed in the team's stored completed games of the current patch, or of the previous one too where the current has too few (both teams, counts only, no player named), with their win rates, pick rates and numbers of games, labelled as the team's games and not a global sample, and no advice. It makes no Riot API request and has no timers or tracking.
+> Champion Intel, for signed-in accounts, is a static reference for one or two champions chosen by hand: each ability's name, icon, description, cost and base cooldowns per rank from Data Dragon, those cooldowns at an ability haste the reader chooses, by Riot's published formula, each ability's range where Data Dragon's value has been reviewed for the patch, each champion's base statistics from Data Dragon, and the mechanics its ability descriptions name, with Riot's sentence for each. For members who may see teammates' statistics it also shows totals of the rune pages, summoner spells, items and skill orders observed in the team's stored completed games, one queue at a time (Ranked Solo/Duo by default; Ranked Flex, Normal Draft and Clash each on its own, never mixed), of the current patch, or of the previous one too where the current has too few (both teams, counts only, no player named), with their win rates, likely ranges, pick rates and numbers of games, labelled as the team's games and not a global sample, and no advice; a choice is marked as winning more only from 30 games and only where the difference is statistically clear. In Compare, for a lane chosen by hand, it also states the differences between the two champions' Data Dragon values in neutral words, totals of the lane at 10 minutes (gold, experience and CS differences, kills between the two, first blood and results) over the team's stored completed games of that pairing in that role, with the number of games and shown from 10 games, and short notes the team's administrators write and review, labelled as reviewed notes with the patch each was reviewed on, marked as not re-checked from the second patch after that review and hidden from the fourth, or at once when Riot's data for either champion changes. It shows one pair at a time, with no matchup ranking, counter list, pick suggestion or advice. The same kinds of totals also come, shown apart and labelled as such, from anonymous high-elo games (switched on only after this description is reviewed): about once an hour a background job reads the Challenger, Grandmaster and Master Ranked Solo/Duo ladders of one server per region (LEAGUE-V4), recent Ranked Solo/Duo match ids of a few of those players, and some of those matches and timelines (MATCH-V5), within a small share of the key's rate limits, and reduces them at once to counts per patch, region, role and champion (and lane opponent); no player identifier, name, Riot ID or match id is stored, nothing is shown about any player, and counts older than the previous patch are deleted. Champion Intel's pages make no Riot API request and have no timers or tracking.
+
+Pasting it is the owner's action (docs/HIGH_ELO_EVIDENCE.md, "For the owner", step 1). Where a part
+does not ship before the paste, RIOT_COMPLIANCE.md lists the exact clause to delete. At 3,334
+characters the whole text is more than twice the registered text's length: if the portal's field refuses it,
+tell the session the limit.
+
+**What to expect from "Highest win rate"** (D6): on the team's own games it will almost never appear.
+The rule asks for 30 games and a difference that chance cannot explain at 99%; at the team's sample
+sizes (sections of 20–300 games) only a difference of 10 points or more in a section of 250 games
+has even an 8% chance. That is the honest outcome: under the old rule the switch appeared in 93% of
+sections where no build was better. The Master+ source (D2), once switched on, is where it becomes
+useful.
+
+**Matchup Intel** (27 Nov 2026, Compare with a lane) adds to what the description must say: its
+proposed sentence and the owner's actions (writing and re-reviewing notes in Admin → Matchup notes,
+the registration paste, the privacy rows) are in [MATCHUP_INTEL.md](MATCHUP_INTEL.md), "For the owner";
+the D1 description (Release 19) carries the sentence into the text above.
 
 **Decisions left to the owner**: whether damage values, scaling and durations should come from a
 source beyond Data Dragon (CommunityDragon's game files hold them; RIOT_COMPLIANCE.md permits that
-source for rank crests and role icons only); whether per-ability ranges should be shown (25 Nov 2026:
-not shown; Data Dragon's are unreliable and not stored, so only the champion's attack range is, once;
-showing them needs a reviewed rule and rules format 5); and whether the canonical address should
+source for rank crests and role icons only); whether the Master+ source should become the builds' default once its samples are large (OB2:
+recommended no, revisit after a month of counts); and whether the canonical address should
 become `/intel` (it stays `/lookup`, so nothing that links to it changes).
+
+**Ranges** (the owner's decision D3, 26 Nov 2026; built 27 Nov 2026, "Ranges"): shown only where a
+committed review of what Data Dragon's number measures is current; abilities cast on the champion
+show nothing (the owner's decision). Every spell has been reviewed by two independent automated
+reviewers, with two adjudicators where they differed from the drafting rules (not by a person):
+269 ranges and 11 "Global" are shown; wherever a reviewer had any doubt, nothing is. The owner may
+spot-check rows on the page (open a champion's ability: the opened row says how its range was
+decided) and say which, if any, should change, or confirm rows as the team's (reviewer `owner`). After each patch a session runs
+the script's `--check`, reviews the rows Riot changed the same way and opens a pull request (about 1
+to 10 a patch);
+without it only those rows' ranges are hidden, and Admin's count says how many. The registration's
+description should name "ranges where reviewed" among Data Dragon's facts (the description lane's
+text, RIOT_COMPLIANCE.md).
 
 **Builds: blocked and decided here, for the owner** (25–26 Nov 2026):
 
-- **Global population statistics are blocked** (the requirement's "broader LoL population
-  statistics"): Riot's API has no aggregate endpoint, and the only legitimate route is collecting
-  other players' games (the high-elo collector built and switched off for Matchup Intel, commit
-  `6dfccdd`, reverted in `14a9f10`; its design in `git show 6dfccdd:docs/HIGH_ELO_EVIDENCE.md`). It
-  waits on the owner (OD4): the Developer Portal registration updated to cover anonymous aggregate
-  collection from high-elo ranked games, retargeted to Champion Intel's builds, with the LEAGUE-V4
-  apex ladder requests listed; the privacy notice's row (PRIVACY.md, "Prepared, not active"); and
-  Vercel's usage readings (OD5) before it is switched on. Even then a per-build win rate needs
-  thousands of games per choice, which a personal key does not reach. The section is built so a
-  second source could join it (its words say "in the team's matches" and "not a global sample").
+- **Global population statistics: built, switched off** (D2, 26 Nov 2026; docs/HIGH_ELO_EVIDENCE.md).
+  Riot's API has no aggregate endpoint, so the only legitimate route is sampling other players'
+  games. The sampler (ported from `6dfccdd`, retargeted to these builds), its tables (migration
+  `0072`), its job, its Admin state and the page's Master+ source are in place and **off**: the Riot
+  client has no apex-ladder request and the deployment's switch is unset. Switching on is the owner's
+  steps in docs/HIGH_ELO_EVIDENCE.md, "For the owner" (the registration, key type and limits, the
+  privacy notice's row, Vercel and Supabase readings, the switch), then the enabling pull request.
 - **No rank filter**: Riot's game records hold no rank, and other players' ranks are kept only as
   the latest reading; the source line says "all ranks".
 - **The queues**: Normal Draft, Ranked and Clash; Swiftplay, Quickplay and Blind Pick are left out
   (a faster economy, no draft). The owner may want them in.
-- **The thresholds** (20 games for the section and each part, 10 games and a tenth of them for a
-  choice, 20 games and 15% for the highest win rate, 2 points apart): the owner may tune them;
+- **The thresholds** (20 games for the section and each part; 10 games and a tenth of them for a
+  choice; for the highest win rate, 30 games and 15% of the part, the 99% Newcombe interval of its
+  difference from the most common wholly above 0, 2 points more, and no one player above a third of
+  its games: D6, `MIN_PERFORMER_GAMES`, `PERFORMER_Z`, `PERFORMER_MARGIN` and
+  `PERFORMER_MAX_ONE_PLAYER` in `src/domain/champion-builds.ts`): the owner may tune them;
   production's team-scale samples will show "Highest win rate" rarely, and many champions the
   honest line, which is the truthful outcome.
 - **The registration**: paste the description above at the next update (the build totals are new

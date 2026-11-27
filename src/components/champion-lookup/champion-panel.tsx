@@ -48,7 +48,7 @@ function Splash({ id, className }: { id: string; className?: string }) {
 }
 
 /** The portrait, the name (the way to change the champion: a chevron says so) and Riot's title, on one baseline system. */
-function Identity({ shown, onChange, headingId, pending, compact }: { shown: ChampionChoice; onChange: (e: React.MouseEvent<HTMLButtonElement>) => void; headingId: string; pending: boolean; compact: boolean }) {
+function Identity({ shown, onChange, headingId, pending, compact, side }: { shown: ChampionChoice; onChange: (e: React.MouseEvent<HTMLButtonElement>) => void; headingId: string; pending: boolean; compact: boolean; side?: string | null }) {
   return (
     // Never narrower than the name needs while the header has room: the name stays on one line, and
     // wraps between words only where the header itself is narrower than it (a phone at 200% text).
@@ -62,6 +62,12 @@ function Identity({ shown, onChange, headingId, pending, compact }: { shown: Cha
         <ChampionPortrait champion={{ id: shown.id, name: shown.name, portraitUrl: shown.portrait }} size="md" className={cn(compact && "@min-[22rem]/board:@max-[40rem]/board:h-9 @min-[22rem]/board:@max-[40rem]/board:w-9")} />
       </span>
       <div className="min-w-0">
+        {/* Matchup Intel (Compare with a lane): which side of the lane this column is, "Playing" or "Against"; never "you". */}
+        {side ? (
+          <p className="label-text leading-tight" data-testid="lookup-side">
+            {side}
+          </p>
+        ) : null}
         <h2 className={cn("text-xl font-semibold leading-tight text-fg", compact ? "@min-[22rem]/board:@max-[40rem]/board:text-base @min-[16rem]/board:@max-[20rem]/board:text-lg @max-[16rem]/board:text-base" : "@max-[16rem]/panel:text-base")}>
           <button
             type="button"
@@ -129,6 +135,7 @@ export function ChampionPanel({
   builds,
   statsOpen,
   onStatsToggle,
+  side = null,
   className,
 }: {
   mode: ColumnMode;
@@ -155,6 +162,8 @@ export function ChampionPanel({
   /** Compare: the two columns' statistics open and close together. */
   statsOpen?: boolean;
   onStatsToggle?: (open: boolean) => void;
+  /** Compare with Matchup Intel's lane: the side this column is ("Playing", "Against"), above the name. */
+  side?: string | null;
   className?: string;
 }) {
   const uid = React.useId();
@@ -216,7 +225,7 @@ export function ChampionPanel({
       <Splash id={shown.id} className="inset-0 hidden @min-[22rem]/board:block @min-[22rem]/board:row-start-1 @min-[22rem]/board:row-span-2" />
       <header className={cn("relative flex min-w-0 items-start gap-2 px-3 pt-3", ROW.head)}>
         <div className="flex min-w-0 flex-1 flex-wrap items-center gap-x-4 gap-y-2">
-          <Identity shown={shown} onChange={onChange} headingId={headingId} pending={pending} compact />
+          <Identity shown={shown} onChange={onChange} headingId={headingId} pending={pending} compact side={side} />
           {abilities ? <HasteField haste={haste} onChange={onHaste} champion={shown.name} className="ml-auto" cut={false} /> : null}
         </div>
         {onRemove ? (

@@ -180,7 +180,7 @@ test("a champion: portrait and name, the source line, its facts, Passive to R wi
   await expect(row(page, "P").getByTestId("lookup-no-number")).toContainText("No cooldown in Riot's data");
   // The rule, once per champion, in the ⓘ beside its haste field; what Riot's data does not hold in the abilities' ⓘ.
   await expect(panel(page).getByTestId("lookup-rule")).toContainText("Cooldowns at a haste use Riot's rule: base × 100 / (100 + haste), only where Riot's data gives one. Ultimate haste isn't counted.");
-  await expect(page.getByTestId("lookup-data-limit")).toContainText("Mechanics are named from the words of Riot's descriptions. Riot's data has no damage values or scaling, and no cooldown for passives (—).");
+  await expect(page.getByTestId("lookup-data-limit")).toContainText("Mechanics come from Riot's descriptions; ranges only where checked against Riot's text. Riot's data has no damage values or scaling, and no cooldown for passives (—).");
   await expect(page.getByTestId("lookup-data-limit")).toHaveCount(1);
   // The old lines under the board are gone.
   await expect(page.locator("main")).not.toContainText("Riot's published data has no damage values");
@@ -200,6 +200,73 @@ test("a champion: portrait and name, the source line, its facts, Passive to R wi
   await expect(row(page, "Q").getByTestId("lookup-base")).toContainText("Rank 1: 7 seconds");
   // No timer, countdown or ready time anywhere (game integrity), and nothing "verified".
   await expect(page.locator("main")).not.toContainText(/\b(timer|countdown|ready at|ready in|verified)\b/i);
+});
+
+/** A row's range as drawn: its status, the item's kind, Riot's numbers behind it, the numbers drawn and the words seen (what a screen reader alone hears left out). */
+const rangeOf = (page: Page, slot: string, n: 1 | 2 = 1) =>
+  row(page, slot, n).evaluate((r) => {
+    const item = r.querySelector<HTMLElement>('[data-testid="lookup-ability-range"]');
+    const seen = item ? (item.cloneNode(true) as HTMLElement) : null;
+    seen?.querySelectorAll(".sr-only").forEach((e) => e.remove());
+    return {
+      status: r.getAttribute("data-range-status"),
+      kind: item?.getAttribute("data-range") ?? null,
+      values: item?.getAttribute("data-values") ?? null,
+      drawn: [...(item?.querySelectorAll("[data-range-value]") ?? [])].map((v) => v.getAttribute("data-range-value")),
+      text: seen?.textContent?.replace(/\s+/g, " ").trim() ?? null,
+      heard: item?.textContent?.replace(/\s+/g, " ").trim() ?? null,
+    };
+  });
+
+test("ranges: Riot's number where the review of what it measures is current, after the chips; Global; nothing on the passive, a self-cast, two abilities in a slot or a spell not reviewed; the opened row says where it comes from", async ({ page }, info) => {
+  test.skip(!isDesktop(info.project.name) && !isPhone(info.project.name), "a desktop and a phone");
+  await page.goto("/lookup?champion=Ahri");
+  await ready(page);
+  // Ahri (the reviewed table at 16.23.1, whose rows match the pinned 16.22.1): Q, E and R reaches, W cast on herself (not shown), the passive none.
+  expect(await rangeOf(page, "Q")).toEqual({ status: "shown", kind: "reach", values: "970,970,970,970,970", drawn: ["970"], text: "Range 970", heard: "Range 970 units" });
+  expect(await rangeOf(page, "E")).toMatchObject({ status: "shown", kind: "reach", values: "975,975,975,975,975", text: "Range 975" });
+  expect(await rangeOf(page, "W")).toMatchObject({ status: "self", kind: null });
+  expect(await rangeOf(page, "R")).toMatchObject({ status: "shown", kind: "reach", values: "450,450,450", text: "Range 450" });
+  expect(await rangeOf(page, "P")).toMatchObject({ status: "none", kind: null });
+  // The item sits in the folded row's name-and-chips flow, small and muted: never a heading of its own.
+  const q = row(page, "Q");
+  expect(await q.getByTestId("lookup-ability-range").evaluate((e) => ({ inSummary: !!e.closest('[data-testid="lookup-ability-summary"]'), size: parseFloat(getComputedStyle(e).fontSize) }))).toEqual({ inSummary: true, size: 12 });
+  // Opened: where the number comes from and who decided what it measures; nothing for a row with no range.
+  await q.getByTestId("lookup-ability-summary").click();
+  await expect(q.getByTestId("lookup-range-note")).toHaveText("Range from Riot's data, in game units. Reviewed against Riot's text by an automated review on patch 26.23, not by a person.");
+  await row(page, "W").getByTestId("lookup-ability-summary").click();
+  await expect(row(page, "W").getByTestId("lookup-ability-details")).toBeVisible();
+  await expect(row(page, "W").getByTestId("lookup-range-note")).toHaveCount(0);
+  await expect(page.locator("main")).not.toContainText(/\b(estimated|approximately|verified)\b/i);
+  await expectNoSeriousAxe(page, "ranges, two rows open");
+
+  // The whole map, by Riot's own words: "Global" (Karthus's R).
+  await page.goto("/lookup?champion=Karthus");
+  expect(await rangeOf(page, "R")).toMatchObject({ status: "shown", kind: "global", values: "", text: "Global" });
+  // One number per rank where they differ, each "/" with the value before it (Vex's R).
+  await page.goto("/lookup?champion=Vex");
+  expect(await rangeOf(page, "R")).toMatchObject({ status: "shown", kind: "reach", values: "2000,2500,3000", drawn: ["2,000", "2,500", "3,000"], text: "Range 2,000 / 2,500 / 3,000" });
+  // Two abilities in one slot (Lee Sin's Q: a row of kind none), a number that is not the reach (Twisted Fate's Q, Data Dragon's 10000), and a reach the review could not confirm (Ezreal's Q, 1,150): nothing.
+  await page.goto("/lookup?champion=LeeSin");
+  expect(await rangeOf(page, "Q")).toMatchObject({ status: "none", kind: null });
+  await page.goto("/lookup?champion=TwistedFate");
+  for (const slot of ["P", "Q", "W", "E"]) expect(await rangeOf(page, slot), slot).toMatchObject({ kind: null });
+  await expect(page.getByTestId("lookup-ability-range")).toHaveCount(await page.locator('[data-testid="lookup-ability"][data-range-status="shown"]').count());
+  await page.goto("/lookup?champion=Ezreal");
+  expect(await rangeOf(page, "Q")).toMatchObject({ status: "none", kind: null });
+  expect(await rangeOf(page, "E")).toMatchObject({ status: "shown", kind: "reach", text: "Range 475" });
+  expect(await rangeOf(page, "R")).toMatchObject({ status: "shown", kind: "global", text: "Global" });
+
+  // Compare: each column its own (Jinx's W a reach, her R Global), with no word comparing them.
+  await page.goto("/lookup?champion=Ahri&champion2=Jinx");
+  await ready(page);
+  expect(await rangeOf(page, "Q", 1)).toMatchObject({ kind: "reach", text: "Range 970" });
+  expect(await rangeOf(page, "W", 2)).toMatchObject({ status: "shown", kind: "reach", values: "1450,1450,1450,1450,1450", text: "Range 1,450" });
+  expect(await rangeOf(page, "R", 2)).toMatchObject({ status: "shown", kind: "global", text: "Global" });
+  const words = await page.getByTestId("lookup-ability-range").evaluateAll((els) => els.map((e) => e.textContent ?? ""));
+  for (const w of words) expect(w).toMatch(/^(Global|Range[\s\S]*)$/);
+  expect(words.join(" ")).not.toMatch(/longer|shorter|more|less|outrange/i);
+  expect(await overflow(page)).toBeLessThanOrEqual(1);
 });
 
 test("a row's chips name what Riot's description says; opened, the description marks the words they come from", async ({ page }, info) => {
@@ -822,16 +889,18 @@ test("names are never cut or broken: the longest on one line in the header at 13
   expect(await namesWhole(page, '[data-testid="lookup-picker-grid"] button[data-champion] > span:not([aria-hidden]):not(.sr-only)', false)).toEqual([]);
 });
 
-test("Matchup Intel's old links land on Champion Intel, carrying one champion: the enemy where named", async ({ page }, info) => {
+// Changed on 27 Nov 2026 (Matchup Intel back inside Champion Intel's Compare): both champions and the lane are carried.
+test("Matchup Intel's old links land on Champion Intel's Compare, carrying both champions and the lane", async ({ page }, info) => {
   test.skip(!isDesktop(info.project.name), "once");
-  const first = await page.request.get("/resources/matchups?champion=Riven&vs=Mordekaiser", { maxRedirects: 0 });
+  const first = await page.request.get("/resources/matchups?role=top&champion=Riven&vs=Mordekaiser", { maxRedirects: 0 });
   expect(first.status()).toBe(308);
   const to = new URL(first.headers()["location"]!, "http://x");
-  expect(to.pathname + to.search).toBe("/lookup?champion=Mordekaiser");
+  expect(to.pathname + to.search).toBe("/lookup?champion=Riven&champion2=Mordekaiser&lane=TOP");
   for (const [old, want] of [
-    ["/resources/matchups?champion=Riven&vs=Mordekaiser", "/lookup?champion=Mordekaiser"],
+    ["/resources/matchups?role=top&champion=Riven&vs=Mordekaiser", "/lookup?champion=Riven&champion2=Mordekaiser&lane=TOP"],
+    ["/resources/matchups?champion=Riven&vs=Mordekaiser", "/lookup?champion=Riven&champion2=Mordekaiser"],
     ["/resources/matchups?role=top&champion=Riven", "/lookup?champion=Riven"],
-    ["/resources/matchups?role=adc&champion=Jinx&ally=Lulu&vs=Caitlyn&vs2=Lux&ability=Caitlyn.Q", "/lookup?champion=Caitlyn"],
+    ["/resources/matchups?role=adc&champion=Jinx&ally=Lulu&vs=Caitlyn&vs2=Lux&ability=Caitlyn.Q", "/lookup?champion=Jinx&champion2=Caitlyn&lane=BOTTOM"],
     ["/resources/matchups?role=support&ally=Lulu&vs2=Lux", "/lookup?champion=Lux"],
     ["/resources/matchups", "/lookup"],
   ] as const) {
@@ -839,6 +908,9 @@ test("Matchup Intel's old links land on Champion Intel, carrying one champion: t
     await expect(page, old).toHaveURL(new RegExp(`${want.replace(/[?]/g, "\\?")}$`));
     await expect(page.getByRole("heading", { level: 1, name: "Champion Intel" })).toBeVisible();
   }
+  // The lane's band is there for the pair with a lane.
+  await page.goto("/resources/matchups?role=top&champion=Riven&vs=Mordekaiser");
+  await expect(page.getByTestId("matchup-band")).toHaveAttribute("data-lane", "TOP");
 });
 
 test("one screen: the header, the haste and the five abilities, folded, on the first screen at every desktop size, one champion and two, the sidebar open and folded; nothing scrolls inside", async ({ page, context, baseURL }, info) => {

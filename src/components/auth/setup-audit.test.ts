@@ -22,7 +22,7 @@ describe("the /setup form's audit", () => {
 
   it("labels the setup key as a field and describes it under the field", () => {
     const html = renderToStaticMarkup(createElement(SignupForm, { action: async () => ({ ok: false, error: "" }) as never, kind: "owner", needsKey: true, defaultPlatform: "oc1" }));
-    expect(html).toMatch(/<label[^>]*for="setupKey"[^>]*>SETUP KEY \*<\/label>/);
+    expect(html).toMatch(/<label[^>]*for="setupKey"[^>]*>Setup key \*<\/label>/);
     expect(html).toMatch(/<input[^>]*id="setupKey"[^>]*aria-describedby="setupKey-hint"/);
     expect(html).toMatch(/<p id="setupKey-hint"[^>]*>The UNIIVERSE_<wbr\/>ACCESS_<wbr\/>PASSWORD value you configured\.<\/p>/);
   });

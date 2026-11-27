@@ -123,6 +123,17 @@ list fades out before the figures (a pool row's left half).
 | `good`, `warn`, `bad`, `info` | states and outcomes; never the only signal (pair with text or an icon) |
 | `blue`, `red` | the two sides of a match, and its result (Victory blue, Defeat red), always with the word |
 | `gold`, `violet`, `bronze`, `bronze-fg` | rarities and places (third place in bronze); never to set one statistic apart from its neighbours: multikill counts are plain `fg` like every other figure |
+
+**Primary-colour figures never replace semantic colours** (checked page by page in Release 19's visual review, 27 Nov 2026). A figure in
+the primary tier (`fg`) is the default for what a reader compares; a semantic colour replaces it only where it carries its meaning, and
+then always with its word: a game's result (Victory `blue`, Defeat `red`), a coloured win rate (`good` at or above 50% on enough games,
+DESIGN_SYSTEM.md), the gold first place, MVP's gold and ACE's violet, a milestone's rarity, a ranked tier's colour. The brand `accent` is
+never a figure's or a label's colour: it marks what can be acted on or is selected (links, tabs, the brand's marks). The one conflict
+found, Match History's and Team Matches' multikill words in the accent beside a card's blue Victory, gold MVP and violet ACE (they read
+as links and as one more state), is fixed: a double is `fg-muted`, a triple or quadra `fg`, a pentakill a small neutral tag
+(`multikill-tag.tsx`). Two neutral exceptions are deliberate: Recent form and Leaderboards keep win rates plain `fg` (a ranking of recent
+games, no colour for a cold streak), and Champion Intel's builds show a choice's pick rate as a qualifier of its win rate (`fg-muted`,
+as a record under a win rate), the win rate being the figure compared.
 | `tier-iron` … `tier-challenger` | a ranked tier written as small text (an opponent's "E2" in a match card); each 5:1 or more on the panels |
 
 Rank crests keep their own artwork and fallback colours (`rank-emblem.tsx`, `tierTextClass` for the text tokens), as do social brands (`brand-icons.tsx`).
@@ -157,10 +168,14 @@ Labels and column headings are sentence case: `label-text` (globals.css: `text-2
 `fg-muted`; a colour may replace the grey, nothing else beside it), a part's heading inside a panel
 `SectionLabel` (a small `fg` heading), a list's group heading `text-xs` medium `fg-muted` (as
 `MenuLabel` and Select's groups). Capitals remain only where an approved design keeps them, each
-listed with its reason in `src/app/type-hierarchy.test.ts`: Team Overview's card and player window
-labels, the Admin mode marker and the admin pages' eyebrow (`PageHeader`), a member's own "wide"
-name style, and a round pill badge (`rounded-full`, such as "You", which may stay at
-`tracking-wide`). Capitals use `tracking-label`. `label-caps` (the 11px uppercase label in
+listed with its reason in `src/app/type-hierarchy.test.ts`: Team Overview's backdrop lettering (the
+team's short name as artwork; its card, player window, eyebrow, role chip and "You" badge went to
+sentence case on 27 Nov 2026, the owner's decision D4), the Admin mode marker and the admin pages'
+eyebrow (`PageHeader`) and the sign-in card's "PRIVATE" (the mode's identity, the owner's decision
+O4), a member's own "wide" name style, and a round pill badge (`rounded-full`). Capitals typed into
+the text itself ("PRIMARY RIOT ID *") are caught too: the same test refuses JSX text with a word of
+four or more capitals, on a line of its own as well, and a string a JSX expression shows
+(`{required ? "PASSWORD *" : …}`), outside the abbreviations (ARAM, HTTP, JPEG…) and its listed exceptions. Capitals use `tracking-label`. `label-caps` (the 11px uppercase label in
 `tracking-label`) is retired: its utility left globals.css on 26 Nov 2026, once no page used it,
 and `type-hierarchy.test.ts` refuses the class. The team's name as a
 wordmark uses `tracking-wordmark`, and the Team page's backdrop name `tracking-tagline`. Numbers
@@ -201,21 +216,30 @@ expressive; Settings and forms are plain and roomy. Empty or thin data shrinks a
 leaving a frame to fill, and no card is stretched to even out a dashboard's columns (a Ranked
 progress filled to the pools' end made a few LP look like a swing: the UX review of Release 13). The
 Overview's 2×2 balances its columns with its own data instead: there Ranked progress heads the rail
-and Recent form, under it, lists the champions of its games that fit above the window's bottom (two
-to four by the window's height in the server's drawing, then as many as fit: `RecentChampions`,
-`FitChampions`; "and N more" on its heading's line), and a primary pool of
-more than six shows its first five champions with a Show all at its end (`PRIMARY_POOL_TOP`,
-`PRIMARY_POOL_FOLD_OVER`), so no player's pool makes the page disproportionately tall. At 1440 × 900,
-1920 × 950 and 1920 × 1080 the whole Overview is on the first screen whatever the pool's size (Release 16: the
-scope beside Season performance's title, 40px pool rows with their column names on the pool's
-heading line, no box around a folded off role, "Off roles: None yet" on one line, Ranked progress's
-queue and account select on its title row; measured for every member of both demos, with and
-without a second Riot account; at 1440 × 780 a pool of four or more rows still runs 9 to 110px past
-the window, which is reported rather than folded, docs/TEAM_LEADERBOARDS.md, "One screen"); on small
-screens and at large text sizes readability wins over the one screen. Leaderboards is one screen
-from a 59rem page too (docs/TEAM_LEADERBOARDS.md, "One screen"): a board that cannot show every row
-there shows as many as fit above the window's bottom (`src/components/ui/fit-rows.tsx`) and says how
-many more behind its Show all, never hiding a row silently.
+and Recent form, under it, lists the champions of its games that fit above the window's bottom (one
+to three by the window's height in the server's drawing, a row fewer than fits, then as many as fit
+with a guard band of 1rem above the page's bottom padding: `RecentChampions`, `FitChampions`,
+`FIT_GUARD_REM`; "and N more" on its heading's line), and a primary pool of more than six shows its
+first five champions with a Show all on its heading's line (`PRIMARY_POOL_TOP`,
+`PRIMARY_POOL_FOLD_OVER`); in the 2×2 a pool of six folds its sixth row the same way where six would
+end within that guard band and five do not (`usePoolFit`, the owner's decision O1 of 26 Nov 2026),
+and where the pools' column itself runs past the window (large text) the rail lists its champions down
+to that column's end. At 1440 × 900, 1920 × 950 and 1920 × 1080 the whole Overview is on the first
+screen with at least 12px to spare (Release 19: 1–4px had been left, and CI's slightly wider text
+scrolled the page) for every member of the demo, with and without a second Riot account, sidebar open
+and folded, and with text 1% wider (`e2e/home-layout.spec.ts`, `e2e/wide-text.ts`); at 1440 × 780 a
+pool of four or more rows still runs past the window, which is reported rather than folded,
+docs/TEAM_LEADERBOARDS.md, "One screen"); on small screens and at large text sizes readability wins
+over the one screen. Leaderboards is one screen from a 59rem page too (docs/TEAM_LEADERBOARDS.md,
+"One screen"): every board shows every row, the rankings' rows following the roster (40px for up to
+seven players, 36px for nine), so a full roster of nine fits 1440 × 900, 1920 × 950 and 1920 × 1080.
+
+**A layout held to a measure keeps a margin** (Release 19, the owner's request of 26 Nov 2026). A test
+that holds a layout to the window ("one screen", "fits", a row's height) asserts at least 12px of room,
+measured above the page's own bottom padding, never only "no scroll"; and it runs once more with
+`widenText` (`e2e/wide-text.ts`: every glyph 1% of its size wider, twice the difference of CI's
+browser), so a layout that passes here passes there. A list fitted to the window keeps the guard band
+itself (`fit-rows.tsx`), so its margin does not depend on the test.
 
 **Page layout.** One frame for every page, so pages differ by their content, not their scaffolding:
 - **The shared frame** (S2c, `app-shell.tsx`): every page sits in one column, at most `--content-wide`
@@ -482,14 +506,15 @@ below-the-fold ones lazily, and keep uploaded brand images small ([HOSTING_USAGE
     `TEST_DATABASE_URL`): its `now()` follows the faked clock, while PostgreSQL's stays on today. Run
     the same at today's date as well: a few tests fail under any faked clock, because rows written
     a moment apart get the same time.
-  - What stays tied to the date is the app's ranked year (`src/domain/ranked-year.ts`, 2026 only
-    until Riot publishes 2027's dates). Ranked progress names a season, and draws readings, only
-    inside a ranked year the app knows: from 1 January 2027 it names none. Match History's LP
-    marks are worked out only for games on a patch of a ranked year the app knows (16.x,
-    `rankedSeasonOfPatch`), and the demo's games are on its season's patches: from the demo's
-    Season 2027 (Riot's first 2027 patch in CI, 1 January on the offline fixture) no card has one.
-    So these browser tests pass in 2027 only with the 2027 change, which has to know 2027's dates
-    and its 17.x patches: `e2e/progress.spec.ts` (it takes the year from `RANKED_YEAR` instead of
-    naming one), the three tests of `e2e/match-lp.spec.ts` and `e2e/webkit.spec.ts`'s LP dash test
-    (the WebKit workflow, run by hand). None names a year, so none changes now; the 2027 change
-    runs them again.
+  - What stays tied to the date is the app's ranked years (`src/domain/ranked-year.ts`: 2026, and
+    2027 since Release 19, its first day an estimate until Riot publishes it). Each account's year
+    ends at its own reset reading, not at a date (docs/RANKED_PROGRESS.md, "The 2027 ranked year"),
+    so Ranked progress names its season and draws its readings in 2027 too, and Match History's LP
+    marks are worked out for games on any ranked year's patches (16.x and 17.x,
+    `rankedYearOfPatch`). The browser tests that depended on it take the year from the page
+    (`e2e/progress.spec.ts`: the tracking line's year, which the record's must equal, a ranked year
+    the app knows) or name none (`e2e/match-lp.spec.ts`, `e2e/webkit.spec.ts`'s LP dash). A year
+    after 2027 needs its entry in `RANKED_YEARS` before its first day, or each account stays on
+    2027's ladder until it does (the tests at fixed clocks in `src/domain/rank-timeline.test.ts`,
+    `src/components/players/ranked-progress.test.ts` and `tests/db/rank-audit-2027.test.ts` show
+    how the boundary behaves).

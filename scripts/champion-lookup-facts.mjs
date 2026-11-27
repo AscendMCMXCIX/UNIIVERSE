@@ -11,11 +11,17 @@
   champion on the server), read at 1440 × 900 on the aligned board; Swap (one request), read; and ✕
   on the first column (one request), which leaves Ahri alone again. Each read also takes the
   champion's builds and runes (counted in the team's stored matches, streamed in after the
-  abilities): whether they show, the source line, each part's choice with its win and pick rate or
-  why there is none (the runes with both trees' icons), or the honest line that the patch has too
-  few games; and that no Riot ID or account id is anywhere in them. Where a step of Compare does not
-  finish, only that step is judged (and fails, named); the steps after it never ran and are not. Then Matchup Intel's old address, which must land here carrying
-  its enemy. Read in the page only: counts, true or false,
+  abilities): whether they show, the queue they count (Ranked Solo/Duo when the address names none,
+  one queue at a time: D5), the source line, each part's choice with its win and pick rate or why
+  there is none (the runes with both trees' icons), or the honest line that the patch has too few
+  games in that queue; and that no Riot ID or account id is anywhere in them. The populated builds,
+  their thresholds and the queue choice are judged on a champion the team's data has builds for
+  (scripts/builds-facts.mjs). Where a step of Compare does not
+  finish, only that step is judged (and fails, named); the steps after it never ran and are not. Then Matchup Intel's old address, which must land here in
+  Compare with both champions and its lane. Each read also takes every row's range (docs/CHAMPION_INTEL.md, "Ranges"): whether one
+  is shown, hidden since Riot changed the ability or none, Riot's numbers behind it and the words
+  shown, so the check holds production's ranges to the reviewed rule (never a placeholder, never on
+  the passive, the numbers shown Riot's own). Read in the page only: counts, true or false,
   px, numbers and the page's own fixed words; no name but champions' and abilities'.
 */
 
@@ -85,6 +91,9 @@ export function readChampionLookup() {
     secondChampion: panels.find((p) => p.getAttribute("data-panel") === "2")?.getAttribute("data-champion") ?? null,
     // The first champion's builds and runes: "shown", "few", "unavailable", or null (no section).
     ...readBuilds(panel),
+    // Each row's range, in each column (Compare's second column too; [] without one).
+    abilityRanges: readRanges(panel),
+    abilityRanges2: readRanges(panels.find((p) => p.getAttribute("data-panel") === "2") ?? null),
     // Compare: the two champions' builds slots on one row (level within a pixel); null with fewer than two.
     buildsLevel: (() => {
       const slots = shown.map((s) => s.querySelector('[data-testid="lookup-builds"]')).filter(Boolean).map((e) => e.getBoundingClientRect());
@@ -97,11 +106,41 @@ export function readChampionLookup() {
     }),
   };
 
-  /** The builds section of a column: its state, its source line, the honest line, and each part's row. */
+  /** Each row's range in a column: its status, what the item shows (words, with what a screen reader alone hears left out), Riot's numbers behind it and the ranks. */
+  function readRanges(column) {
+    const seen = (el) => {
+      if (!el) return "";
+      const copy = el.cloneNode(true);
+      copy.querySelectorAll(".sr-only").forEach((e) => e.remove());
+      return text(copy);
+    };
+    return [...(column?.querySelectorAll('[data-testid="lookup-ability"]') ?? [])].map((r) => {
+      const item = r.querySelector('[data-testid="lookup-ability-range"]');
+      return {
+        slot: r.getAttribute("data-slot") ?? "",
+        status: r.getAttribute("data-range-status") ?? "",
+        kind: item?.getAttribute("data-range") ?? null,
+        values: (item?.getAttribute("data-values") ?? "").split(",").filter(Boolean).map(Number),
+        ranks: Number(item?.getAttribute("data-ranks") ?? "NaN"),
+        shown: [...(item?.querySelectorAll("[data-range-value]") ?? [])].map((v) => Number((v.getAttribute("data-range-value") ?? "").replace(/,/g, ""))),
+        text: seen(item),
+      };
+    });
+  }
+
+  /** The builds section of a column: its state, its queue, its source line, the honest line, and each part's row. */
   function readBuilds(column) {
     const view = column?.querySelector('[data-testid="lookup-builds-view"]') ?? null;
+    const queue = view?.querySelector('[data-testid="lookup-build-queue"]') ?? null;
     return {
       buildsStatus: view?.getAttribute("data-status") ?? null,
+      // The queue the section counts (its key), the name its choice shows (the popover's label, or the phone's own select), and whether the address names one.
+      buildsQueue: view?.getAttribute("data-queue") ?? null,
+      buildsSource: view?.getAttribute("data-source") ?? null,
+      buildsQueueShown: queue ? (queue instanceof HTMLSelectElement ? text(queue.selectedOptions[0]) : text(queue.querySelector("[data-select-label]"))) : "",
+      buildsAddressQueue: new URLSearchParams(location.search).has("queue"),
+      // Whether the queue choice offers the Master+ source (the phone's own select's options, or the popover's names, all drawn to size it).
+      buildsMasterOffered: queue ? (queue instanceof HTMLSelectElement ? [...queue.options].some((o) => o.value === "master") : /all regions/.test(queue.textContent ?? "")) : false,
       buildsLine: view?.querySelector('[data-testid="lookup-build-source"]')?.getAttribute("data-line") ?? "",
       buildsFew: text(view?.querySelector('[data-testid="lookup-build-few"]')),
       buildsParts: [...(view?.querySelectorAll('[data-testid="lookup-build-part"]') ?? [])].map((r) => ({
@@ -127,6 +166,13 @@ export function readChampionWindow() {
   return { open: !!win, shown: grid.length, counted, first: grid[0]?.getAttribute("data-champion") ?? null, found: win?.querySelector('[data-testid="lookup-picker-count"]')?.textContent?.trim() ?? "" };
 }
 
+/** The builds' queues as the page names them (src/domain/champion-builds-words.ts QUEUE_LABELS; its unit test holds them equal). */
+export const QUEUE_NAMES = { solo: "Ranked Solo/Duo", flex: "Ranked Flex", draft: "Normal Draft", clash: "Clash" };
+/** The builds' source line (D5: no queue in it, the queue choice beside it): the games, the team's matches, the patch window, all ranks. */
+export const BUILDS_LINE = /^From \d[\d,]* games? in the team's matches · (?:patch (\d+\.\d+)|patches \d+\.\d+–(\d+\.\d+)|patch \d+\.\d+, none yet on (\d+\.\d+)) · all ranks$/;
+/** The builds' honest line in a queue with too few games. */
+export const FEW_LINE = /^Not enough (?:Ranked Solo\/Duo|Ranked Flex|Normal Draft|Clash) games on patch \d+\.\d+ in the team's matches yet$/;
+
 /** Riot's general rule, as the page writes it: base × 100 / (100 + haste), to two decimals. */
 export const hasted = (base, haste) => Math.round(((base * 100) / (100 + haste)) * 100) / 100;
 
@@ -136,6 +182,40 @@ function publicPatch(patch) {
   if (!m) return null;
   const major = Number(m[1]);
   return `${major >= 15 && major < 25 ? major + 10 : major}.${Number(m[2])}`;
+}
+
+/** The values a reach shows: one number where every rank has the same, else one per rank (shownReach in src/domain/champion-lookup/range.ts). */
+const shownReach = (values) => (values.length > 0 && values.every((v) => v === values[0]) ? [values[0]] : values);
+
+/**
+ * Whether one column's ranges keep the reviewed rule (docs/CHAMPION_INTEL.md, "Ranges"): none on the
+ * passive; a range shown only as "Range 970" (Riot's numbers, one per rank where they differ, each
+ * above 50 and below 10,000, never smaller at a higher rank, as many as the ability's ranks, the
+ * numbers drawn the ones behind it) or "Global"; an item only where the row says one is shown.
+ * Returns what is wrong (empty when nothing is) and the counts.
+ */
+export function rangeProblems(ranges) {
+  const wrong = [];
+  for (const r of ranges ?? []) {
+    const item = r.kind !== null;
+    if (r.slot === "P" && (item || r.status === "shown")) wrong.push(`${r.slot}: a range on the passive`);
+    if (item !== (r.status === "shown")) wrong.push(`${r.slot}: the item and the row's status disagree (${r.status})`);
+    if (!item) continue;
+    if (r.kind === "global") {
+      if (r.text !== "Global") wrong.push(`${r.slot}: "${r.text}" for a global range`);
+      continue;
+    }
+    if (r.kind !== "reach") {
+      wrong.push(`${r.slot}: a range of kind ${r.kind}`);
+      continue;
+    }
+    const v = r.values;
+    if (!v.length || v.length !== r.ranks || !v.every((x) => Number.isFinite(x) && x > 50 && x < 10000) || !v.every((x, i) => i === 0 || x >= v[i - 1])) wrong.push(`${r.slot}: Riot's numbers ${v.join("/")} are not a reach for ${r.ranks} ranks`);
+    if (shownReach(v).join(",") !== r.shown.join(",")) wrong.push(`${r.slot}: shows ${r.shown.join("/")} for Riot's ${v.join("/")}`);
+    if (!/^Range \d[\d,]*(?: \/ \d[\d,]*)*$/.test(r.text)) wrong.push(`${r.slot}: "${r.text}" is not the range's words`);
+  }
+  const count = (s) => (ranges ?? []).filter((r) => r.status === s).length;
+  return { wrong, shown: count("shown"), changed: count("changed"), self: count("self"), none: count("none") };
 }
 
 /**
@@ -148,7 +228,7 @@ function publicPatch(patch) {
  * (`legacy`), and /api/health's patch (`healthPatch`, Data Dragon's numbering; undefined: not
  * compared). Each fact: its name, PASS, FAIL or WARN, and what was found.
  */
-export function championLookupVerdicts({ kind, champion, at, wide, hastedRead, all, search, dual, swapped, removed, stopped, legacy, healthPatch }) {
+export function championLookupVerdicts({ kind, champion, at, wide, hastedRead, all, search, dual, swapped, removed, stopped, legacy, healthPatch, healthHighElo }) {
   const out = [];
   const fact = (name, ok, detail) => out.push({ name: `${kind}: ${name}`, status: ok ? "PASS" : "FAIL", detail });
   const warn = (name, detail) => out.push({ name: `${kind}: ${name}`, status: "WARN", detail });
@@ -179,6 +259,15 @@ export function championLookupVerdicts({ kind, champion, at, wide, hastedRead, a
     if (/^\d[\d,]*$/.test(at.range)) fact("the champion's facts give Riot's attack range", true, { range: at.range });
     else warn("no attack range: the stored abilities are from before rules format 4 (the next game-data update reads them)", { range: at.range });
   }
+  // Ranges (docs/CHAMPION_INTEL.md, "Ranges"): shown only under the reviewed rule. Until the first
+  // game-data update after rules format 5 reads a champion, its records hold no range and none shows.
+  if (at.slots !== "") {
+    const r = rangeProblems(at.abilityRanges);
+    fact(`${champion}'s ranges keep the reviewed rule: none on the passive, only Riot's numbers as "Range 970" (never a placeholder, one per rank where they differ) or "Global"`, r.wrong.length === 0, { wrong: r.wrong });
+    if (r.shown > 0) fact(`${champion}'s ranges come from the reviewed table: some shown, the rest hidden since a change or not shown`, true, { shown: r.shown, changed: r.changed, self: r.self, none: r.none });
+    else if (r.changed > 0) warn(`${champion}'s ranges wait for a review: Riot changed the abilities reviewed (none shown)`, { changed: r.changed, none: r.none });
+    else warn(`no range shown for ${champion}: the stored abilities are from before rules format 5 (the next game-data update reads them), or none is reviewed`, { none: r.none, self: r.self });
+  }
   fact("the haste field's ⓘ says the formula and what it leaves out; the abilities' ⓘ what Riot's data does not hold", /base × 100 \/ \(100 \+ haste\)/.test(at.rule) && /Ultimate haste isn't counted/.test(at.rule) && /no damage values or scaling/.test(at.limit), { rule: at.rule, limit: at.limit });
   fact("the champion's name is whole, on one line, at 1440 × 900 and 1920 × 1080", at.namesCut === 0 && wide.namesCut === 0, { cut: at.namesCut, wide: wide.namesCut });
   const overBy = (r) => r.scrollHeight - r.innerHeight;
@@ -191,6 +280,10 @@ export function championLookupVerdicts({ kind, champion, at, wide, hastedRead, a
   if (dual !== undefined) {
     fact("a second champion sits beside the first at 1440 × 900, both in the address, the five abilities of each on the screen", dual.panels === 2 && dual.sideBySide && /[?&]champion2=Jinx(&|$)/.test(dual.url) && dual.lastBottom > 0 && dual.lastBottom <= dual.innerHeight && dual.hasteBottom <= dual.innerHeight, { panels: dual.panels, sideBySide: dual.sideBySide, url: dual.url, lastBottom: dual.lastBottom, innerHeight: dual.innerHeight });
     fact("Compare is one aligned board: each ability's row of the two champions level, the names whole, nothing scrolling inside", dual.rowsLevel && dual.namesCut === 0 && dual.scrollers === 0, { rowsLevel: dual.rowsLevel, namesCut: dual.namesCut, scrollers: dual.scrollers });
+    // Each column its own ranges, under the same rule, and no word comparing them (two neutral references).
+    const second = rangeProblems(dual.abilityRanges2);
+    const first = rangeProblems(dual.abilityRanges);
+    fact("Compare: each column's ranges keep the reviewed rule, its own champion's, with no word comparing them", (dual.abilityRanges2 ?? []).length === 5 && second.wrong.length === 0 && first.wrong.length === 0, { wrong: [...first.wrong.map((w) => `1 ${w}`), ...second.wrong.map((w) => `2 ${w}`)], shown: [first.shown, second.shown] });
   }
   if (swapped !== undefined) {
     fact("Swap exchanges the two champions, each with its own haste, in the address", swapped.champion === "Jinx" && swapped.secondChampion === champion && /^\/lookup\?champion=Jinx&champion2=[^&]+&haste2=20$/.test(swapped.url), { champion: swapped.champion, second: swapped.secondChampion, url: swapped.url });
@@ -202,22 +295,31 @@ export function championLookupVerdicts({ kind, champion, at, wide, hastedRead, a
   // the check signs in as a member with the default access, which may see teammates' statistics.
   const game = publicPatch(healthPatch ?? null) ?? /patch (\d+\.\d+)/.exec(at.source)?.[1] ?? null;
   fact("the builds and runes are shown to a member who may see teammates' statistics: the builds, or the line that the patch has too few games yet", at.buildsStatus === "shown" || at.buildsStatus === "few", { status: at.buildsStatus });
+  if (at.buildsStatus === "shown" || at.buildsStatus === "few") {
+    // D5 (26 Nov 2026): Ranked Solo/Duo by default, one queue named, never several.
+    fact("the builds open on Ranked Solo/Duo, and the address names no queue", at.buildsQueue === "solo" && at.buildsQueueShown === QUEUE_NAMES.solo && !at.buildsAddressQueue, { queue: at.buildsQueue, shown: at.buildsQueueShown, inAddress: at.buildsAddressQueue });
+    fact("the builds name one queue's games, never several: the queue choice shows one of the four queues, the one the section counts", Object.hasOwn(QUEUE_NAMES, at.buildsQueue ?? "") && QUEUE_NAMES[at.buildsQueue] === at.buildsQueueShown && at.buildsSource === "team", { queue: at.buildsQueue, shown: at.buildsQueueShown, source: at.buildsSource });
+    // D2: the Master+ source only while /api/health says its collection is on (prepared and switched off until the owner's steps).
+    if (healthHighElo === "off" || healthHighElo === "on") fact(`/api/health says the Master+ builds' collection is ${healthHighElo}, and the builds ${healthHighElo === "on" ? "offer" : "offer no"} Master+ source`, at.buildsMasterOffered === (healthHighElo === "on"), { collection: healthHighElo, offered: at.buildsMasterOffered });
+    else if (healthHighElo === null) warn("/api/health does not say whether the Master+ builds' collection is on (a deployment from before it said so)", { collection: healthHighElo ?? null });
+  }
   if (at.buildsStatus === "shown") {
     // The current patch; with the previous one added, the range; with none yet on the current one, the previous patch alone, said as that.
-    const m = /^From \d[\d,]* games? in the team's matches · (?:patch (\d+\.\d+)|patches \d+\.\d+–(\d+\.\d+)|patch \d+\.\d+, none yet on (\d+\.\d+)) · all ranks · (?:Draft|Ranked|Clash)(?:(?:, | and )(?:Ranked|Clash))*$/.exec(at.buildsLine);
+    const m = BUILDS_LINE.exec(at.buildsLine);
     const newest = m?.[1] ?? m?.[2] ?? m?.[3] ?? null;
-    fact("the builds' source line says the games, the team's matches, the current patch (the previous one added, or counted alone while the current has none, only where it says so), all ranks and the queues", !!m && (game === null || newest === game), { line: at.buildsLine, game });
+    fact("the builds' source line says the games, the team's matches, the current patch (the previous one added, or counted alone while the current has none, only where it says so) and all ranks", !!m && (game === null || newest === game), { line: at.buildsLine, game });
     const ok = (r) => (r.state === "shown" ? (r.part === "full" || (/^\d{1,3}%$/.test(r.win) && /^\d{1,3}%$/.test(r.pick))) && (r.part === "skills" || r.pictures > 0) : r.text.length > 0);
     const parts = at.buildsParts.map((r) => r.part);
     fact("each part of the builds shows its choice as icons with its win rate and pick rate, or says why there is none", at.buildsParts.length >= 7 && at.buildsParts.every(ok) && ["runes", "shards", "spells", "skills", "start", "boots", "core"].every((p) => parts.includes(p)), { parts: at.buildsParts.map((r) => `${r.part}:${r.state}`) });
     const runes = at.buildsParts.find((r) => r.part === "runes");
     if (runes?.state === "shown") fact("the runes draw both trees: the primary's before its keystone, the secondary's before its runes", runes.trees === 2, { trees: runes.trees });
   } else if (at.buildsStatus === "few") {
-    fact("the builds' honest line names the current patch: no build made up from too few games", /^Not enough games on patch \d+\.\d+ in the team's matches yet$/.test(at.buildsFew) && (game === null || at.buildsFew.includes(`patch ${game} `)) && at.buildsParts.length === 0, { line: at.buildsFew, game });
+    fact("the builds' honest line names the queue and the current patch: no build made up from too few games", FEW_LINE.test(at.buildsFew) && at.buildsFew.includes(`Not enough ${QUEUE_NAMES[at.buildsQueue] ?? "?"} games`) && (game === null || at.buildsFew.includes(`patch ${game} `)) && at.buildsParts.length === 0, { line: at.buildsFew, game });
   }
   fact("the builds name no player: no Riot ID or account id in them, one champion or two", !at.buildsIdentity && !(dual?.buildsIdentity ?? false), { at: at.buildsIdentity, dual: dual?.buildsIdentity ?? null });
   if (dual !== undefined && dual.buildsLevel !== null) fact("Compare: each champion's builds on one row after R, level in both columns", dual.buildsLevel === true, { level: dual.buildsLevel });
-  fact("Matchup Intel's old address lands on Champion Intel, carrying its enemy (vs)", legacy.url === "/lookup?champion=Mordekaiser" && legacy.champion === "Mordekaiser" && legacy.heading === "Champion Intel", { url: legacy.url, champion: legacy.champion });
+  // Changed on 27 Nov 2026 (Matchup Intel back inside Champion Intel's Compare): both champions and the lane.
+  fact("Matchup Intel's old address lands on Champion Intel's Compare with both champions and its lane (champion, vs, role)", legacy.url === "/lookup?champion=Riven&champion2=Mordekaiser&lane=TOP" && legacy.champion === "Riven" && legacy.secondChampion === "Mordekaiser" && legacy.heading === "Champion Intel", { url: legacy.url, champion: legacy.champion, second: legacy.secondChampion });
   fact("no timer, countdown, ready time or \"verified\" anywhere on the page", !at.timerWords && !hastedRead.timerWords, null);
   return out;
 }

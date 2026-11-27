@@ -2,7 +2,7 @@ import { NextResponse, type NextRequest } from "next/server";
 import { missingProductionSetup, requiresAccounts } from "@/server/auth/mode";
 import { legacyMatchupRedirect } from "@/components/champion-lookup/address";
 
-/** Matchup Intel's address (retired 23 Nov 2026), whose every link leads to Champion Intel. */
+/** Matchup Intel's old address (its own page retired 23 Nov 2026; Matchup Intel lives in Champion Intel's Compare since 27 Nov 2026), whose every link leads to Champion Intel. */
 const MATCHUP_INTEL_PATH = "/resources/matchups";
 
 /**
@@ -24,8 +24,8 @@ function isPublic(pathname: string): boolean {
 
 export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
-  // Matchup Intel's old links: one permanent redirect to Champion Intel, carrying one champion
-  // (the enemy, `vs`, then `champion`, `vs2`, `ally`: legacyMatchupRedirect), answered here as an
+  // Matchup Intel's old links: one permanent redirect to Champion Intel, carrying both champions
+  // and the lane (`champion`, `vs`, `role`; one of them alone, or `vs2`, `ally`: legacyMatchupRedirect), answered here as an
   // HTTP 308 before any page renders, so no page streams a client-side redirect. Champion Intel
   // checks who may open it, signed out included (this proxy again, on /lookup).
   if (pathname === MATCHUP_INTEL_PATH) {

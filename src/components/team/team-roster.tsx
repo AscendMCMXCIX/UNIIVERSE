@@ -186,14 +186,16 @@ export function RosterCard({ slot, championsById, canManageLineup, editingLineup
             {/* Under 9.75rem, which only larger text makes, the pool's name wraps instead of ending in
                 "…" ("SUPPO…" at 200% on a 320px phone): the count stays beside it while its longest
                 word fits there, otherwise it takes a line of its own, still on the right. */}
-            <p className="flex items-center justify-between text-2xs font-medium uppercase tracking-label text-fg-subtle @max-[9.75rem]/card:flex-wrap">
+            {/* The pool's label in sentence case ("Top pool": Release 19, D4), secondary; its count tertiary beside it. */}
+            <p className="label-text flex items-center justify-between @max-[9.75rem]/card:flex-wrap">
               <span className="truncate @max-[9.75rem]/card:min-w-min @max-[9.75rem]/card:grow @max-[9.75rem]/card:basis-0 @max-[9.75rem]/card:whitespace-normal">{roleUnknown ? "Champion" : slot.roleLabel} pool</span>
-              <span className="inline-flex items-center gap-0.5 text-2xs normal-case tracking-normal group-hover/card:text-[var(--card-accent)] @max-[9.75rem]/card:ml-auto">
+              <span className="inline-flex items-center gap-0.5 font-normal text-fg-subtle group-hover/card:text-[var(--card-accent)] @max-[9.75rem]/card:ml-auto">
+                {/* One text node with its space (V1: "6champions" where the count and the word were two flex items). */}
                 {slot.champions.length ? (
-                  <>
+                  <span>
                     {slot.champions.length}
-                    <span className="@max-[15rem]/card:sr-only"> champion{slot.champions.length === 1 ? "" : "s"}</span>
-                  </>
+                    <span className="@max-[15rem]/card:sr-only">{` champion${slot.champions.length === 1 ? "" : "s"}`}</span>
+                  </span>
                 ) : null}
                 <ChevronRight className="h-3.5 w-3.5" aria-hidden />
               </span>
@@ -652,8 +654,8 @@ export function playerDetail({ slot, championsById, canEdit, canViewProfile, pro
   const status = assignmentStatus(p, slot.role);
   const figure = (label: string, value: string, sub: React.ReactNode, tone?: string) => (
     <div className="min-w-0">
-      {/* The window keeps its approved capitals; a figure's label is secondary (25 Nov 2026). */}
-      <dt className="text-2xs font-semibold uppercase tracking-label text-fg-muted">{label}</dt>
+      {/* A figure's label: sentence case, secondary (Release 19, D4). */}
+      <dt className="label-text">{label}</dt>
       <dd className={cn("text-2xl font-bold leading-tight tabular-nums", tone ?? "text-fg")}>{value}</dd>
       <dd className="truncate text-xs tabular-nums text-fg-muted">{sub}</dd>
     </div>
@@ -1105,7 +1107,8 @@ export function TeamRoster({ team, slots, complete, champions, canManageLineup, 
       <header className={cn(LINEUP_WIDTH, "grid grid-cols-[auto_minmax(0,1fr)_auto] items-center gap-x-3 gap-y-2.5 [text-shadow:0_1px_14px_rgb(0_0_0/0.55)] sm:gap-x-4 sm:gap-y-1", !guest && PHONE_HEADER)} data-testid="team-header">
         <BrandMark src={team.logo} still={team.logoStill} name={team.shortName} className={cn("col-start-1 row-start-1 h-12 w-12 shrink-0 rounded-panel text-lg shadow-lg shadow-black/40 ring-1 ring-border-strong sm:row-end-3 sm:h-16 sm:w-16 sm:rounded-card sm:text-2xl lg:h-20 lg:w-20 lg:text-3xl short:h-11 short:w-11 short:rounded-panel short:text-lg", !guest && "max-sm:hidden max-lg:short:hidden")} />
         <div className={cn("col-start-2 col-end-4 row-start-1 min-w-0 sm:col-end-3 sm:self-end", !guest && "max-sm:col-start-1 max-sm:col-end-3 max-lg:short:col-start-1")}>
-          <p className="text-xs font-semibold uppercase tracking-label text-accent max-sm:sr-only short:sr-only">Team Overview</p>
+          {/* The eyebrow in sentence case (Release 19, D4), in the accent and its place as approved. */}
+          <p className="text-xs font-semibold text-accent max-sm:sr-only short:sr-only">Team overview</p>
           <h1 className={cn("truncate text-[1.375rem] font-bold leading-tight tracking-tight text-fg sm:text-3xl lg:text-4xl short:text-xl", !guest && "max-sm:sr-only max-lg:short:sr-only")} data-testid="team-name">
             {team.name}
           </h1>

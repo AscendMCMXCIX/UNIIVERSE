@@ -1,6 +1,6 @@
-import { formatCount, percent } from "@/lib/format";
+import { formatCount, percent, percentRange } from "@/lib/format";
 import { ROLE_LABELS, type Role } from "@/domain/roles";
-import { MIN_CHOICE_GAMES, MIN_PERFORMER_GAMES, MIN_SECTION_GAMES, type BuildChoice, type FullBuildValue, type RoleBuilds } from "./champion-builds";
+import { FIRM_WIN_RATE_GAMES, MIN_CHOICE_GAMES, MIN_PERFORMER_GAMES, MIN_SECTION_GAMES, type BuildChoice, type BuildQueueKey, type FullBuildValue, type RoleBuilds } from "./champion-builds";
 
 /*
   Champion Intel's builds in words (docs/CHAMPION_INTEL.md, "Builds and runes"): the section's
@@ -19,8 +19,12 @@ export const SOURCE_TIP = "Counted from the games of the team's stored matches (
 export const RANK_TIP = "Riot's game records hold no rank, so these games are not filtered by rank.";
 /** The "Most common" view, explained. */
 export const MOST_COMMON_TIP = `The choice made in the most games, among those made in at least ${MIN_CHOICE_GAMES} games and a tenth of them.`;
-/** The "Highest win rate" view, explained. */
-export const HIGHEST_TIP = `Among choices made in at least ${MIN_PERFORMER_GAMES} games, the one that won most allowing for its number of games. Shown only where it differs.`;
+/** The "Highest win rate" view, explained (D6: a choice is said to win more only where chance is ruled out at 99%). */
+export const HIGHEST_TIP = `Among choices of ${MIN_PERFORMER_GAMES} games or more, one that won clearly more than the most common, 99% sure not by chance. Shown only then.`;
+/** The "Win rate" column heading's ⓘ: why some are quieter, and where each one's likely range is. */
+export const WIN_RATE_TIP = `Win rates from fewer than ${FIRM_WIN_RATE_GAMES} games are greyed: they swing a lot. Each one's ⓘ gives its likely range.`;
+/** Said to a screen reader after a win rate from fewer than FIRM_WIN_RATE_GAMES games (drawn quieter). */
+export const SMALL_SAMPLE_WORDS = "(small sample)";
 
 export type BuildPartKey = "runes" | "shards" | "spells" | "skills" | "start" | "boots" | "core";
 
@@ -56,14 +60,16 @@ const PART_NOUN: Record<BuildPartKey, { choice: string; recorded: string }> = {
 const pct = (x: number) => percent(x, 0);
 const games = (n: number) => `${formatCount(n)} game${n === 1 ? "" : "s"}`;
 
-/** The queues as the source line names them: "Draft and Ranked", "Ranked", "Draft, Ranked and Clash". */
-export function queueWords(queues: readonly number[]): string {
-  const names = [queues.includes(400) ? "Draft" : null, queues.some((q) => q === 420 || q === 440) ? "Ranked" : null, queues.includes(700) ? "Clash" : null].filter((x): x is string => !!x);
-  if (!names.length) return "Draft and Ranked";
-  return names.length === 1 ? names[0]! : `${names.slice(0, -1).join(", ")} and ${names.at(-1)}`;
-}
+/** The queues as the page names them (the queue choice; src/server/players/match-history.ts names them the same, copied here because a page's module may not import a server one). */
+export const QUEUE_LABELS: Record<BuildQueueKey, string> = { solo: "Ranked Solo/Duo", flex: "Ranked Flex", draft: "Normal Draft", clash: "Clash" };
 
-export const QUEUE_TIP = "Normal Draft, Ranked Solo/Duo, Ranked Flex and Clash games count. Swiftplay, Quickplay, Blind Pick and ARAM do not.";
+/** The queue choice's ⓘ (D5: one queue at a time, never pooled). */
+export const QUEUE_TIP = "Each queue is counted on its own and never mixed. Swiftplay, Quickplay, Blind Pick and ARAM are not counted.";
+
+/** The queue choice's accessible name. */
+export function queueSelectLabel(championName: string): string {
+  return `${championName}'s builds: queue`;
+}
 
 /**
  * "patch 26.22", or "patches 26.21–26.22" with the previous patch added; where the current patch has
@@ -91,15 +97,20 @@ export function gamesTip(b: Pick<RoleBuilds, "games" | "timelineGames" | "teamGa
   return `Runes and spells come from all ${formatCount(b.games)} games; items and skills from the ${formatCount(b.timelineGames)} with a timeline. ${formatCount(b.teamGames)} are the team's own.`;
 }
 
-/** The whole source line in words ("From 143 games in the team's matches · patch 26.23 · all ranks · Draft and Ranked"), as the section shows it. */
-export function sourceWords(b: Pick<RoleBuilds, "games" | "patches" | "currentGames" | "queues">): string {
-  return `${gamesWords(b)} in the team's matches · ${patchWords(b)} · all ranks · ${queueWords(b.queues)}`;
+/** The whole source line in words ("From 143 games in the team's matches · patch 26.23 · all ranks"), as the section shows it: its queue is the queue choice beside it. */
+export function sourceWords(b: Pick<RoleBuilds, "games" | "patches" | "currentGames">): string {
+  return `${gamesWords(b)} in the team's matches · ${patchWords(b)} · all ranks`;
 }
 
-/** One choice's record in plain words: how often it won, in how many games, and how many of the part's games made it. */
-export function choiceTip(part: BuildPartKey, c: Pick<BuildChoice<unknown>, "winRate" | "games" | "share" | "total">): string {
+/** One choice's record in plain words: how often it won, in how many games, its likely range, and how many of the part's games made it. */
+export function choiceTip(part: BuildPartKey, c: Pick<BuildChoice<unknown>, "winRate" | "games" | "share" | "total" | "range">): string {
   const noun = PART_NOUN[part];
-  return `Won ${pct(c.winRate)} of the ${games(c.games)} with ${noun.choice}; ${pct(c.share)} of the ${games(c.total)} ${noun.recorded} made it.`;
+  return `Won ${pct(c.winRate)} of ${games(c.games)} with ${noun.choice}, likely ${percentRange(c.range.low, c.range.high)}. ${pct(c.share)} of ${games(c.total)} ${noun.recorded} made it.`;
+}
+
+/** Whether a choice's win rate is firm enough to draw in the figures' colour (else quieter, said so). */
+export function firmWinRate(c: Pick<BuildChoice<unknown>, "games">): boolean {
+  return c.games >= FIRM_WIN_RATE_GAMES;
 }
 
 /** The win rate and the pick rate as a row shows them. */
@@ -124,14 +135,19 @@ export function fullTip(f: FullBuildValue, highest = false): string {
     : `${core}, then the item most often bought fourth after them (${fourth}).`;
 }
 
-/** The empty section, honestly: the current patch has too few games of this champion in any role. */
-export function fewWords(currentPatch: string): string {
-  return `Not enough games on patch ${currentPatch} in the team's matches yet`;
+/** The empty section, honestly: the current patch has too few games of this champion in any role of the queue. */
+export function fewWords(queue: BuildQueueKey, currentPatch: string): string {
+  return `Not enough ${QUEUE_LABELS[queue]} games on patch ${currentPatch} in the team's matches yet`;
 }
 
-export function fewTip(games: number, role: Role | null): string {
+export function fewTip(games: number, role: Role | null, queue: BuildQueueKey): string {
   const seen = role && games > 0 ? `${formatCount(games)} as ${ROLE_LABELS[role]} on this patch and the one before` : "none on this patch or the one before";
-  return `Builds show from ${MIN_SECTION_GAMES} games of a champion in one role. The team's matches have ${seen}.`;
+  return `Builds need ${MIN_SECTION_GAMES} games in one role and queue. The team's ${QUEUE_LABELS[queue]} games have ${seen}.`;
+}
+
+/** The offer of another queue that has builds, where the chosen one has too few ("Show Ranked Flex (34 games as Support)"): the reader chooses, nothing switches on its own. */
+export function otherQueueWords(offer: { queue: BuildQueueKey; role: Role; games: number }): string {
+  return `Show ${QUEUE_LABELS[offer.queue]} (${games(offer.games)} as ${ROLE_LABELS[offer.role]})`;
 }
 
 export const UNAVAILABLE_WORDS = "Builds can't be loaded right now.";
@@ -151,4 +167,39 @@ export const FIRST_POINTS_WORDS = "most often first";
 /** The role switch's name. */
 export function roleSwitchLabel(championName: string): string {
   return `${championName}'s builds by role`;
+}
+
+/* The Master+ source (docs/HIGH_ELO_EVIDENCE.md): anonymous counts, weighted, shown apart from the team's. */
+
+/** The queue choice's group names and its one Master+ option, shown only where the page offers Master+. */
+export const TEAM_GROUP = "The team's matches";
+export const MASTER_GROUP = "Master+ ranked games";
+export const MASTER_OPTION = "Ranked Solo/Duo · all regions";
+
+/** What "Master+ games" and "all regions" explain. */
+export const MASTER_WHERE_TIP = "Anonymous counts from Master, Grandmaster and Challenger players' Ranked Solo/Duo games in every region, weighted by each region's players. No player is stored.";
+
+/** "From 1,240 Master+ games": the games observed (the ⓘ says what they are worth once weighted). */
+export function masterGamesWords(b: Pick<RoleBuilds, "observed">): string {
+  return `From ${formatCount(b.observed)} Master+ game${b.observed === 1 ? "" : "s"}`;
+}
+
+/** The weighting in words: the games observed, and what the figures and thresholds use. */
+export function masterGamesTip(b: Pick<RoleBuilds, "observed" | "games">): string {
+  return `${formatCount(b.observed)} games observed, worth ${formatCount(b.games)} as a sample once weighted: figures and thresholds use ${formatCount(b.games)}.`;
+}
+
+/** The Master+ source line ("From 1,240 Master+ games · all regions · patch 26.23"). */
+export function masterSourceWords(b: Pick<RoleBuilds, "observed" | "patches" | "currentGames">): string {
+  return `${masterGamesWords(b)} · all regions · ${patchWords(b)}`;
+}
+
+/** The Master+ source with nothing to show: none counted yet, or too few once weighted. */
+export function masterFewWords(games: number, currentPatch: string): string {
+  return games > 0 ? `Not enough Master+ games on patch ${currentPatch} yet` : `No Master+ games counted on patch ${currentPatch} yet`;
+}
+
+export function masterFewTip(games: number, role: Role | null): string {
+  const seen = role && games > 0 ? `worth ${formatCount(games)} as ${ROLE_LABELS[role]} on this patch and the one before` : "none on this patch or the one before";
+  return `Builds need ${MIN_SECTION_GAMES} games in one role once weighted. The Master+ games counted are ${seen}.`;
 }

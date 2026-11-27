@@ -7,6 +7,7 @@ import { FixtureStaticProvider } from "@/server/riot/static/fixture";
 import { syncStaticData } from "@/server/riot/static/sync";
 import { createPlayer, getOrCreateTeam } from "@/server/repositories/team";
 import { backfillFigures, figuresCoverage } from "@/server/accounts/figures-backfill";
+import { runJob } from "@/server/jobs";
 import { accountRows } from "@/server/accounts/account-rows";
 import { RiotApiClient, type RiotClientOptions } from "@/server/riot/api/client";
 import { RateLimiter } from "@/server/riot/api/rate-limiter";
@@ -166,4 +167,10 @@ describe("figures backfill", () => {
     const by = Object.fromEntries(games.map((g) => [g.matchId, g.multikills]));
     expect(by).toMatchObject({ OC1_FIGS: "3,1,0,1", OC1_HAS: "1,0,0,0", OC1_GONE: "-", OC1_UNAVAILABLE: "-", OC1_2025: null });
   });
+
+  it("the data audit reports the same coverage, so what is left is visible in a read-only report (Release 19)", async () => {
+    const result = await runJob(handle.db, "data-audit", "test");
+    expect(result.ok).toBe(true);
+    expect((result.summary as { figures?: unknown }).figures).toEqual({ games: 5, withFigures: 3, unavailable: 2, pending: 0 });
+  }, 60_000);
 });

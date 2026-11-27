@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { ladderGrid, MIN_DRAWN_SPAN, rankedYearCoverage, rankMovement, rankTimeline, timelineReadings } from "./rank-timeline";
+import { ladderGrid, ladderOf, MIN_DRAWN_SPAN, rankedYearCoverage, rankMovement, rankTimeline, timelineReadings } from "./rank-timeline";
 import type { RankSnapshot } from "./rank-progress";
 
 const D = (m: number, d: number, h = 12) => Date.UTC(2026, m - 1, d, h);
@@ -78,6 +78,82 @@ describe("rankTimeline", () => {
     const t = rankTimeline([snap(D(10, 15), "GOLD", "II", 46, 100, 90), snap(D(10, 16), null, null, null, null, null), snap(D(10, 20), "SILVER", "I", 10, 3, 2)], NOW);
     expect(t.links.map((l) => l.kind)).toEqual(["reset", "reset"]);
     expect(t.markers.map((m) => m.kind)).toEqual(["reset", "placed"]);
+  });
+});
+
+describe("the ranked year's boundary (2026 to 2027)", () => {
+  const Y = (y: number, m: number, d: number, h = 12) => Date.UTC(y, m - 1, d, h);
+  const december = [snap(Y(2026, 12, 20), "GOLD", "II", 40, 150, 140), snap(Y(2027, 1, 2), "GOLD", "I", 10, 151, 140), snap(Y(2027, 1, 4), "GOLD", "I", 30, 152, 140)];
+  const reset = [snap(Y(2027, 1, 8), "IRON", "IV", 0, 0, 0), snap(Y(2027, 1, 10), "IRON", "III", 20, 2, 0)];
+
+  it("keeps an account on 2026 until its own reset reading, whatever the calendar says", () => {
+    const now = Y(2027, 1, 5);
+    const t = rankTimeline(december, now);
+    expect(t.ladder).toMatchObject({ opened: "first" });
+    expect(t.ladder.year.year).toBe(2026);
+    expect(t.readings).toHaveLength(3);
+    // The highest recorded is January's (pre-reset) reading, never below the current rank.
+    expect(t.peak?.label).toBe("Gold I");
+    expect(t.peak?.lp).toBe(30);
+    expect(rankMovement(t, now)?.to.from).toBe(Y(2027, 1, 4));
+    // Past the estimate too (Riot later than the estimate): still 2026 with no reset reading.
+    expect(rankTimeline(december, Y(2027, 1, 20)).ladder.year.year).toBe(2026);
+  });
+
+  it("opens 2027 at the account's reset reading: only the new ladder's readings, its peak, a movement that never crosses the reset", () => {
+    const now = Y(2027, 1, 12);
+    const t = rankTimeline([...december, ...reset], now);
+    expect(t.ladder.year.year).toBe(2027);
+    expect(t.ladder.opened).toBe("reset");
+    expect(t.ladder.from).toBe(Y(2027, 1, 8));
+    expect(t.readings.map((r) => r.label)).toEqual(["Iron IV", "Iron III"]);
+    expect(t.trackingSince).toBe(Y(2027, 1, 8));
+    expect(t.peak?.label).toBe("Iron III");
+    expect(t.from).toBeGreaterThanOrEqual(Y(2027, 1, 8));
+    const m = rankMovement(t, now)!;
+    expect(m.from.label).toBe("Iron IV");
+    expect(m).toMatchObject({ kind: "divisions", amount: 1 });
+    // The figure over the last days (anyYear) keeps every reading and still never crosses the reset.
+    const any = rankTimeline([...december, ...reset], now, { anyYear: true });
+    expect(any.readings).toHaveLength(5);
+    expect(rankMovement(any, now)?.from.label).toBe("Iron IV");
+  });
+
+  it("takes a reset a few days before the estimate (Riot early, or another region's day) as the year's start", () => {
+    const early = [...december.slice(0, 1), snap(Y(2027, 1, 3), null, null, null, null, null), snap(Y(2027, 1, 5), "IRON", "IV", 15, 1, 0)];
+    const t = rankTimeline(early, Y(2027, 1, 6));
+    expect(t.ladder.year.year).toBe(2027);
+    expect(t.readings.map((r) => r.label)).toEqual(["Unranked", "Iron IV"]);
+  });
+
+  it("never ends the year at a reset months before its end (a synthetic one in mid-June)", () => {
+    const june = [snap(Y(2026, 6, 10), "GOLD", "II", 40, 50, 50), snap(Y(2026, 6, 15), "SILVER", "I", 10, 3, 2), snap(Y(2026, 6, 20), "SILVER", "I", 40, 5, 2)];
+    const t = rankTimeline(june, Y(2026, 7, 1));
+    expect(t.ladder.year.year).toBe(2026);
+    expect(t.readings).toHaveLength(3);
+  });
+
+  it("opens nothing at a missing entry that comes back with Riot's count unchanged", () => {
+    const glitch = [snap(Y(2026, 12, 28), "GOLD", "II", 40, 150, 140), snap(Y(2026, 12, 28, 13), null, null, null, null, null), snap(Y(2026, 12, 28, 14), "GOLD", "II", 40, 150, 140)];
+    const t = rankTimeline(glitch, Y(2026, 12, 29));
+    expect(t.ladder.year.year).toBe(2026);
+    expect(t.readings).toHaveLength(3);
+  });
+
+  it("starts an account first read after 2027's first day on 2027 (linked then), and an account with no reading by date", () => {
+    const t = rankTimeline([snap(Y(2027, 2, 10), "SILVER", "II", 30, 12, 9)], Y(2027, 3, 1));
+    expect(t.ladder).toMatchObject({ opened: "date" });
+    expect(t.ladder.year.year).toBe(2027);
+    expect(ladderOf([], [], Y(2027, 3, 1)).year.year).toBe(2027);
+    expect(ladderOf([], [], Y(2026, 12, 31)).year.year).toBe(2026);
+  });
+
+  it("an account first read after the estimate but before a late reset moves to 2027's ladder at that reset", () => {
+    const late = [snap(Y(2027, 1, 9), "GOLD", "II", 40, 150, 140), snap(Y(2027, 1, 14), "IRON", "IV", 0, 0, 0), snap(Y(2027, 1, 15), "IRON", "IV", 20, 1, 0)];
+    const t = rankTimeline(late, Y(2027, 1, 16));
+    expect(t.ladder).toMatchObject({ opened: "reset" });
+    expect(t.readings.map((r) => r.lp)).toEqual([0, 20]);
+    expect(t.peak?.label).toBe("Iron IV");
   });
 });
 
@@ -168,6 +244,23 @@ describe("rankedYearCoverage", () => {
     // 18 Oct unknown, then 18–20 Oct. 17 Oct is not known.
     const c = rankedYearCoverage(rankTimeline(readings, NOW), weeks, NOW);
     expect(c.knownDays).toBe(5);
+  });
+
+  it("counts the year's days to today and no further: never a day past now (the end is exclusive)", () => {
+    const at = Date.UTC(2026, 11, 31, 23, 59);
+    const end = rankedYearCoverage(rankTimeline(readings, at), weeks, at);
+    expect(end.to).toBe(at);
+    // 8 Jan to 31 Dec in Sydney (the installation's zone: 1 Jan there at 23:59 UTC on 31 Dec): 359 days.
+    expect(end.yearDays).toBe(359);
+  });
+
+  it("covers 2027's ladder from the account's reset reading, with 2027's seasons", () => {
+    const at = Date.UTC(2027, 0, 20);
+    const t = rankTimeline([...readings, snap(Date.UTC(2027, 0, 8), "IRON", "IV", 0, 0, 0), snap(Date.UTC(2027, 0, 12), "IRON", "III", 10, 3, 1)], at);
+    const c = rankedYearCoverage(t, [], at);
+    expect(c.from).toBe(Date.UTC(2027, 0, 8));
+    expect(c.seasons.map((s) => s.label)).toEqual(["Season 1"]);
+    expect(c.season?.year).toBe(2027);
   });
 
   it("offers only the seasons begun, and no known days without a reading", () => {

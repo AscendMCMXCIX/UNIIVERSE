@@ -27,7 +27,7 @@ import { RecordGameLink } from "./record-game";
   playing more. Three boards, each a section the page places (leaderboards-dashboard.tsx), each laid
   out by its own width, not the window's, each the active players' own (the 30-day rule, 25 Nov 2026):
     Season records   seven cells in one panel: one column, two from a 34rem panel (the desktop
-                     board's, under Recent form; a tablet's), the last, the streak, across both; each
+                     board's, under Recent form; a tablet's), the streak a cell like the others; each
                      cell measures itself (@container/list), so a record reads the same wherever it
                      is placed (RecordRow);
     Multikills       the multikill score's table: a row per ranked player, the counts per kind and the
@@ -45,14 +45,15 @@ import { RecordGameLink } from "./record-game";
   The records' cells, by the panel's width: a column of cells, two columns from a 34rem panel (the
   desktop board's, under Recent form, 36–55rem: cells of 18–27rem, each in its two-line layout; a
   tablet's or a sideways phone's, cells of 19rem or more in the three-line layout). The seventh (the
-  streak) goes across both columns, so no cell stands empty. A hairline between neighbours: above
+  streak) is a cell like the others (Release 19: across both columns it read as a different kind of
+  record, and its figure stood far from its words), the last row's second place left empty. A hairline between neighbours: above
   every cell but the first row's, and right of each left-hand cell. Each cell (an li) is its own
   @container/list and holds its column template (BOOK_COLS), so its row picks its layout by the
   cell's width, or by the page's from 59rem (the record-two variant, globals.css).
 */
 const RECORD_CELLS = "grid grid-cols-[minmax(0,1fr)] border-t border-border/70 @min-[34rem]/list:grid-cols-2";
 const RECORD_CELL =
-  "@container/list min-w-0 border-border/60 [&:not(:first-child)]:border-t @min-[34rem]/list:[&:nth-child(2)]:border-t-0 @min-[34rem]/list:[&:nth-child(odd):not(:last-child)]:border-r @min-[34rem]/list:[&:last-child:nth-child(odd)]:col-span-2";
+  "@container/list min-w-0 border-border/60 [&:not(:first-child)]:border-t @min-[34rem]/list:[&:nth-child(2)]:border-t-0 @min-[34rem]/list:[&:nth-child(odd):not(:last-child)]:border-r";
 /** What the records count beyond their names, and whose they are: the records' ⓘ (the qualifiers stay on wider cells, and are read out). */
 const RECORDS_TIP = `Records among players active in the last ${LEADERBOARD_ACTIVE_DAYS} days. Per-minute records need ${RECORD_MIN_GAME_S / 60}+ minute games; the KDA record ${KDA_RECORD_MIN_TAKEDOWNS} takedowns.`;
 
@@ -362,7 +363,26 @@ export function Multikills({ records, player, champions, className }: { records:
         headsClassName={cn("hidden @min-[26rem]/list:grid", TABLE_GAP)}
         heads={board.rows.length ? MK_HEADS : undefined}
         title={
-          <BoardTitle id="multikills-title" icon={<Flame className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />} aside={<InfoTip label="How the multikill score works" text={board.explain} testId="multikill-explain" />} note={<span data-testid="multikill-basis">{board.basis}</span>} noteTestId="multikill-note-line">
+          <BoardTitle
+            id="multikills-title"
+            icon={<Flame className="h-4 w-4 shrink-0 text-fg-subtle" aria-hidden />}
+            aside={<InfoTip label="How the multikill score works" text={board.explain} testId="multikill-explain" />}
+            // How many of the season's games the counts come from: on the title's row on a board under 35rem (1366 and 1440, the
+            // multikills' 28-31rem column), where beside the legend it took the legend a second line (Release 19: the board's chrome
+            // was 150px against Recent form's 71, and with eight or nine players the row ran past the window); in the legend's line
+            // from 35rem, where the three parts and it fit one line.
+            end={
+              records.multikillShort ? (
+                <span className="text-xs text-fg-muted" data-testid="multikill-short-title">
+                  {records.multikillShort}
+                </span>
+              ) : null
+            }
+            endClassName="hidden @min-[26rem]/list:@max-[35rem]/list:flex"
+            note={<span data-testid="multikill-basis">{board.basis}</span>}
+            noteTestId="multikill-note-line"
+            noteClassName="@min-[26rem]/list:@max-[35rem]/list:basis-full"
+          >
             Multikills
           </BoardTitle>
         }
@@ -387,7 +407,7 @@ export function Multikills({ records, player, champions, className }: { records:
             </span>
           ))}
           {records.multikillShort ? (
-            <span className="col-span-full justify-self-end text-fg-subtle @min-[26rem]/list:ml-auto" data-testid="multikill-short">
+            <span className="col-span-full justify-self-end text-fg-subtle @min-[26rem]/list:ml-auto @min-[26rem]/list:@max-[35rem]/list:hidden" data-testid="multikill-short">
               {records.multikillShort}
             </span>
           ) : null}
@@ -450,7 +470,8 @@ function MultikillRowItem({ r, p, tie, board, champions }: { r: MultikillRow; p:
       data-games={r.games}
       data-you={r.you || undefined}
       own={r.you}
-      density="compact"
+      // Its height follows the roster (36-40px, the grid's --rank-row: Release 19), as Recent form's beside it.
+      density="rank"
       className={cn("gap-y-0!", TABLE_GAP, FILL_ROW)}
       lead={<Place place={r.place} tie={tie} leader={r.place === 1} testId="multikill-place" className="col-[1/2] row-[1/2] self-center" />}
       link={linked ? <PeekRowLink playerId={p.id} name={p.name} profileHref={p.profileHref!} /> : null}

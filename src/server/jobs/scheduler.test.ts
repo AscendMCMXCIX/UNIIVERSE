@@ -2,8 +2,8 @@ import { describe, expect, it } from "vitest";
 import { TICK_JOB_ORDER, tickJobBudget } from "./scheduler";
 
 describe("scheduler tick budget", () => {
-  it("runs static data first, then the team's account sync and the ranks of the games it collected, with the two backfills last", () => {
-    expect([...TICK_JOB_ORDER]).toEqual(["version-check", "rank-watch", "account-sync", "rank-checks", "integrity", "timeline-backfill", "figures-backfill"]);
+  it("runs static data first, then the team's account sync and the ranks of the games it collected, with the two backfills, then the high-elo sampling (switched off: never due) last", () => {
+    expect([...TICK_JOB_ORDER]).toEqual(["version-check", "rank-watch", "account-sync", "rank-checks", "integrity", "timeline-backfill", "figures-backfill", "high-elo-sample"]);
   });
 
   it("caps each job so one job cannot take the whole tick", () => {

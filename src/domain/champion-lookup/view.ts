@@ -2,6 +2,8 @@ import { patchFromVersion, publicPatchName, comparePatches } from "@/domain/patc
 import { ddragonCooldownDisplay, type CooldownDisplay } from "./cooldown";
 import { costDisplay, type CostDisplay } from "./cost";
 import { mechanicsOf, type MechanicFact } from "./mechanics";
+import { rangeDisplay, type RangeReview, type SpellSlot } from "./range";
+import type { RangeWithPatch } from "./words";
 import { resourceName, statRows, type StatRow } from "./stats";
 import { SLOTS, type ChampionChoice, type DdragonChampionAbilities, type Slot } from "./types";
 
@@ -28,7 +30,9 @@ export interface LookupAbility {
   /** The kinds of mechanic Riot's description names, each with its sentence and where its words stand (mechanicsOf). */
   mechanics: MechanicFact[];
   /** What changed in Riot's data for this ability since the champion's previous stored version, with that version's public patch; null for nothing known. */
-  changed: { sincePatch: string | null; text: boolean; cooldown: boolean; cost: boolean } | null;
+  changed: { sincePatch: string | null; text: boolean; cooldown: boolean; cost: boolean; range: boolean } | null;
+  /** The ability's range where the reviewed table says what Riot's number measures (rangeDisplay, ./range.ts), with the patch it was reviewed on; null for nothing. */
+  range: RangeWithPatch | null;
 }
 
 /** The champion's own facts as the page shows them: Riot's resource and classes, its base statistics. */
@@ -138,8 +142,12 @@ export function lookupFacts(record: DdragonChampionAbilities | null): LookupFact
   };
 }
 
-/** One champion's page from its stored record (null: none stored), in slot order, each ability through the cooldown guard, its cost rule and its mechanics' words. */
-export function lookupChampion(champion: ChampionChoice, record: DdragonChampionAbilities | null, flags: { offline?: boolean; unreadable?: boolean } = {}): LookupChampion {
+/**
+ * One champion's page from its stored record (null: none stored), in slot order, each ability through
+ * the cooldown guard, its cost rule, its mechanics' words and, with the reviewed table's rows for the
+ * champion (`ranges`), the range rule.
+ */
+export function lookupChampion(champion: ChampionChoice, record: DdragonChampionAbilities | null, flags: { offline?: boolean; unreadable?: boolean; ranges?: Partial<Record<SpellSlot, RangeReview>> } = {}): LookupChampion {
   const version = record?.version ?? null;
   const partype = record?.facts?.partype ?? null;
   const abilities = record
@@ -147,7 +155,8 @@ export function lookupChampion(champion: ChampionChoice, record: DdragonChampion
         const a = record.abilities.find((x) => x.slot === slot);
         if (!a) return null;
         const description = typeof a.description === "string" ? a.description : "";
-        const changed = a.changed && typeof a.changed === "object" ? { sincePatch: publicPatchOf(a.changed.since), text: a.changed.text === true, cooldown: a.changed.cooldown === true, cost: a.changed.cost === true } : null;
+        const changed = a.changed && typeof a.changed === "object" ? { sincePatch: publicPatchOf(a.changed.since), text: a.changed.text === true, cooldown: a.changed.cooldown === true, cost: a.changed.cost === true, range: a.changed.range === true } : null;
+        const range = slot === "P" ? null : rangeDisplay({ ...a, slot }, flags.ranges?.[slot] ?? null);
         return {
           slot,
           name: a.name,
@@ -157,7 +166,8 @@ export function lookupChampion(champion: ChampionChoice, record: DdragonChampion
           description,
           cost: costDisplay(a, partype),
           mechanics: mechanicsOf({ slot, description, textHash: a.textHash ?? null }, { id: champion.id, name: champion.name }),
-          changed: changed && (changed.text || changed.cooldown || changed.cost) ? changed : null,
+          changed: changed && (changed.text || changed.cooldown || changed.cost || changed.range) ? changed : null,
+          range: range ? { ...range, reviewedPatch: publicPatchOf(range.reviewedVersion) } : null,
         };
       })
     : null;

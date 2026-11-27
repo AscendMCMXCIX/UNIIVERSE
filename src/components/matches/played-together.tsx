@@ -23,6 +23,7 @@ import { LinkSelect, MemberPicker } from "./match-filters";
 import { MatchRail, MatchResult, matchCardClass } from "@/components/match-history/match-card";
 import { TeamComposition } from "@/components/match-history/team-composition";
 import { MultikillTag } from "@/components/match-history/multikill-tag";
+import { InfoTip } from "@/components/ui/info-tip";
 import { ScoreMark, ScoreMarkEmpty } from "@/components/match-history/score-mark";
 import type { Composition } from "@/server/matches/compositions";
 import type { CardPerformance } from "@/server/players/match-history";
@@ -296,32 +297,26 @@ function TogetherCard({ g, p, champions, teams, scores }: { g: TogetherListGame;
             cards, wrapping where they must (the result's own parts join this line: display:
             contents), clear of the bookmark in the corner (more room on a touch screen, where the
             bookmark is larger). On four columns the bookmark has its own, so the result keeps its
-            column. The Solo/Duo caveat is a line of text under them. On a phone's card the count of
+            column. The Solo/Duo caveat is an ⓘ after the count. On a phone's card the count of
             members is read out only: the rows under it are the members. */}
         <div className={cn("min-w-0 @max-[58rem]/tm:flex @max-[58rem]/tm:flex-wrap @max-[58rem]/tm:items-baseline @max-[58rem]/tm:gap-x-2", bookmark && "@max-[58rem]/tm:pr-9 @max-[58rem]/tm:pointer-coarse:pr-12")}>
           <MatchResult win={g.win} queue={queueLabel(g.queueId)} when={formatDate(new Date(g.gameCreation))} duration={fmtDuration(g.durationS)} lineBelow="teamMatches" className="@max-[58rem]/tm:contents" />
-          <span className={cn("text-xs text-fg-subtle @min-[58rem]/tm:mt-1 @min-[58rem]/tm:block", !g.sharedBy && "@max-[30rem]/tm:sr-only")}>
-            {g.sharedBy ? (
-              <span data-testid="together-shared-by">
-                Shared by {p(g.sharedBy)?.name ?? "a member"}
-              </span>
-            ) : (
-              <span data-testid="together-size">
-                {g.members.length} team members
-              </span>
-            )}
+          {/* Who shared it, or how many members played, with the Solo/Duo caveat's ⓘ after it (S6b's TM2, built in Release 19: a line
+              of text under every such card's result repeated it game after game; its sentence is the ⓘ's description, read out with it). */}
+          <span className="inline-flex min-w-0 items-center gap-1 @min-[58rem]/tm:mt-1 @min-[58rem]/tm:flex">
+            <span className={cn("text-xs text-fg-subtle", !g.sharedBy && "@max-[30rem]/tm:sr-only")}>
+              {g.sharedBy ? (
+                <span data-testid="together-shared-by">
+                  Shared by {p(g.sharedBy)?.name ?? "a member"}
+                </span>
+              ) : (
+                <span data-testid="together-size">
+                  {g.members.length} team members
+                </span>
+              )}
+            </span>
+            {soloCaveat ? <InfoTip label="Not all queued together" text={SOLO_CAVEAT} testId="together-solo-caveat" /> : null}
           </span>
-          {soloCaveat ? (
-            // Whole on a stacked card. In the four columns' narrow result column a short line on
-            // screen that keeps its point, under the queue's own line ("Ranked Solo/Duo"); the whole
-            // sentence read out and in its title.
-            <p className="mt-1 text-xs text-fg-subtle @max-[58rem]/tm:basis-full" title={SOLO_CAVEAT} data-testid="together-solo-caveat">
-              <span className="@min-[58rem]/tm:sr-only">{SOLO_CAVEAT}</span>
-              <span aria-hidden className="hidden @min-[58rem]/tm:inline">
-                Not all queued together
-              </span>
-            </p>
-          ) : null}
         </div>
         <div className="@container/members min-w-0">
           <ul className="grid gap-x-5 gap-y-1.5 @min-[34rem]/members:grid-cols-2 @min-[60rem]/members:grid-cols-3">

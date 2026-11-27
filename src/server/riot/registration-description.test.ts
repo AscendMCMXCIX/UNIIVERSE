@@ -1,14 +1,16 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { FRESH_PATCHES, SHOWN_PATCHES } from "@/domain/matchup/notes";
 
 /*
   The product's description in Riot's Developer Portal must describe every use: "Any new features
   or changes to a product must be audited through the product's page in the Developer Portal"
   (docs/RIOT_COMPLIANCE.md, items 4 and 9). The owner pastes the description from
   RIOT_COMPLIANCE.md. The registered one ("Description for the registration") still names Matchup
-  Intel, retired on 23 Nov 2026; the proposed one names Champion Intel (Champion Lookup until 24 Nov
-  2026) in its place, and docs/CHAMPION_INTEL.md ("For the owner") repeats that part word for word, so the two copies never
+  Intel, retired on 23 Nov 2026; the proposed one (the owner's D1 of 26 Nov 2026) names Champion
+  Intel (Champion Lookup until 24 Nov 2026) in its place, with its builds by queue, ranges, Compare's
+  early-lane band and the high-elo collection (switched off until it is reviewed), and docs/CHAMPION_INTEL.md ("For the owner") repeats that part word for word, so the two copies never
   drift apart, and both keep saying what Riot needs to know about the page.
 */
 
@@ -53,9 +55,42 @@ describe("the registration's description", () => {
     for (const words of ["static reference", "one or two champions chosen by hand", "base cooldowns per rank from Data Dragon", "description", "cost", "base statistics from Data Dragon", "with Riot's sentence for each", "ability haste", "no Riot API request", "no timers or tracking"]) {
       expect(championIntel, words).toContain(words);
     }
-    // Its build totals (25 Nov 2026): what they are counted from (the patch window as the page counts it, the previous patch included where the current has too few), who sees them, and what they are not.
-    for (const words of ["members who may see teammates' statistics", "totals of the rune pages, summoner spells, items and skill orders", "the team's stored completed games", "of the current patch, or of the previous one too where the current has too few", "counts only, no player named", "win rates, pick rates and numbers of games", "not a global sample", "no advice"]) {
+    // Its build totals (25 Nov 2026; by queue and with their uncertainty rule, D5 and D6 of 26 Nov 2026): what they are counted from, who sees them, what they are not,
+    // and the anonymous high-elo collection (D2), switched on only after the description is reviewed.
+    for (const words of [
+      "members who may see teammates' statistics",
+      "totals of the rune pages, summoner spells, items and skill orders",
+      "the team's stored completed games",
+      "one queue at a time",
+      "never mixed",
+      "of the current patch, or of the previous one too where the current has too few",
+      "counts only, no player named",
+      "win rates, likely ranges, pick rates and numbers of games",
+      "not a global sample",
+      "no advice",
+      "only from 30 games",
+      "statistically clear",
+      "anonymous high-elo games",
+      "LEAGUE-V4",
+      "MATCH-V5",
+      "no player identifier, name, Riot ID or match id is stored",
+      "counts older than the previous patch are deleted",
+      "switched on only after this description is reviewed",
+    ]) {
       expect(championIntel, words).toContain(words);
     }
+  });
+
+  // 27 Nov 2026: the text said notes are reviewed "each patch"; the code shows one up to three patches after its review, labelled.
+  it("says how long a reviewed note shows, as the code decides it (domain/matchup/notes noteFreshness), in every copy", () => {
+    expect([FRESH_PATCHES, SHOWN_PATCHES]).toEqual([1, 3]);
+    const clause = "short notes the team's administrators write and review, labelled as reviewed notes with the patch each was reviewed on, marked as not re-checked from the second patch after that review and hidden from the fourth, or at once when Riot's data for either champion changes.";
+    expect(championIntel).toContain(clause);
+    expect(proposed).not.toMatch(/review each patch/);
+    // docs/MATCHUP_INTEL.md quotes the band's sentences, wrapped.
+    const matchupDoc = read("docs/MATCHUP_INTEL.md");
+    const quoted = matchupDoc.slice(matchupDoc.indexOf("> In Compare, for a lane chosen by hand")).split("\n").filter((l, i, all) => all.slice(0, i + 1).every((x) => x.startsWith(">"))).map((l) => l.slice(2)).join(" ");
+    expect(quoted).toContain(clause);
+    expect(championIntel).toContain(quoted);
   });
 });

@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from "./test";
 import { playerEntry } from "./players";
 import { optionsOf, pick, valueOf } from "./select";
-import { RANKED_YEAR } from "../src/domain/ranked-year";
+import { RANKED_YEARS } from "../src/domain/ranked-year";
 
 /*
   R7/R8 on a teammate's profile (demo roster; the rank readings are synthetic demo data, seeded
@@ -71,9 +71,13 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
   await expect(ranked).toBeVisible();
   await openRankedFold(page, info.project.name === "phone");
   await expect(page.getByTestId("ranked-queue-solo")).toHaveAttribute("aria-current", "page");
-  // The ranked year is the app's (domain/ranked-year); the first reading's date is the demo's.
+  // The ranked year is the page's own (the ladder its readings place the account on: 2026 until the
+  // account's reset reading, then 2027), and must be a year the app knows (domain/ranked-year);
+  // the first reading's date is the demo's.
   const tracking = page.getByTestId("ranked-tracking");
-  await expect(tracking).toContainText(new RegExp(`${RANKED_YEAR} Season \\d · rank recorded since \\d{1,2} [A-Z][a-z]{2} \\d{4}`));
+  await expect(tracking).toContainText(/\d{4} Season \d · rank recorded since \d{1,2} [A-Z][a-z]{2} \d{4}/);
+  const ladderYear = Number(/(\d{4}) Season \d · rank recorded/.exec(await tracking.innerText())![1]);
+  expect(RANKED_YEARS.map((y) => y.year), "the season's year is a ranked year the app knows").toContain(ladderYear);
   const since = /rank recorded since (\d{1,2} [A-Z][a-z]{2} \d{4})/.exec(await tracking.innerText())![1]!;
   expect(inDemoWindow(since), `rank recorded since ${since}: within the demo's dates`).toBe(true);
   // No period tabs: the seasons share one ladder, and nothing was read before the first reading.
@@ -120,7 +124,8 @@ test("a profile shows recent form and ranked progress per queue", async ({ page 
   const record = ranked.getByTestId("ranked-record");
   if (await record.count()) {
     await expect(ranked.getByTestId("ranked-record-year")).toBeVisible();
-    await expect(record).toContainText(new RegExp(`^\\d+W \\d+L( · \\d+%)? · ${RANKED_YEAR}`));
+    // The record's year is the tracking line's (one ladder, one year).
+    await expect(record).toContainText(new RegExp(`^\\d+W \\d+L( · \\d+%)? · ${ladderYear}`));
     const lines = await record.evaluate((el) => Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)));
     expect(lines, "the record on one line").toBe(1);
   }

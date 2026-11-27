@@ -7,6 +7,88 @@ UNIIVERSE runs on the free plans of Supabase (the Postgres database) and Vercel 
 
 This page records what caused that, what was changed, how it was measured, and how to check it again. The second pass, after egress reached 7.14 GB on 20 Oct, is the next section.
 
+## 27 Nov 2026: the multikill comparison's own table (migration 0070) and the fairness check
+
+**What changed** (docs/PERFORMANCE.md, "The multikill comparison: the players' counters in their
+own table"): the multikill score's comparison read every season record's players from TOAST storage,
+2,991 ms cold on production (26 Nov); it now reads `match_multikills`, about 200 bytes a counted
+player, kept by the database from the records.
+
+| | Before | After (estimate; the probe and `db-usage` confirm it) |
+|---|---|---|
+| Database time per cold computation | 2,991 ms, about 3,000 random page reads and a 30 MB temporary sort | about 0.1–0.25 s, the table read in sequence; 30–60 ms warm |
+| Vercel Provisioned Memory per cold computation (2 GB × wall time, waiting on the database included) | about 6 GB-s | about 0.4 GB-s |
+| Vercel Active CPU | milliseconds (waiting is not Active CPU) | the same |
+| Egress per computation | about 27 KB | the same 27 KB; recomputed more often (30-minute limit, 10 minutes after a change): under 1 MB a day realistically, 2.6 MB at worst, of the 120 MB a day |
+| Storage | — | about 10–16 MB: 9.75 MB measured for 47,880 rows (7,600 synthetic records of production's shape, heap 7.6 MB plus its key), production's count of counted players unknown here; about +150 KB a day at 75 records a day |
+| Writes | — | about nine small rows per stored record, by the trigger (within the noise of an insert: 1,000 inserts took 403 ms with it and 421 ms without, the design map) |
+
+- **The deploy:** the migration copies every stored record's players once, inside the migration's
+  transaction at the first cold start after the deploy: 1.8 s locally for 7,600 records (busy
+  shared machine), expected about 1–5 s on production. Other cold starts wait on the migration's
+  lock; the sync's inserts wait; reads do not. 0058's and 0069's indexes had the same profile.
+- **No pre-warming:** a cold computation is now a fraction of a second, the Production check opens
+  Leaderboards right after each deploy anyway, and the background tick runs in another instance,
+  whose in-memory cache the page does not share: it would only add reads.
+- **The fairness check** (`multikill-audit`, read only, by hand, never scheduled): one run reads the
+  members' season games (`readLeaderboardGames`, about 0.5–1 MB), the comparison (27 KB) and one
+  statement over `match_multikills` (530 KB on 7,600 synthetic records, about 0.5 MB expected):
+  about **1.5 MB of egress** and a few seconds of database time once, about 1–3 s of Active CPU and a
+  cold start; one Data jobs run (at least 1 billed minute), or Admin's Run check (no Actions minute).
+- **After the deploy** (CLAUDE.md §5; one Data jobs run, about 1 minute of Actions and 6 MB of
+  probe egress): `auth-audit access-audit perf-probe db-usage multikill-audit`. `auth-audit` lists
+  `0070_match_multikills`; `access-audit` finds the backup role reading the new table and the Data
+  API's roles holding nothing, and no callable function; `perf-probe`'s
+  `leaderboards.multikill-baseline` cold well under 300 ms with the same counts as 26 Nov plus new
+  games; `db-usage` gives the table's size.
+
+## 27 Nov 2026: Champion Intel's builds by queue, the builds audit, and the Master+ sampling (switched off)
+
+- **The builds statement counts every queue at once** (D5): each row carries its queue and the most
+  games one player had with its value (worked out inside the database). Its answer grows by about
+  25–70% in rows, each a few bytes longer: 5–20 KB for a popular champion becomes about 7–30 KB. The
+  database time is unchanged (18–44 ms on the demo), it is still one statement per champion and patch
+  window cached six hours (`BUILDS_FORMAT` 2 is a new key: the first day of the release counts each
+  champion opened once more), and **a queue chosen on the page reads nothing**. The page's payload
+  carries up to four queue views (about 4 KB each on the demo, most of them the short "too few" view).
+- **The builds audit** (`builds-audit`, called by the Production check on each run): the candidates
+  statement (only champion-role-queues with 20 games leave the database: under 3 KB on the demo) and
+  up to six counting statements, through the page's own cache key, so they are the page's next reads
+  and none within six hours of the last. About a second of function time and, cold, under 0.2 MB of
+  egress a run; with about 7 runs a day (6 deploys and the daily run) at most about 1.5 MB a day and
+  10 CPU-s. The populated builds facts add one page load and one Swap (a server render) a run.
+- **The Master+ sampling** (`high-elo-sample`): **switched off; it costs nothing** (no request, no
+  write, no interval). Its budgets once on are in docs/HIGH_ELO_EVIDENCE.md, "Budgets": at most
+  12–36 CPU-s and 0.8 GB-h of memory a day hourly (half in the 120-minute pilot), about 25 MB of
+  storage for two patches capped at 40 MB, and at most about 10 MB a day of egress for the page's
+  reads (one champion's counts, cached an hour) plus the job's own reads, about 70 KB a slice (the
+  item data and the abilities' ranks only), at most about 1.7 MB a day hourly. The owner's go-ahead thresholds (Vercel and
+  Supabase readings) are in its "For the owner".
+
+## 27 Nov 2026: Matchup Intel's lane figures (one statement per pair, cached six hours)
+
+**What it reads.** Matchup Intel (docs/MATCHUP_INTEL.md), Champion Intel's Compare with a lane, counts
+how the two players of one lane compared at 10:00 in the team's stored draft games of that pairing:
+ONE statement per pair, role and season, every draft queue at once (`src/server/matchup/lane-query.ts`),
+the records found through the champions' index (`match_details_champions_idx`, both champions' ids
+among a record's), the two seats' timeline entries read inside the database. Per game only anonymous
+numbers leave it: the first 12 frame times and the two seats' gold, experience and CS over them, kill
+and death times before 10:00, two first-blood flags, the patch, the queue, the result. About 0.6–0.8 KB a
+game: a pair with 50 games about 35 KB uncached, most pairs under 20 games (about 14 KB).
+
+**Cached** six hours in Next's data cache, shared by every instance (`unstable_cache`, tag
+`lane-matchups`, dropped by an erasure), keyed by the unordered pair, so Swap and a queue change read
+nothing. The notes: one indexed read, cached ten minutes (tag `matchup-notes`). Admin's queue: one
+aggregate over `account_matches` (about 15 KB), cached an hour.
+
+**Budget.** Eleven members opening about 20 pairs a day, all cold, would be about 7 MB a day at worst;
+with the cache well under 2 MB, against 120 MB a day. Database CPU: a GIN lookup and JSON over at most a
+few hundred records, estimated 20–150 ms cold. The perf probe's `matchup.lane-evidence` step (Ahri vs
+Zed, Mid) measures it cold and warm (about 40 KB more a probe). Vercel CPU: interpolation and statistics
+for at most a few hundred games take a few ms; the band is a server component. The Production check
+adds one page load and one request a run (about one CPU-second). If it ever weighs: a `db-usage` run
+names the statement `with match_details <hash>`, its sample opening "WITH lane_rec AS MATERIALIZED".
+
 ## 26 Nov 2026: Champion Intel's builds and runes (one counting statement per champion, cached six hours)
 
 **What it reads.** Champion Intel's builds (docs/CHAMPION_INTEL.md, "Builds and runes") count what
@@ -279,8 +361,8 @@ This change touches only tests, scripts and docs, so by its own rule it does not
 - **Ranked progress's weekly games query is gone:** one query fewer per Overview with statistics (docs/RANKED_PROGRESS.md; `tests/db/rank-history.test.ts`).
 
 **Not changed here** (each is a follow-up with its own review):
-- **The rank watch's writes.** It writes two locked transactions per account and queue on every reading, about 130 statements a run, even when nothing changed. Batching them would save about 18 s a day, but it touches the LP readings, which have just had a 22-hour gap, so it gets its own review after the overhaul (PLAN S11).
-- **Account sync** reads the rank again although the rank watch read it within 5 minutes, and rewrites every mastery row. About 1 s a day in all: not worth a change in the sync path now (PLAN S11).
+- **The rank watch's writes.** It wrote two locked transactions per account and queue on every reading, about 130 statements a run, even when nothing changed. **Done in Release 19 (27 Nov 2026), "Rank watch writes":** one transaction per account for both queues, both queues' last rows read in one statement and their confirmations moved in one: 6 statements for an unchanged account instead of 10 (40% fewer), the same rows written, the locks taken Solo/Duo then Flex so account sync and the watch never wait on each other in a cycle (`recordRankSnapshots`, `src/server/accounts/rank-history.ts`; `tests/db/rank-history.test.ts`: one transaction per reading, two overlapping runs over both queues store each change once and never move a confirmation back; the rank watch, match LP and rank audit suites unchanged). The saving is about 18 s a day by the earlier estimate; read `rank-audit` after the deploy (the LP figures per day should not change).
+- **Account sync** reads the rank again although the rank watch read it within 5 minutes, and rewrites every mastery row. About 1 s a day in all. **Not changed (Release 19 review):** skipping that read would leave the profile header's "last checked" (`riot_accounts.rank_updated_at`, which only the sync moves on an unchanged rank; the watch writes the account only on a change) and the match window's own-team rank age stale, so the saving needs the watch to write that time on every unchanged reading, the very write the batching above avoids. Not worth it for 1 s a day.
 - **Admin pages left open** re-rendered on every routine job run (0–3 s a day). **Done in S9c (20 Nov 2026):** System Health and Data & Integrations, the two Admin pages with a freshness watcher (`FreshnessWatcher on="return"`), no longer ask on a timer: they read the page again only when the tab is shown or focused again and a job changed something, and on the administrator's own actions (`e2e/auto-update.spec.ts`: half an hour open asks nothing; shown again asks once).
 
 Lengthening the rank watch's interval is **not** a saving. Its calls every 5 minutes keep the jobs function warm, while 10-minute calls start cold, so 10 minutes would cost about 86 s a day. It would also lose LP figures for about 22% of ranked games at 10 minutes and 48% at 15. The 8 Nov check-in found every one of the 10 ranked games since 7 Nov carrying its figure.
@@ -614,7 +696,7 @@ Matchup Intel (then Resources' second tab; a sidebar entry of its own since 18 N
 
 ## What still needs attention
 
-- **Meta & Trends removed** (after this change). Its collection and aggregation jobs were most of the database's writes, and its tables hold about 200 MB of the database. 12 of them (about 206 MB) were dropped on 4 Nov 2026 (#86, after a verified backup); the rest stay until the owner decides (`docs/DATA_PIPELINES.md`, Retired tables).
+- **Meta & Trends removed** (after this change). Its collection and aggregation jobs were most of the database's writes, and its tables hold about 200 MB of the database. 12 of them (about 206 MB) were dropped on 4 Nov 2026 (#86, after a verified backup); the last six on 24 Nov 2026 (migration `0068`, #212's change, with the owner's approval; `docs/DATA_PIPELINES.md`, Retired tables).
 - **Branding images.** The four stored images total about 18 MB (`brand_assets`), each served from the database on a cache miss.
   - Their URLs are versioned and cached for a year, by browsers and by Vercel's CDN.
   - Assumption, not verified here: Vercel's CDN cache is cleared by each production deployment. The 86 reads in 6 days fit that pattern: a few images times the number of deployments and regions. If so, every deployment reads them from Supabase again, several MB each, both as egress and as function response.
@@ -644,3 +726,7 @@ Read-only `data-audit` and `db-usage` runs on 2 Nov 2026 (after the deploy of 8b
 - **What to do:** the held drops (PRs #86 and #138, `docs/DATA_PIPELINES.md`, "Retired tables") free most of it, once the owner has verified a backup and kept an offline copy. Until then nothing is deleted.
 - **Done (4 Nov 2026):** #86 and #138 dropped them, after the owner had verified a backup and kept an offline copy. Production check run 15 then read the database at 161 MB, 32% of the plan, down from 378 MB. Still stored then: `tracked_summoners` (11 MB), the small `region_status`, `champion_change_points` and `stat_*_periods` tables, and the ladder ranks in `last_known_ranks`. Removing them deletes data for good, so it waited for the owner's separate approval: migration `0068` drops them and the last known ranks no stored game names (`docs/DATA_PIPELINES.md`, "Retired tables").
 - **Egress:** 27.2 MB on 2 Nov (budget 120 MB a day), on a day with several manual runs.
+
+## 27 Nov 2026 (Release 19): the Production check's audits
+
+The Production check now calls two protected check jobs before it opens the pages (docs/LIVE_VALIDATION.md, "What it checks"): `leaderboard-audit` (one statement of under 1 KB, one Leaderboards data load, which its games cache answers while the stored history is unchanged and otherwise reads about 0.3 MB, then about 20 views at shifted times in memory: about 1 to 2 CPU-seconds) and the builds lane's `builds-audit`. On a deploy day of up to 6 deploys and the daily run, that is at most about 15 to 25 CPU-seconds and 3 MB a day at worst, against about 480 CPU-seconds and 120 MB. A run's other new facts read pages it already loads, plus four GET requests on the desktop (a teammate's Riot Accounts, My Profile twice, and the jobs endpoint refused at once). Watch the first deploy day's reading in `db-usage` and the Vercel Usage readings (docs/OWNER_ACTIONS.md, item 6).

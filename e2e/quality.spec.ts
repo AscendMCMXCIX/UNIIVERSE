@@ -17,7 +17,7 @@ test.beforeEach(async ({ context, baseURL }) => {
 // Champion Intel: nothing chosen, an ordinary champion at a haste, and one with every kind of special
 // cooldown row (Lee Sin: two abilities in a slot; Teemo: charges), with its descriptions shown by its own spec.
 const PLAYER_ROUTES = ["/team", "/players", "/leaderboards", "/matches", "/overview", "/overview/champions", "/overview/matches", "/resources", "/lookup", "/lookup?champion=Ahri&haste=20", "/lookup?champion=LeeSin&haste=40", "/lookup?champion=Teemo", "/settings"];
-const ADMIN_ROUTES = ["/admin", "/admin/people", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/data", "/admin/system", "/admin/audit", "/admin/settings"];
+const ADMIN_ROUTES = ["/admin", "/admin/people", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/matchup-notes", "/admin/data", "/admin/system", "/admin/audit", "/admin/settings"];
 const SIZES: Array<[number, number]> = [
   [320, 640],
   [375, 667],
@@ -527,7 +527,7 @@ test.describe("sidebar entries", () => {
     await expect(settings).toHaveAttribute("aria-current", "page");
     await expect(settings).toHaveAttribute("href", "/admin/branding");
     const tabs = page.getByTestId("admin-settings-tabs");
-    await expect(tabs.getByRole("link")).toHaveText(["Branding", "Previews", "Resources"]);
+    await expect(tabs.getByRole("link")).toHaveText(["Branding", "Previews", "Resources", "Matchup notes"]);
     await tabs.getByRole("link", { name: "Branding" }).click();
     await expect(page).toHaveURL(/\/admin\/branding$/);
     await expect(settings).toHaveAttribute("aria-current", "page");

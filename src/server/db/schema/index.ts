@@ -9,3 +9,5 @@ export * from "./development";
 export * from "./ranked-improvement";
 export * from "./privacy";
 export * from "./matchup-evidence";
+export * from "./high-elo";
+export * from "./matchup-notes";
