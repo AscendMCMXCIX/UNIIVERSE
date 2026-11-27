@@ -31,6 +31,16 @@ export async function ensureBootstrapped(): Promise<DbHandle> {
   return handle;
 }
 
+/**
+ * The full-roster layout check (UNIIVERSE_DEMO_FULL_ROSTER=1, Release 19): on the in-memory demo only,
+ * decided once here for both of its halves (the substitutes' multikill counts in seedDemoAccounts, the
+ * members in setup in applyFullRosterFixture). On a file (`pnpm dev`'s ./.data) or Postgres demo the
+ * flag does nothing: half of it, written once, outlived the flag there.
+ */
+export function demoFullRoster(mode: DbHandle["mode"], env: Record<string, string | undefined> = process.env): boolean {
+  return env.UNIIVERSE_DEMO_FULL_ROSTER === "1" && mode === "pglite-memory";
+}
+
 async function bootstrap(handle: DbHandle): Promise<void> {
   const db: Db = handle.db;
   const current = await getCurrentPatch(db);
@@ -44,9 +54,11 @@ async function bootstrap(handle: DbHandle): Promise<void> {
     // as such. Never over abilities read from Data Dragon.
     await seedChampionAbilitiesFromFixture(db).catch((err) => console.error("[bootstrap] champion abilities not stored:", err));
     await seedDemoRoster(db);
-    await seedDemoAccounts(db);
-    // Layout checks of a full roster: the two members in setup play too, so nine are active (in-memory demo only).
-    if (process.env.UNIIVERSE_DEMO_FULL_ROSTER === "1" && handle.mode === "pglite-memory") await applyFullRosterFixture(db);
+    // Layout checks of a full roster: the substitutes' games all carry their counts and the two members in setup play too, so
+    // nine are active (in-memory demo only: demoFullRoster).
+    const fullRoster = demoFullRoster(handle.mode);
+    await seedDemoAccounts(db, { fullRoster });
+    if (fullRoster) await applyFullRosterFixture(db);
     // Distinct other players per demo game, with a few recurring ones (synthetic DEMO_ games only).
     if (handle.mode !== "postgres") await applyDemoEncounters(db);
     // Champion Intel's builds: a few champions' games on the current patch, one with two builds (synthetic DEMO_ games only).

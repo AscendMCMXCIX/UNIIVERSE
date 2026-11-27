@@ -50,18 +50,23 @@ export function fitGuardPx(): number {
 /**
  * Where the first screen ends for a list, in the page's coordinates: the window's bottom less the
  * page's bottom padding (`#content`'s, so the page does not scroll) and the guard band. With a
- * `sibling` (the column beside the list's, the Overview's pools) that itself ends further down, the
- * page scrolls anyway, and the list may run to that column's bottom instead: it then shows every row
- * that fits beside it, rather than one or two while the page scrolls past them (large text).
+ * `sibling` (the column beside the list's, the Overview's pools) that itself runs past the window's
+ * bottom less that padding, the page scrolls anyway, and the list may run to that column's bottom
+ * instead: it then shows every row that fits beside it, rather than one or two while the page scrolls
+ * past them (large text). A sibling that ends inside the window, in the guard band included, leaves
+ * the first screen's limit: the page does not scroll for it, so the band stands (a six-row pool drawn
+ * whole for an instant before it folds, after a live resize, ended there and took the rail's last
+ * row into the band: the review of Release 19).
  */
 export function fitLimit(sibling?: string): number {
   const main = document.getElementById("content");
   const pad = main ? parseFloat(getComputedStyle(main).paddingBottom) || 0 : 0;
   // The rows' bottoms are read in the page's coordinates (their box plus the scroll), and the first screen is the page's top.
-  const firstScreen = window.innerHeight - pad - fitGuardPx();
+  const windowEnd = window.innerHeight - pad;
+  const firstScreen = windowEnd - fitGuardPx();
   const beside = sibling ? document.querySelector(sibling) : null;
   const besideBottom = beside && beside.getBoundingClientRect().height > 0 ? beside.getBoundingClientRect().bottom + window.scrollY : -Infinity;
-  return Math.max(firstScreen, besideBottom);
+  return besideBottom > windowEnd ? besideBottom : firstScreen;
 }
 
 /**
@@ -117,7 +122,8 @@ export function FitStyle({ selector, fit }: { selector: string; fit: Fit }) {
 
 /**
  * Measures `ref`'s list while `active()` holds (else null: the CSS tiers stand), again on every resize,
- * whenever `key` changes (the fold opened or closed, the list's size) and once the fonts have loaded. In a layout effect, so the fitted rows are drawn before the browser
+ * whenever `key` changes (the fold opened or closed, the list's size), once the fonts have loaded, and
+ * whenever the page's frame or the `sibling` column changes size. In a layout effect, so the fitted rows are drawn before the browser
  * paints the interactive page.
  */
 export function useFit(ref: React.RefObject<HTMLElement | null>, attribute: string, cssMode: string, active: (el: HTMLElement) => boolean, key: unknown, outer?: string, sibling?: string): Fit | null {
@@ -144,11 +150,17 @@ export function useFit(ref: React.RefObject<HTMLElement | null>, attribute: stri
     const frame = typeof ResizeObserver === "function" ? document.getElementById("content") : null;
     const observer = frame ? new ResizeObserver(() => measure()) : null;
     if (frame) observer?.observe(frame);
+    // The column beside the list as well (the Overview's pools): it changes height without the frame changing size while
+    // the page fits (a six-row pool folding a commit after a resize was measured, an off role opened, Show all), and the
+    // list measures again against it. No loop: the list's rows never change that column's height (the 2×2's pools sit
+    // under the season's card, self-start, whatever the rail beside them holds).
+    const beside = observer && sibling ? document.querySelector(sibling) : null;
+    if (beside) observer?.observe(beside);
     return () => {
       window.removeEventListener("resize", measure);
       observer?.disconnect();
     };
-  }, [measure, key]);
+  }, [measure, key, sibling]);
   return fit;
 }
 

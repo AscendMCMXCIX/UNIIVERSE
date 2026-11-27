@@ -174,7 +174,8 @@ sentence case on 27 Nov 2026, the owner's decision D4), the Admin mode marker an
 eyebrow (`PageHeader`) and the sign-in card's "PRIVATE" (the mode's identity, the owner's decision
 O4), a member's own "wide" name style, and a round pill badge (`rounded-full`). Capitals typed into
 the text itself ("PRIMARY RIOT ID *") are caught too: the same test refuses JSX text with a word of
-four or more capitals outside the abbreviations (ARAM, JPEG…) and its listed exceptions. Capitals use `tracking-label`. `label-caps` (the 11px uppercase label in
+four or more capitals, on a line of its own as well, and a string a JSX expression shows
+(`{required ? "PASSWORD *" : …}`), outside the abbreviations (ARAM, HTTP, JPEG…) and its listed exceptions. Capitals use `tracking-label`. `label-caps` (the 11px uppercase label in
 `tracking-label`) is retired: its utility left globals.css on 26 Nov 2026, once no page used it,
 and `type-hierarchy.test.ts` refuses the class. The team's name as a
 wordmark uses `tracking-wordmark`, and the Team page's backdrop name `tracking-tagline`. Numbers
