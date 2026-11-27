@@ -529,8 +529,9 @@ describe("version-check job and the champion abilities", () => {
   version-check stores each spell's range as Data Dragon gives it, re-reads a record stored under
   format 4, marks a range Riot changed, and counts how the committed table stands against what it
   stored, once per version (and after a deploy that changes the table), never on an unchanged run.
-  Data Dragon's own files for three champions of the untouched sample (Gangplank's Q, E and R and
-  Kog'Maw's E have rows; Riven has none).
+  Data Dragon's own files for three champions of the untouched sample; the reviewed table has a row
+  for each of their twelve spells (27 Nov 2026: five reaches, one Global, three cast on the champion,
+  three none).
 */
 describe("version-check job and the ability ranges", () => {
   const champions = ["Gangplank", "KogMaw", "Riven"] as const;
@@ -574,18 +575,18 @@ describe("version-check job and the ability ranges", () => {
     expect(first).toMatchObject({ ok: true, degraded: false });
     expect((await rangeOf("KogMaw", "E"))!.range).toEqual([1200, 1200, 1200, 1200, 1200]);
     expect((await rangeOf("Riven", "Q"))!.range).toEqual([275, 275, 275, 275, 275]);
-    // Gangplank's Q and E are reaches, his R the whole map, Kog'Maw's E a reach; Riven has no row.
-    expect(first.summary).toMatchObject({ abilityRanges: { version: "16.22.1", shown: 3, global: 1, self: 0, none: 0, changedSinceReview: 0, notReviewed: 8, noRangeYet: 0 } });
+    // Gangplank's Q and E, Kog'Maw's Q and R and Riven's E are reaches, Gangplank's R the whole map; each W is cast on the champion; Kog'Maw's E (unconfirmed) and Riven's Q and R (several abilities) are none.
+    expect(first.summary).toMatchObject({ abilityRanges: { version: "16.22.1", shown: 5, global: 1, self: 3, none: 3, changedSinceReview: 0, notReviewed: 0, noRangeYet: 0 } });
     const summary = first.summary as { abilityRanges: unknown; logs: string[] };
     expect(JSON.stringify(summary.abilityRanges)).not.toMatch(/Gangplank|KogMaw|Riven/);
     const lines = summary.logs.filter((l) => l.startsWith("Ability ranges"));
     expect(lines).toHaveLength(1);
-    expect(lines[0]).toMatch(/^Ability ranges 16\.22\.1: 3 shown, 1 global, 0 cast on the champion \(not shown\), 0 not the reach; 0 hidden until reviewed again; 8 not reviewed \(\d+ rows\)\.$/);
+    expect(lines[0]).toMatch(/^Ability ranges 16\.22\.1: 5 shown, 1 global, 3 cast on the champion \(not shown\), 3 not the reach; 0 hidden until reviewed again; 0 not reviewed \(\d+ rows\)\.$/);
     expect(lines[0]).not.toMatch(/Gangplank|KogMaw|Riven/);
-    expect(await readRangeReviewCounts(job.db)).toMatchObject({ version: "16.22.1", tableHash: RANGE_TABLE_HASH, spells: 12, shown: 3 });
-    // The page: Kog'Maw's E from the stored record and the table, his other spells none.
+    expect(await readRangeReviewCounts(job.db)).toMatchObject({ version: "16.22.1", tableHash: RANGE_TABLE_HASH, spells: 12, shown: 5 });
+    // The page: Kog'Maw's Q and R from the stored record and the table, his W cast on himself, his E and passive none.
     const kog = lookupChampion({ id: "KogMaw", name: "Kog'Maw", title: "", portrait: "" }, (await loadChampionAbilities(job.db, ["KogMaw"])).champions.KogMaw!, { ranges: rangeReviewsFor("KogMaw") });
-    expect(kog.abilities!.map((a) => a.range?.kind ?? null)).toEqual([null, null, null, "reach", null]);
+    expect(kog.abilities!.map((a) => a.range?.kind ?? null)).toEqual([null, "reach", "self", null, "reach"]);
 
     // An unchanged run counts nothing again (one small read of the stored counts).
     const second = await runJob(job.db, "version-check", "test");
@@ -593,7 +594,7 @@ describe("version-check job and the ability ranges", () => {
     expect(await ensureRangeReviewCounts(job.db, "16.22.1")).toBeNull();
     // Stored counts for another table (a deploy that changed it): counted again.
     await job.db.execute(sql`UPDATE app_settings SET value = value || '{"tableHash": "0000000000000000"}'::jsonb WHERE key = 'ability_range_review'`);
-    expect(await ensureRangeReviewCounts(job.db, "16.22.1")).toMatchObject({ tableHash: RANGE_TABLE_HASH, shown: 3 });
+    expect(await ensureRangeReviewCounts(job.db, "16.22.1")).toMatchObject({ tableHash: RANGE_TABLE_HASH, shown: 5 });
   });
 
   it("re-reads a record stored under rules format 4 (no range) on the next run, and nothing shows a range until then", async () => {
@@ -606,21 +607,21 @@ describe("version-check job and the ability ranges", () => {
     expect(await ensureRangeReviewCounts(job.db, "16.22.1", { changed: true })).toMatchObject({ shown: 0, global: 0, noRangeYet: 12 });
     requested.length = 0;
     const run = await runJob(job.db, "version-check", "test");
-    expect(run.summary).toMatchObject({ abilities: { refreshed: 3 }, abilityRanges: { shown: 3, global: 1, noRangeYet: 0 } });
+    expect(run.summary).toMatchObject({ abilities: { refreshed: 3 }, abilityRanges: { shown: 5, global: 1, noRangeYet: 0 } });
     expect((await storedIndex(job.db))!.champions.KogMaw).toMatchObject({ format: ABILITY_RULES_FORMAT });
     expect((await rangeOf("KogMaw", "E"))!.range).toEqual([1200, 1200, 1200, 1200, 1200]);
   });
 
   it("marks a range Riot changed at a new version, and hides it until the table is reviewed again", async () => {
     versions = ["16.23.1", "16.22.1"];
-    moved = { version: "16.23.1", id: "KogMaw", slot: 2, range: [1280, 1280, 1280, 1280, 1280] };
+    moved = { version: "16.23.1", id: "KogMaw", slot: 0, range: [1280, 1280, 1280, 1280, 1280] };
     const run = await runJob(job.db, "version-check", "test");
-    expect(run.summary).toMatchObject({ version: "16.23.1", abilityRanges: { version: "16.23.1", shown: 2, global: 1, changedSinceReview: 1 } });
-    const e = await rangeOf("KogMaw", "E");
+    expect(run.summary).toMatchObject({ version: "16.23.1", abilityRanges: { version: "16.23.1", shown: 4, global: 1, changedSinceReview: 1 } });
+    const e = await rangeOf("KogMaw", "Q");
     expect(e!.range).toEqual([1280, 1280, 1280, 1280, 1280]);
     expect(e!.changed).toEqual({ since: "16.22.1", text: false, cooldown: false, cost: false, range: true });
     const kog = lookupChampion({ id: "KogMaw", name: "Kog'Maw", title: "", portrait: "" }, (await loadChampionAbilities(job.db, ["KogMaw"])).champions.KogMaw!, { ranges: rangeReviewsFor("KogMaw") });
-    expect(kog.abilities![3]!.range).toMatchObject({ kind: "changed", reviewedKind: "reach" });
-    expect(kog.abilities![3]!.changed).toMatchObject({ range: true, text: false });
+    expect(kog.abilities![1]!.range).toMatchObject({ kind: "changed", reviewedKind: "reach" });
+    expect(kog.abilities![1]!.changed).toMatchObject({ range: true, text: false });
   });
 });

@@ -167,11 +167,11 @@ describe("database migrations", () => {
       const before = await tables();
       expect(before).toEqual(expect.arrayContaining(retired));
 
-      // (0069, applied with it, adds an index only; 0070 the players' multikill counters, from the stored record, which has none; 0072 the high-elo tables, empty.)
+      // (0069, applied with it, adds an index only; 0070 the players' multikill counters, from the stored record, which has none; 0071 Matchup Intel's reviewed notes; 0072 the high-elo tables, empty.)
       expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual([drop.tag, "0069_match_details_champions", "0070_match_multikills", "0071_matchup_notes", "0072_high_elo"]);
       const after = await tables();
       expect(before.filter((t) => !after.includes(t))).toEqual(retired);
-      expect(after).toEqual([...before.filter((t) => !retired.includes(t)), "high_elo_counts", "high_elo_cursors", "high_elo_population", "match_multikills"].sort());
+      expect(after).toEqual([...before.filter((t) => !retired.includes(t)), "high_elo_counts", "high_elo_cursors", "high_elo_population", "match_multikills", "matchup_notes"].sort());
       expect(rows(await db.execute(sql`SELECT count(*)::int AS n FROM match_multikills`))).toEqual([{ n: 0 }]);
       expect(rows(await db.execute(sql`SELECT typname FROM pg_type WHERE typname = 'stat_source'`))).toEqual([]);
       // Kept: the champions (the change points referenced them), the stored game, and the ranks of the two players in it.
@@ -425,8 +425,8 @@ describe("database migrations", () => {
       await db.execute(sql`INSERT INTO uniiverse_migrations (tag, hash) VALUES (${next.tag}, ${next.hash})`);
 
       expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual([drop.tag, "0065_rank_confirmations", "0067_match_prep", "0069_match_details_champions", "0070_match_multikills", "0071_matchup_notes", "0072_high_elo"]);
-      // (0067, applied with it, adds Matchup Intel's two evidence tables; 0069 an index only; 0070 the players' multikill counters; 0072 the three high-elo tables.)
-      expect(await tables()).toEqual([...before.filter((t) => t !== "clash_scouts" && t !== "clash_scout_accounts"), "account_match_prep", "high_elo_counts", "high_elo_cursors", "high_elo_population", "match_multikills", "static_digests"].sort());
+      // (0067, applied with it, adds Matchup Intel's two evidence tables; 0069 an index only; 0070 the players' multikill counters; 0071 the reviewed notes; 0072 the three high-elo tables.)
+      expect(await tables()).toEqual([...before.filter((t) => t !== "clash_scouts" && t !== "clash_scout_accounts"), "account_match_prep", "high_elo_counts", "high_elo_cursors", "high_elo_population", "match_multikills", "matchup_notes", "static_digests"].sort());
       // Their indexes went with them; the team and the account that saved the scout stay.
       expect(rows(await db.execute(sql`SELECT indexname FROM pg_indexes WHERE schemaname = 'public' AND indexname LIKE 'clash_scout%'`))).toEqual([]);
       expect(await count("teams")).toBe(1);

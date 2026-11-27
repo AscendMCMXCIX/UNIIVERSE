@@ -278,7 +278,8 @@ describe("migration 0070 on a database that already holds records", () => {
         record("OC1_OLD_2", [], [], { queueId: 400, gameDuration: 900 }),
         record("OC1_OLD_3", [part("d", 100, "BOTTOM", "Jinx", mk(1, 1, 1, 1, 5))], [], { queueId: 1700 }),
       ]);
-      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual(["0070_match_multikills"]);
+      // 0070 and every migration after it (0071 and 0072 add tables of their own).
+      expect((await runMigrations(db, { useAdvisoryLock: false })).applied).toEqual(EMBEDDED_MIGRATIONS.filter((m) => m.tag >= m70.tag).map((m) => m.tag));
       const all = rowsOf<Counted>(await db.execute(sql`SELECT * FROM match_multikills ORDER BY match_id, slot`)).map((r) => [r.match_id, Number(r.slot), r.puuid, r.position, r.champion_id, r.queue_id, r.duration_s, r.team_id, r.team_kills, r.doubles, r.triples, r.quadras, r.pentas, r.largest]);
       expect(all).toEqual([
         ["OC1_OLD_1", 0, "a", "MIDDLE", "Ahri", 420, 1800, 100, 30, 2, 1, 0, 0, 3],
