@@ -64,4 +64,27 @@ describe("the backup script's restore check covers every table (Release 19)", ()
     expect(churn.length).toBeGreaterThan(0);
     for (const table of churn) expect(migrations, table).toMatch(new RegExp(`CREATE TABLE (IF NOT EXISTS )?\\\\?"${table}\\\\?"`));
   });
+
+  it("counts app_settings, the leases' table, as churning (a lease claimed and released while the dump runs is no failure), and still holds its other rows to the range", () => {
+    const churn = /^CHURN="([^"]*)"/m.exec(text)?.[1]?.split(" ") ?? [];
+    expect(churn).toEqual(expect.arrayContaining(["app_settings", "brand_upload_chunks"]));
+    // The rows that are not leases: counted as "settings", range-checked and in the manifest.
+    expect(text).toContain("SELECT 'settings', count(*) FROM public.app_settings WHERE key !~ '$LEASES';");
+    expect(text).toMatch(/for key in tables [^;]* settings; do/);
+    expect(text).toContain('"appSettingsNotLeases": $(value "$AFTER" settings)');
+  });
+
+  it("knows every lease key the app writes (src/server/jobs/background.ts), and no ordinary setting as one", () => {
+    const leases = new RegExp(/^LEASES='([^']*)'$/m.exec(text)?.[1] ?? "^$");
+    const background = readFileSync(path.resolve(__dirname, "../jobs/background.ts"), "utf8");
+    const tick = /const LEASE_KEY = "([^"]+)"/.exec(background)?.[1];
+    expect(tick).toBeTruthy();
+    const helpers = [...background.matchAll(/export const (\w+LeaseKey) = \(\w+: string\) => `([^`$]*)\$\{/g)].map((m) => ({ name: m[1]!, prefix: m[2]! }));
+    // Every *LeaseKey helper is here (a new one fails this until the pattern names it).
+    expect(helpers.map((h) => h.name).sort()).toEqual([...background.matchAll(/export const (\w+LeaseKey)\b/g)].map((m) => m[1]!).sort());
+    expect(helpers.length).toBeGreaterThanOrEqual(3);
+    for (const key of [tick!, ...helpers.map((h) => `${h.prefix}00000000-0000-4000-8000-000000000000`)]) expect(leases.test(key), key).toBe(true);
+    // What is not a lease keeps the range rule.
+    for (const key of ["branding", "tick_lease_note", "ability_range_review", "champion_abilities", "tick-schedule:last-call"]) expect(leases.test(key), key).toBe(false);
+  });
 });
