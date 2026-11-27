@@ -516,12 +516,14 @@ export function evaluateMultikillModels(input: AuditInput, options: { draws?: nu
   let sq = 0;
   let pv = 0;
   let laneOpponentGames = 0;
+  const rankedIndexes = new Set(members.map((m) => m.index));
   for (const c of agg.opponents) {
     const x = m0({ role: roleOfPosition(c.position), championId: c.championId, kills: null, queueId: null, seconds: null, bucket: null });
     const e = pts(x);
     sq += c.pointsSq - 2 * e * c.points + c.games * e * e;
     pv += c.games * var4(x);
-    laneOpponentGames += c.games;
+    // The ranked members' games with a lane opponent (the dispersion reads every member's).
+    if (rankedIndexes.has(c.member)) laneOpponentGames += c.games;
   }
   const od = pv > 0 ? sq / pv : 1;
   const odUsed = Math.max(1, od);
