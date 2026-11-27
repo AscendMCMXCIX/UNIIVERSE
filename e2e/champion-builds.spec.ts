@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "./test";
+import { widenText } from "./wide-text";
 import { expectNoSeriousAxe } from "./axe";
 
 /*
@@ -219,20 +220,29 @@ test("phones at 320 and 390, at 100% and 200% text: nothing wider than the phone
   for (const h of await builds(page).getByTestId("lookup-build-role").getByRole("radio").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) expect(h).toBeGreaterThanOrEqual(44);
 });
 
-test("one champion with its builds still fits one screen at the desktop sizes, the sidebar open and folded", async ({ page, context, baseURL }, info) => {
+test("one champion with its builds still fits one screen at the desktop sizes with room to spare, the sidebar open and folded, and with CI's wider text", async ({ page, context, baseURL }, info) => {
   test.skip(info.project.name !== "desktop", "the desktop");
-  test.setTimeout(120_000);
-  for (const folded of [false, true]) {
+  test.setTimeout(180_000);
+  // Release 19: the board ends at least 12px above the window, and a last pass at 1366 × 768 with CI's wider text (e2e/wide-text.ts):
+  // "Pick rate", "Health regen per 5 s" and the skill order's caption wrapped there with text 2% wider, and the board ran past.
+  for (const pass of ["open", "folded", "wide-open", "wide-folded"] as const) {
+    const folded = pass.endsWith("folded");
+    if (pass === "wide-open") await widenText(page);
     await context.clearCookies({ name: "uniiverse_sidebar" });
     if (folded) await context.addCookies([{ name: "uniiverse_sidebar", value: "collapsed", url: baseURL! }]);
-    for (const [width, height] of [[1366, 768], [1440, 900], [1920, 1080], [2560, 1440]] as const) {
+    const sizes = pass.startsWith("wide") ? ([[1366, 768]] as const) : ([[1366, 768], [1440, 900], [1920, 1080], [2560, 1440]] as const);
+    for (const [width, height] of sizes) {
       await page.setViewportSize({ width, height });
       for (const champion of ["Thresh", "Leona"]) {
         await page.goto(`/lookup?champion=${champion}`);
         await expect(builds(page)).toHaveAttribute("data-status", "shown");
+        await page.evaluate(() => document.fonts.ready);
         const bottom = await page.getByTestId("lookup-board").evaluate((e) => e.getBoundingClientRect().bottom);
-        expect(bottom, `${champion} at ${width} × ${height}${folded ? ", folded" : ""}`).toBeLessThanOrEqual(height);
+        expect(height - bottom, `${champion} at ${width} × ${height}, ${pass}: room under the board`).toBeGreaterThanOrEqual(12);
         expect(await scrollers(page)).toBe(0);
+        // The figures' headings on one line each (they wrapped in their 3.25rem columns with wider text).
+        const heads = await builds(page).getByTestId("lookup-build-head").locator("[role=columnheader]").evaluateAll((els) => els.filter((e) => e.getClientRects().length > 0 && /rate/i.test(e.textContent ?? "")).map((e) => Math.round(e.getBoundingClientRect().height / parseFloat(getComputedStyle(e).lineHeight))));
+        expect(heads.every((lines) => lines <= 1), `${champion} at ${width} × ${height}, ${pass}: "Win rate" and "Pick rate" on one line`).toBe(true);
       }
     }
   }

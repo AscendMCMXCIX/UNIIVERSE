@@ -39,7 +39,8 @@ export type StatLine = ColumnStat;
  * phone's column). Under 7.5rem (a 320px phone at 200% text) the ⓘ takes a line of its own over the
  * headings and the figures a size smaller, so two of them still fit side by side.
  */
-const TABLE = "relative grid grid-cols-2 gap-x-1.5 text-sm @max-[7.5rem]/stats:gap-x-1 @max-[7.5rem]/stats:text-xs @min-[15rem]/stats:grid-cols-[minmax(0,1fr)_3.25rem_3.75rem] @min-[15rem]/stats:gap-x-3";
+/* From 15rem the columns' gap is 8px under 20rem (the 17rem aside at 1366 with the sidebar open), so "Health regen per 5 s" keeps one line with text a hair wider (Release 19: it wrapped, and the board ran past the window), 12px wider. */
+const TABLE = "relative grid grid-cols-2 gap-x-1.5 text-sm @max-[7.5rem]/stats:gap-x-1 @max-[7.5rem]/stats:text-xs @min-[15rem]/stats:grid-cols-[minmax(0,1fr)_3.25rem_3.75rem] @min-[15rem]/stats:gap-x-2 @min-[20rem]/stats:gap-x-3";
 const ROW = "col-span-full grid grid-cols-subgrid items-baseline";
 
 /** The table; its ⓘ in its first heading cell where no heading of its own carries it (a fold's summary cannot hold a button). */
