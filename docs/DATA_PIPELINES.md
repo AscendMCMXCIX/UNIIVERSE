@@ -98,6 +98,21 @@ From the same match and timeline requests as before (no new request, no new endp
 - **Privacy:** an erased player keeps none of it (a "Removed player" keeps only the side and the result, and their timeline entries and frames go: `server/privacy/redact.ts`).
 - **What it costs** (measured on games shaped like Riot's, `tests/db/forward-capture.test.ts`): stored, about 1 KB more per match record and 130–180 bytes per minute of game per timeline (about 3–6 KB for 25–38 minutes); as text, about 4.8 KB per record and 330–400 bytes per minute of timeline. At the rate of 3–7 Nov 2026 (about 75 new account games a day, an upper bound: a game two members played is one record and one timeline) that is at most about 0.5 MB a day of database growth (docs/HOSTING_USAGE.md, "19 Nov 2026"). The champion window reads only the gold, experience and CS series of its two players, as before.
 
+### The players' multikill counters (`match_multikills`, migration 0070, 27 Nov 2026)
+
+Every stored record also writes one row per counted player into `match_multikills`: Riot's position,
+champion, side, kills, the side's champion kills, the four multikill counters and the largest
+multikill, with the game's queue and length. **The database writes it, not the app:** a trigger on
+`match_details` (`AFTER INSERT OR UPDATE OF participants, teams, queue_id, game_duration`) rewrites a
+record's rows whoever writes the record (the sync, the figures backfill, an erasure's redaction, the
+demo seed), and the foreign key's `ON DELETE CASCADE` removes them with it, so the table can never
+disagree with the records. A removed player, and a player whose record has no Riot counters (stored
+before Phase 14, until the figures backfill reaches it), has no row; a value Postgres cannot read as a
+small whole number leaves that player (or that one figure) out and never fails the record's insert.
+The multikill score's comparison and the fairness check read it instead of every record's players
+(docs/PERFORMANCE.md, 27 Nov 2026). Derived data only: rebuilt from the records at any time
+(docs/BACKUPS.md, "The multikill comparison's table").
+
 ### Matchup Intel's evidence rows (20–23 Nov 2026) and the patch digests
 
 - **Champion Intel's builds** (25 Nov 2026, docs/CHAMPION_INTEL.md "Builds and runes") read the

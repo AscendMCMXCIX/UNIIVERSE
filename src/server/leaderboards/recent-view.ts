@@ -339,6 +339,26 @@ interface BoardContext {
   now: Date;
 }
 
+function gamesByPlayer(games: LeaderboardData["games"]): Map<string, LeaderboardData["games"]> {
+  const grouped = new Map<string, LeaderboardData["games"]>();
+  for (const g of games) {
+    const list = grouped.get(g.playerId);
+    if (list) list.push(g);
+    else grouped.set(g.playerId, [g]);
+  }
+  return grouped;
+}
+
+/**
+ * The players every board shows, in the members' order: a counted game and a successful data update
+ * within the last 30 days of `now` (domain/leaderboards, isActivePlayer). The multikill fairness
+ * check (server/leaderboards/multikill-audit) scores exactly these.
+ */
+export function activePlayerIds(data: { players: ReadonlyArray<Pick<LeaderboardPlayer, "id" | "lastSyncedAt">>; games: LeaderboardData["games"] }, now: Date, byPlayer?: ReadonlyMap<string, LeaderboardData["games"]>): string[] {
+  const games = byPlayer ?? gamesByPlayer(data.games);
+  return data.players.filter((p) => isActivePlayer({ lastGameAt: lastCountedGame(games.get(p.id) ?? [], now), lastSyncedAt: p.lastSyncedAt }, now)).map((p) => p.id);
+}
+
 /**
  * Who the boards show and what they share. Active players only (domain/leaderboards, isActivePlayer:
  * a counted game and a successful data update within the last 30 days of `now`, the request's own
@@ -351,8 +371,8 @@ function boardContext(data: LeaderboardData, viewerPlayerId: string | null, opti
   const allIds = data.players.map((p) => p.id);
   const byPlayer = new Map<string, LeaderboardData["games"]>(allIds.map((id) => [id, []]));
   for (const g of data.games) byPlayer.get(g.playerId)?.push(g);
-  const active = data.players.filter((p) => isActivePlayer({ lastGameAt: lastCountedGame(byPlayer.get(p.id)!, now), lastSyncedAt: p.lastSyncedAt }, now));
-  const ids = active.map((p) => p.id);
+  const ids = activePlayerIds(data, now, byPlayer);
+  const active = data.players.filter((p) => ids.includes(p.id));
   const players = Object.fromEntries(active.map((p) => [p.id, { id: p.id, name: p.name, profileHref: profiles ? `/players/${p.id}` : null, avatarUrl: p.avatarUrl, look: p.look }]));
   return { multikillBaseline: options.multikillBaseline ?? null, names, allIds, ids, byPlayer, players, viewer: viewerPlayerId && ids.includes(viewerPlayerId) ? viewerPlayerId : null, basePath, profiles, now };
 }

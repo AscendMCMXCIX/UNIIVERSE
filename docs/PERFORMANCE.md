@@ -494,6 +494,70 @@ inertness and focus containment). `content-visibility` on the list barely helped
 modal is kept for its accessibility; opening a match window on that page still shows one long frame
 (367 ms on the phone profile at 4×, 200 ms on a 1440×900 desktop with the CPU slowed 2×; medians of 3).
 
+## The multikill comparison: the players' counters in their own table (27 Nov 2026)
+
+Team Leaderboards' multikill score compares each member with the other players in the season's
+stored games (docs/TEAM_LEADERBOARDS.md, "The multikill score"). The perf probe after Release 18
+timed that comparison at **2,991 ms cold** on production (21,701 comparison games, 659 role and
+champion groups; 1.5 ms from the in-memory cache), added in full to the page's first byte on a
+cold instance.
+
+- **Where the time went** (`EXPLAIN (ANALYZE, BUFFERS)` on 7,600 production-shaped synthetic
+  records, 2,850 of them in the season, 22,246 comparison players): the statement opened every
+  season record's players (`match_details.participants`, about 8 KB as text and 3 KB compressed,
+  kept out of line in TOAST storage): about one random page read a record, **2,965 pages read on a
+  cold cache**. Production's disk answers a random read in about 1 ms, which is the 3 s. A second,
+  smaller cost: each participant's whole JSON object was carried into the sort, a 30 MB external
+  merge sort on disk with the default 4 MB `work_mem`. Planning (1 ms), JIT (already off) and the
+  counting-rule query (8–12 ms, warm in practice) were not the cause.
+- **What changed** (migration `0070_match_multikills`, additive): `match_multikills`, one row per
+  counted player of each stored record (match, place in the list, PUUID, Riot's position,
+  champion, the game's queue and length, side, kills, the side's champion kills, the four counters
+  and the largest multikill), about 200 bytes a row with its key. The database keeps it itself: a
+  trigger (`AFTER INSERT OR UPDATE OF participants, teams, queue_id, game_duration`) rewrites a
+  record's rows whenever the sync stores it, the figures backfill fills it in or an erasure redacts
+  a player, and the foreign key's `ON DELETE CASCADE` removes them with the record. Every value is
+  cast only when Postgres can read it as a small whole number, so a malformed counter leaves that
+  player out and never fails a record's insert. The migration creates the trigger first and then
+  copies the stored records once, in the same transaction, then `ANALYZE`.
+- **The statement** (`src/server/leaderboards/multikill-baseline.ts`) now reads only that table,
+  the season's match ids and the members' PUUIDs each passed as one text parameter split in SQL,
+  so the planner sees the real number of games: a JSON array always reads as 100 to it, which at
+  four times production's size turned the read into one index probe a game (1,496 random page
+  reads against 3,525 sequential). The answer and its shape (about one row per position and
+  champion, 27 KB in production) are unchanged; `tests/db/match-multikills.test.ts` keeps the
+  26 Nov statement as the reference and requires strictly equal answers on a random history.
+
+| Same data (7,600 records, 22,246 comparison games, 1,023 groups) | Before | After |
+|---|---|---|
+| Statement, warm (this release's code through drizzle, 7 runs, a shared machine) | 220–453 ms, median 327 | 17–51 ms, median 22 |
+| Statement, cold (Postgres restarted, OS cache dropped; the design map's runs) | 396–520 ms, 2,965 pages read, 30 MB temporary sort | 25–33 ms, 872 pages read in sequence, no temporary file |
+| The page's path cold (counting rule, statement, JSON, `buildMultikillBaseline`; the design map) | 622 ms | 95 ms |
+| Pages the statement reads warm (`EXPLAIN`) | 17,695 from cache | 977 from cache, 0 read, 0 temporary |
+
+Expected on production: about 0.1–0.25 s cold and 30–60 ms with the database warm, 1.5 ms from the
+cache; the probe confirms it after the deploy (`leaderboards.multikill-baseline`, whose cold run now
+also forgets the counting rule, as a fresh instance after a deploy does; and
+`leaderboards.multikill-statement`, the statement under `EXPLAIN (ANALYZE, BUFFERS)`: pages from
+cache, read, temporary, and the one table it reads, numbers and table names only). Its note keeps
+the counts of 26 Nov ("21,7xx comparison games · 5 roles · ~659 role and champion groups ·
+counting nested", plus the games stored since): production evidence that the answer is the same.
+
+- **Rejected:** an index on an expression of the players (Postgres recomputed it from the heap and
+  TOAST: no faster); a generated column with a compact summary in `match_details` (rewrites the
+  table under an exclusive lock and grows every other reader's heap); a longer or shared cache on
+  its own (every recompute would still read every record from TOAST, and the first view after a
+  miss, an erasure or a member change would still wait 3 s); pre-warming from the background tick
+  (the tick runs in another instance, whose cache the page does not share).
+- **Cache:** kept per instance, keyed by team, season and the stored history's fingerprint, now
+  30 minutes at most (PRIVACY.md's promise for other instances' caches; it was 6 hours) and
+  recomputed after 10 minutes when the history changed (it was 1 hour). Worst case, a page viewed
+  continuously on one instance: 48 recomputes a day × two pages × 27 KB, about 2.6 MB of egress a
+  day; realistically under 1 MB. Hosting: docs/HOSTING_USAGE.md, "27 Nov 2026".
+- **The fairness check** (`multikill-audit`, by hand) reads the same table: one statement of about
+  250 ms locally for the season (530 KB answer on the synthetic data, about 0.5 MB expected in
+  production), never the records.
+
 ## Stored game records: the champions' index (26 Nov 2026)
 
 Champion Intel's builds (docs/CHAMPION_INTEL.md, "Builds and runes") count, per champion, the

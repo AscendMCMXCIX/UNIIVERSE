@@ -765,3 +765,12 @@ Admin only, apart from Settings' **Sign out of other devices**. The Production c
 - [ ] On a phone, an upright tablet and the installed app: the preview is a sheet with the same content; the position icons are marks, and a tap on one opens that position (elsewhere on the row, the most played); the position choice (44px) shows each position's games, win rate and record and switches; nothing scrolls sideways.
 - [ ] A long preview on a computer (an opponent with many games open, a 1366 × 768 window): the page's own scroll reads it to its end, its header (name, ‹ ›, Close) stays under the tabs, and nothing inside it scrolls on its own.
 - [ ] A teammate's profile works the same, with "their" wording, for members allowed to see teammates' statistics; a personal-use profile stays its player's and the administrators' only.
+
+## The multikill comparison's own table (migration 0070) and the fairness check (27 Nov 2026)
+
+Nothing on screen changes; the checks confirm the same answers, sooner, and record the fairness check's outcome. Counts only in every answer.
+- [ ] The Production check after the deploy: the Leaderboards facts pass unchanged (the multikill table, the first Score's breakdown recomputing the score, the role icon's 1,000+ games).
+- [ ] Data jobs → `auth-audit access-audit perf-probe db-usage multikill-audit` (one run): `auth-audit` lists migrations up to `0070_match_multikills` and no table without RLS; `access-audit` finds the backup role reading every table (`match_multikills` among them) and the Data API's roles holding nothing, and no callable function (the trigger function is not one).
+- [ ] `perf-probe` → `leaderboards.multikill-baseline`: cold well under 300 ms (2,990.9 ms on 26 Nov), warm about 1.5 ms, and the note's counts those of 26 Nov plus the games stored since ("21,7xx comparison games · 5 roles · ~659 role and champion groups · counting nested"). `leaderboards.multikill-statement`: "… reads match_multikills", pages read from disk in the hundreds at most, 0 temporary.
+- [ ] `db-usage`: `match_multikills` about 10–16 MB.
+- [ ] `multikill-audit`: not degraded, `m0MatchesProduction` true, `scope.membersRanked` the board's ranked count, and no name, id, PUUID or match id anywhere in its answer. Record `decision.outcome` and its figures in docs/TEAM_LEADERBOARDS.md ("Fairness evaluation, 27 Nov 2026", "After the audit"); a formula change is never made on this run alone.

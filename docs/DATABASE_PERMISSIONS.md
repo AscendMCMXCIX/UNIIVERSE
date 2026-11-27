@@ -60,7 +60,7 @@ UNIIVERSE keeps both shut for everyone but the owner. Either one alone would kee
 
 ## Permissions matrix
 
-All 73 tables are **private** (68 until migration 0067 added `account_match_prep` and `static_digests`, Matchup Intel's evidence, each with the grants block; both kept when Matchup Intel was retired on 23 Nov 2026, `account_match_prep` read and written by nothing since: docs/CHAMPION_INTEL.md, "What is stored and not shown"; 73 since migration 0072 added the three `high_elo_*` tables, prepared and empty while their collection is switched off: docs/HIGH_ELO_EVIDENCE.md. Other Release 19 migrations add their own; the coordinator's count is the merged tree's). No table is meant to be read through the Data API, by anyone, so every table gets the same database access:
+All 74 tables are **private** (68 until migration 0067 added `account_match_prep` and `static_digests`, Matchup Intel's evidence, each with the grants block; both kept when Matchup Intel was retired on 23 Nov 2026, `account_match_prep` read and written by nothing since: docs/CHAMPION_INTEL.md, "What is stored and not shown"; 71 since migration 0070 added `match_multikills`, the players' multikill counters the database copies from the stored records, with the grants block; 74 since migration 0072 added the three `high_elo_*` tables, prepared and empty while their collection is switched off: docs/HIGH_ELO_EVIDENCE.md. Other Release 19 migrations add their own; the coordinator's count is the merged tree's). No table is meant to be read through the Data API, by anyone, so every table gets the same database access:
 
 | Role | Access to every table |
 |---|---|
@@ -76,7 +76,7 @@ What differs is who sees the data **through the app**. The server decides that (
 |---|---|---|
 | Accounts and sign-in | `users`, `sessions`, `permission_presets`, `user_avatars`, `auth_failures`, `invites` and `activation_codes` (legacy) | Each account sees its own; admins manage accounts. Password hashes, session tokens and throttle keys are stored only as hashes and never leave the server. |
 | Team and players | `teams`, `players`, `player_champion_pools`, `player_role_pools`, `lineups`, `lineup_slots`, `lineup_substitutes`, `player_card_banners`, `player_tags` (retired) | Signed-in members. |
-| Riot accounts and games | `riot_accounts`, `account_matches`, `account_champion_history`, `account_mastery`, `rank_snapshots`, `last_known_ranks`, `match_details`, `match_timelines`, `team_bookmarks` | Signed-in members. |
+| Riot accounts and games | `riot_accounts`, `account_matches`, `account_champion_history`, `account_mastery`, `rank_snapshots`, `last_known_ranks`, `match_details`, `match_multikills` (0070: derived from `match_details` by the database, server-side only), `match_timelines`, `team_bookmarks` | Signed-in members. |
 | Ranked Development (retired) | `ranked_profiles`, `ranked_blocks`, `ranked_games`, `development_objectives`, `development_plans` | Kept, unused, from the retired Ranked Development: players' private sessions, reviews, objectives and plans, until their separate clean-up (docs/RANKED_DEVELOPMENT.md). Grants unchanged. |
 | Static game data | `patches`, `champions`, `champion_skins` | Signed-in members. Nothing personal. |
 | Branding and settings | `app_settings`, `brand_assets`, `brand_upload_chunks` | Everyone sees the published branding. Changing it is for admins. |
@@ -86,7 +86,7 @@ What differs is who sees the data **through the app**. The server decides that (
 - **The public team page is the only anonymous view.** Its server builds it field by field from a fixed allowlist (`src/server/public/team.ts`), reading as the owner like every other page. It never goes through the Data API.
 - **Read-only data stays read-only.** Only the app's own server writes. The backup role can only `SELECT`, and its sessions are read-only.
 - **Sequences.** Three tables use one, for a `serial` id: `audit_events`, `job_runs` and `auth_failures` (the retired Draft's two and `champion_change_points` went with their tables, migrations `0063` and `0068`). The backup role needs `SELECT` on them so `pg_dump` can save their current values. Nobody else needs anything on them.
-- **Views and functions.** There are none in `public`.
+- **Views and functions.** No view. One function, `match_multikills_rows()` (migration 0070), a trigger function (`RETURNS trigger`, fixed `search_path`, not `SECURITY DEFINER`) run by the `match_details` trigger of the same name: it cannot be called on its own, through the Data API or otherwise, so it needs no revoke (`access-audit` and `src/server/db/migration-grants.ts` skip trigger functions). It writes as the role whose statement fired it, the app.
 
 ## How a new table gets its grants
 

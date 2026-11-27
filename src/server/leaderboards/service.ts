@@ -112,14 +112,7 @@ export async function loadLeaderboardData(db: Db, teamId: string): Promise<Leade
   // The newest successful read of a member account (sync_cursor is written on success only; a
   // failed attempt also moves last_sync_at), demo accounts aside: never "updated" at a time nothing was read.
   const lastSync = accounts.filter(isSyncableAccount).reduce<number>((m, a) => Math.max(m, (a.syncCursor ?? 0) * 1000), 0);
-  // Each player's newest successful read (the boards show only players read within 30 days): a
-  // syncable account's cursor, a demo account's seeded time (demo accounts are never read; they
-  // stand for an account that is up to date, as describeAccountSync says of them).
-  const syncedAt = new Map<string, number>();
-  for (const a of accounts) {
-    const at = isSyncableAccount(a) ? (a.syncCursor ?? 0) * 1000 : (a.lastSyncAt?.getTime() ?? 0);
-    if (at > 0 && a.playerId) syncedAt.set(a.playerId, Math.max(syncedAt.get(a.playerId) ?? 0, at));
-  }
+  const syncedAt = lastSyncedByPlayer(accounts);
   const seasons = offeredSeasons(season, games.map((g) => seasonOfPatch(g.patch)));
   const extraSince = games.reduce<number | null>((m, g) => (g.extra && (m === null || g.gameCreation < m) ? g.gameCreation : m), null);
   return {
@@ -135,6 +128,49 @@ export async function loadLeaderboardData(db: Db, teamId: string): Promise<Leade
     memberPuuids: accounts.flatMap((a) => (a.puuid ? [a.puuid] : [])),
     historyKey,
     accountSync: accounts.map((a) => ({ syncStatus: a.syncStatus, syncError: a.syncError, lastSyncAt: a.lastSyncAt, puuid: a.puuid, resolveAttempts: a.resolveAttempts, history: a.historyBackfill, cursor: a.syncCursor, label: a.label })),
+  };
+}
+
+/**
+ * Each player's newest successful read (the boards show only players read within 30 days): a
+ * syncable account's cursor, a demo account's seeded time (demo accounts are never read; they
+ * stand for an account that is up to date, as describeAccountSync says of them).
+ */
+function lastSyncedByPlayer(accounts: ReadonlyArray<Parameters<typeof isSyncableAccount>[0] & { playerId: string | null; syncCursor: number | null; lastSyncAt: Date | null }>): Map<string, number> {
+  const syncedAt = new Map<string, number>();
+  for (const a of accounts) {
+    const at = isSyncableAccount(a) ? (a.syncCursor ?? 0) * 1000 : (a.lastSyncAt?.getTime() ?? 0);
+    if (at > 0 && a.playerId) syncedAt.set(a.playerId, Math.max(syncedAt.get(a.playerId) ?? 0, at));
+  }
+  return syncedAt;
+}
+
+/**
+ * The members, their accounts and their stored games as the page reads them, read only: unlike
+ * loadLeaderboardData it copies no figures and caches nothing, so the multikill fairness check
+ * (jobs/multikill-audit) changes nothing. `memberAccounts` pairs each account's PUUID with its
+ * player, server-side only: never printed, never sent to a page.
+ */
+export async function readLeaderboardSnapshot(db: Db, teamId: string): Promise<Pick<LeaderboardData, "games" | "currentSeason" | "seasons" | "memberPuuids"> & { players: Array<Pick<LeaderboardPlayer, "id" | "name" | "lastSyncedAt">>; memberAccounts: Array<{ puuid: string; playerId: string }> }> {
+  const [members, season] = await Promise.all([listPlayers(db, teamId), currentSeason(db)]);
+  const ids = members.map((p) => p.id);
+  const accounts = ids.length
+    ? await db
+        .select({ id: riotAccounts.id, playerId: riotAccounts.playerId, puuid: riotAccounts.puuid, label: riotAccounts.label, lastSyncAt: riotAccounts.lastSyncAt, syncStatus: riotAccounts.syncStatus, syncCursor: riotAccounts.syncCursor })
+        .from(riotAccounts)
+        .where(and(inArray(riotAccounts.playerId, ids), eq(riotAccounts.ownerType, "player")))
+    : [];
+  const accountIds = accounts.map((a) => a.id).sort();
+  const games = await readLeaderboardGames(db, accountIds, new Map(accounts.map((a) => [a.id, a.playerId!])));
+  const syncedAt = lastSyncedByPlayer(accounts);
+  const memberAccounts = accounts.flatMap((a) => (a.puuid && a.playerId ? [{ puuid: a.puuid, playerId: a.playerId }] : []));
+  return {
+    players: members.map((p) => ({ id: p.id, name: p.displayName, lastSyncedAt: syncedAt.get(p.id) ?? null })),
+    games,
+    currentSeason: season,
+    seasons: offeredSeasons(season, games.map((g) => seasonOfPatch(g.patch))),
+    memberPuuids: memberAccounts.map((a) => a.puuid),
+    memberAccounts,
   };
 }
 

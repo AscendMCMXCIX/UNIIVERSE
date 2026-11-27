@@ -18,6 +18,7 @@ export type JobKey =
   | "data-audit"
   | "skin-audit"
   | "proficiency-audit"
+  | "multikill-audit"
   | "rank-audit"
   | "db-usage"
   | "egress"
