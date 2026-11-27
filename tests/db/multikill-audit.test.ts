@@ -145,9 +145,9 @@ describe("the multikill fairness check", () => {
     expect(a.byKills.reduce((n, r) => n + r.games, 0)).toBe(baseline.all.games);
     expect(new Set(a.byQueue.map((r) => r.queueId))).toEqual(new Set([400, 420]));
     // Both sides' champion kills, as the records' team objectives say, game by game in the order asked.
-    const [first] = (await db.select({ teams: matchDetails.teams }).from(matchDetails).where(sql`${matchDetails.matchId} = ${matchIds[7]!}`)) as Array<{ teams: Array<{ objectives: { champion: number } }> }>;
+    const [first] = await db.select({ teams: matchDetails.teams }).from(matchDetails).where(sql`${matchDetails.matchId} = ${matchIds[7]!}`);
     expect(answer.games).toHaveLength(GAMES);
-    expect(answer.games[7]!.gameKills).toBe(first!.teams[0]!.objectives.champion + first!.teams[1]!.objectives.champion);
+    expect(answer.games[7]!.gameKills).toBe(first!.teams[0]!.objectives.champion! + first!.teams[1]!.objectives.champion!);
     expect(new Set(answer.games.map((g) => g.half))).toEqual(new Set([0, 1]));
     // Each member game's lane opponent (the enemy on the member's position): about one a game.
     const opponentGames = a.opponents.reduce((n, c) => n + c.games, 0);
