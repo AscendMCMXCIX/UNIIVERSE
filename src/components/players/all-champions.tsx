@@ -602,7 +602,9 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   const sectionRef = React.useRef<HTMLElement>(null);
   const perPage = paged ? budget : null;
   const selectedIndex = selectedKey ? rows.findIndex((c) => c.championId === selectedKey) : -1;
-  const { page, go } = usePagedList({ perPage, total: rows.length, selected: selectedKey, selectedIndex, search: q, order: sort, data: data.topChampions });
+  // The filters the list shows (a refresh with new games keeps the page; another filter starts again).
+  const filterKey = `${data.season}|${data.mode}|${f.role ?? ""}|${f.accountId ?? ""}`;
+  const { page, go } = usePagedList({ perPage, total: rows.length, selected: selectedKey, selectedIndex, search: q, order: sort, data: filterKey });
   const pages = perPage === null ? 1 : pageCount(rows.length, perPage);
   const range = perPage === null ? null : pageRange(page, perPage, rows.length);
   // The rows drawn: a page of them in the workspace once measured; else the first twenty, then all
@@ -838,7 +840,9 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
                       line: five touch marks and "In pool" fit the table's narrowest champion column, and
                       five mouse buttons the list beside the pane; only five or four mouse buttons in the
                       table's narrowest column (a window of about 770–1100px) let "In pool" go under them. */}
-                  <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-fg-muted" data-testid="champion-role-line">
+                  {/* In the workspace every row is one height (the "In pool" chip's line, 1rem and its border, with or without
+                      it), so a page of rows measures the same as the next and the pages never shift as they turn. */}
+                  <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-fg-muted ws:min-h-[calc(1rem+2px)]" data-testid="champion-role-line">
                     <RoleIcons row={c} champion={ch.name} active={selectedKey === c.championId ? selRole : null} onPick={(role, keys) => chooseRoleRef.current(c, role, keys)} onAhead={(role) => void previewData.preview(c.championId, role)} />
                     {/* Kept on one line, except in a list under 17rem (a large text size), where it wraps inside the phone. */}
                     {narrowFigure ? (
@@ -969,8 +973,10 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           games and win rates (its own width then sets its layout: the card becomes the container its
           rows and toolbar read), and the pane takes the rest. */}
       {/* The workspace: the layout fills the frame; beside the pane both cards reach its foot (stretched), their footers on one
-          baseline. The pane only where the section holds the opponents' two columns beside the list (WS_PANE_SECTION_REM). */}
-      <div className={cn(split ? "grid items-start gap-4 md:[@media(min-height:30.0625rem)]:@min-[47.5rem]:grid-cols-[minmax(22.5rem,min(32%,24rem))_minmax(0,1fr)] ws:flex-1 ws:grid-cols-1 ws:items-stretch ws:@min-[64.75rem]/section:grid-cols-[minmax(22.5rem,min(32%,24rem))_minmax(0,1fr)]" : "ws:flex ws:flex-1 ws:flex-col")} data-testid="all-champions-layout" data-split={split || undefined}>
+          baseline. The pane only where the section holds the opponents' two columns beside the list (WS_PANE_SECTION_REM). The
+          workspace's grid and column classes are marked important: the flow's (an arbitrary media variant) come later in the
+          stylesheet, and the workspace's must win wherever it applies. */}
+      <div className={cn(split ? "grid items-start gap-4 md:[@media(min-height:30.0625rem)]:@min-[47.5rem]:grid-cols-[minmax(22.5rem,min(32%,24rem))_minmax(0,1fr)] ws:flex-1 ws:grid-cols-1! ws:items-stretch ws:@min-[64.75rem]/section:grid-cols-[minmax(22.5rem,min(32%,24rem))_minmax(0,1fr)]!" : "ws:flex ws:flex-1 ws:flex-col")} data-testid="all-champions-layout" data-split={split || undefined}>
       <div ref={cardRef} className={cn("group/list relative min-w-0 rounded-card border border-border bg-surface panel-depth", split ? "@container ws:flex ws:flex-col" : "ws:flex ws:flex-1 ws:flex-col")} data-split={split || undefined} data-testid="all-champions-table" data-ws-region={range ? "list" : undefined} data-per={perPage ?? undefined} data-page={range ? page : undefined} data-pages={range ? pages : undefined} data-total={range ? rows.length : undefined}>
         {data.topChampions.length ? (
           // Below 76rem the toolbar has the rows' padding, so the search lines up with the champions.
@@ -1119,7 +1125,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
         // scrolls (usePanePlacement: pinned under the section tabs while it fits the window; taller, it
         // moves with the page between the tabs and the window's foot). Nothing in it scrolls on its own;
         // its header (portrait, name, ‹ › and Close) stays pinned under the tabs while the pane passes.
-        <div ref={paneColumnRef} className="hidden min-w-0 self-stretch [overflow-anchor:none] md:[@media(min-height:30.0625rem)]:@min-[47.5rem]:block ws:hidden ws:flex-col ws:@min-[64.75rem]/section:flex" data-testid="champion-preview-column">
+        <div ref={paneColumnRef} className="hidden min-w-0 self-stretch [overflow-anchor:none] md:[@media(min-height:30.0625rem)]:@min-[47.5rem]:block ws:hidden! ws:flex-col ws:@min-[64.75rem]/section:flex!" data-testid="champion-preview-column">
           <div ref={paneSpacerRef} aria-hidden data-pane-spacer />
           {/* The workspace: in the frame, not pinned, its overflow visible (a flex item that clips gets no least height and would cut silently). */}
           <aside ref={paneRef} className="sticky top-[calc(var(--bar-top)+var(--tabs-top)+0.75rem)] min-w-0 overflow-clip rounded-card border border-border bg-surface panel-depth ws:static ws:flex ws:flex-1 ws:flex-col ws:overflow-visible" aria-labelledby="champion-preview-title" data-preview-pane data-testid="champion-preview">

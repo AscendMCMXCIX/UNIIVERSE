@@ -383,7 +383,7 @@ function WorkspaceMatchups({ isOwn, me, role, vs, champ, data, onVs, onMatch, ti
   const firstRow = (slots: ReadonlyArray<Slot<OpponentTally>> | undefined) => slots?.find((x): x is Extract<Slot<OpponentTally>, { kind: "row" }> => x.kind === "row")?.index ?? 0;
   const lastRow = (slots: ReadonlyArray<Slot<OpponentTally>> | undefined) => [...(slots ?? [])].reverse().find((x): x is Extract<Slot<OpponentTally>, { kind: "row" }> => x.kind === "row")?.index ?? 0;
   const { page, go } = usePagedList(
-    { perPage, total: arranged.rows.length, selected: vs, selectedIndex: vs ? arranged.rows.findIndex((o) => o.championId === vs) : -1, search: query, order: sort, data: preview, reset: role },
+    { perPage, total: arranged.rows.length, selected: vs, selectedIndex: vs ? arranged.rows.findIndex((o) => o.championId === vs) : -1, search: query, order: sort, data: data.scopeKey, reset: role },
     pages ? { pageOfIndex: (i) => slotPageOf(pages, i), firstOf: (p) => firstRow(pages[p - 1]), pages: pages.length } : undefined,
   );
   const slots = pages ? (pages[page - 1] ?? []) : null;
@@ -472,7 +472,7 @@ function WorkspaceMatchups({ isOwn, me, role, vs, champ, data, onVs, onMatch, ti
         ) : null}
         <InfoTip text={aboutOpponents(isOwn)} label="About lane opponents" className="self-center" />
       </div>
-      {preview && searchable ? <SearchInput value={query} onChange={setQuery} placeholder="Find an opponent…" label="Find a lane opponent" className="min-w-[9rem] flex-[0_1_14rem]" testId="opponent-search" /> : null}
+      {preview && searchable ? <SearchInput value={query} onChange={setQuery} placeholder="Find an opponent…" label="Find a lane opponent" className="min-w-[9rem] flex-[1_1_9rem]" testId="opponent-search" /> : null}
       {preview && all.length > 1 ? (
         <div role="radiogroup" aria-label="Order the opponents" className={segmentedGroupClass()}>
           {OPPONENT_SORTS.map((s) => (
@@ -481,10 +481,10 @@ function WorkspaceMatchups({ isOwn, me, role, vs, champ, data, onVs, onMatch, ti
               {s.key === "games" ? (
                 s.label
               ) : (
-                <>
+                <span>
                   {s.short}
                   <span className="@max-[43rem]/opp:sr-only"> win rate</span>
-                </>
+                </span>
               )}
             </button>
           ))}
@@ -823,7 +823,7 @@ function WorkspacePairing({ id, me, them, o, role, isOwn, data, onMatch, onBack,
   });
   const perColumn = paged ? budget : null;
   const perPage = perColumn === null ? null : perColumn * columns;
-  const { page, go } = usePagedList({ perPage, total: games.length, selected: null, selectedIndex: -1, search: "", order: null, data: pairing, reset: them.id });
+  const { page, go } = usePagedList({ perPage, total: games.length, selected: null, selectedIndex: -1, search: "", order: null, data: data.scopeKey, reset: them.id });
   const shown = perPage === null ? games : games.slice((page - 1) * perPage, page * perPage);
   const pages = perPage === null ? 1 : pageCount(games.length, perPage);
   const range = perPage === null ? null : pageRange(page, perPage, games.length);
