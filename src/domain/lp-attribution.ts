@@ -172,7 +172,9 @@ export function lpOutcome(before: RankReadingRow, after: RankReadingRow, win: bo
 
 /**
  * The LP record of every game of one account in one queue, from the account's readings in that
- * queue. The caller passes one ranked year's games (domain/ranked-year) and its readings.
+ * queue. The caller passes the ranked years' games (domain/ranked-year) and the readings: Riot's
+ * reset between two years is a reset in the readings, which ends one segment and starts the next,
+ * so no figure crosses it (a game between the two years' readings records "season-reset").
  */
 export function attributeLp(readingRows: readonly RankReadingRow[], games: readonly QueueGame[]): Map<string, LpRecord> {
   const out = new Map<string, LpRecord>();

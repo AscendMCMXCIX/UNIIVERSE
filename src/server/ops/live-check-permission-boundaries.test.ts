@@ -34,9 +34,9 @@ describe("the permission boundary facts", () => {
 
   it("pass with no control offered, and fail on any", () => {
     expect(managementVerdict("desktop", "team", { "edit-lineup": 0, "lineup-sheet-": 0, "lineup-change-": 0 }).status).toBe("PASS");
-    const v = managementVerdict("phone", "profile", { "pools-edit": 0, "profile-editor": 1 });
+    const v = managementVerdict("phone", "profile", { "pools-edit": 1, "pool-remove": 0 });
     expect(v.status).toBe("FAIL");
-    expect(v.detail).toMatchObject({ offered: ["profile-editor"] });
+    expect(v.detail).toMatchObject({ offered: ["pools-edit"] });
     expect(bookmarkVerdict("desktop", { removable: 0, states: 2 }).status).toBe("PASS");
     expect(bookmarkVerdict("desktop", { removable: 1, states: 1 }).status).toBe("FAIL");
   });

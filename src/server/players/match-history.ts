@@ -118,7 +118,7 @@ export interface MatchRow {
   /**
    * The LP the game gained or lost where the account's rank readings prove it, a promotion or
    * demotion, or why it is not recorded (domain/lp-attribution); null outside Ranked Solo/Duo and
-   * Flex of the 2026 ranked year.
+   * Flex of a ranked year UNIIVERSE knows (2026 and 2027: domain/ranked-year).
    */
   lp: LpRecord | null;
   /**

@@ -13,7 +13,8 @@
 /** The controls each page must not offer the verification account, by data-testid prefix. */
 export const MANAGEMENT_CONTROLS = {
   team: ["edit-lineup", "lineup-sheet-", "lineup-change-"],
-  profile: ["pools-edit", "edit-pool-on-profile", "pool-remove", "profile-avatar-edit", "profile-editor", "add-secondary-role", "card-studio", "preview-studio"],
+  // (Not "profile-editor": that is the pools' section, drawn for every viewer; its Edit button is "pools-edit".)
+  profile: ["pools-edit", "edit-pool-on-profile", "pool-remove", "profile-avatar-edit", "add-secondary-role", "card-studio", "preview-studio"],
 };
 
 /**

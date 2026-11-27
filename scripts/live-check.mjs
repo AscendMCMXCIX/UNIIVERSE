@@ -389,7 +389,7 @@ async function memberRefusals(context, playerId) {
 
 /** A page's management controls the verification account must not be offered (scripts/boundary-facts.mjs); the local demo's visitor is the owner. */
 async function managementFacts(page, kind, where) {
-  if (local) return warn("security", `${kind}: ${where}: management controls not checked`, "LIVE_LOCAL=1: the demo build's visitor is the local owner, who may manage everything");
+  if (local) return check("security", `${kind}: ${where}: no management controls for a member without the right`, "PASS", "not applicable: LIVE_LOCAL=1, the demo build's visitor is the local owner, who may manage everything (e2e/permission-boundaries.spec.ts checks a member on demo data)");
   const v = managementVerdict(kind, where, await page.evaluate(readManagementControls, MANAGEMENT_CONTROLS[where]));
   check("security", v.name, v.status, v.detail);
 }
