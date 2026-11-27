@@ -174,10 +174,11 @@
 */
 import { chromium } from "@playwright/test";
 import { AxeBuilder } from "@axe-core/playwright";
-import { redact } from "./redact.mjs";
+import { hideTerms, redact } from "./redact.mjs";
 import { riotKeysOnPage } from "./riot-keys.mjs";
 import { rosterRowLines } from "./roster-lines.mjs";
 import { championLookupVerdicts, readChampionLookup, readChampionWindow } from "./champion-lookup-facts.mjs";
+import { buildsVerdicts, probeFrom, probePath, readBuildsColumns } from "./builds-facts.mjs";
 import { fitVerdicts, postGameVerdicts, readFit, readInspection, readPostGame, switchVerdicts } from "./post-game-facts.mjs";
 import { championPreviewVerdicts, readChampionPreview, readChampionRows, targetRow } from "./champion-preview-facts.mjs";
 import { breakdownKeyboardVerdicts, breakdownVerdicts, MULTIKILL_ROLE_LABEL, multikillVerdicts, readBreakdownFocus, readMultikillBoard, readMultikillBreakdown } from "./multikill-facts.mjs";
@@ -253,7 +254,7 @@ async function deployment() {
       body = null;
     }
     report.deployment = body?.deployment ?? null;
-    report.health = body ? { ok: body.ok === true, db: body.db?.ok ?? null, notices: Array.isArray(body.notices) ? body.notices.length : null, patch: typeof body.patch === "string" ? body.patch : null } : null;
+    report.health = body ? { ok: body.ok === true, db: body.db?.ok ?? null, notices: Array.isArray(body.notices) ? body.notices.length : null, patch: typeof body.patch === "string" ? body.patch : null, highElo: typeof body.highElo?.collection === "string" ? body.highElo.collection : null } : null;
     report.healthNotices = Array.isArray(body?.notices) ? body.notices : [];
     if (!expected || report.deployment?.commit === expected || Date.now() > deadline) break;
     await new Promise((r) => setTimeout(r, 15_000));
@@ -449,8 +450,8 @@ const settle = async (page) => {
 };
 const shot = (page, file, fullPage = false) => page.screenshot({ path: `${out}/${file}.png`, fullPage }).catch(() => {});
 
-/** Opens a page and checks what every page must meet; returns false when it did not load. */
-async function visit(page, log, kind, name, path, { fullPage = true, publicPage = false } = {}) {
+/** Opens a page and checks what every page must meet; returns false when it did not load. `shownPath`: the path written in its place (an address naming the builds audit's champions). */
+async function visit(page, log, kind, name, path, { fullPage = true, publicPage = false, shownPath } = {}) {
   const from = { c: log.console.length, e: log.pageErrors.length, f: log.failed.length };
   const res = await page.goto(`${base}${path}`, { waitUntil: "domcontentloaded", timeout: 45_000 });
   await settle(page);
@@ -467,9 +468,10 @@ async function visit(page, log, kind, name, path, { fullPage = true, publicPage 
   await shot(page, `${kind}-${name}`, fullPage);
   const consoleErrors = log.console.slice(from.c), pageErrors = log.pageErrors.slice(from.e), failed = log.failed.slice(from.f);
   const status = res?.status() ?? 0;
-  report.pages.push({ kind, name, path, status, ...facts, consoleErrors, pageErrors, failed });
+  const said = shownPath ?? path;
+  report.pages.push({ kind, name, path: said, status, ...facts, ...(shownPath ? { at: shownPath } : {}), consoleErrors, pageErrors, failed });
   const loaded = status > 0 && status < 400 && (publicPage || (!facts.at.startsWith("/login") && !facts.at.startsWith("/no-access") && !facts.screen));
-  pass(kind, `${name}: loads${publicPage ? "" : " signed in"} (${path})`, loaded, { status, at: facts.at, ...(facts.screen ? { screen: facts.screen } : {}) });
+  pass(kind, `${name}: loads${publicPage ? "" : " signed in"} (${said})`, loaded, { status, at: shownPath ?? facts.at, ...(facts.screen ? { screen: facts.screen } : {}) });
   if (!loaded) return false;
   pass(kind, `${name}: no sideways scroll`, facts.scrollX <= 1, facts.scrollX);
   pass(kind, `${name}: no page error or app console error`, pageErrors.length + consoleErrors.length === 0, [...pageErrors, ...consoleErrors].slice(0, 3));
@@ -1296,6 +1298,16 @@ async function resourcesFacts(page, kind) {
  * test. It reads nothing beyond what the page itself reads (the session, the cached roster and
  * patch, the chosen champions' stored abilities and their cached build totals).
  */
+/** /api/health's Master+ collection state ("on", "off", or null when it does not say): no page load. */
+function healthHighEloNow() {
+  try {
+    const body = JSON.parse(http("/api/health").text);
+    return typeof body?.highElo?.collection === "string" ? body.highElo.collection : null;
+  } catch {
+    return null;
+  }
+}
+
 /** /api/health's current patch (null when it names none or does not answer): no page load. */
 function healthPatchNow() {
   try {
@@ -1368,7 +1380,92 @@ async function championLookupFacts(page, kind) {
   const legacy = await page.evaluate(readChampionLookup);
   // The patch /api/health names (read at the start against production; a local run asks once here).
   const healthPatch = report.health ? report.health.patch : healthPatchNow();
-  for (const v of championLookupVerdicts({ kind, champion: "Ahri", at, wide, hastedRead, all, search, dual, swapped, removed, stopped, legacy, healthPatch })) check("champion-lookup", v.name, v.status, v.detail);
+  // Whether the Master+ builds' collection is on (/api/health; docs/HIGH_ELO_EVIDENCE.md): off, the page offers no Master+ source.
+  const healthHighElo = report.health ? report.health.highElo : healthHighEloNow();
+  for (const v of championLookupVerdicts({ kind, champion: "Ahri", at, wide, hastedRead, all, search, dual, swapped, removed, stopped, legacy, healthPatch, healthHighElo })) check("champion-lookup", v.name, v.status, v.detail);
+}
+
+/**
+ * CHAMPION INTEL's populated builds (docs/LIVE_VALIDATION.md, "What it checks"; scripts/builds-facts.mjs):
+ * the champions the builds audit found builds for (LIVE_BUILDS_CHAMPIONS, opened from its sealed probe
+ * by the workflow; LIVE_LOCAL=1: the demo's Thresh and Leona), side by side, one page load. Their names
+ * are hidden from everything written. Then, in the page and with no request: the "Highest win rate"
+ * view where offered, each other role, Ranked Flex in the queue choice (and the offer of another
+ * queue where there is one), Ranked Solo/Duo again; then Swap with Ranked Flex chosen (one request).
+ * With no probe (no champion has enough games yet), one WARN, never a failure.
+ */
+async function buildsChampionFacts(page, log, kind) {
+  const probe = probeFrom(process.env.LIVE_BUILDS_CHAMPIONS, local);
+  const healthPatch = report.health ? report.health.patch : healthPatchNow();
+  const say = (input) => {
+    for (const v of buildsVerdicts({ kind, probe, healthPatch, ...input })) check("builds", v.name, v.status, v.detail);
+  };
+  if (!probe.length) return say({});
+  hideTerms(probe.map((p) => p.champion));
+  if (!(await visit(page, log, kind, "builds", probePath(probe), { fullPage: false, shownPath: "/lookup?champion=<builds champion>" }))) return;
+  await page.getByTestId("lookup-view").and(page.locator("[data-ready=true]")).waitFor({ timeout: 20_000 }).catch(() => {});
+  for (let n = 1; n <= probe.length; n++) await page.locator(`[data-panel="${n}"] [data-testid="lookup-builds-view"]`).waitFor({ timeout: 20_000 }).catch(() => {});
+  // Their names as the page writes them (an id is not always the name): hidden too.
+  hideTerms(await page.locator('[data-testid="lookup-name"]').allTextContents().catch(() => []));
+  await axe(page, kind, "builds", "[data-testid=lookup-builds]");
+  const column = (n) => page.locator(`[data-testid="lookup-panel"][data-panel="${n}"] [data-testid="lookup-builds-view"]`);
+  const read = () => page.evaluate(readBuildsColumns);
+  const at = await read();
+  const input = { at, roles: [] };
+  // A page load from here on would drop this mark: the queue's facts say whether one happened.
+  await page.evaluate(() => (window.__buildsMark = true));
+  const one = at.columns[0];
+  try {
+    if (one?.offersHighest) {
+      await column(1).locator('[data-testid="lookup-build-mode"] [data-value="highest"]').click({ timeout: 5_000 });
+      await page.locator('[data-panel="1"] [data-testid="lookup-builds-view"][data-mode="highest"]').waitFor({ timeout: 5_000 });
+      input.highest = await read();
+      await column(1).locator('[data-testid="lookup-build-mode"] [data-value="common"]').click({ timeout: 5_000 });
+    }
+    for (const r of one?.roles.slice(1) ?? []) {
+      await column(1).locator(`[data-testid="lookup-build-role"] [data-value="${r.role}"]`).click({ timeout: 5_000 });
+      await page.locator(`[data-panel="1"] [data-testid="lookup-builds-view"][data-role="${r.role}"]`).waitFor({ timeout: 5_000 });
+      input.roles.push(await read());
+    }
+    if (one && one.roles.length > 1) await column(1).locator(`[data-testid="lookup-build-role"] [data-value="${one.roles[0].role}"]`).click({ timeout: 5_000 });
+  } catch {
+    // A step that did not finish leaves its read undefined: its fact names it.
+  }
+  // The page's queue: the choice in the first column (the desktop's popover), Ranked Flex, then Ranked Solo/Duo.
+  const choose = async (value) => {
+    const control = column(1).getByTestId("lookup-build-queue");
+    if ((await control.evaluate((e) => e.tagName)) === "SELECT") await control.selectOption(value);
+    else {
+      await control.click({ timeout: 5_000 });
+      await page.locator(`[id="${await control.getAttribute("aria-controls")}"] [role=option][data-value="${value}"]`).click({ timeout: 5_000 });
+    }
+    await page.locator(`[data-panel="1"] [data-testid="lookup-builds-view"][data-queue="${value}"]`).waitFor({ timeout: 5_000 });
+  };
+  try {
+    await choose("flex");
+    input.flex = await read();
+    const offer = page.locator('[data-testid="lookup-build-other-queue"]').first();
+    if (await offer.count()) {
+      const to = await offer.getAttribute("data-queue");
+      await offer.click({ timeout: 5_000 });
+      await page.locator(`[data-panel="1"] [data-testid="lookup-builds-view"][data-queue="${to}"]`).waitFor({ timeout: 5_000 });
+      input.offered = await read();
+    }
+    await choose("solo");
+    await page.waitForFunction(() => !new URLSearchParams(location.search).has("queue"), null, { timeout: 5_000 }).catch(() => {});
+    input.back = await read();
+    if (probe.length > 1) {
+      await choose("flex");
+      await page.getByTestId("lookup-swap").click({ timeout: 5_000 });
+      await page.waitForFunction((first) => new URLSearchParams(location.search).get("champion") !== first, probe[0].champion, { timeout: 20_000 });
+      await page.locator('[data-testid="lookup-view"][data-ready=true]').waitFor({ timeout: 20_000 });
+      await page.waitForFunction(() => !document.querySelector('[data-testid="lookup-panel"][aria-busy]'), null, { timeout: 20_000 }).catch(() => {});
+      input.swapped = await read();
+    }
+  } catch {
+    // As above: the facts name the step that could not be read.
+  }
+  say(input);
 }
 
 /**
@@ -2392,6 +2489,8 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
         await championLookupFacts(page, kind);
       }
     });
+    // The builds of champions the team's data has builds for (the builds audit's probe): one page load, one Swap.
+    await guarded("builds", `${kind}: Champion Intel's populated builds`, async () => buildsChampionFacts(page, log, kind));
   }
   // Wide screens in the desktop's own context (signed in already): four pages at 2560 × 1440.
   if (kind === "desktop") await guarded("frame", "the profile's tabs", async () => profileTabsLevel());

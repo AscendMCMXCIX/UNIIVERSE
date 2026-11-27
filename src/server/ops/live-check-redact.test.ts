@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { redact } from "../../../scripts/redact.mjs";
+import { hideTerms, redact } from "../../../scripts/redact.mjs";
 
 /*
   The Production check's live check (scripts/live-check.mjs) writes to a public log, a public
@@ -27,5 +27,14 @@ describe("the live check's redaction", () => {
     for (const line of ["PASS [desktop] team: no sideways scroll  0", "FAIL [security] /players answered 200 (expected a redirect to sign-in)", "team-matches-game-open: no serious or critical axe violation", "deployment 56c4132 · 106 passed, 0 failed, 1 warnings", "PASS [games] desktop: a copied ?match= link opens that game under its card", "PASS [games] phone: Team Matches's open game is in the address (?match=)", "DEMO_1a2b3c4d_7"]) {
       expect(redact(line)).toBe(line);
     }
+  });
+
+  it("takes out, from the moment they are registered, the words a run must not write (the builds audit's champions), as whole words only", () => {
+    expect(redact("/lookup?champion=Thresh")).toBe("/lookup?champion=Thresh");
+    hideTerms(["Thresh", "Kai'Sa", "x", ""]);
+    expect(redact("PASS [builds] desktop: builds loads signed in (/lookup?champion=Thresh&champion2=Kai'Sa)")).toBe("PASS [builds] desktop: builds loads signed in (/lookup?champion=<hidden>&champion2=<hidden>)");
+    expect(redact('{"name":"Thresh"}')).toBe('{"name":"<hidden>"}');
+    // Inside another word, or a one-letter term: left alone.
+    expect(redact("Threshold x-axis")).toBe("Threshold x-axis");
   });
 });

@@ -975,5 +975,19 @@ export const EMBEDDED_MIGRATIONS: EmbeddedMigration[] = [
     "statements": [
       "CREATE INDEX \"match_details_champions_idx\" ON \"match_details\" USING gin ((jsonb_path_query_array(\"participants\", '$[*].championId'))) WITH (fastupdate=false);"
     ]
+  },
+  {
+    "idx": 72,
+    "tag": "0072_high_elo",
+    "hash": "6ad1a55ae48f3c51d993bc67a4297741db9364429181a4ced0a880e03b871b9c",
+    "statements": [
+      "CREATE TABLE \"high_elo_counts\" (\n\t\"champion\" text NOT NULL,\n\t\"patch\" text NOT NULL,\n\t\"role\" text NOT NULL,\n\t\"region\" text NOT NULL,\n\t\"opponent\" text DEFAULT '' NOT NULL,\n\t\"kind\" text NOT NULL,\n\t\"value\" text DEFAULT '' NOT NULL,\n\t\"n\" integer NOT NULL,\n\t\"w\" double precision NOT NULL,\n\t\"w2\" double precision NOT NULL,\n\t\"ww\" double precision NOT NULL,\n\t\"wx\" double precision DEFAULT 0 NOT NULL,\n\t\"wx2\" double precision DEFAULT 0 NOT NULL,\n\tCONSTRAINT \"high_elo_counts_pk\" PRIMARY KEY(\"champion\",\"patch\",\"role\",\"region\",\"opponent\",\"kind\",\"value\")\n);",
+      "CREATE TABLE \"high_elo_cursors\" (\n\t\"platform\" text PRIMARY KEY NOT NULL,\n\t\"window_end\" timestamp with time zone NOT NULL,\n\t\"visits\" integer DEFAULT 0 NOT NULL,\n\t\"games\" integer DEFAULT 0 NOT NULL\n);",
+      "CREATE TABLE \"high_elo_population\" (\n\t\"platform\" text PRIMARY KEY NOT NULL,\n\t\"challenger\" integer NOT NULL,\n\t\"grandmaster\" integer NOT NULL,\n\t\"master\" integer NOT NULL,\n\t\"read_at\" timestamp with time zone NOT NULL\n);",
+      "ALTER TABLE \"high_elo_counts\" ENABLE ROW LEVEL SECURITY;",
+      "ALTER TABLE \"high_elo_cursors\" ENABLE ROW LEVEL SECURITY;",
+      "ALTER TABLE \"high_elo_population\" ENABLE ROW LEVEL SECURITY;",
+      "-- Closed to Supabase's Data API whatever the project's default privileges, and readable by the\n-- backup role where it exists (docs/DATABASE_PERMISSIONS.md). No serial column: no sequence lines.\nDO $$ BEGIN\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'anon') THEN\n    REVOKE ALL ON TABLE public.high_elo_counts FROM anon;\n    REVOKE ALL ON TABLE public.high_elo_cursors FROM anon;\n    REVOKE ALL ON TABLE public.high_elo_population FROM anon;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'authenticated') THEN\n    REVOKE ALL ON TABLE public.high_elo_counts FROM authenticated;\n    REVOKE ALL ON TABLE public.high_elo_cursors FROM authenticated;\n    REVOKE ALL ON TABLE public.high_elo_population FROM authenticated;\n  END IF;\n  IF EXISTS (SELECT 1 FROM pg_roles WHERE rolname = 'uniiverse_backup') THEN\n    GRANT SELECT ON TABLE public.high_elo_counts TO uniiverse_backup;\n    GRANT SELECT ON TABLE public.high_elo_cursors TO uniiverse_backup;\n    GRANT SELECT ON TABLE public.high_elo_population TO uniiverse_backup;\n  END IF;\nEND $$;"
+    ]
   }
 ];

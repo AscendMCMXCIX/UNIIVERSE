@@ -36,6 +36,13 @@ export interface ChampionLookupRead {
   secondChampion: string | null;
   /** The first champion's builds section: "shown", "few", "unavailable", or null (none). */
   buildsStatus: string | null;
+  /** The queue the section counts ("solo", "flex", "draft", "clash"), its source ("team", "master"), the name its queue choice shows, and whether the address names a queue. */
+  buildsQueue: string | null;
+  buildsSource: string | null;
+  buildsQueueShown: string;
+  buildsAddressQueue: boolean;
+  /** Whether the queue choice offers the Master+ source. */
+  buildsMasterOffered: boolean;
   buildsLine: string;
   buildsFew: string;
   /** Each part's row; `trees`: the rune page's tree icons drawn (two where the runes are shown). */
@@ -73,6 +80,9 @@ export interface Verdict {
   detail: unknown;
 }
 
+export const QUEUE_NAMES: Record<"solo" | "flex" | "draft" | "clash", string>;
+export const BUILDS_LINE: RegExp;
+export const FEW_LINE: RegExp;
 export function readChampionLookup(): ChampionLookupRead;
 export function readChampionWindow(): ChampionWindowRead;
 export function hasted(base: number, haste: number): number;
@@ -92,4 +102,6 @@ export function championLookupVerdicts(input: {
   stopped?: "compare" | "swap" | "remove";
   legacy: Pick<ChampionLookupRead, "url" | "champion" | "heading">;
   healthPatch?: string | null;
+  /** /api/health's highElo.collection ("on" or "off"); undefined or null: not said. */
+  healthHighElo?: string | null;
 }): Verdict[];

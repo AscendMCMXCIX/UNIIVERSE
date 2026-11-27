@@ -300,6 +300,24 @@ test("Champion Intel on an iPhone: the search is 16px and a tap on a match choos
   await expect(second).toHaveCount(0);
 });
 
+test("Champion Intel's builds on an iPhone: the queue choice is the phone's own picker, a choice applies with no page load, and the offer of another queue is a 44px target", async ({ page }) => {
+  await page.goto("/lookup?champion=Thresh");
+  const view = page.locator('[data-testid="lookup-panel"][data-panel="1"] [data-testid="lookup-builds-view"]');
+  await expect(view).toHaveAttribute("data-queue", "solo");
+  const queue = view.getByTestId("lookup-build-queue");
+  await expect(queue).toHaveAttribute("data-ready", "true");
+  expect(await queue.evaluate((e) => e.tagName)).toBe("SELECT");
+  await queue.selectOption("flex");
+  await expect(view).toHaveAttribute("data-queue", "flex");
+  await expect(page).toHaveURL(/[?&]champion=Thresh&queue=flex$/);
+  const offer = view.getByTestId("lookup-build-other-queue");
+  expect((await offer.boundingBox())!.height).toBeGreaterThanOrEqual(44);
+  await offer.tap();
+  await expect(view).toHaveAttribute("data-queue", "solo");
+  await expect(page).toHaveURL(/[?&]champion=Thresh$/);
+  await fitsWidth(page, "Champion Intel's builds");
+});
+
 test("Leaderboards on an iPhone: the index brings each section under the top bar, focused, the old Records address lands on its section, and nothing is wider than the phone, at a larger text size too", async ({ page }) => {
   await page.emulateMedia({ reducedMotion: "reduce" });
   await page.goto("/leaderboards");

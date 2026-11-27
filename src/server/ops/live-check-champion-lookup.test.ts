@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { championLookupVerdicts, hasted, rangeProblems, type AbilityRangeRead, type ChampionLookupRead, type ChampionWindowRead } from "../../../scripts/champion-lookup-facts.mjs";
+import { QUEUE_NAMES, championLookupVerdicts, hasted, rangeProblems, type AbilityRangeRead, type ChampionLookupRead, type ChampionWindowRead } from "../../../scripts/champion-lookup-facts.mjs";
+import { QUEUE_LABELS } from "@/domain/champion-builds-words";
 
 /* The Production check's Champion Intel facts (scripts/champion-lookup-facts.mjs), on states handed in. */
 
@@ -55,7 +56,12 @@ const AT: ChampionLookupRead = {
   url: "/lookup?champion=Ahri",
   secondChampion: null,
   buildsStatus: "shown",
-  buildsLine: "From 143 games in the team's matches · patch 26.23 · all ranks · Draft and Ranked",
+  buildsQueue: "solo",
+  buildsSource: "team",
+  buildsQueueShown: "Ranked Solo/Duo",
+  buildsAddressQueue: false,
+  buildsMasterOffered: false,
+  buildsLine: "From 143 games in the team's matches · patch 26.23 · all ranks",
   buildsFew: "",
   buildsParts: [
     { part: "runes", state: "shown", win: "54%", pick: "61%", pictures: 8, trees: 2, text: "" },
@@ -79,7 +85,7 @@ const REMOVED: ChampionLookupRead = { ...AT, haste: 20, url: "/lookup?champion=A
 const ALL: ChampionWindowRead = { open: true, shown: 173, counted: 173, first: "Aatrox", found: "" };
 const SEARCH: ChampionWindowRead = { open: true, shown: 1, counted: 173, first: "Ahri", found: "1 champion found" };
 const LEGACY = { url: "/lookup?champion=Mordekaiser", champion: "Mordekaiser", heading: "Champion Intel" };
-const run = (over: Partial<Parameters<typeof championLookupVerdicts>[0]> = {}) => championLookupVerdicts({ kind: "desktop", champion: "Ahri", at: AT, wide: WIDE, hastedRead: HASTED, all: ALL, search: SEARCH, dual: DUAL, swapped: SWAPPED, removed: REMOVED, legacy: LEGACY, healthPatch: "16.23", ...over });
+const run = (over: Partial<Parameters<typeof championLookupVerdicts>[0]> = {}) => championLookupVerdicts({ kind: "desktop", champion: "Ahri", at: AT, wide: WIDE, hastedRead: HASTED, all: ALL, search: SEARCH, dual: DUAL, swapped: SWAPPED, removed: REMOVED, legacy: LEGACY, healthPatch: "16.23", healthHighElo: "off", ...over });
 const failed = (over: Partial<Parameters<typeof championLookupVerdicts>[0]> = {}) => run(over).filter((v) => v.status === "FAIL").map((v) => v.name);
 
 describe("Champion Intel's Production check facts", () => {
@@ -156,13 +162,23 @@ describe("Champion Intel's Production check facts", () => {
 
   it("hold the builds to a member's view: shown with their source line and every part, or the honest line naming the current patch; never a player's identity", () => {
     const shown = "desktop: the builds and runes are shown to a member who may see teammates' statistics: the builds, or the line that the patch has too few games yet";
-    const line = "desktop: the builds' source line says the games, the team's matches, the current patch (the previous one added, or counted alone while the current has none, only where it says so), all ranks and the queues";
+    const line = "desktop: the builds' source line says the games, the team's matches, the current patch (the previous one added, or counted alone while the current has none, only where it says so) and all ranks";
+    const solo = "desktop: the builds open on Ranked Solo/Duo, and the address names no queue";
+    const one = "desktop: the builds name one queue's games, never several: the queue choice shows one of the four queues, the one the section counts";
     const trees = "desktop: the runes draw both trees: the primary's before its keystone, the secondary's before its runes";
     const parts = "desktop: each part of the builds shows its choice as icons with its win rate and pick rate, or says why there is none";
-    const honest = "desktop: the builds' honest line names the current patch: no build made up from too few games";
+    const honest = "desktop: the builds' honest line names the queue and the current patch: no build made up from too few games";
     const identity = "desktop: the builds name no player: no Riot ID or account id in them, one champion or two";
     const level = "desktop: Compare: each champion's builds on one row after R, level in both columns";
-    for (const name of [shown, line, parts, trees, identity, level]) expect(run().find((v) => v.name === name)?.status, name).toBe("PASS");
+    for (const name of [shown, line, parts, trees, identity, level, solo, one]) expect(run().find((v) => v.name === name)?.status, name).toBe("PASS");
+    // D5: Ranked Solo/Duo by default, no queue in the address; one queue named, the one counted.
+    expect(failed({ at: { ...AT, buildsAddressQueue: true } })).toEqual([solo]);
+    expect(failed({ at: { ...AT, buildsQueue: "flex", buildsQueueShown: "Ranked Flex" } })).toEqual([solo]);
+    expect(failed({ at: { ...AT, buildsQueueShown: "Ranked Flex" } })).toEqual([solo, one]);
+    expect(failed({ at: { ...AT, buildsQueueShown: "Draft and Ranked" } })).toEqual([solo, one]);
+    expect(failed({ at: { ...AT, buildsSource: "master" } })).toEqual([one]);
+    // The queue left the source line (the queue choice beside it says it): a line still naming queues is not this one.
+    expect(failed({ at: { ...AT, buildsLine: "From 143 games in the team's matches · patch 26.23 · all ranks · Draft and Ranked" } })).toEqual([line]);
     // The primary tree left out (or the secondary): the runes' trees fail; judged only where the runes are shown.
     expect(failed({ at: { ...AT, buildsParts: AT.buildsParts.map((r) => (r.part === "runes" ? { ...r, trees: 1 } : r)) } })).toEqual([trees]);
     expect(run({ at: { ...AT, buildsParts: AT.buildsParts.map((r) => (r.part === "runes" ? { ...r, state: "few", win: "", pick: "", pictures: 0, trees: 0, text: "Too few recorded yet (12 games)" } : r)) } }).some((v) => v.name === trees)).toBe(false);
@@ -170,21 +186,24 @@ describe("Champion Intel's Production check facts", () => {
     expect(failed({ at: { ...AT, buildsStatus: null } })).toEqual([shown]);
     expect(failed({ at: { ...AT, buildsStatus: "unavailable" } })).toEqual([shown]);
     // The previous patch added is said; an older patch alone, or another patch, is not this one.
-    expect(failed({ at: { ...AT, buildsLine: "From 31 games in the team's matches · patches 26.22–26.23 · all ranks · Ranked" } })).toEqual([]);
-    expect(failed({ at: { ...AT, buildsLine: "From 31 games in the team's matches · patch 26.22 · all ranks · Ranked" } })).toEqual([line]);
+    expect(failed({ at: { ...AT, buildsLine: "From 31 games in the team's matches · patches 26.22–26.23 · all ranks" } })).toEqual([]);
+    expect(failed({ at: { ...AT, buildsLine: "From 31 games in the team's matches · patch 26.22 · all ranks" } })).toEqual([line]);
     // No game yet on the current patch: the previous patch alone, said as that, names the current one.
-    expect(failed({ at: { ...AT, buildsLine: "From 31 games in the team's matches · patch 26.22, none yet on 26.23 · all ranks · Ranked" } })).toEqual([]);
-    expect(failed({ at: { ...AT, buildsLine: "From 31 games in the team's matches · patch 26.21, none yet on 26.22 · all ranks · Ranked" } })).toEqual([line]);
+    expect(failed({ at: { ...AT, buildsLine: "From 31 games in the team's matches · patch 26.22, none yet on 26.23 · all ranks" } })).toEqual([]);
+    expect(failed({ at: { ...AT, buildsLine: "From 31 games in the team's matches · patch 26.21, none yet on 26.22 · all ranks" } })).toEqual([line]);
     expect(failed({ at: { ...AT, buildsLine: "From 31 games · patch 26.23" } })).toEqual([line]);
     // A part with no figures, no icons, or missing.
     expect(failed({ at: { ...AT, buildsParts: AT.buildsParts.map((r) => (r.part === "runes" ? { ...r, win: "" } : r)) } })).toEqual([parts]);
     expect(failed({ at: { ...AT, buildsParts: AT.buildsParts.map((r) => (r.part === "spells" ? { ...r, pictures: 0 } : r)) } })).toEqual([parts]);
     expect(failed({ at: { ...AT, buildsParts: AT.buildsParts.filter((r) => r.part !== "boots") } })).toEqual([parts]);
     // Too few games: the honest line, naming this patch, with no part.
-    const few = { ...AT, buildsStatus: "few", buildsLine: "", buildsParts: [], buildsFew: "Not enough games on patch 26.23 in the team's matches yet" };
+    const few = { ...AT, buildsStatus: "few", buildsLine: "", buildsParts: [], buildsFew: "Not enough Ranked Solo/Duo games on patch 26.23 in the team's matches yet" };
     expect(failed({ at: few })).toEqual([]);
     expect(run({ at: few }).find((v) => v.name === honest)?.status).toBe("PASS");
-    expect(failed({ at: { ...few, buildsFew: "Not enough games on patch 26.22 in the team's matches yet" } })).toEqual([honest]);
+    expect(failed({ at: { ...few, buildsFew: "Not enough Ranked Solo/Duo games on patch 26.22 in the team's matches yet" } })).toEqual([honest]);
+    // The line names the queue the section counts, never another, never none.
+    expect(failed({ at: { ...few, buildsFew: "Not enough games on patch 26.23 in the team's matches yet" } })).toEqual([honest]);
+    expect(failed({ at: { ...few, buildsFew: "Not enough Ranked Flex games on patch 26.23 in the team's matches yet" } })).toEqual([honest]);
     expect(failed({ at: { ...few, buildsParts: AT.buildsParts } })).toEqual([honest]);
     // Never a player's identity, in one champion's builds or in Compare's.
     expect(failed({ at: { ...AT, buildsIdentity: true } })).toEqual([identity]);
@@ -194,11 +213,24 @@ describe("Champion Intel's Production check facts", () => {
     expect(run({ dual: { ...DUAL, buildsLevel: null } }).some((v) => v.name === level)).toBe(false);
   });
 
+  it("hold the Master+ source to /api/health: offered only while its collection is on", () => {
+    const off = "desktop: /api/health says the Master+ builds' collection is off, and the builds offer no Master+ source";
+    expect(run({ healthHighElo: "off" }).find((v) => v.name === off)?.status).toBe("PASS");
+    expect(failed({ healthHighElo: "off", at: { ...AT, buildsMasterOffered: true } })).toEqual([off]);
+    expect(failed({ healthHighElo: "on" })).toEqual(["desktop: /api/health says the Master+ builds' collection is on, and the builds offer Master+ source"]);
+    expect(failed({ healthHighElo: "on", at: { ...AT, buildsMasterOffered: true } })).toEqual([]);
+    expect(run({ healthHighElo: null }).find((v) => v.name.includes("does not say whether"))?.status).toBe("WARN");
+  });
+
+  it("name the queues as the page does", () => {
+    expect(QUEUE_NAMES).toEqual(QUEUE_LABELS);
+  });
+
   it("compare the patch with /api/health's, and accept the line that says the game is ahead", () => {
     // The abilities' patch, and the builds' (always counted on the game's current patch), both against it.
     expect(failed({ healthPatch: "16.24" })).toHaveLength(2);
-    expect(failed({ healthPatch: "16.24", at: { ...AT, source: "Riot Data Dragon 16.23.1 · patch 26.23 · the game is on patch 26.24", buildsLine: "From 22 games in the team's matches · patches 26.23–26.24 · all ranks · Ranked" } })).toEqual([]);
-    expect(run({ healthPatch: undefined }).some((v) => v.name.includes("/api/health"))).toBe(false);
+    expect(failed({ healthPatch: "16.24", at: { ...AT, source: "Riot Data Dragon 16.23.1 · patch 26.23 · the game is on patch 26.24", buildsLine: "From 22 games in the team's matches · patches 26.23–26.24 · all ranks" } })).toEqual([]);
+    expect(run({ healthPatch: undefined, healthHighElo: undefined }).some((v) => v.name.includes("/api/health"))).toBe(false);
   });
 
   it("hold the ranges to the reviewed rule: Riot's numbers as shown, never on the passive, never a placeholder, only \"Range\" or \"Global\"; in Compare each column's own", () => {

@@ -8,6 +8,7 @@ import type { LookupChampion } from "@/domain/champion-lookup/view";
 import { columnStats, rankColumns } from "@/domain/champion-lookup/board";
 import { clampHaste } from "@/domain/champion-lookup/haste";
 import { SLOTS } from "@/domain/champion-lookup/types";
+import { DEFAULT_BUILD_QUEUE, type BuildQueueKey, type BuildSource } from "@/domain/champion-builds";
 import type { Role } from "@/domain/roles";
 import { ChampionPortrait } from "@/components/champion-portrait";
 import { toolbarButtonClass } from "@/components/ui/filter-bar";
@@ -15,7 +16,7 @@ import { PAGE_TITLE } from "@/components/ui/page-header";
 import { intelHref, swappedHref, withoutHref } from "./address";
 import { SlotKey } from "./ability-list";
 import type { StatLine } from "./base-stats";
-import { BuildsRoleProvider } from "./builds-role";
+import { BuildsChoiceProvider } from "./builds-choice";
 import { ChampionPanel } from "./champion-panel";
 import { ChampionPickerWindow } from "./champion-picker";
 import { ChampionSearch } from "./champion-search";
@@ -26,13 +27,14 @@ import { useRecentLookups } from "./recent";
   come from and, at its right, Compare (one champion) or Swap (two); then the board: one champion,
   or two side by side as one aligned board.
 
-  The address carries both champions, both hastes and the role each builds section shows where one
-  was chosen (/lookup?champion=Ahri&haste=20&champion2=Jinx&haste2=0&role2=ADC), so a reload or a
-  shared link opens the same; they are the page's state, like a filter, so a change replaces the address and never adds a
+  The address carries both champions, both hastes, the role each builds section shows where one
+  was chosen, and the builds' queue and source, the page's, left out for Ranked Solo/Duo and the
+  team's matches (/lookup?champion=Ahri&haste=20&champion2=Jinx&haste2=0&role2=ADC&queue=flex), so a
+  reload or a shared link opens the same; they are the page's state, like a filter, so a change replaces the address and never adds a
   history entry (Back leaves the page in one step). A champion chosen (from its name, which opens the
   window of every champion, or Compare) is built on the server: until it arrives, its column says
-  what is loading and is out of reach. A haste, and a builds section's role, change the page here at
-  once, with no request.
+  what is loading and is out of reach. A haste, and a builds section's role, queue and source, change
+  the page here at once, with no request (every queue's counts came with the page).
   Swap and ✕ show their result at once too, while the address catches up; while any change is on
   its way they wait (aria-disabled, so the focus stays on them), and a champion chosen for the other
   column meanwhile keeps the one still loading. What is typed or chosen here while the page's own
@@ -82,6 +84,8 @@ export function LookupView({
   initialHaste,
   initialHaste2,
   initialRoles,
+  initialQueue = DEFAULT_BUILD_QUEUE,
+  initialSource = "team",
   source,
   dropped,
   builds,
@@ -93,6 +97,10 @@ export function LookupView({
   initialHaste2: number;
   /** The role each champion's builds section shows, from the address (role, role2); null for its default. */
   initialRoles?: [Role | null, Role | null];
+  /** The builds' queue, the page's (both columns read it), from the address; Ranked Solo/Duo by default. */
+  initialQueue?: BuildQueueKey;
+  /** The builds' source, the page's: "master" only where the server offers it. */
+  initialSource?: BuildSource;
   /** The source line beside the title (Riot Data Dragon's version, its patch, the game's patch). */
   source: React.ReactNode;
   dropped: boolean;
@@ -114,11 +122,15 @@ export function LookupView({
   // Each builds section's role (the page's state, like the hastes).
   const [roleA, roleB] = initialRoles ?? [null, null];
   const [roles, setRoles] = React.useState<[Role | null, Role | null]>([roleA, roleB]);
+  // The builds' queue and source: the page's, both columns alike (Compare reads one population).
+  const [buildsQueue, setBuildsQueue] = React.useState<BuildQueueKey>(initialQueue);
+  const [buildsSource, setBuildsSource] = React.useState<BuildSource>(initialSource);
+  const page = { queue: buildsQueue, source: buildsSource };
   // The page as the server sent it: champions, hastes and roles. When it changes, an address opened
   // from elsewhere (a link, the browser's own navigation) brings its own hastes and roles; the
   // address this page itself sent (`sent`: Swap, ✕, a champion chosen) keeps what was typed or chosen
   // here while it was on its way (a haste typed during a swap is not undone when the swap arrives).
-  const arrived = `${lookup?.champion.id ?? ""}|${second?.champion.id ?? ""}|${initialHaste}|${initialHaste2}|${roleA ?? ""}|${roleB ?? ""}`;
+  const arrived = `${lookup?.champion.id ?? ""}|${second?.champion.id ?? ""}|${initialHaste}|${initialHaste2}|${roleA ?? ""}|${roleB ?? ""}|${initialQueue}|${initialSource}`;
   const [seen, setSeen] = React.useState(arrived);
   const [sent, setSent] = React.useState<string | null>(null);
   if (seen !== arrived) {
@@ -126,11 +138,13 @@ export function LookupView({
     if (sent !== arrived) {
       setHastes([clampHaste(initialHaste), clampHaste(initialHaste2)]);
       setRoles([roleA, roleB]);
+      setBuildsQueue(initialQueue);
+      setBuildsSource(initialSource);
     }
     setSent(null);
   }
   /** The page this page's own change will arrive as (the key `arrived` will have). */
-  const sentKey = (a: string | null, b: string | null, h: readonly [number, number], r: readonly [Role | null, Role | null]) => `${a ?? ""}|${b ?? ""}|${h[0]}|${b ? h[1] : 0}|${r[0] ?? ""}|${b ? (r[1] ?? "") : ""}`;
+  const sentKey = (a: string | null, b: string | null, h: readonly [number, number], r: readonly [Role | null, Role | null]) => `${a ?? ""}|${b ?? ""}|${h[0]}|${b ? h[1] : 0}|${r[0] ?? ""}|${b ? (r[1] ?? "") : ""}|${buildsQueue}|${buildsSource}`;
   const [picking, setPicking] = React.useState<Which | null>(null);
   // Compare's two statistics folds, open or closed together.
   const [statsOpen, setStatsOpen] = React.useState(false);
@@ -188,7 +202,7 @@ export function LookupView({
     const a = which === 0 ? id : meant[0];
     const b = which === 1 ? id : meant[1];
     setSent(sentKey(a, b, nextHastes, nextRoles));
-    startTransition(() => router.replace(intelHref({ id: a, haste: nextHastes[0], role: nextRoles[0] }, b ? { id: b, haste: nextHastes[1], role: nextRoles[1] } : null), { scroll: false }));
+    startTransition(() => router.replace(intelHref({ id: a, haste: nextHastes[0], role: nextRoles[0] }, b ? { id: b, haste: nextHastes[1], role: nextRoles[1] } : null, page), { scroll: false }));
     return true;
   };
 
@@ -196,7 +210,7 @@ export function LookupView({
   const remove = (which: Which) => {
     if (pending || !first || !secondId) return;
     const stays = which === 0 ? hastes[1] : hastes[0];
-    const href = withoutHref({ id: first, haste: hastes[0], role: roles[0] }, { id: secondId, haste: hastes[1], role: roles[1] }, which);
+    const href = withoutHref({ id: first, haste: hastes[0], role: roles[0] }, { id: secondId, haste: hastes[1], role: roles[1] }, which, page);
     const nextRoles: [Role | null, Role | null] = [which === 0 ? roles[1] : roles[0], null];
     // The column shown second is `lookup` when the two are shown swapped.
     setRemoved({ keep: swapping ? which : which === 0 ? 1 : 0, key: propsKey });
@@ -213,7 +227,7 @@ export function LookupView({
   /** Swap: the two champions change places, each with its own haste and its open folds. Waits while a change is on its way. */
   const swap = () => {
     if (pending || !first || !secondId) return;
-    const href = swappedHref({ id: first, haste: hastes[0], role: roles[0] }, { id: secondId, haste: hastes[1], role: roles[1] });
+    const href = swappedHref({ id: first, haste: hastes[0], role: roles[0] }, { id: secondId, haste: hastes[1], role: roles[1] }, page);
     setSwapped(propsKey);
     setRemoved(null);
     setTargets({});
@@ -224,12 +238,12 @@ export function LookupView({
   };
 
   // The address follows the page once it has arrived: each champion's own id (a name or another
-  // spelling reads as its id), the hastes and builds roles chosen here, nothing for a champion the roster lacks.
+  // spelling reads as its id), the hastes, builds roles, queue and source chosen here, nothing for a champion the roster lacks.
   React.useEffect(() => {
     if (pending) return;
-    const want = intelHref({ id: first, haste: hastes[0], role: roles[0] }, secondId ? { id: secondId, haste: hastes[1], role: roles[1] } : null);
+    const want = intelHref({ id: first, haste: hastes[0], role: roles[0] }, secondId ? { id: secondId, haste: hastes[1], role: roles[1] } : null, { queue: buildsQueue, source: buildsSource });
     if (`${window.location.pathname}${window.location.search}` !== want) window.history.replaceState(window.history.state, "", want);
-  }, [pending, first, secondId, hastes, roles]);
+  }, [pending, first, secondId, hastes, roles, buildsQueue, buildsSource]);
 
   // Each champion shown joins the window's Recent row.
   React.useEffect(() => {
@@ -267,8 +281,10 @@ export function LookupView({
   const columnFor = (which: Which): { look: LookupChampion | null; shown: ChampionChoice | null; loading: boolean; builds: React.ReactNode } => {
     const own = order[which]!;
     const target = loadingOf(which);
-    // Each column's builds read and set that column's role, and know whether they sit on Compare's rows.
-    const builds = own.builds ? <BuildsRoleProvider value={{ role: roles[which], setRole: (r) => setRoles((now) => (which === 0 ? [r, now[1]] : [now[0], r])), compare: !!order[1 - which]!.look || !!loadingOf((1 - which) as Which) }}>{own.builds}</BuildsRoleProvider> : null;
+    // Each column's builds read and set that column's role and the page's queue and source, and know whether they sit on Compare's rows.
+    const builds = own.builds ? (
+      <BuildsChoiceProvider value={{ role: roles[which], setRole: (r) => setRoles((now) => (which === 0 ? [r, now[1]] : [now[0], r])), queue: buildsQueue, setQueue: setBuildsQueue, source: buildsSource, setSource: setBuildsSource, compare: !!order[1 - which]!.look || !!loadingOf((1 - which) as Which) }}>{own.builds}</BuildsChoiceProvider>
+    ) : null;
     return { look: own.look, shown: target ?? own.look?.champion ?? null, loading: !!target, builds };
   };
   const one = columnFor(0);

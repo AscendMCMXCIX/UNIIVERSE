@@ -20,6 +20,8 @@ import "./history-rescan";
 import "./rank-schedule";
 import "./verify-account";
 import "./lane-opponents";
+import "./builds-audit";
+import "./high-elo-sample";
 
 export * from "./registry";
 export * from "./scheduler";
