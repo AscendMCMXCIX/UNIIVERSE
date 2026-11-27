@@ -101,7 +101,8 @@ describe("the notes' actions", () => {
     expect(row!.reviewedBy).toBe(id.dana);
     const audit = await handle.db.select().from(auditEvents).where(eq(auditEvents.targetId, draft.note.id));
     expect(audit.map((a) => a.action).sort()).toEqual(["matchup-note.create", "matchup-note.publish"]);
-    expect(audit.every((a) => a.targetName === "Top: Riven vs Darius" && a.targetType === "matchup-note")).toBe(true);
+    // Audit Logs name the scope in a sentence (632fa486), never "key: value".
+    expect(audit.every((a) => a.targetName === "Riven against Darius in Top" && a.targetType === "matchup-note")).toBe(true);
     expect(JSON.stringify(audit.map((a) => a.details))).not.toMatch(/dana|Dana|eve/);
   });
 

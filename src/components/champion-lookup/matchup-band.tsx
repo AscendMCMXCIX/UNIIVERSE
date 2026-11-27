@@ -1,7 +1,7 @@
 import * as React from "react";
 import type { KitChange, KitLine } from "@/domain/matchup/early-kit";
 import type { LaneEvidenceView } from "@/domain/matchup/lane-evidence";
-import { LEVEL_LABELS, SOURCE_KINDS, noteShown, parseRef, type PairNotes, type ShownNote } from "@/domain/matchup/notes";
+import { LEVEL_LABELS, SOURCE_KINDS, bandNotes, noteShown, parseRef, type PairNotes, type ShownNote } from "@/domain/matchup/notes";
 import {
   BAND_SUBTITLE,
   BAND_TITLE,
@@ -41,6 +41,14 @@ import { LaneEvidenceBlock } from "./matchup-evidence";
   From a 60rem band the three sit side by side, each separated by a rule (no card inside the band:
   no boxes within boxes); narrower they stack, notes first. Nothing scrolls inside; "+N more" opens
   the rest in place. The section's name says the lane and the two champions.
+
+  Side by side, the shown points take at most BAND_POINT_LINES lines (one line-clamp over the list:
+  the demo's typical two points whole), one less beside the heading's long "not re-checked" line and
+  two less beside a hidden note's line, so the notes block is never taller than it is with the demo's
+  notes and the board's five abilities stay on the first screen at 1440 × 900 whatever the notes
+  hold (domain/matchup/notes bandNotes; e2e/champion-matchup.spec.ts measures the longest notes a
+  note may hold). Longer points end in "…"; opening the fold lifts the clamp. Stacked (phones,
+  tablets, large text) nothing is clamped: the page scrolls.
 */
 
 export interface MatchupBandData {
@@ -109,6 +117,9 @@ function Points({ notes, names }: { notes: ShownNote[]; names: Readonly<Record<s
   );
 }
 
+/** A link in the sources' running text: the accent and an underline at rest, never colour alone (docs/STANDARDS.md, WCAG 1.4.1). */
+const LINK = "text-accent underline underline-offset-2 hover:text-accent-strong";
+
 function Sources({ notes }: { notes: ShownNote[] }) {
   const all = notes.flatMap(({ note }) => note.sources);
   return (
@@ -117,7 +128,7 @@ function Sources({ notes }: { notes: ShownNote[] }) {
         <li key={i}>
           <span className="text-fg-subtle">{SOURCE_KINDS[s.kind]}: </span>
           {s.url ? (
-            <a href={s.url} target="_blank" rel="noopener noreferrer" className="text-accent underline-offset-2 hover:underline">
+            <a href={s.url} target="_blank" rel="noopener noreferrer" className={LINK} data-testid="matchup-source-link">
               {s.title}
             </a>
           ) : (
@@ -128,7 +139,7 @@ function Sources({ notes }: { notes: ShownNote[] }) {
             <span className="text-fg-subtle">
               {" "}
               · written in our own words from {WIKI_CREDIT},{" "}
-              <a href={WIKI_LICENCE_URL} target="_blank" rel="noopener noreferrer" className="underline-offset-2 hover:underline">
+              <a href={WIKI_LICENCE_URL} target="_blank" rel="noopener noreferrer" className={LINK} data-testid="matchup-licence-link">
                 {WIKI_LICENCE}
               </a>
             </span>
@@ -139,8 +150,14 @@ function Sources({ notes }: { notes: ShownNote[] }) {
   );
 }
 
-/** How many points show before "+N more". */
-const VISIBLE_POINTS = 2;
+/** The shown points' clamp side by side, by lines (bandNotes), lifted while the notes' fold is open; literal names for Tailwind. */
+const CLAMP: Record<number, string> = {
+  2: "@min-[60rem]/band:line-clamp-2",
+  3: "@min-[60rem]/band:line-clamp-3",
+  4: "@min-[60rem]/band:line-clamp-4",
+  5: "@min-[60rem]/band:line-clamp-5",
+};
+const UNCLAMP = "@min-[60rem]/band:group-has-[[data-notes-fold][open]]/notes:line-clamp-none";
 
 function NotesBlock({ data, headingId }: { data: MatchupBandData; headingId: string }) {
   const names = { [data.a.id]: data.a.name, [data.b.id]: data.b.name };
@@ -158,27 +175,28 @@ function NotesBlock({ data, headingId }: { data: MatchupBandData; headingId: str
   const fresh = shown.find((n) => n.freshness.state === "fresh");
   const stale = shown.find((n) => n.freshness.state === "stale");
   const meta = fresh ? freshnessWords(fresh.freshness, fresh.note.reviewedPatch, currentPatch, names).meta : stale ? freshnessWords(stale.freshness, stale.note.reviewedPatch, currentPatch, names).meta : null;
-  // Points one by one, pair notes first (the read's order); the first VISIBLE_POINTS show, the rest open in place.
-  const flat = shown.flatMap((n) => n.note.points.map((_, i) => ({ n, i })));
-  const first: ShownNote[] = [];
-  const rest: ShownNote[] = [];
-  let count = 0;
-  for (const n of shown) {
-    const take = Math.max(0, Math.min(n.note.points.length, VISIBLE_POINTS - count));
-    if (take > 0) first.push({ ...n, note: { ...n.note, points: n.note.points.slice(0, take) } });
-    if (take < n.note.points.length) rest.push({ ...n, note: { ...n.note, points: n.note.points.slice(take) } });
-    count += take;
-  }
-  const more = flat.length - Math.min(flat.length, VISIBLE_POINTS);
+  // Points one by one, pair notes first (the read's order); the first VISIBLE_POINTS show, within their lines side by side, the rest open in place.
+  const { first, rest, more, lines, long } = bandNotes(shown, { hiddenLine: hidden.length > 0, blocks: data.evidence ? 3 : 2 });
+  // "Full text" only side by side, where the clamp is: stacked, every point shows whole.
+  const summary = more ? (
+    `${more} more · sources`
+  ) : long ? (
+    <>
+      <span className="@min-[60rem]/band:hidden">Sources</span>
+      <span className="hidden @min-[60rem]/band:inline">Full text · sources</span>
+    </>
+  ) : (
+    "Sources"
+  );
   return (
-    <div className={BLOCK} data-testid="matchup-notes" data-state={shown.length ? "shown" : "none"} data-notes={shown.length} data-hidden={hidden.length}>
+    <div className={cn(BLOCK, "group/notes")} data-testid="matchup-notes" data-state={shown.length ? "shown" : "none"} data-notes={shown.length} data-hidden={hidden.length}>
       <BlockHeading id={headingId} title={NOTES_TITLE} tip={NOTES_TIP} tipLabel="About reviewed notes" tipId="matchup-notes-tip" meta={meta} metaTone={!fresh && stale ? "warn" : "muted"} metaTestId="matchup-notes-meta" />
       {shown.length ? (
         <>
-          <ul className="mt-1 space-y-1">
+          <ul className={cn("mt-1 space-y-1", CLAMP[lines], UNCLAMP)} data-testid="matchup-points" data-lines={lines}>
             <Points notes={first} names={names} />
           </ul>
-          <Fold variant="inline" tone="accent" summary={more ? `${more} more · sources` : "Sources"} testId="matchup-notes-more" bodyClassName="space-y-2">
+          <Fold variant="inline" tone="accent" summary={summary} testId="matchup-notes-more" bodyClassName="space-y-2" data-notes-fold="">
             {more ? (
               <ul className="space-y-1">
                 <Points notes={rest} names={names} />

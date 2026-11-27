@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { words } from "@/components/ui/tip-length.test";
 import type { LaneQueueEvidence } from "./lane-evidence";
-import { evidenceRefusedWords, refusedWords } from "./refused-words";
+import { refusedWords } from "./refused-words";
 import * as W from "./words";
 
 /* Matchup Intel's band in words (docs/MATCHUP_INTEL.md; docs/HELP_TEXT.md): every ⓘ short, every fixed sentence neutral. */
@@ -65,9 +65,7 @@ describe("the band's words", () => {
 
   it("use no refused word, no 'you', no verdict and no comparison word", () => {
     for (const s of everySentence()) {
-      expect(evidenceRefusedWords(s), s).toEqual([]);
-      expect(refusedWords(s).filter((r) => r.word !== "win"), s).toEqual([]);
-      expect(s, s).not.toMatch(/\b(faster|slower|better|worse|advantage|stronger|weaker|favou?red|wins?|you|your)\b/i);
+      expect(refusedWords(s), s).toEqual([]);
     }
   });
 

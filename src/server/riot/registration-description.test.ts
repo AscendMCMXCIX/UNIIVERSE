@@ -1,6 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync } from "node:fs";
 import path from "node:path";
+import { FRESH_PATCHES, SHOWN_PATCHES } from "@/domain/matchup/notes";
 
 /*
   The product's description in Riot's Developer Portal must describe every use: "Any new features
@@ -78,5 +79,18 @@ describe("the registration's description", () => {
     ]) {
       expect(championIntel, words).toContain(words);
     }
+  });
+
+  // 27 Nov 2026: the text said notes are reviewed "each patch"; the code shows one up to three patches after its review, labelled.
+  it("says how long a reviewed note shows, as the code decides it (domain/matchup/notes noteFreshness), in every copy", () => {
+    expect([FRESH_PATCHES, SHOWN_PATCHES]).toEqual([1, 3]);
+    const clause = "short notes the team's administrators write and review, labelled as reviewed notes with the patch each was reviewed on, marked as not re-checked from the second patch after that review and hidden from the fourth, or at once when Riot's data for either champion changes.";
+    expect(championIntel).toContain(clause);
+    expect(proposed).not.toMatch(/review each patch/);
+    // docs/MATCHUP_INTEL.md quotes the band's sentences, wrapped.
+    const matchupDoc = read("docs/MATCHUP_INTEL.md");
+    const quoted = matchupDoc.slice(matchupDoc.indexOf("> In Compare, for a lane chosen by hand")).split("\n").filter((l, i, all) => all.slice(0, i + 1).every((x) => x.startsWith(">"))).map((l) => l.slice(2)).join(" ");
+    expect(quoted).toContain(clause);
+    expect(championIntel).toContain(quoted);
   });
 });

@@ -22,12 +22,18 @@ export interface MatchupRead {
   kit: Array<{ key: string | null; values: string | null; more: string | null; words: string }>;
   team: { state: string | null; games: number; queue: string | null; ahead: ShareRead | null; won: ShareRead | null; percents: number; line: string } | null;
   notes: { state: string | null; shown: Array<{ freshness: string | null; reviewed: string | null }>; hidden: Array<{ freshness: string | null; words: string }>; meta: string } | null;
-  verdictWords: boolean;
+  /** Whether a text of the band holds one of the notes' refused words; null: the words were not handed in. */
+  verdictWords: boolean | null;
+  /** The listed word found (from the list, never the page's text), or null. */
+  verdictWord: string | null;
   identity: boolean;
   bandBottom: number | null;
   lastBottom: number | null;
   scrollers: number;
 }
 export interface Verdict { name: string; status: "PASS" | "FAIL" | "WARN"; detail: unknown }
-export function readMatchup(): MatchupRead;
+/** The notes' refused words' patterns, for the page reader. */
+export interface MatchupReadInput { refused: Array<{ word: string; source: string }>; flags: string }
+export const MATCHUP_READ: MatchupReadInput;
+export function readMatchup(words?: MatchupReadInput): MatchupRead;
 export function matchupVerdicts(input: { at: MatchupRead; swapped?: MatchupRead; stopped?: string; healthPatch: string | null; mayStats?: boolean }): Verdict[];

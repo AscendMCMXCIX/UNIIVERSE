@@ -105,25 +105,53 @@ no colour for good or bad. The section is named "Matchup Intel, Top: Riven again
 
 - **Two scopes:** an *opponent note* (role + opponent) shows for every pair whose lane opponent it is;
   a *pair note* (role + champion + opponent) for that pairing in that direction. The band shows pair
-  points first, then opponent points: two visible, "N more · sources" opening the rest in place.
+  points first, then opponent points: two visible (one where the first likely fills the block's lines
+  by itself), "N more · sources" opening the rest in place.
+- **Height (27 Nov 2026):** with the blocks side by side the shown points take at most five lines
+  (`BAND_POINT_LINES`, one line-clamp over the list: the demo's typical two points whole, 3 + 2 lines at
+  1440 × 900), four beside the heading's "not re-checked" line (which wraps to a second line) and three
+  beside a hidden note's line, so the notes block is never taller than with the demo's notes and both
+  champions' five abilities stay on the first screen at 1440 × 900 whatever the notes hold (the longest:
+  four points of 35 words with four abilities each). A longer point ends in "…"; opening the fold lifts
+  the clamp, and where the shown points are likely cut and nothing more is folded the summary reads
+  "Full text · sources". Stacked (phones, tablets, large text) nothing is clamped. Before, two valid
+  35-word points pushed the R rows to about 940px.
 - **Content rules (validated on every save on the server, and live in the editor):** 1 to 4 points, each
   at most 35 words, plain text, sentence case, each naming the abilities it rests on (refs `Darius.E`
   that exist in the stored kits of the scope's champions), an optional level tag (Levels 1–3, Level 6).
-  Refused: the refused words (`src/domain/matchup/refused-words.ts`: absolutes, instructions including
-  you/your, verdicts including counter, easy, win, punish, outplay, all-in, favoured, advantage,
-  stronger, weaker, recommended), the estimate words, a Riot ID's tag, and any account's username or
-  display name, player's name or linked Riot name (a champion's name is never one of them). At least one
-  source, each with a kind (in-game client tooltip, Riot patch notes, Riot's Data Dragon, League of
-  Legends Wiki read in a browser, the team's games, other), a title, a patch and, where given, an https
-  address. A wiki source carries the credit (League of Legends Wiki contributors, CC BY-SA 3.0). **No
-  script reads the wiki** (Weird Gloop's terms): the editor says so.
+  Refused, in the points and in the sources' titles alike (a title is shown in the band too): the
+  refused words, the estimate words, a Riot ID's tag, and any account's username or display name,
+  player's name or linked Riot name (a champion's name is never one of them). At least one source, each
+  with a kind (in-game client tooltip, Riot patch notes, Riot's Data Dragon, League of Legends Wiki read
+  in a browser, the team's games, other), a title, a patch and, where given, an https address that names
+  no player either: not a player's profile on a statistics site (a `/summoner(s)/`, `/profile(s)/` or
+  `/player(s)/` path), no Riot ID's tag (`#EUW`, or `%23EUW` written in the address) and no account's or
+  player's name in its path, query or fragment. A wiki source carries the credit (League of Legends Wiki
+  contributors, CC BY-SA 3.0), its title and the licence each a link underlined at rest. **No script
+  reads the wiki** (Weird Gloop's terms): the editor says so.
+- **The refused words are one list** (`src/domain/matchup/refused-words-list.mjs`, plain JavaScript):
+  absolutes (always, never, guaranteed…), instructions (should, must, avoid, need to, you, your…), and
+  verdicts (easy, win, wins, best, optimal, counter, punish…, outplay…, recommend…, all-in, favoured,
+  advantage, stronger, weaker, better, worse, faster, slower…; "…" every longer form). A word is
+  letters, digits and "_", so "should've" and "easy-to-land" are refused as "should" and "easy". The
+  notes' save and editor (`refused-words.ts`), the band's own sentences (`words.test.ts`), the browser
+  tests and the Production check's "no instruction or verdict words in the band" (`scripts/matchup-facts.mjs`,
+  each text of the band apart) all read this list, so a note the editor accepts can never fail the
+  check (`src/server/ops/live-check-matchup.test.ts`). Until 27 Nov 2026 the notes had their own,
+  shorter list (no better, worse, faster, slower; outplay but not outplayed) and titles skipped it,
+  while the check refused those words. "won" (a counted result, "Riven's side won") is not on it.
 - **Freshness (OD-M4), computed at every read:** each published note keeps the patch and Data Dragon
   version it was reviewed on and each scope champion's **kit hash** (`src/server/matchup/kit-hash.ts`:
-  base statistics and each ability's cooldowns, ranks, charges, text hash, cost and resource line, from
-  the stored abilities). Any kit hash that differs hides the note ("A reviewed note is hidden: Riot's data
+  base statistics and each ability's cooldowns, ranks, charges, text hash, cost, resource line and Data
+  Dragon range per rank, from the stored abilities: a range Riot changes without a word of its text hides
+  the note too, as the band's "E range" says; range joined on 27 Nov 2026). Any kit hash that differs hides the note ("A reviewed note is hidden: Riot's data
   for Darius changed after its review on 26.23."). Otherwise the distance in the stored patches list
   (a year's boundary, 26.24 → 27.1, is one patch): 0–1 fresh ("Patch 26.23"), 2–3 shown and labelled
   ("Reviewed on 26.21 · not re-checked for 26.23"), 4 or more hidden. Drafts and retired notes never show.
+  A current patch newer than the stored list counts as the list's newest: an instance keeps the list
+  ten minutes and the current patch one, so right after a sync another instance could read the new
+  current patch with the old list, and until 27 Nov 2026 every note there read as "its review patch is
+  no longer listed" for up to ten minutes.
 - Members see the reviewer as "an administrator" (the ⓘ); Admin shows the reviewer's display name.
 - **What is not here:** Riot's tips, the old AI-drafted briefings and checked notes (OD-M7: not restored;
   the owner may rewrite any of them in the editor), and the bot lane's two against two (OD-M8).
@@ -150,12 +178,14 @@ first (`src/server/actions/matchup-notes.ts`; OD-M5: administrators only).
 - **Editor** (a task dialog): the scope, the lane, the champion(s), points with the abilities they rest on
   (each champion's P–R as toggles), the level tag, sources, a live preview; Save draft or Publish (which
   records the review: the account, the time, the current patch and version, the kit and ability hashes).
+  Changing the scope, the champion played or the opponent keeps only the refs of champions still in the
+  note (`rescope`): a ref to a champion that left had no toggle, and its error could not be cleared.
 - **Re-review:** what changed in Riot's data for each champion since the review (its abilities' hashes
   then and now), Riot's patch notes for every patch since (links for a person to read: nothing reads them
   automatically), then Confirm for the current patch, Edit, Unpublish or Retire.
 - **History:** Audit Logs (`matchup-note.create`, `update`, `publish`, `confirm`, `unpublish`, `retire`,
-  `delete-draft`), the target named by champion names only ("Top: Riven vs Darius"), the patch in the
-  details. No history table.
+  `delete-draft`), the target named by champion names only, in a sentence ("Riven against Darius in
+  Top"), the patch in the details. No history table.
 - **Dashboard:** "N matchup notes need re-review after patch 26.24" in Needs you (counts only).
 - **Health:** `/api/health` `matchupNotes: { published, fresh, stale, hidden }`, numbers only, cached ten
   minutes per instance.
@@ -213,8 +243,10 @@ describes the old Matchup Intel.
 > Dragon values in neutral words, totals of the lane at 10 minutes (gold, experience and CS differences,
 > kills between the two, first blood and results) over the team's stored completed games of that pairing
 > in that role, with the number of games and shown from 10 games, and short notes the team's
-> administrators write and review each patch, labelled as reviewed notes. It shows one pair at a time,
-> with no matchup ranking, counter list, pick suggestion or advice.
+> administrators write and review, labelled as reviewed notes with the patch each was reviewed on,
+> marked as not re-checked from the second patch after that review and hidden from the fourth, or at
+> once when Riot's data for either champion changes. It shows one pair at a time, with no matchup
+> ranking, counter list, pick suggestion or advice.
 
 ## Owner decisions (defaults the code follows)
 
@@ -240,16 +272,22 @@ describes the old Matchup Intel.
 ## Tests
 
 - Unit: `src/domain/matchup/{early-kit,lane-evidence,notes,curation,refused-words,words}.test.ts`,
-  `src/components/champion-lookup/address.test.ts`, `src/proxy.test.ts`, `src/server/ops/live-check-matchup.test.ts`,
-  `src/server/demo/test-hooks.test.ts`.
+  `src/server/matchup/{kit-hash,longest-notes}.test.ts`, `src/components/champion-lookup/address.test.ts`,
+  `src/proxy.test.ts`, `src/server/ops/live-check-matchup.test.ts` (the check's words are the save's),
+  `src/server/demo/test-hooks.test.ts`, `src/server/riot/registration-description.test.ts`.
 - Database: `tests/db/lane-matchups.test.ts` (both teams, the lane rule, members only, queues apart,
-  10:00, anonymous keys, the index, permissions, the window, erasure, coverage counts),
+  10:00, anonymous keys, the index, permissions, the window, erasure: games shared with a second member
+  stay for her lane, the erased seat never counts; coverage counts),
   `tests/db/matchup-notes.test.ts` (actions refused to non-admins, publish records the review, one live
   note per scope, refused words, audit, freshness, checks, erasure), `tests/db/matchup-queue.test.ts`.
 - Browser: `e2e/champion-matchup.spec.ts` (lane control and address, labels, figures, few and none, the
   queue, the notes' states through the demo's cookies `uniiverse-test-note-age` and
   `uniiverse-test-kit-changed`, Swap and ✕, one screen at 1366, 1440 and 1920 with the sidebar open and
-  folded, phones and tablets at 100% and 200%, axe), `e2e/admin-matchup-notes.spec.ts`.
+  folded, and with the longest notes a note may hold (`uniiverse-test-longest-notes`,
+  `src/server/matchup/longest-notes.ts`), fresh and not re-checked, with text a little wider too
+  (`e2e/wide-text.ts`), 12px to spare; phones and tablets at 100% and 200%, the longest points whole
+  there; every text of the band against the refused words; axe), `e2e/admin-matchup-notes.spec.ts`
+  (also a title's refused word, a profile address, a change of scope, and a wiki source's links).
 - Demo data: `src/server/demo/matchup-fixture.ts` (Ahri vs Zed in Mid, 14 Solo/Duo games; Riven vs
   Darius in Top, 4; two published opponent notes, Zed in Mid and Darius in Top).
 

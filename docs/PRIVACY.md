@@ -185,9 +185,13 @@ with a lane (docs/MATCHUP_INTEL.md). Two uses, said in the notice (`PRIVACY_UPDA
   administrators write, in `matchup_notes` (migration 0071). The reviewing administrator's account is
   stored with each note (with who created and last changed it); members see "an administrator", Admin
   the display name. A note's text may never name a player (the save refuses a member's, player's or
-  linked Riot name and a Riot ID's tag). Permanent removal sets the three account links to NULL and
-  keeps the note (`src/server/privacy/erasure.ts`; the preview counts the notes). The curation queue in
-  Admin shows champion names and counts only, never whose games.
+  linked Riot name and a Riot ID's tag, in its points, its sources' titles and its sources'
+  addresses, a player's profile on a statistics site included). **Kept:** a draft that was never
+  published until an administrator deletes it; a published note stays on record with its review, and
+  retiring it only takes it off the band (Admin's All notes still lists it with its reviewer), so its
+  account links have no end date. Permanent removal sets the three account links to NULL and keeps the
+  note (`src/server/privacy/erasure.ts`; the preview counts the notes), as the account's deletion does
+  (the links are `ON DELETE SET NULL`). The curation queue in Admin shows champion names and counts only, never whose games.
 
 ## Prepared, not active: high-elo statistics (D2)
 

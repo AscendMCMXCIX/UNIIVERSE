@@ -93,7 +93,7 @@ function Figures({ e, a, b }: { e: LaneQueueEvidence; a: string; b: string }) {
           others {formatCount(f.firstBlood.other)}
         </Line>
       ) : null}
-      <Line label={wonLabel(a)} testId="matchup-won" extra={{ "data-n": f.won.n, "data-of": f.won.of }}>
+      <Line label={wonLabel(a)} testId="matchup-won" extra={{ "data-n": f.won.n, "data-of": f.won.of, "data-low": f.won.low.toFixed(4), "data-high": f.won.high.toFixed(4) }}>
         <InfoTip text={shareTip(f.won)} className={TOUCH}>
           <span className="sr-only">{shareSpoken(f.won)}</span>
           <span aria-hidden>{shareWords(f.won)}</span>

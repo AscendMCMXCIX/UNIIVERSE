@@ -61,6 +61,24 @@ test("the queue ranks what to write first; a note is written with the abilities 
   await page.locator('[data-testid="matchup-editor-ref"][data-ref="Garen.Q"]').click();
   await expect(page.locator('[data-testid="matchup-editor-ref"][data-ref="Darius.E"]')).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByTestId("matchup-editor-preview")).toContainText("Darius E, Garen Q");
+  // A change of scope keeps only the refs of champions still in it (27 Nov 2026: Garen Q stayed, with no toggle to remove it, and the save was refused).
+  await page.getByTestId("matchup-editor-scope-opponent").click();
+  await expect(page.locator('[data-testid="matchup-editor-ref"][data-ref="Garen.Q"]')).toHaveCount(0);
+  await expect(page.getByTestId("matchup-editor-preview")).toContainText("Darius E");
+  await expect(page.getByTestId("matchup-editor-preview")).not.toContainText("Garen Q");
+  await page.getByTestId("matchup-editor-scope-pair").click();
+  await pick(page.getByTestId("matchup-editor-champion"), "Garen");
+  await page.locator('[data-testid="matchup-editor-ref"][data-ref="Garen.Q"]').click();
+  await expect(page.getByTestId("matchup-editor-preview")).toContainText("Darius E, Garen Q");
+  // A source's title is shown in the band: held to the refused words too (27 Nov 2026), and a player's profile is no source.
+  await page.getByTestId("matchup-editor-source-title").fill("How to counter Darius");
+  await pick(page.locator("#matchup-source-kind-0"), "wiki");
+  await page.locator("#matchup-source-url-0").fill("https://www.op.gg/summoners/euw/Someone-EUW");
+  await page.getByTestId("matchup-editor-publish").click();
+  await expect(page.locator('[data-testid="matchup-editor-problem"][data-field="sources.0.title"]')).toContainText('"counter" is a verdict on the matchup');
+  await expect(page.locator('[data-testid="matchup-editor-problem"][data-field="sources.0.url"]')).toContainText("player's profile");
+  await page.getByTestId("matchup-editor-source-title").fill("Darius on the League of Legends Wiki");
+  await page.locator("#matchup-source-url-0").fill("https://wiki.leagueoflegends.com/en-us/Darius");
   await expectNoSeriousAxe(page, "the note editor", ["dialog[open]"]);
   await page.getByTestId("matchup-editor-publish").click();
   await expect(editor).toHaveCount(0);
@@ -71,6 +89,20 @@ test("the queue ranks what to write first; a note is written with the abilities 
   await expect(notes.getByTestId("matchup-point").first()).toHaveAttribute("data-scope", "pair");
   await expect(notes.getByTestId("matchup-point").first()).toContainText("Garen's Q removes the slows on Garen");
   await expect(notes.getByTestId("matchup-note")).toHaveCount(2);
+  // The wiki source: its title links to the page and the credit to the licence, each a link by more than colour (underlined at rest).
+  await notes.getByTestId("matchup-notes-more").locator("summary").click();
+  const sources = notes.getByTestId("matchup-sources");
+  await expect(sources.getByTestId("matchup-source-link")).toHaveAttribute("href", "https://wiki.leagueoflegends.com/en-us/Darius");
+  await expect(sources.getByTestId("matchup-licence-link")).toHaveText("CC BY-SA 3.0");
+  for (const link of [sources.getByTestId("matchup-source-link"), sources.getByTestId("matchup-licence-link")]) {
+    const style = await link.evaluate((a) => {
+      const own = getComputedStyle(a);
+      return { line: own.textDecorationLine, color: own.color, around: getComputedStyle(a.parentElement!).color };
+    });
+    expect(style.line).toContain("underline");
+    expect(style.color).not.toBe(style.around);
+  }
+  await expectNoSeriousAxe(page, "Matchup Intel's sources with links", ["[data-testid=matchup-band]"]);
 });
 
 test("a published note is re-reviewed (what changed, Riot's patch notes, Confirm) and retired, each recorded in Audit Logs", async ({ page, baseURL }, info) => {

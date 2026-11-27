@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { championsFirstForTest, kitChangedForTest, noteAgeForTest, opponentSearchFromForTest } from "./test-hooks";
+import { championsFirstForTest, kitChangedForTest, longestNotesForTest, noteAgeForTest, opponentSearchFromForTest } from "./test-hooks";
 
 describe("All Champions' Show all test hook", () => {
   afterEach(() => vi.unstubAllEnvs());
@@ -48,8 +48,14 @@ describe("Matchup Intel's notes test hooks", () => {
     for (const bad of ["10", "-1", "x", "", null, undefined]) expect(noteAgeForTest(bad)).toBeNull();
     expect(kitChangedForTest("1")).toBe(true);
     expect(kitChangedForTest("0")).toBe(false);
+    expect(longestNotesForTest("1")).toBe(true);
+    expect(longestNotesForTest("yes")).toBe(false);
     vi.stubEnv("VERCEL", "1");
     expect(noteAgeForTest("2")).toBeNull();
     expect(kitChangedForTest("1")).toBe(false);
+    expect(longestNotesForTest("1")).toBe(false);
+    vi.stubEnv("VERCEL", "");
+    vi.stubEnv("DATABASE_URL", "postgres://example.invalid/db");
+    expect(longestNotesForTest("1")).toBe(false);
   });
 });

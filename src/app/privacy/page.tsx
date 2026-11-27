@@ -57,7 +57,7 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     what: "Matchup notes administrators write about two champions' kits, with their sources: the reviewing administrator's account is stored with each note",
     why: "Champion Intel's Matchup Intel, labelled as reviewed notes",
     who: "The notes: every signed-in account, the reviewer shown as \"an administrator\"; the account stored with each note: administrators",
-    kept: "Until an administrator retires or deletes the note. Permanent removal of the administrator's personal information removes the link to their account; the note, which names no player, stays",
+    kept: "A draft that was never published until an administrator deletes it; a published note, retired notes included, stays on record with its review and its account, with no end date. Permanent removal of the administrator's personal information, or the deletion of their account, removes the link to their account; the note, which names no player, stays",
   },
   {
     what: "What you add: roles, champion pools, card designs and your profile picture",
