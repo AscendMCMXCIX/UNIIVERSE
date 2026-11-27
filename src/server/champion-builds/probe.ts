@@ -13,7 +13,7 @@ import type { BuildQueueKey } from "@/domain/champion-builds";
   "~": the jobs endpoint takes any run of 40 or more letters, digits, "_" and "-" out of an answer
   (server/jobs/answer-redact.ts), and hex in short pieces is never one, nor anything else it takes
   out. The plain text is "Thresh:solo,Leona:solo". The
-  workflow opens it with scripts/builds-probe.mjs (the same derivation, held equal by
+  workflow opens it in scripts/production-audits.mjs with scripts/builds-probe.mjs (the same derivation, held equal by
   src/server/jobs/builds-audit.test.ts), masks each name and hands the list to the live check.
 */
 
