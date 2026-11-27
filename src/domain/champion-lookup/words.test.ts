@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { readFileSync, readdirSync } from "node:fs";
 import { join } from "node:path";
-import { DATA_LIMIT_WORDS, HASTE_RULE_WORDS, REASON_WORDS, cooldownWords, listedWords, statsTipWords } from "./words";
+import { DATA_LIMIT_WORDS, HASTE_RULE_WORDS, REASON_WORDS, changedWords, cooldownWords, listedWords, rangeNoteWords, rangeWords, statsTipWords, type RangeWithPatch } from "./words";
 import type { UnknownCooldownReason } from "./cooldown";
 
 /*
@@ -44,8 +44,47 @@ describe("the words", () => {
     expect(HASTE_RULE_WORDS).toContain("base × 100 / (100 + haste)");
     expect(HASTE_RULE_WORDS).toContain("Ultimate haste isn't counted");
     expect(DATA_LIMIT_WORDS).toContain("no damage values or scaling");
+    expect(DATA_LIMIT_WORDS).toContain("ranges only where checked against Riot's text");
     expect(statsTipWords(true)).toContain("Attack damage has no growth");
     expect(statsTipWords(false)).not.toContain("Attack damage");
+  });
+
+  it("say a range as Riot's numbers, one where every rank has the same, \"Global\", or nothing; formatted through format.ts", () => {
+    const reach = (values: number[]): RangeWithPatch => ({ kind: "reach", values, reviewedVersion: "16.23.1", reviewer: "automated draft", reviewedPatch: "26.23" });
+    expect(rangeWords(reach([970, 970, 970, 970, 970]))).toBe("Range 970");
+    expect(rangeWords(reach([1175, 1175, 1175, 1175, 1175]))).toBe("Range 1,175");
+    expect(rangeWords(reach([1300, 1550, 1800]))).toBe("Range 1,300 / 1,550 / 1,800");
+    expect(rangeWords({ kind: "global", reviewedVersion: "16.23.1", reviewer: "automated draft" })).toBe("Global");
+    // Cast on the champion (the owner's decision), waiting for a review, or nothing: no words.
+    expect(rangeWords({ kind: "self", reviewedVersion: "16.23.1", reviewer: "automated draft" })).toBeNull();
+    expect(rangeWords({ kind: "changed", reviewedKind: "reach", reviewedVersion: "16.23.1" })).toBeNull();
+    expect(rangeWords(null)).toBeNull();
+  });
+
+  it("say in the opened row where a range comes from and who decided what it measures, or why it waits for a review", () => {
+    const reach = (reviewer: "automated draft" | "automated review" | "owner"): RangeWithPatch => ({ kind: "reach", values: [970], reviewedVersion: "16.23.1", reviewer, reviewedPatch: "26.23" });
+    expect(rangeNoteWords(reach("automated draft"))).toBe("Range from Riot's data, in game units. Classified by fixed rules from Riot's text on patch 26.23, not by a person.");
+    expect(rangeNoteWords(reach("automated review"))).toBe("Range from Riot's data, in game units. Reviewed against Riot's text by an automated review on patch 26.23, not by a person.");
+    expect(rangeNoteWords(reach("owner"))).toBe("Range from Riot's data, in game units. Reviewed by the team on patch 26.23.");
+    expect(rangeNoteWords({ kind: "global", reviewedVersion: "16.23.1", reviewer: "automated draft", reviewedPatch: "26.23" })).toBe("Riot's text says it reaches the whole map. Classified by fixed rules from Riot's text on patch 26.23, not by a person.");
+    expect(rangeNoteWords({ kind: "changed", reviewedKind: "reach", reviewedVersion: "16.23.1", reviewedPatch: "26.23" })).toBe("Range not shown: Riot changed this ability after patch 26.23, when its range was last checked.");
+    // A row that showed nothing says nothing when Riot changes it; nor does an ability cast on the champion.
+    expect(rangeNoteWords({ kind: "changed", reviewedKind: "self", reviewedVersion: "16.23.1", reviewedPatch: "26.23" })).toBeNull();
+    expect(rangeNoteWords({ kind: "self", reviewedVersion: "16.23.1", reviewer: "owner", reviewedPatch: "26.23" })).toBeNull();
+    expect(rangeNoteWords(null)).toBeNull();
+    // The patch marks name a range change with the rest.
+    expect(changedWords({ sincePatch: "26.22", text: true, cooldown: false, cost: false, range: true })).toBe("Riot changed this ability's text and range since patch 26.22. The numbers shown are the current ones.");
+  });
+
+  it("never call a range estimated, approximate, accurate or verified", () => {
+    const reach: RangeWithPatch = { kind: "reach", values: [1300, 1550, 1800], reviewedVersion: "16.23.1", reviewer: "automated draft", reviewedPatch: "26.23" };
+    const said = [
+      DATA_LIMIT_WORDS,
+      rangeWords(reach)!,
+      ...(["automated draft", "automated review", "owner"] as const).map((reviewer) => rangeNoteWords({ ...reach, reviewer })!),
+      rangeNoteWords({ kind: "changed", reviewedKind: "global", reviewedVersion: "16.23.1", reviewedPatch: "26.23" })!,
+    ];
+    for (const w of said) expect(w, w).not.toMatch(/\b(estimated?|about|approximate(?:ly)?|accurate|verified|exact)\b/i);
   });
 
   it("never speak of a timer, a ready time or anything verified, in the words or on the page's components", () => {

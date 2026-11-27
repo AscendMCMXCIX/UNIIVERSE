@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 import abilityFixture from "@/server/riot/fixtures/champion-abilities.fixture.json";
 import { abilityIconUrl, behindPatch, championResolver, lookupChampion, publicPatchOf } from "./view";
 import type { ChampionChoice, DdragonChampionAbilities } from "./types";
+import type { RangeReview } from "./range";
 
 /* Champion Intel's page as data (docs/CHAMPION_INTEL.md): the roster resolver, icons, patches, one champion's view. */
 
@@ -82,9 +83,29 @@ describe("one champion's view", () => {
     marked.abilities[2]!.changed = { since: "16.21.1", text: false, cooldown: false, cost: false };
     marked.facts = { ...marked.facts!, statsChangedSince: "16.21.1" };
     const v = lookupChampion(roster[0]!, marked);
-    expect(v.abilities![1]!.changed).toEqual({ sincePatch: "26.21", text: true, cooldown: false, cost: false });
+    expect(v.abilities![1]!.changed).toEqual({ sincePatch: "26.21", text: true, cooldown: false, cost: false, range: false });
     expect(v.abilities![2]!.changed).toBeNull();
     expect(v.facts!.statsChangedSincePatch).toBe("26.21");
+  });
+
+  it("gives each ability its range by the reviewed rule, only with the champion's reviewed rows: the number Riot's data gives, the patch it was reviewed on", () => {
+    const review = (slot: "Q" | "W" | "E" | "R", kind: RangeReview["kind"]): RangeReview => {
+      const a = fixture.Ahri!.abilities.find((x) => x.slot === slot)!;
+      return { champion: "Ahri", slot, spell: a.id!, kind, range: [...a.range!], textHash: a.textHash!, version: "16.23.1", reviewed: "2026-11-27", reviewer: "automated draft" };
+    };
+    // Without reviews (or before rules format 5): no range anywhere.
+    expect(lookupChampion(roster[0]!, fixture.Ahri!).abilities!.every((a) => a.range === null)).toBe(true);
+    const v = lookupChampion(roster[0]!, fixture.Ahri!, { ranges: { Q: review("Q", "reach"), W: review("W", "self"), E: review("E", "none") } });
+    expect(v.abilities!.map((a) => a.range?.kind ?? null)).toEqual([null, "reach", "self", null, null]);
+    expect(v.abilities![1]!.range).toEqual({ kind: "reach", values: [970, 970, 970, 970, 970], reviewedVersion: "16.23.1", reviewer: "automated draft", reviewedPatch: "26.23" });
+    // Riot changed the text since the review: hidden, and said to wait for a review.
+    const moved = structuredClone(fixture.Ahri!);
+    moved.abilities[1]!.textHash = "0000000000000000";
+    expect(lookupChampion(roster[0]!, moved, { ranges: { Q: review("Q", "reach") } }).abilities![1]!.range).toEqual({ kind: "changed", reviewedKind: "reach", reviewedVersion: "16.23.1", reviewedPatch: "26.23" });
+    // A record from before rules format 5 has no range: nothing, never the row's number.
+    const old = structuredClone(fixture.Ahri!);
+    for (const a of old.abilities) delete a.range;
+    expect(lookupChampion(roster[0]!, old, { ranges: { Q: review("Q", "reach") } }).abilities![1]!.range).toBeNull();
   });
 
   it("reads a record stored before rules format 4 without facts or costs: none shown, nothing made up", () => {

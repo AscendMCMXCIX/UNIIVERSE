@@ -76,7 +76,10 @@ opens with Enter or Space, by find-in-page, and before the page's code runs).
     the key as a plain tile where the icon is missing or fails); a screen reader hears "Q: Orb of
     Deception" (the slot name is in the heading, the tile is drawn);
   - the ability's **name** (text-md semibold, the primary colour) and the **chips** of what Riot's
-    description names (below), crowd control first, then "Changed since 26.22" where it is known;
+    description names (below), crowd control first, then its **range** where the review of what
+    Riot's number measures is current ("Range 970", "Global": small and secondary, in the same flow,
+    under the chips where the row has no room, never a grid line of its own; "Ranges", below), then
+    "Changed since 26.22" where it is known;
   - the **cooldown at every rank** in aligned rank columns (tabular figures, the primary colour,
     semibold): at a haste above 0 the cooldown at that haste is *the* cooldown, and the base sits
     under each value, smaller and secondary, labelled "base"; at 0 the base alone;
@@ -90,7 +93,8 @@ opens with Enter or Space, by find-in-page, and before the page's code runs).
   The fold's chevron at the row's end.
 - **Opened**: Riot's whole description (the primary colour), the words behind each chip marked in it
   (an accent underline); why a cooldown has no number, in full ("Riot's data doesn't say which one its
-  cooldown is. Riot lists 10 / 9 / 8 / 7 / 6 s for the slot."); and, where the sync knows it, what Riot
+  cooldown is. Riot lists 10 / 9 / 8 / 7 / 6 s for the slot."); where the range comes from and who
+  decided what it measures, or why it waits for a review ("Ranges", below); and, where the sync knows it, what Riot
   changed in the last patch ("Riot changed this ability's text and cooldowns since patch 26.22. The
   numbers shown are the current ones."). A row opened grows the page; nothing scrolls inside it.
 - **Layout.** The rank grid is a 3rem label column and one 3.25rem column per rank (4rem on a wide
@@ -123,9 +127,9 @@ opens with Enter or Space, by find-in-page, and before the page's code runs).
   source that holds them in a machine-readable form, CommunityDragon's copy of the game files, is
   permitted by RIOT_COMPLIANCE.md for rank crests and role icons only; using it for numbers is an
   owner decision, not taken here. The wiki's terms forbid automated use.
-- **Per-ability range is not shown** (owner decision recorded 25 Nov 2026, below and in "For the
-  owner"): the owner's request lists "range"; only the champion's attack range is honest (Cost,
-  below).
+- **Per-ability ranges** are shown only where a committed review says what Riot's number measures
+  and Riot's data is still what was reviewed (the owner's decision D3 of 26 Nov 2026; "Ranges",
+  below). The champion's attack range is in its facts, once.
 
 ## Cost
 
@@ -147,12 +151,133 @@ from the ability's own data:
 
 At 16.22.1: 552 per rank, 93 no cost, 5 in Riot's words, 42 nothing (`cost.test.ts`).
 
-**Per-ability range is not shown.** Data Dragon's `range` is a cast range for some abilities, an
-effect radius for others, 25000 for self-casts and globals (129 rank values at 16.22.1), 0 or 20 for
-others (146); no field tells which, and no line of Riot's names it, so no rule could be validated
-across the roster, and it is not stored (rules format 4). The page shows the champion's attack range
-once, in its facts. Showing ability ranges would need the owner's decision and a new reviewed rule
-(`ABILITY_RULES_FORMAT` 5, a fixture rebuild and a roster-wide rule like the cost rule).
+## Ranges
+
+`src/domain/champion-lookup/range.ts` (the rule), `src/server/riot/static/ability-ranges.reviewed.json`
+(the reviewed table), `scripts/static/review-ability-ranges.mjs` (the drafting and checking script).
+The owner's decision D3 (26 Nov 2026): "Include ability ranges where they can be reliably sourced,
+reviewed and maintained across patches. Do not invent or estimate unavailable values."
+
+**Why a review.** Data Dragon gives every spell a `range`, one number per rank (all 692 at 16.22.1;
+the passive has none), the number the game's range indicator draws. The number has no type: a cast
+range, a skillshot's length, a dash, a radius around the champion (Garen's E, 325, is his spin), an
+attack modifier (Kog'Maw's W, 530), the engine's "unlimited" (25000 on 32 spells, about 7 of them
+global) or a placeholder (0, 1, 20, 40; 81 spells hold a number of 50 or less, or 10,000 or more),
+and nothing in Riot's data says which. Riot's text names a range for one ability of 692 (Twisted
+Fate's R, through a placeholder). A one-off research comparison with the game's files (41
+champions, CommunityDragon's copy; a measurement, never a source) found Data Dragon's number is the
+game's indicator value or cast range for 155 of 164 spells: current, not hand-kept, though it differs
+from the mechanical cast range by 10 to 100 units for about 17% of real reaches (Morgana's Q 1,250
+against 1,300). Taken as given, 26% of the numbers that are not placeholders mislead as a reach (a
+hand classification of that sample). So a number is shown only where a review says what it measures.
+
+**The rule** (`rangeDisplay`). A spell's range is shown only when:
+1. its stored record carries Data Dragon's `range` (rules format 5; Q, W, E or R);
+2. the table has a row for its champion and slot with the same Data Dragon spell id, the same range
+   array element for element, and the same text hash (Riot's description and tooltip, `textHash`);
+3. the row's kind is `reach` and the numbers pass validation (one per rank, each above 50 and below
+   10,000, never smaller at a higher rank, not a slot of two abilities: " / " or " | " in its name),
+   or `global` and Riot's number is 5,000 or more.
+
+Then "Range 970" (one number where every rank has the same), "Range 2,000 / 2,500 / 3,000" (per rank
+where they differ, through `formatCount`), or "Global". A row of kind `self` (cast on the champion)
+shows nothing (the owner's decision, Release 19), as do `none` (the number is not the reach), no row,
+the passive and a record from before format 5. When the key no longer matches (Riot changed the spell
+id, its range or its text), the range is hidden and the opened row says "Range not shown: Riot changed
+this ability after patch 26.23, when its range was last checked." Nothing is estimated, carried over
+or rounded: the number shown is always Data Dragon's current one, which is then the reviewed one, and
+no number from the table is ever shown on its own. A mid-patch hotfix Data Dragon does not publish is
+not reflected until the next version, as with cooldowns.
+
+**On the page.** Folded, a short item after the chips (text-xs, the secondary colour, tabular
+figures), in the name-and-chips flow, spaced like a chip: on the name's line where there is room,
+under the chips where there is none, never a grid line or column of its own, so the measured
+one-screen fits hold ("Fit and measurements"); a per-rank range wraps between values only, each "/"
+with the value before it, and a screen reader hears "Range 970 units". The row is marked
+`data-range-status` "shown", "self", "changed" or "none" (the tests and the Production check read
+it). Opened, one line: "Range from Riot's data, in game units. Classified by fixed rules from Riot's
+text on patch 26.23, not by a person." for an automated draft ("Reviewed against Riot's text by an
+automated review on patch 26.23, not by a person." for an automated review, "Reviewed by the team on
+patch 26.23." for the owner's), or the line above when it waits for a review; nothing for a row
+without a range. The abilities' ⓘ: "Mechanics come from Riot's descriptions; ranges only where checked
+against Riot's text. Riot's data has no damage values or scaling, and no cooldown for passives (—)."
+In Compare each column shows its own, with no difference, colour or comparing word. Never
+"estimated", "about", "approximately", "accurate" or "verified" (`words.test.ts`).
+
+**The table.** One row per reviewed spell, one per line, by champion and slot: champion, slot, Data
+Dragon's spell id, `kind` (`reach`, `global`, `self`, or `none` with `why`: `placeholder`,
+`two-forms`, `not-the-reach`, `scales-in-game`, `several-abilities`), Data Dragon's range array as
+reviewed (written out so a reviewer reads it against Riot's file, and compared element for element:
+no separate hash is needed), the text hash, the Data Dragon `version` reviewed at, the date, the
+`reviewer` by role (`automated draft`, `automated review` or `owner`; never a name, the repository is
+public) and, for a draft, the `rule` that decided. A row applies at any version where its key still
+matches: the rows drafted at 16.23.1 match 16.22.1 (the browser tests' pin) row for row. It is read on
+the server only (`src/server/riot/static/ability-ranges.ts`, joined in
+`src/server/champion-lookup/view.ts`; `client-imports.test.ts` keeps `src/server` out of browser
+code): the browser gets each ability's computed range. It changes through pull requests, so git
+history is the review log. A committed file rather than a database table: no migration, no grants,
+reviewable as a diff, held to the offline fixture in CI.
+
+**The drafting rules** (`draftRange`, fixed, no champion named; each spell's draft with its
+evidence, Riot's description and tooltip with the markup taken out, from `--draft`):
+- `none`, high confidence: not one number per rank, two abilities in the slot, a number of 50 or
+  less, a range smaller at a higher rank;
+- `global`, high: every rank 10,000 or more and Riot's text says the whole map ("regardless of
+  distance", "anywhere on the map", "across the map", "all enemy champions"…); 10,000 or more
+  without those words is `none`, medium (a map-wide projectile the words miss is left to a
+  reviewer);
+- `reach`, high: Riot's description or tooltip aims the ability in its first sentence (thrown,
+  fired, launched; the champion dashes, leaps or blinks; cast at a target, a location or in a
+  direction), or the tooltip says "the first enemy hit", and nothing anywhere in Riot's text casts
+  doubt: no radius or change to attacks ("nearby", "around him", "next attack", "attack range",
+  "gains", "empowered"…), no parts or modes ("Passive:", "Recast:", "instead", "at 2 stacks"), no
+  charge or hold, no words about range or distance, not the whole map, not equal to the champion's
+  attack range (Tristana's E grows with it in a game), not a projectile shorter than the champion's
+  attack range (Xayah's Q, 400: its cast field, not the daggers' flight), and between 100 and 5,000;
+- `self`, high: the description's first sentence is about the champion itself (its next attack, a
+  toggle, a passive, an area around it) and Riot's text has no sign of aim at all;
+- anything else is medium or low confidence, "needs a reviewer", and the script never writes it.
+
+Measured on Data Dragon 16.23.1 against the hand classification of 41 champions (164 spells) made
+for the design: the high-confidence reaches were right 33 of 33 (finding 33 of the sample's 106 real
+reaches) and the globals 6 of 6; the other high-confidence rows show nothing either way. The table
+committed on 27 Nov 2026 holds the rules' high-confidence drafts only, labelled `automated draft`:
+165 rows (89 reaches, 7 Global, 2 self, 67 none); 527 spells have no row yet and show none. An
+independent automated review is to confirm and extend them (each confirmed row becomes `automated
+review`); the owner may spot-check rows on the page ("For the owner").
+
+**Each patch** (after the version-check reads a new version; part of the patch-day procedure):
+1. `node scripts/static/review-ability-ranges.mjs --version <new> --check` (or `--from
+   championFull.json`; `--was <previous championFull.json>` adds Riot's old and new text): the rows
+   Riot changed (spell id, range, text), rows whose spell is gone, and the count of spells with no
+   row; exit 1 when a row no longer matches. Admin → Data & Integrations shows the same as a count
+   ("3 ranges are hidden until reviewed again: Riot changed those abilities.").
+2. Review each changed row against Riot's new text (`--draft out.json` writes every spell's draft
+   and evidence); `--write` keeps the matching rows, keeps a confirmed row that no longer matches
+   (hidden until reviewed again), redrafts a stale automated draft from the fixed rules, and adds the
+   new high-confidence drafts. A confirmed row gets the new version, date and reviewer.
+3. Open a pull request; the table is in `src/`, so it deploys (batch it with other merges). Until
+   then only the changed rows' ranges are hidden; every other range stays.
+
+Measured churn (the design's drift measurements): rows whose key moves, 0 at 16.22.1 → 16.23.1 for
+the committed table, about 7 a patch averaged over 2026 (155 spells over 21 patches, 139 of them a
+tooltip change only); a rework moves 4 at once, spell ids included (Shyvana's, Skarner's), which the
+key catches. Without a re-review coverage erodes by about 1% of spells a patch, which the counts make
+visible.
+
+**Counts.** The version-check job counts the table against the stored abilities once per version,
+and again after a deploy that changes the table (`RANGE_TABLE_HASH`): ranges shown, "Global", cast
+on the champion, not the reach, hidden since Riot changed them, not reviewed, and stored before
+rules format 5. It stores them in `app_settings` "ability_range_review" (a few hundred bytes), logs
+one line ("Ability ranges 16.23.1: 89 shown, 7 global, 2 cast on the champion (not shown), 67 not the
+reach; 0 hidden until reviewed again; 527 not reviewed (165 rows).") and adds them to its summary
+(`abilityRanges`): counts only, no champion named. An ordinary run reads only the stored counts.
+Admin → Data & Integrations shows them under "Riot's static data between patches".
+
+**Sources.** Data Dragon only, for the number and the text. No wiki: its values are often the
+mechanical cast range and would contradict the number shown for about 17% of reaches, and its terms
+forbid automated use. No CommunityDragon: RIOT_COMPLIANCE.md permits it for rank crests and role
+icons only; it was read once to measure Data Dragon (above), and never by a job, a test or the table.
 
 ## Cooldowns
 
@@ -229,8 +354,10 @@ tone: the one group a player reacts to), then mobility, damage (said "Magic dama
 damage", "True damage"), sustain, defence and how it is cast (neutral chips). The word is the chip,
 never the colour alone; no duration, no number, no judgement. Opened, the row's description marks the
 words each chip comes from. Where the descriptions name none, the row has no chips. The abilities' ⓘ
-says where they come from ("Mechanics are named from the words of Riot's descriptions. Riot's data
-has no damage values or scaling, and no cooldown for passives (—).", `DATA_LIMIT_WORDS`). The
+says where they come from ("Mechanics come from Riot's descriptions; ranges only where checked
+against Riot's text. Riot's data has no damage values or scaling, and no cooldown for passives (—).",
+`DATA_LIMIT_WORDS`; until 27 Nov 2026 "Mechanics are named from the words of Riot's descriptions.").
+The
 grouped block under the header (each kind with the keys of its abilities) was removed on 25 Nov 2026:
 it repeated the chips.
 
@@ -543,6 +670,16 @@ holds each; screenshots before and after in the lane's notes, never in the repos
   phone (one column under the other at 375px and less, and at large text sizes); the base statistics
   and each part of the builds level too; on a phone the page scrolls, as every phone page does.
 - **Centred** in the room beside the sidebar, open or folded, within 2px.
+- **Ranges** (27 Nov 2026, measured with the demo build at 16.22.1, before and after, and again with
+  text widened by 0.01em for CI's Chromium): the item sits after the chips on the name's line where
+  there is room ("Range 975" beside Charm) and otherwise wraps to a line of its own under the chips,
+  aligned with them (Ahri's Q, at 1366 × 768 with the sidebar open: that row 24px taller, the board's
+  last row 512 → 536px, the builds' line 557 → 581px); elsewhere a row grows by 0 to 9px. One
+  champion with builds at 1366 × 768 ends at 717px (Thresh, 743px with widened text) and 724px
+  (Leona, 744px), within the screen with 24px to spare; at 1440 × 900, 714 and 720px. Compare at
+  1440 × 900: Ahri and Jinx 671 → 679px, Teemo and Jayce 694px unchanged; at 1280 × 720 (not held
+  to one screen) Ahri and Jinx 756 → 780px. Phones grow by a line where a row has a range (390 ×
+  844: Ahri 873 → 897px), nothing wider than the screen at 320 to 820px and 200% text.
 - **With the builds** (26 Nov 2026, `e2e/champion-builds.spec.ts`): one champion's whole board,
   builds included, ends within the screen at 1366 × 768, 1440 × 900, 1920 × 1080 and 2560 × 1440,
   the sidebar open and folded: Thresh's board ends near 715px at 1366 × 768 and 1440 × 900 (the
@@ -559,13 +696,18 @@ holds each; screenshots before and after in the lane's notes, never in the repos
   `src/server/riot/static/abilities.ts`; [DATA_PIPELINES.md](DATA_PIPELINES.md), "Champion
   abilities"): the passive and Q, W, E, R, each with its name, icon, ranks, base cooldown array,
   `maxammo`, description, text hash, and (rules format 4) each spell's `cost` and Riot's `resource`
-  line, the champion's `partype`, `tags` and `stats`, and the patch marks. Where the server cannot
+  line, the champion's `partype`, `tags` and `stats`, and the patch marks, and (rules format 5, 27
+  Nov 2026) each spell's `range` as Riot gives it. Where the server cannot
   reach Data Dragon, the committed offline copy (Data Dragon 16.22.1,
   `src/server/riot/fixtures/champion-abilities.fixture.json`, built by
   `scripts/static/build-ability-fixture.mjs`, which can still download it:
   `node scripts/static/build-ability-fixture.mjs --version 16.22.1`) is stored instead, labelled as
-  such, and the first real sync replaces it. Rules format 4 makes the next version-check read all 173
-  champions again; nothing else is needed (no migration).
+  such, and the first real sync replaces it. Rules format 4, and format 5 after it, made the next
+  version-check read all 173 champions again; nothing else is needed (no migration). Until a
+  champion is read under format 5 its record has no range and shows none.
+- **The reviewed ranges** (`ability-ranges.reviewed.json`, "Ranges") are part of the deployed code,
+  read on the server; the version-check counts them against the stored abilities once a version
+  (`app_settings` "ability_range_review").
 - **What the page reads.** The session, the cached roster and current patch, the stored records
   of the one or two champions the address names (one statement, cached ten minutes;
   `src/server/champion-lookup/view.ts`), and, for members who may see teammates' statistics, each
@@ -585,8 +727,9 @@ holds each; screenshots before and after in the lane's notes, never in the repos
 The app-wide checklist is [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md), where Champion Intel is item 9.
 
 - **Data Dragon only.** Riot publishes it for third parties ("All of which can be used by
-  third-party developers", League docs). Names, icons, ranks, base cooldowns, costs, descriptions,
-  base statistics, resource and classes, read once per game version, never while a page renders;
+  third-party developers", League docs). Names, icons, ranks, base cooldowns, costs, ranges (Data
+  Dragon's own number, only where the review of what it measures is current), descriptions, base
+  statistics, resource and classes, read once per game version, never while a page renders;
   icons, portraits and splash art are linked from Riot's CDN, never copied. No wiki, no
   CommunityDragon numbers, no new source.
 - **Static data, for champions chosen by hand.** "Game overlays that provide static data that is
@@ -620,12 +763,21 @@ The app-wide checklist is [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md), where Champi
   (the rules on all 865 descriptions, the hard cases both ways, the exceptions pinned), `board.test.ts`
   (rank columns across the roster, the statistics listed and aligned for two champions, the other
   column's label kept, none for a champion without statistics, the chips' order on every ability),
-  `changes.test.ts` (the patch marks), `view.test.ts`, `words.test.ts` (no timer or "verified"; each
-  ⓘ at most 25 words in at most two sentences), `src/components/champion-lookup/address.test.ts` (both
+  `changes.test.ts` (the patch marks, a range change among them), `range.test.ts` (the ranges' rule on
+  every branch, and on every spell of the fixture with the committed table: never on a passive, never
+  a placeholder, the counts at 16.22.1), `view.test.ts`, `words.test.ts` (no timer or "verified";
+  each ⓘ at most 25 words in at most two sentences; the range words, never "estimated" or
+  "approximate"), `src/components/champion-lookup/address.test.ts` (both
   champions in the address, Swap, removing either, the old links), `search.test.ts`;
   `src/server/riot/static/abilities.test.ts` (what is read from Data Dragon, the fixture against Data
-  Dragon's own numbers, the build script).
-- Database: `tests/db/champion-abilities.test.ts` (the sync, the per-champion reads, the patch marks);
+  Dragon's own numbers, ranges included, the build script); `ability-ranges.test.ts` (the reviewed
+  table's shape, one row per spell, every row against the fixture so a stale table fails CI, the
+  drafting script's fixed rules giving its automated drafts, `--write` keeping confirmed rows);
+  `range-review.test.ts` (the version-check's counts); `src/components/admin/static-diff.test.ts`
+  (Admin's ranges line).
+- Database: `tests/db/champion-abilities.test.ts` (the sync, the per-champion reads, the patch marks;
+  rules format 5: ranges stored as given, a format-4 record read again, a range change marked and
+  hidden, the counts once per version and table, never on an unchanged run, counts only in the log);
   `tests/db/champion-builds.test.ts` (the counts: only current members' draft games, no remake, both
   teams and both spellings of a position, never an erased player, the item and skill rules the
   domain's, totals only and their size, the champion index in the plan, the section only for
@@ -640,6 +792,8 @@ The app-wide checklist is [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md), where Champi
   counted together, the full build's core in each view), `src/server/champion-builds/query.test.ts`
   (the statement's label in the egress counts, as HOSTING_USAGE.md names it).
 - Browser: `e2e/champion-lookup.spec.ts` (the page, its facts, slot keys, chips and costs per rank,
+  the ranges (Ahri's Q and E, "Global", per rank, none on the passive, a two-ability slot or a spell
+  not reviewed, the opened row's line, Compare's columns each their own),
   the passive's dash, the chips marked in the description, folds by keyboard, the haste field and every
   invalid input, the special cases, unusual champions, "/" and the search, the window, Compare on one
   aligned board, Swap and ✕ on either column, Swap by keyboard keeping its focus, Swap and ✕ waiting
@@ -670,10 +824,19 @@ with no new endpoint or request. The description should say both. The owner's ac
 
 **Decisions left to the owner**: whether damage values, scaling and durations should come from a
 source beyond Data Dragon (CommunityDragon's game files hold them; RIOT_COMPLIANCE.md permits that
-source for rank crests and role icons only); whether per-ability ranges should be shown (25 Nov 2026:
-not shown; Data Dragon's are unreliable and not stored, so only the champion's attack range is, once;
-showing them needs a reviewed rule and rules format 5); and whether the canonical address should
-become `/intel` (it stays `/lookup`, so nothing that links to it changes).
+source for rank crests and role icons only); and whether the canonical address should become
+`/intel` (it stays `/lookup`, so nothing that links to it changes).
+
+**Ranges** (the owner's decision D3, 26 Nov 2026; built 27 Nov 2026, "Ranges"): shown only where a
+committed review of what Data Dragon's number measures is current; abilities cast on the champion
+show nothing (the owner's decision). The table holds the drafting script's high-confidence drafts,
+labelled "automated draft" (not by a person); an independent automated review is to confirm and
+extend it. The owner may spot-check rows on the page (open a champion's ability: the opened row
+says how its range was decided) and say which, if any, should change. After each patch someone runs
+the script's `--check` and opens a pull request for the rows Riot changed (about 1 to 10 a patch);
+without it only those rows' ranges are hidden, and Admin's count says how many. The registration's
+description should name "ranges where reviewed" among Data Dragon's facts (the description lane's
+text, RIOT_COMPLIANCE.md).
 
 **Builds: blocked and decided here, for the owner** (25–26 Nov 2026):
 

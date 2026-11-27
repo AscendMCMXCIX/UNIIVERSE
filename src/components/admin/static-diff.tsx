@@ -1,5 +1,5 @@
 import { formatCount } from "@/lib/format";
-import { publicPatchName } from "@/domain/patch";
+import { patchFromVersion, publicPatchName } from "@/domain/patch";
 
 /** Admin's view of the per-version diff of Riot's static data (staticDiffHealth, server/riot/static/digests.ts): counts and patch names only. */
 export type StaticDiff = {
@@ -34,8 +34,31 @@ export function staticDiffLines(d: StaticDiff): { text: string; warn: boolean }[
   return out;
 }
 
-/** The diff as a card beside the datasets: how Riot's static data (champions, items, runes) moved between the last two patches recorded. */
-export function StaticDiffCard({ diff }: { diff: StaticDiff }) {
+/** How Champion Intel's reviewed ability ranges stand against the stored abilities (the version-check's counts, server/riot/static/range-review.ts): counts and a version only. */
+export type RangeReviewSummary = {
+  version: string | null;
+  shown: number;
+  global: number;
+  changedSinceReview: number;
+  notReviewed: number;
+  noRangeYet: number;
+};
+
+/**
+ * The ability ranges' line, and a warning when Riot changed reviewed abilities (their ranges are
+ * hidden until the table is reviewed again: docs/CHAMPION_INTEL.md, "Ranges", the per-patch steps).
+ */
+export function rangeReviewLines(r: RangeReviewSummary): { text: string; warn: boolean }[] {
+  const patch = r.version ? patchFromVersion(r.version) : null;
+  const at = patch ? publicPatchName(patch) : null;
+  const out = [{ text: `Ability ranges${at ? ` at ${at}` : ""}: ${formatCount(r.shown)} shown, ${formatCount(r.global)} Global, ${formatCount(r.notReviewed)} not reviewed yet.`, warn: false }];
+  if (r.changedSinceReview > 0) out.push({ text: `${formatCount(r.changedSinceReview)} ${r.changedSinceReview === 1 ? "range is" : "ranges are"} hidden until reviewed again: Riot changed ${r.changedSinceReview === 1 ? "that ability" : "those abilities"}.`, warn: true });
+  if (r.noRangeYet > 0) out.push({ text: `${formatCount(r.noRangeYet)} abilities were stored before ranges were read; the next game-data update reads them.`, warn: false });
+  return out;
+}
+
+/** The diff as a card beside the datasets: how Riot's static data (champions, items, runes) moved between the last two patches recorded, and how the reviewed ability ranges stand. */
+export function StaticDiffCard({ diff, ranges }: { diff: StaticDiff; ranges?: RangeReviewSummary | null }) {
   return (
     <div className="min-w-0 rounded-md border border-border bg-surface-2 px-3 py-2 text-sm [overflow-wrap:anywhere]" data-testid="static-diff">
       <div className="font-semibold text-fg">Riot&apos;s static data between patches</div>
@@ -45,6 +68,14 @@ export function StaticDiffCard({ diff }: { diff: StaticDiff }) {
           {l.text}
         </div>
       ))}
+      {ranges
+        ? rangeReviewLines(ranges).map((l) => (
+            <div key={l.text} className={l.warn ? "text-warn" : "text-fg-muted"} data-testid={l.warn ? "static-diff-ranges-hidden" : "static-diff-ranges"}>
+              {l.warn ? "⚠ " : null}
+              {l.text}
+            </div>
+          ))
+        : null}
       <div className="text-xs text-fg-subtle">Source: Riot Data Dragon, compared patch by patch</div>
     </div>
   );

@@ -5,9 +5,10 @@ import type { LookupAbility } from "@/domain/champion-lookup/view";
 import { mechanicChips, type MechanicChip } from "@/domain/champion-lookup/board";
 import { cooldownAtHaste } from "@/domain/champion-lookup/haste";
 import type { MechanicFact } from "@/domain/champion-lookup/mechanics";
+import { rangeStatus, shownReach } from "@/domain/champion-lookup/range";
 import type { Slot } from "@/domain/champion-lookup/types";
-import { DATA_LIMIT_WORDS, SLOT_NAMES, changedWords, cooldownWords } from "@/domain/champion-lookup/words";
-import { formatSeconds } from "@/lib/format";
+import { DATA_LIMIT_WORDS, SLOT_NAMES, changedWords, cooldownWords, rangeNoteWords, type RangeWithPatch } from "@/domain/champion-lookup/words";
+import { formatCount, formatSeconds } from "@/lib/format";
 import { Fold } from "@/components/ui/fold";
 import { InfoTip } from "@/components/ui/info-tip";
 import { RemoteImage } from "@/components/ui/remote-image";
@@ -18,12 +19,16 @@ import { cn } from "@/lib/cn";
   2026): one row per ability, each a fold of its own (the shared Fold, a native <details>, so it opens
   by keyboard, by find-in-page and before the page's code runs). Folded, the row is the quick
   reference: the slot's key tile (P, Q, W, E, R) and the icon, the ability's name and the mechanics
-  Riot's description names as chips (crowd control first), and on one grid of rank columns the
+  Riot's description names as chips (crowd control first), its range where the review of what Riot's
+  number measures is current ("Range 970", "Global": a short muted item after the chips, under them
+  where the row has no room, never a grid line of its own; docs/CHAMPION_INTEL.md, "Ranges"), and on
+  one grid of rank columns the
   cooldown at every rank (at the champion's haste when it is above 0, the base under it, smaller),
   then the cost at every rank in the champion's resource. A cooldown Riot's data does not give is
   said in words instead (a passive's is a quiet dash, the ⓘ over the abilities says why). Opened,
   Riot's whole description with the words behind each chip marked, why a cooldown has no number in
-  full, and what Riot changed in its last patch where that is known.
+  full, where the range comes from (or why it waits for a review), and what Riot changed in its last
+  patch where that is known.
 
   Each row measures itself (@container/cell) and takes one of three forms, the same in every row of
   a champion's column, so rank n always sits in the same place:
@@ -195,6 +200,37 @@ function MarkedDescription({ text, facts }: { text: string; facts: readonly Mech
   return <>{parts}</>;
 }
 
+/**
+ * The range where the review of what Riot's number measures is current: "Range 970", one value per
+ * rank where they differ ("Range 1,300 / 1,550 / 1,800", wrapping between values only, each "/" kept
+ * with the value before it), or "Global". Small and muted after the chips, so it costs a row no line
+ * where the row has room (and one short line under the chips where it has none). Nothing for an
+ * ability cast on the champion or waiting for a review (the opened row says why).
+ */
+function RangeItem({ range, ranks }: { range: RangeWithPatch | null; ranks: number }) {
+  if (!range || (range.kind !== "reach" && range.kind !== "global")) return null;
+  const values = range.kind === "reach" ? shownReach(range.values) : [];
+  return (
+    <span className="inline-block max-w-full align-middle text-xs leading-5 tabular-nums text-fg-muted" data-testid="lookup-ability-range" data-range={range.kind} data-values={range.kind === "reach" ? range.values.join(",") : ""} data-ranks={ranks}>
+      {range.kind === "global" ? (
+        "Global"
+      ) : (
+        values.map((v, i) => (
+          <React.Fragment key={i}>
+            {i > 0 ? <span aria-hidden>{"\u00a0/ "}</span> : null}
+            <span className="whitespace-nowrap" data-range-value={formatCount(v)}>
+              {i === 0 ? "Range\u00a0" : null}
+              <span className="sr-only">{values.length > 1 ? `rank ${i + 1}: ` : ""}</span>
+              {formatCount(v)}
+              {i === values.length - 1 ? <span className="sr-only"> units</span> : null}
+            </span>
+          </React.Fragment>
+        ))
+      )}
+    </span>
+  );
+}
+
 /** A mechanic's chip: crowd control in the warning tone (the one group a player reacts to), the rest neutral; the word is the chip, never the colour alone. */
 function Chip({ chip }: { chip: MechanicChip }) {
   return (
@@ -254,6 +290,7 @@ function AbilityRow({ ability, haste, mode, ranks, last }: { ability: LookupAbil
   const words = cooldownWords(ability.cooldown);
   const hasted = haste > 0 && at !== null;
   const changed = changedWords(ability.changed);
+  const rangeNote = rangeNoteWords(ability.range);
   const chips = mechanicChips(ability);
   const passive = ability.cooldown.kind === "unknown" && ability.cooldown.reason === "passive-not-in-ddragon";
   const cost = ability.cost;
@@ -317,6 +354,12 @@ function AbilityRow({ ability, haste, mode, ranks, last }: { ability: LookupAbil
             ))}
           </span>
         ) : null}
+        {/* A space before each short item: the chips' spacing where the name, chips and items flow as
+            text beside the floated grid (a wide row), gone where the line wraps; a narrow row's flex
+            gap spaces them instead and drops the space. */}
+        {ability.range?.kind === "reach" || ability.range?.kind === "global" ? " " : null}
+        <RangeItem range={ability.range} ranks={ability.ranks} />
+        {ability.changed ? " " : null}
         {ability.changed ? (
           <span className="whitespace-nowrap text-xs text-fg-muted" data-testid="lookup-changed-mark">
             Changed{ability.changed.sincePatch ? ` since ${ability.changed.sincePatch}` : ""}
@@ -326,13 +369,18 @@ function AbilityRow({ ability, haste, mode, ranks, last }: { ability: LookupAbil
     </span>
   );
   return (
-    <li className={cn("@container/cell min-w-0", form.cell, !last && "border-b border-border")} data-testid="lookup-ability" data-slot={ability.slot} data-cooldown={ability.cooldown.kind === "per-rank" ? "per-rank" : ability.cooldown.reason}>
+    <li className={cn("@container/cell min-w-0", form.cell, !last && "border-b border-border")} data-testid="lookup-ability" data-slot={ability.slot} data-cooldown={ability.cooldown.kind === "per-rank" ? "per-rank" : ability.cooldown.reason} data-range-status={rangeStatus(ability.range)}>
       <Fold variant="row" summary={summary} summaryClassName="hover:[&_h3]:text-accent-strong" bodyClassName={cn("pb-3", form.fold)} testId="lookup-ability-fold" summaryTestId="lookup-ability-summary">
         <div className="max-w-prose space-y-2 text-sm leading-relaxed" data-testid="lookup-ability-details">
           {words?.more ? <p className="text-fg-muted">{words.more}</p> : null}
           <p className="text-fg" data-testid="lookup-description">
             {ability.description ? <MarkedDescription text={ability.description} facts={ability.mechanics} /> : <span className="text-fg-muted">Riot&apos;s description isn&apos;t shown: it relies on numbers Riot&apos;s data leaves out.</span>}
           </p>
+          {rangeNote ? (
+            <p className="text-fg-muted" data-testid="lookup-range-note">
+              {rangeNote}
+            </p>
+          ) : null}
           {changed ? (
             <p className="text-fg-muted" data-testid="lookup-changed">
               {changed}

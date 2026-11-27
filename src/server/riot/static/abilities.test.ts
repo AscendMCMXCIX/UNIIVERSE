@@ -44,12 +44,16 @@ describe("compactChampionAbilities: what is taken from a champion's Data Dragon 
       // Rules format 4: Riot's cost and resource line as given (the page's cost rule decides what shows).
       cost: [0, 0, 0, 0, 0],
       resource: "No Cost",
+      // Rules format 5: Riot's range as given (the reviewed rule, src/domain/champion-lookup/range.ts, decides what shows).
+      range: [275, 275, 275, 275, 275],
     });
     expect(riven).toMatchObject({ championId: "Riven", version: V });
     expect(riven!.abilities.map((a) => a.slot)).toEqual([...SLOTS]);
     // The passive: no cooldown in Data Dragon (never "none"), one rank, its icon from img/passive.
     expect(ability(riven, "P")).toMatchObject({ slot: "P", id: null, name: "Runic Blade", icon: "RivenRunicBlades.png", maxRank: 1, cooldown: [], charges: null });
     expect(ability(riven, "P")).not.toHaveProperty("cost");
+    // Data Dragon has no passive range.
+    expect(ability(riven, "P")).not.toHaveProperty("range");
     // The champion's own facts (rules format 4): Riot's resource, classes and base stats, as given.
     expect(riven!.facts).toMatchObject({ partype: "None", tags: ["Fighter", "Assassin"], stats: { hp: 630, attackrange: 125, movespeed: 340 } });
   });
@@ -64,10 +68,16 @@ describe("compactChampionAbilities: what is taken from a champion's Data Dragon 
     odd.spells[1]!.resource = 7;
     odd.stats = { hp: "lots" };
     odd.tags = "Fighter";
+    odd.spells[2]!.range = [325, "far", 325];
+    odd.spells[3]!.range = [Number.POSITIVE_INFINITY];
     const read = compactChampionAbilities(odd, V)!;
     expect(read).not.toBeNull();
     expect(ability(read, "Q")).not.toHaveProperty("cost");
     expect(ability(read, "W")).not.toHaveProperty("resource");
+    // A range in another shape is left out, never the ability or the champion (rules format 5).
+    expect(ability(read, "E")).not.toHaveProperty("range");
+    expect(ability(read, "R")).not.toHaveProperty("range");
+    expect(ability(read, "Q")!.range).toEqual([275, 275, 275, 275, 275]);
     expect(read.facts).toBeNull();
     expect(script.compactChampionAbilities(odd, V)).toEqual(read);
   });
@@ -234,7 +244,16 @@ describe("the committed offline copy (champion-abilities.fixture.json)", () => {
     expect(script.TIP_MAX).toBe(TIP_MAX);
   });
 
-  it("has Data Dragon's own numbers for every champion: spell ids, ranks, cooldowns and charges (the digest, in CI)", () => {
+  it("keeps every spell's range as Data Dragon gives it, the sentinels too (rules format 5): 692 spells, 81 with a placeholder or engine number, none on a passive", () => {
+    const spells = Object.values(fixture.champions).flatMap((r) => r.abilities.filter((a) => a.slot !== "P"));
+    expect(spells.filter((a) => Array.isArray(a.range) && a.range.length === a.maxRank)).toHaveLength(692);
+    for (const record of Object.values(fixture.champions)) expect(ability(record, "P"), record.championId).not.toHaveProperty("range");
+    // The numbers that are no reach on their own: 0 to 50, and 10,000 or more (the engine's "unlimited").
+    expect(spells.filter((a) => a.range!.some((v) => v <= 50 || v >= 10_000))).toHaveLength(81);
+    expect(ability(fixture.champions.Janna!, "W")!.range).toEqual([4_294_967_295, 4_294_967_295, 4_294_967_295, 4_294_967_295, 4_294_967_295]);
+  });
+
+  it("has Data Dragon's own numbers for every champion: spell ids, ranks, cooldowns, charges, costs and ranges (the digest, in CI)", () => {
     const digest = digestFile as unknown as script.AbilityDigest;
     expect(digest.version).toBe(ABILITY_FIXTURE_VERSION);
     expect(Object.keys(digest.champions).sort()).toEqual(Object.keys(fixture.champions).sort());
@@ -243,7 +262,7 @@ describe("the committed offline copy (champion-abilities.fixture.json)", () => {
     let compared = 0;
     for (const [id, digestSpells] of Object.entries(digest.champions)) {
       const spells = fixture.champions[id]!.abilities.filter((a) => a.slot !== "P");
-      expect(spells.map((a) => [a.id, a.maxRank, a.cooldown, a.charges, a.cost ?? null, a.resource ?? null]), id).toEqual(digestSpells.map(([spellId, maxrank, cooldown, maxammo, cost, resource]) => [spellId, maxrank, cooldown, charges(maxammo), cost, resource]));
+      expect(spells.map((a) => [a.id, a.maxRank, a.cooldown, a.charges, a.cost ?? null, a.resource ?? null, a.range ?? null]), id).toEqual(digestSpells.map(([spellId, maxrank, cooldown, maxammo, cost, resource, range]) => [spellId, maxrank, cooldown, charges(maxammo), cost, resource, range]));
       compared += spells.length;
       // The champion's facts (rules format 4), as Data Dragon gives them.
       const facts = digest.facts![id]!;
@@ -317,6 +336,8 @@ describe("the build script (plain Node) and the app give the same results", () =
     expect(Object.keys(fromSample.champions)).toHaveLength(7);
     for (const [id, spells] of Object.entries(fromSample.champions)) expect(committed[id], id).toEqual(spells);
     expect(fromSample.champions.Gangplank![2]!.slice(0, 4)).toEqual(["GangplankE", 5, [0, 0, 0, 0, 0], "3"]);
+    // Each spell's range, the seventh place (rules format 5).
+    expect(fromSample.champions.Riven![0]![6]).toEqual([275, 275, 275, 275, 275]);
     expect(JSON.parse(script.serialiseDigest(fromSample))).toMatchObject({ version: V, champions: fromSample.champions });
     expect(() => script.buildDigest({ version: V, data: { Riven: { spells: [] } } })).toThrow(/1 champions have no four spells: Riven/);
     expect(() => script.buildDigest({ version: "latest", data: {} })).toThrow(/no usable version/);
