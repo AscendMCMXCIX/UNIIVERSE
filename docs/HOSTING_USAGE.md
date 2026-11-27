@@ -61,7 +61,8 @@ player, kept by the database from the records.
   write, no interval). Its budgets once on are in docs/HIGH_ELO_EVIDENCE.md, "Budgets": at most
   12–36 CPU-s and 0.8 GB-h of memory a day hourly (half in the 120-minute pilot), about 25 MB of
   storage for two patches capped at 40 MB, and at most about 10 MB a day of egress for the page's
-  reads (one champion's counts, cached an hour). The owner's go-ahead thresholds (Vercel and
+  reads (one champion's counts, cached an hour) plus the job's own reads, about 70 KB a slice (the
+  item data and the abilities' ranks only), at most about 1.7 MB a day hourly. The owner's go-ahead thresholds (Vercel and
   Supabase readings) are in its "For the owner".
 
 ## 27 Nov 2026: Matchup Intel's lane figures (one statement per pair, cached six hours)

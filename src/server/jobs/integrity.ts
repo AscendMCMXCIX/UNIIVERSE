@@ -8,6 +8,7 @@ import { reconcileErasures } from "@/server/privacy/reconcile";
 import { clearCachesAfterErasure } from "@/server/privacy/after-erasure";
 import { foldMissingPresences } from "@/server/accounts/sync";
 import { invalidateProficiencyCache } from "@/server/proficiency/service";
+import { pruneHighEloCounts } from "@/server/champion-builds/high-elo/store";
 
 /** Whether the daily housekeeping folds missing presences, or only counts them (see below). */
 export const FOLD_MISSING_PRESENCES = false;
@@ -15,7 +16,7 @@ export const FOLD_MISSING_PRESENCES = false;
 defineJob({
   key: "integrity",
   kind: "refresh",
-  description: "Housekeeping: unstick job states left running by an interrupted process (each counts as a failed run) and close the runs left open; delete run records older than 60 days, sign-in sessions that ended over a week ago and failed sign-ins past the throttling window; fold into each account's history the stored records that name it but that its own collection never stored (no Riot request); keep personal-data erasures in force on what was stored lately.",
+  description: "Housekeeping: unstick job states left running by an interrupted process (each counts as a failed run) and close the runs left open; delete run records older than 60 days, sign-in sessions that ended over a week ago, failed sign-ins past the throttling window and Master+ build counts of patches older than the previous one (whether or not that collection runs); fold into each account's history the stored records that name it but that its own collection never stored (no Riot request); keep personal-data erasures in force on what was stored lately.",
   defaultIntervalMinutes: 24 * 60,
   run: async (ctx) => {
     // A job still "running" after half an hour died with its process. It counts as one more
@@ -34,6 +35,13 @@ defineJob({
     const endedSessionsDeleted = await deleteEndedSessions(ctx.db);
     const oldFailedSignInsDeleted = await pruneAuthFailures(ctx.db);
     const oldJobRunsDeleted = await pruneJobRuns(ctx.db, { now });
+    // The Master+ counts keep the current and previous patch (docs/HIGH_ELO_EVIDENCE.md), deleted
+    // here too so they expire when that collection is stopped or at its storage cap. Its failure
+    // never stops the rest (the erasures below above all).
+    const oldHighEloCountsDeleted = await pruneHighEloCounts(ctx.db).catch((err: unknown) => {
+      ctx.log(`Master+ build counts of older patches not deleted: ${(err as Error)?.message ?? String(err)}`);
+      return null;
+    });
     // Games a teammate's collection stored that an account's own list never did (data-audit's
     // "places missing from own history"): folded from the stored record, a bounded batch a day,
     // through the sync's own fold-from-record path. No Riot request.
@@ -55,7 +63,7 @@ defineJob({
       ok: true,
       degraded: !!unusable,
       error: unusable,
-      summary: { unstuck: unstuck.map((u) => u.key), interruptedRunsClosed, endedSessionsDeleted, oldFailedSignInsDeleted, oldJobRunsDeleted, missingPresences, erasures: { records: erasures.records, unusable: erasures.unusable, people: erasures.people, traces: erasures.traces } },
+      summary: { unstuck: unstuck.map((u) => u.key), interruptedRunsClosed, endedSessionsDeleted, oldFailedSignInsDeleted, oldJobRunsDeleted, oldHighEloCountsDeleted, missingPresences, erasures: { records: erasures.records, unusable: erasures.unusable, people: erasures.people, traces: erasures.traces } },
     };
   },
 });

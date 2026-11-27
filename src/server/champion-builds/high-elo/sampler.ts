@@ -1,14 +1,15 @@
-import { eq } from "drizzle-orm";
+import { and, eq, isNotNull } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
-import { appSettings } from "@/server/db/schema";
+import { appSettings, riotAccounts } from "@/server/db/schema";
 import { RIOT_PLATFORMS, RIOT_REGIONS, type RiotRegion } from "@/domain/riot-platforms";
 import { countDeltas, type CountDelta } from "@/domain/high-elo/counts";
 import { hash32, observationWeight, pickWeighted, sampleBySeed, windowFor } from "@/domain/high-elo/sample";
 import type { ItemClasses, SkillRanks } from "@/domain/champion-builds";
 import { explainRiotError, RiotApiError, RiotDeadlineError } from "@/server/riot/api/client";
+import { redactIdentifiers } from "@/server/jobs/answer-redact";
 import type { RiotMatch, RiotMatchTimeline } from "@/server/riot/api/schemas";
 import { observeGame } from "./observe";
-import { commitVisit, cursors, populations, savePopulation } from "./store";
+import { commitVisit, cursors, deleteOldPatches, populations, savePopulation } from "./store";
 import type { HighEloOff } from "./switch";
 
 /*
@@ -16,11 +17,16 @@ import type { HighEloOff } from "./switch";
   chosen"; ported from Matchup Intel's 23 Nov 2026 work): one slice, the four regional hosts in
   parallel. PREPARED AND SWITCHED OFF: it refuses to start without the gate on (switch.ts), before it
   makes any client, and no client can read a ladder in this build (sampler-client.ts). For each region it picks a server in proportion to its
-  Master+ population, reads its three apex ladders (the PUUIDs stay in memory), samples a few
-  players, reads their Solo/Duo games in the server's next window and fetches a few of them, then
-  writes the counts and moves the server's cursor in one transaction. A region that runs out of
-  time or requests writes nothing and is read again next time, so every window counts once.
-  Nothing it returns or logs names a player or a game: counts, servers and hosts only.
+  Master+ population, reads its three apex ladders (the PUUIDs stay in memory), leaves out the
+  team's own accounts (members' games are never sampled or counted: the privacy notice's "players
+  who are not members"), samples a few players, reads their Solo/Duo games in the server's next
+  window and fetches a few of them, then writes the counts and moves the server's cursor in one
+  transaction. A region that runs out of time or requests writes nothing and is read again next
+  time, so every window counts once. Before the regions, the slice deletes the counts of older
+  patches, whatever the regions then do (store.ts deleteOldPatches).
+  Nothing it returns, logs or throws names a player or a game: counts, servers, hosts and Riot's
+  status only. A Riot error's own message carries its route, and a match's route its id, so no
+  such message is kept (failureReason; a refused key is thrown again in words).
 */
 
 /** Players sampled per visit. */
@@ -68,6 +74,8 @@ export interface SliceDeps {
   games?: number;
   maxRequests?: number;
   dailyGames?: number;
+  /** Tests: the storage cap (store.ts HIGH_ELO_MAX_BYTES). */
+  maxBytes?: number;
 }
 
 export interface RegionReport {
@@ -103,6 +111,45 @@ class OutOfRequests extends Error {}
 /** A key Riot refuses stops every region: nothing more is asked with it. */
 const refusedKey = (err: unknown) => err instanceof RiotApiError && (err.status === 401 || err.status === 403);
 
+/** A database error's SQLSTATE ("40P01"), on the error or the driver's error it wraps. */
+function sqlState(err: unknown): string | null {
+  for (let e: unknown = err, depth = 0; e && typeof e === "object" && depth < 3; e = (e as { cause?: unknown }).cause, depth += 1) {
+    const code = (e as { code?: unknown }).code;
+    if (typeof code === "string" && /^[0-9A-Z]{5}$/.test(code)) return code;
+  }
+  return null;
+}
+
+/**
+ * Why a region failed, in words that name no route, player or game: a Riot error's message carries
+ * its route (`Riot API 503 on /lol/match/v5/matches/<id>`: server/riot/api/client.ts routeLabel
+ * keeps a match id), so only Riot's status and the kind of failure are kept; a database error by
+ * its code; anything else by its name and its message with every identifier taken out
+ * (jobs/answer-redact.ts, the rules of the public logs), cut short. It is stored in the job's
+ * summary (job_runs, data_refresh_status), so it must hold nothing that names a game.
+ */
+export function failureReason(err: unknown): string {
+  if (err instanceof RiotApiError) {
+    if (err.status === 401 || err.status === 403) return explainRiotError(err);
+    if (/^Network error/.test(err.message)) return "Riot API unreachable (network error)";
+    if (/^Unreadable answer/.test(err.message)) return "Riot API: an answer that is not JSON";
+    if (/^Unexpected response shape/.test(err.message)) return `Riot API ${err.status}: an answer in an unexpected shape`;
+    if (/^(Rate limited|No room in the rate limits)/.test(err.message)) return "Riot API 429: rate limited";
+    return `Riot API ${err.status}`;
+  }
+  const code = sqlState(err);
+  if (code) return `Database error ${code}`;
+  const name = err instanceof Error ? err.name : "Error";
+  const message = err instanceof Error ? err.message : String(err);
+  return `${name}: ${redactIdentifiers(message).replace(/\/lol\/[^\s]*/g, "<route>").slice(0, 160)}`;
+}
+
+/** The team's own Riot accounts (members' linked accounts), in memory only: left out of every ladder, so never sampled or counted. */
+async function teamAccounts(db: Db): Promise<Set<string>> {
+  const rows = await db.select({ puuid: riotAccounts.puuid }).from(riotAccounts).where(and(eq(riotAccounts.ownerType, "player"), isNotNull(riotAccounts.puuid)));
+  return new Set(rows.map((r) => r.puuid!));
+}
+
 /** Games fetched today (UTC), from app_settings "high_elo_day". */
 async function gamesToday(db: Db, now: number): Promise<{ day: string; games: number }> {
   const day = new Date(now).toISOString().slice(0, 10);
@@ -123,12 +170,15 @@ export class HighEloOffError extends Error {
 }
 
 /** One slice: every region in parallel, each written on its own. Refuses (HighEloOffError) unless the gate is on. */
-export async function runHighEloSlice(db: Db, deps: SliceDeps): Promise<{ regions: RegionReport[]; games: number; observations: number; cpuMs: number }> {
+export async function runHighEloSlice(db: Db, deps: SliceDeps): Promise<{ regions: RegionReport[]; games: number; observations: number; cpuMs: number; oldCountsDeleted: number }> {
   if (!deps.gate.on) throw new HighEloOffError(deps.gate.off);
   const cpu = process.cpuUsage();
+  // The retention first, once, outside every region's transaction: it never waits on a write, the
+  // daily cap or the storage cap.
+  const oldCountsDeleted = await deleteOldPatches(db, deps.keep);
   const today = await gamesToday(db, deps.now);
   const dailyLeft = (deps.dailyGames ?? DAILY_GAMES) - today.games;
-  const [pops, cursorOf] = await Promise.all([populations(db), cursors(db)]);
+  const [pops, cursorOf, team] = await Promise.all([populations(db), cursors(db), teamAccounts(db)]);
   const perRegion = Math.floor((deps.maxRequests ?? MAX_REQUESTS) / RIOT_REGIONS.length);
   const gamesPerVisit = Math.max(0, Math.min(deps.games ?? GAMES_PER_VISIT, Math.floor(dailyLeft / RIOT_REGIONS.length)));
   let keyRefused: unknown = null;
@@ -151,11 +201,13 @@ export async function runHighEloSlice(db: Db, deps: SliceDeps): Promise<{ region
         u,
       )!;
       report.platform = platform;
-      // 2. Its three apex ladders, in memory only; their sizes are kept.
+      // 2. Its three apex ladders, in memory only; their sizes are kept. The team's own accounts
+      // are left out of them (and so of the sample, the weights and every game's observations).
       const [challenger, grandmaster, master] = await Promise.all((["challenger", "grandmaster", "master"] as const).map((t) => client.apexLeague(platform, t).catch((err) => (err instanceof RiotApiError && err.status === 404 ? { entries: [] } : Promise.reject(err)))));
       const masterPlus = new Set([...challenger!.entries, ...grandmaster!.entries, ...master!.entries].map((e) => e.puuid));
       await savePopulation(db, { platform, challenger: challenger!.entries.length, grandmaster: grandmaster!.entries.length, master: master!.entries.length, readAt: new Date(deps.now) });
       report.ladder = masterPlus.size;
+      for (const puuid of team) masterPlus.delete(puuid);
       // 3. The server's next window.
       const from = cursorOf.get(platform) ?? null;
       const window = windowFor(from, deps.now);
@@ -202,19 +254,20 @@ export async function runHighEloSlice(db: Db, deps: SliceDeps): Promise<{ region
       }
       report.observations = observations;
       // The counts and the cursor together, or nothing.
-      const written = await commitVisit(db, { platform, from, to: window.end, games: fetched.length, deltas: [...merged.values()], keep: deps.keep });
+      const written = await commitVisit(db, { platform, from, to: window.end, games: fetched.length, deltas: [...merged.values()], keep: deps.keep, maxBytes: deps.maxBytes });
       return { ...report, outcome: written === "written" ? "written" : written === "taken" ? "taken by another slice" : "storage cap", requests: client.requests };
     } catch (err) {
       if (refusedKey(err)) keyRefused = err;
       const outcome: RegionReport["outcome"] = err instanceof OutOfRequests ? "out of requests" : err instanceof RiotDeadlineError ? "out of time" : "failed";
-      return { ...report, outcome, requests: client.requests, ...(outcome === "failed" ? { error: explainRiotError(err) } : {}) };
+      return { ...report, outcome, requests: client.requests, ...(outcome === "failed" ? { error: failureReason(err) } : {}) };
     }
   };
 
   const regions = await Promise.all(RIOT_REGIONS.map(visit));
   const games = regions.filter((r) => r.outcome === "written").reduce((s, r) => s + (r.fetched ?? 0), 0);
   if (games) await addGamesToday(db, today.day, today.games + games);
-  if (keyRefused) throw keyRefused;
+  // Thrown again in words: the refusal's own message names the route it came on (a match's id).
+  if (keyRefused instanceof RiotApiError) throw new RiotApiError(failureReason(keyRefused), keyRefused.status, false);
   const used = process.cpuUsage(cpu);
-  return { regions, games, observations: regions.reduce((s, r) => s + (r.observations ?? 0), 0), cpuMs: Math.round((used.user + used.system) / 1000) };
+  return { regions, games, observations: regions.reduce((s, r) => s + (r.observations ?? 0), 0), cpuMs: Math.round((used.user + used.system) / 1000), oldCountsDeleted };
 }
