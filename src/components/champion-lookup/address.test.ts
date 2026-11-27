@@ -68,8 +68,14 @@ describe("the address", () => {
     expect(intelHref({ id: "Thresh", haste: 10 }, { id: "Leona", haste: 0, role: "ADC" }, { queue: "clash" })).toBe("/lookup?champion=Thresh&haste=10&champion2=Leona&role2=ADC&queue=clash");
     expect(swappedHref({ id: "Thresh", haste: 0 }, { id: "Leona", haste: 0 }, { queue: "draft" })).toBe("/lookup?champion=Leona&champion2=Thresh&queue=draft");
     expect(withoutHref({ id: "Thresh", haste: 0 }, { id: "Leona", haste: 0 }, 0, { queue: "flex" })).toBe("/lookup?champion=Leona&queue=flex");
-    // The Master+ source is Ranked Solo/Duo by definition: no queue beside it.
-    expect(intelHref({ id: "Thresh", haste: 0 }, null, { queue: "flex", source: "master" })).toBe("/lookup?champion=Thresh&source=master");
+    // The Master+ builds are Ranked Solo/Duo by definition, but the page's queue is Matchup Intel's band's too: kept beside the source, so a reload and Swap keep the band's queue.
+    expect(intelHref({ id: "Thresh", haste: 0 }, null, { queue: "flex", source: "master" })).toBe("/lookup?champion=Thresh&queue=flex&source=master");
+    expect(intelHref({ id: "Thresh", haste: 0 }, null, { queue: "solo", source: "master" })).toBe("/lookup?champion=Thresh&source=master");
+    expect(swappedHref({ id: "Ahri", haste: 20 }, { id: "Zed", haste: 0 }, { lane: "MID", queue: "flex", source: "master" })).toBe("/lookup?champion=Zed&champion2=Ahri&haste2=20&lane=MID&queue=flex&source=master");
+    expect(withoutHref({ id: "Ahri", haste: 0 }, { id: "Zed", haste: 0 }, 1, { lane: "MID", queue: "draft", source: "master" })).toBe("/lookup?champion=Ahri&queue=draft&source=master");
+    // Read back as the page's queue and source.
+    const back = new URL("https://x.invalid/lookup?champion=Zed&champion2=Ahri&lane=MID&queue=flex&source=master").searchParams;
+    expect([queueFromAddress(back.get("queue") ?? undefined), sourceFromAddress(back.get("source") ?? undefined)]).toEqual(["flex", "master"]);
     expect(intelHref({ id: "Thresh", haste: 0 }, null, { source: "team" })).toBe("/lookup?champion=Thresh");
     // No champion, no page parts.
     expect(intelHref(null, null, { queue: "flex" })).toBe("/lookup");

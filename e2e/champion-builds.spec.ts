@@ -431,6 +431,50 @@ test.describe("Master+ source", () => {
     for (const h of await builds(page).getByTestId("lookup-build-role").getByRole("radio").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height))) expect(h).toBeGreaterThanOrEqual(44);
   });
 
+  test("with Matchup Intel's lane, a role chosen that has no builds here opens the lane's role, not the most played", async ({ page }) => {
+    // Leona's Master+ builds: Support (the most played) and Bottom. The link asks for Jungle (no builds), the lane is Bottom.
+    await page.goto("/lookup?champion=Leona&role=JUNGLE&champion2=Thresh&lane=BOTTOM&source=master");
+    await ready(page);
+    const view = builds(page);
+    await expect(view).toHaveAttribute("data-source", "master");
+    await expect(view).toHaveAttribute("data-roles", /^SUPPORT:\d+,ADC:\d+$/);
+    await expect(view).toHaveAttribute("data-role", "ADC");
+    await expect(view.getByTestId("lookup-build-role").getByRole("radio", { name: /Bottom/ })).toHaveAttribute("aria-checked", "true");
+    // Support chosen is a choice (the lane's role is the default), kept in the address; Bottom again is the default, left out.
+    await view.getByTestId("lookup-build-role").getByRole("radio", { name: /Support/ }).click();
+    await expect(view).toHaveAttribute("data-role", "SUPPORT");
+    await expect(page).toHaveURL(/[?&]role=SUPPORT&/);
+    await view.getByTestId("lookup-build-role").getByRole("radio", { name: /Bottom/ }).click();
+    await expect(view).toHaveAttribute("data-role", "ADC");
+    expect(new URL(page.url()).searchParams.has("role")).toBe(false);
+  });
+
+  test("the page's queue stays Matchup Intel's band's beside the Master+ source: in the address, through a reload and Swap", async ({ page }) => {
+    await page.goto("/lookup?champion=Thresh&champion2=Leona&lane=SUPPORT");
+    await ready(page);
+    const team = page.getByTestId("matchup-band").getByTestId("matchup-team");
+    await pick(team.getByTestId("matchup-queue"), "flex");
+    await expect(team).toHaveAttribute("data-queue", "flex");
+    // Master+ chosen in the builds: their own Ranked Solo/Duo games, the band still on Ranked Flex, both in the address.
+    await pick(queue(page), "master");
+    for (const n of [1, 2] as const) await expect(builds(page, n)).toHaveAttribute("data-source", "master");
+    await expect(page).toHaveURL(/[?&]lane=SUPPORT&queue=flex&source=master$/);
+    await expect(team).toHaveAttribute("data-queue", "flex");
+    await page.reload();
+    await ready(page);
+    await expect(page.getByTestId("matchup-band").getByTestId("matchup-team")).toHaveAttribute("data-queue", "flex");
+    await expect(builds(page)).toHaveAttribute("data-source", "master");
+    // A haste typed, then Swap: the page's own change keeps the haste, the band's queue and the source when it arrives.
+    await page.locator('[data-testid="lookup-panel"][data-panel="1"]').getByTestId("lookup-haste-input").fill("20");
+    await expect(page).toHaveURL(/[?&]haste=20(&|$)/);
+    await page.getByTestId("lookup-swap").click();
+    await expect(page).toHaveURL(/\?champion=Leona&champion2=Thresh&haste2=20&lane=SUPPORT&queue=flex&source=master$/);
+    await expect(page.locator('[data-testid="matchup-band"][data-a="Leona"]')).toBeVisible();
+    await expect(page.getByTestId("matchup-band").getByTestId("matchup-team")).toHaveAttribute("data-queue", "flex");
+    for (const n of [1, 2] as const) await expect(builds(page, n)).toHaveAttribute("data-source", "master");
+    await expect(page.locator('[data-testid="lookup-panel"][data-panel="2"]').getByTestId("lookup-haste-input")).toHaveValue("20");
+  });
+
   test("too few once weighted, or none counted yet: said in words, with no offer of the team's queues", async ({ page }) => {
     await page.goto("/lookup?champion=Nasus&source=master");
     await ready(page);

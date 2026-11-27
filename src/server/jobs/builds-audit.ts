@@ -4,20 +4,27 @@ import { getCurrentPatch, listPatchesDesc } from "@/server/repositories/champion
 import { loadLookupPage } from "@/server/champion-lookup/view";
 import { countChampionBuilds, iconResolver, skillRanksOf } from "@/server/champion-builds/load";
 import { readBuildCandidates } from "@/server/champion-builds/query";
-import { probeText, sealProbe } from "@/server/champion-builds/probe";
+import { probeable, probeText, sealProbe } from "@/server/champion-builds/probe";
 import { championBuildsViews, previousPatch, type PatchWindow } from "@/domain/champion-builds";
-import { auditChampion, auditedChampions, auditTotals, buildCandidates, probeChampions, type ChampionAudit } from "@/domain/champion-builds-audit";
+import { auditChampion, auditedChampions, auditTotals, buildCandidates, byGames, candidatesOf, probeChampions, type AuditCandidate, type ChampionAudit } from "@/domain/champion-builds-audit";
 
 /*
   The builds audit (docs/LIVE_VALIDATION.md, "The builds audit"; docs/CHAMPION_INTEL.md): a
   read-only check, run by the Production check before its live check and by hand from Data jobs or
   Admin, that the builds the page shows on production keep every rule (domain/champion-builds-audit
   R1–R10), re-derived from the raw counts:
-  - which champion-role-queues have builds on the current patch window (one statement, a few KB);
+  - which champion-role-queues have builds on the current patch window (one statement, a few KB):
+    only to choose the champions audited;
   - for the champions with the most games and a few more in turn by the day (at most 6), the same
     counts the page reads, through the same cached path and key (countChampionBuilds), so a run warms
     the page's own cache entries rather than counting twice, and the views the page would draw;
-  - the rules checked against those counts; violations as labels only (c1/MID/solo/core:performer).
+  - the rules checked against those counts, the candidates of R1 included (candidatesOf): the page's
+    counts are cached for six hours while account sync stores games every 15 minutes, so a fresh
+    reading is newer than the page's on a correct page; the two are compared like with like, and
+    the fresh reading's differences are only counted (`newerGames`), never a violation;
+  - violations as labels only (c1/MID/solo/core:performer);
+  - the champions the Production check opens (the probe): only champions audited here, on one queue,
+    each with builds in the very counts the page holds.
   Its answer is counts only: no champion's name (the probe of the two champions the Production check
   opens is sealed under CRON_SECRET, server/champion-builds/probe.ts), no player, no match. `ok` is
   false on any violation, so the jobs endpoint answers 500 and the Production check fails.
@@ -45,6 +52,10 @@ export async function runBuildsAudit(ctx: Pick<JobContext, "db" | "log">, option
   const champions = auditedChampions(candidates, day, TOP, ROTATING);
   const audits: ChampionAudit[] = [];
   const skipped = { noAbilities: 0 };
+  // The candidates of the champions audited, from the counts the page holds (what the probe may open).
+  const shown: AuditCandidate[] = [];
+  // Fresh candidates the page's cached counts lack or count differently (games stored, or erased, since the entry was filled).
+  let newerGames = 0;
   for (const [i, championId] of champions.entries()) {
     const label = `c${i + 1}`;
     // The champion as the page reads it: its stored abilities give the skill ranks of the cache key.
@@ -58,10 +69,14 @@ export async function runBuildsAudit(ctx: Pick<JobContext, "db" | "log">, option
     const counted = await countChampionBuilds(db, { championId: champion.champion.id, ranks: skillRanksOf(champion.abilities) });
     if (!counted) continue;
     const views = championBuildsViews(champion.champion.name, counted.rows, counted.window, iconResolver(counted.assets));
-    audits.push(auditChampion(label, counted.rows, counted.window, views, candidates.filter((c) => c.champion === championId)));
+    const own = candidatesOf(champion.champion.id, counted.rows, counted.window);
+    audits.push(auditChampion(label, counted.rows, counted.window, views, own));
+    shown.push(...own);
+    for (const c of candidates.filter((x) => x.champion === championId)) if (!own.some((o) => o.role === c.role && o.queue === c.queue && o.games === c.games)) newerGames += 1;
   }
   const total = auditTotals(audits);
-  const probe = probeChampions(candidates.filter((c) => champions.includes(c.champion)));
+  // Most games first over every champion audited, as the candidates are.
+  const probe = probeChampions(shown.sort(byGames).filter((c) => probeable(c.champion)));
   const secret = options.secret ?? process.env.CRON_SECRET;
   const summary = {
     window: { current: current.patch, previous },
@@ -75,6 +90,7 @@ export async function runBuildsAudit(ctx: Pick<JobContext, "db" | "log">, option
     queues: total.queues,
     violations: total.violations.slice(0, 50),
     violationCount: total.violations.length,
+    newerGames,
     probe: probe.length,
     probeSealed: sealProbe(probeText(probe), secret),
   };

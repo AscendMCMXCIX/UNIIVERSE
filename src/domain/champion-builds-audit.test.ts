@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { championBuildsViews, type BuildCountRow, type BuildQueueId, type ChampionBuildsViews, type IconResolver } from "./champion-builds";
-import { auditChampion, auditTotals, auditedChampions, buildCandidates, probeChampions, rederivePart, type CandidateCount } from "./champion-builds-audit";
+import { auditChampion, auditTotals, auditedChampions, buildCandidates, candidatesOf, probeChampions, rederivePart, type CandidateCount } from "./champion-builds-audit";
 
 /*
   The builds audit's rules (server/jobs/builds-audit; docs/LIVE_VALIDATION.md, "The builds audit"):
@@ -39,7 +39,7 @@ const SUPPORT: BuildCountRow[] = rows("UTILITY", "16.22", 420, [
 const FLEX: BuildCountRow[] = rows("UTILITY", "16.22", 440, [["games", "", 12, 6]]);
 
 const counted = (r: BuildCountRow[]) => championBuildsViews("Pyke", r, window, icons) as Extract<ChampionBuildsViews, { status: "counted" }>;
-const candidates = (r: BuildCountRow[]) => buildCandidates(r.filter((x) => x.dim === "games").map((x) => ({ champion: "Pyke", lane: x.lane, queue: x.queue, patch: x.patch, n: x.n })), window);
+const candidates = (r: BuildCountRow[]) => candidatesOf("Pyke", r, window);
 
 describe("the builds audit's choice of champions", () => {
   const counts: CandidateCount[] = [
@@ -67,11 +67,29 @@ describe("the builds audit's choice of champions", () => {
     expect(auditedChampions([], 5)).toEqual([]);
   });
 
-  it("opens two champions with builds in Ranked Solo/Duo for the Production check, another queue's only where Solo/Duo has fewer", () => {
+  it("opens two champions with builds in Ranked Solo/Duo for the Production check, both on one queue (the page holds one for both columns)", () => {
     const c = buildCandidates(counts, window);
     expect(probeChampions(c)).toEqual([{ champion: "Thresh", queue: "solo" }, { champion: "Leona", queue: "solo" }]);
-    expect(probeChampions(c.filter((x) => x.champion !== "Leona" && x.champion !== "Nasus"))).toEqual([{ champion: "Thresh", queue: "solo" }, { champion: "Jinx", queue: "flex" }]);
+    // Thresh has builds in Solo/Duo only, Jinx in Ranked Flex only: never the two side by side (Jinx's column would be "few" on Solo/Duo), one champion instead.
+    const mixed = c.filter((x) => x.champion !== "Leona" && x.champion !== "Nasus");
+    expect(probeChampions(mixed)).toEqual([{ champion: "Thresh", queue: "solo" }]);
+    // Another queue only where it has more champions with builds than Solo/Duo: those two, on it.
+    const flex = buildCandidates([...counts, { champion: "Ashe", lane: "BOTTOM", queue: 440, patch: "16.22", n: 25 }], window).filter((x) => x.champion !== "Leona" && x.champion !== "Nasus");
+    expect(probeChampions(flex)).toEqual([{ champion: "Ashe", queue: "flex" }, { champion: "Jinx", queue: "flex" }]);
+    expect(probeChampions(c.filter((x) => x.champion === "Jinx"))).toEqual([{ champion: "Jinx", queue: "flex" }]);
+    expect(probeChampions(c, 1)).toEqual([{ champion: "Thresh", queue: "solo" }]);
     expect(probeChampions([])).toEqual([]);
+    // Whatever the candidates, every entry shares the first one's queue.
+    for (const list of [c, mixed, flex, c.slice(1), c.slice(2)]) expect(new Set(probeChampions(list).map((p) => p.queue)).size).toBeLessThanOrEqual(1);
+  });
+
+  it("finds a champion's candidates in the very counts the page holds: a fresh reading with a game more is not what that page shows", () => {
+    const r = [...SUPPORT, ...FLEX];
+    expect(candidatesOf("Pyke", r, window).map((x) => `${x.champion} ${x.role} ${x.queue} ${x.games}`)).toEqual(["Pyke SUPPORT solo 120"]);
+    // The page's cached counts (120 games) against a newer reading (121): R1 holds the view to its own counts, which it keeps.
+    const fresh = buildCandidates([{ champion: "Pyke", lane: "UTILITY", queue: 420, patch: "16.22", n: 121 }], window);
+    expect(auditChampion("c1", r, window, counted(r), fresh).violations).toEqual(["c1/SUPPORT/solo:games"]);
+    expect(auditChampion("c1", r, window, counted(r), candidatesOf("Pyke", r, window)).violations).toEqual([]);
   });
 });
 

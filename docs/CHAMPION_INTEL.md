@@ -583,7 +583,7 @@ above.
 | Starting items | timelines | bought in the first minute, less what was sold in it (timelines kept from 20 Nov 2026 hold sales) |
 | Boots | timelines | the first boots of the second tier bought (Gunmetal Greaves, which has no Boots tag, counts as boots), or "No boots" for a game that completed three items without any |
 | Core items | timelines | the first three **completed** items, in the order bought: purchasable, 1,000 gold or more, not boots, a consumable or a trinket, and building into nothing a player can buy (so Manamune, Archangel's Staff, Winter's Approach and Whispering Circlet count when bought, as they only turn into Muramana, Seraph's Embrace, Fimbulwinter and Diadem of Songs) |
-| Full build | timelines | the most common core, then the item most often bought fourth after it and the one most often bought fifth, each common enough on its own; a composition, so its ⓘ gives each later item's share instead of a win rate. In the "Highest win rate" view it starts from the core with the highest win rate, and its ⓘ says so ("The core items with the highest win rate, then those most often bought fourth …") |
+| Full build | timelines | the most common core, then the item most often bought fourth after it and the one most often bought fifth, each common enough on its own; a composition, so its ⓘ gives each later item's share instead of a win rate. In the "Highest win rate" view it starts from the core with the highest win rate, and its ⓘ says so ("The core items with the highest win rate, then those most often bought fourth …"). No row where the core items name no choice (too few recorded, or none common): it follows the core |
 
 A game whose timeline holds an item the current static data does not know is left out of the item
 parts (an old item is never skipped over, which would shift the order). The items' rules read
@@ -634,8 +634,10 @@ parts (an old item is never skipped over, which would shift the order). The item
 - Title "Builds and runes", the role (its icon and name; a switch where the champion has 20 games
   or more in more than one role, the most played on the current patch first and the default; the
   role chosen joins the address as `role` or `role2`, left out for the default, and a role the
-  champion has too few games in opens the default), and, where a part has a choice that wins
-  clearly more, the switch of the two views.
+  champion has too few games in opens the default; in Compare with Matchup Intel's lane, the default
+  is the lane's role wherever the champion has builds in it in the queue shown, also when the role
+  chosen has none there, chosen in another queue or in a shared link: `shownRole`), and, where a
+  part has a choice that wins clearly more, the switch of the two views.
 - The queue choice (above), and the source line, "From 143 games in the team's matches · patch
   26.22 · all ranks" (the queue left the line on 26 Nov 2026: the choice beside it says it), each
   part its own ⓘ: the games (runes and spells from all of them; items and skills from
@@ -737,7 +739,10 @@ same hastes, each builds section on its chosen role (left out for its default; a
 lane (`lane=TOP|JUNGLE|MID|BOTTOM|SUPPORT`, only with two champions), and the page's queue (`solo`,
 the default, left out; `flex`, `draft`, `clash`; anything else reads as Solo/Duo: `queueFromAddress`,
 one parameter for the builds and Matchup Intel's lane figures alike) and the builds' source (`master`
-only where the page offers it; with it no queue is written, as Master+ is Solo/Duo by definition). A champion may be its Data
+only where the page offers it). The Master+ builds are Ranked Solo/Duo by definition, but the page's
+queue is still Matchup Intel's band's, so it is written beside `source=master` too
+(`…&lane=MID&queue=flex&source=master`): a reload and Swap keep the band on it (27 Nov 2026; before,
+no queue was written with the source, and the band fell back to Solo/Duo). A champion may be its Data
 Dragon id or its name in any case, accents and punctuation ignored ("wukong" opens MonkeyKing); the
 page writes each champion's own id back. One the roster lacks is left out with a line saying so,
 never repeated back. A second champion with no first (or a first the roster lacks) becomes the first,
@@ -1019,8 +1024,11 @@ text, RIOT_COMPLIANCE.md).
   the latest reading; the source line says "all ranks".
 - **The queues**: Normal Draft, Ranked and Clash; Swiftplay, Quickplay and Blind Pick are left out
   (a faster economy, no draft). The owner may want them in.
-- **The thresholds** (20 games for the section and each part, 10 games and a tenth of them for a
-  choice, 20 games and 15% for the highest win rate, 2 points apart): the owner may tune them;
+- **The thresholds** (20 games for the section and each part; 10 games and a tenth of them for a
+  choice; for the highest win rate, 30 games and 15% of the part, the 99% Newcombe interval of its
+  difference from the most common wholly above 0, 2 points more, and no one player above a third of
+  its games: D6, `MIN_PERFORMER_GAMES`, `PERFORMER_Z`, `PERFORMER_MARGIN` and
+  `PERFORMER_MAX_ONE_PLAYER` in `src/domain/champion-builds.ts`): the owner may tune them;
   production's team-scale samples will show "Highest win rate" rarely, and many champions the
   honest line, which is the truthful outcome.
 - **The registration**: paste the description above at the next update (the build totals are new

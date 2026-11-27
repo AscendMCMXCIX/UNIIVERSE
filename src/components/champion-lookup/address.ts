@@ -48,8 +48,9 @@ const LANE_PARAM: Record<Role, string> = { TOP: "TOP", JUNGLE: "JUNGLE", MID: "M
  * Champion Intel's address for one champion, or two side by side: champion, haste and role for
  * the first, champion2, haste2 and role2 for the second, then the page's lane, queue and source. A
  * second champion with no first is written as the first; a haste of 0, a role not chosen, Ranked
- * Solo/Duo and the team's matches are left out; the lane only with two champions. With the Master+
- * source the queue is Ranked Solo/Duo by definition, so no queue is written beside it.
+ * Solo/Duo and the team's matches are left out; the lane only with two champions. The Master+
+ * builds are Ranked Solo/Duo by definition, but the page's queue is still Matchup Intel's band's, so
+ * it is written beside `source=master` too (a reload and Swap keep the band on it).
  */
 export function intelHref(first: AddressChampion | null, second?: AddressChampion | null, page: AddressPage = {}): string {
   const q = new URLSearchParams();
@@ -65,8 +66,9 @@ export function intelHref(first: AddressChampion | null, second?: AddressChampio
     if (page.lane) q.set("lane", LANE_PARAM[page.lane]);
   }
   if (a?.id) {
+    // The queue is the page's (the builds' and Matchup Intel's band's): kept beside the Master+ source, which reads Ranked Solo/Duo of its own while the band still reads it.
+    if (page.queue && page.queue !== DEFAULT_BUILD_QUEUE) q.set("queue", page.queue);
     if (page.source === "master") q.set("source", "master");
-    else if (page.queue && page.queue !== DEFAULT_BUILD_QUEUE) q.set("queue", page.queue);
   }
   const query = q.toString();
   return query ? `${LOOKUP_PATH}?${query}` : LOOKUP_PATH;

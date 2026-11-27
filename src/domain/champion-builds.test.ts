@@ -340,6 +340,15 @@ describe("the patch window and the roles", () => {
     expect(shownRole(view, "MID")).toBe("MID");
     expect(shownRole(view, "TOP")).toBe("SUPPORT"); // too few games as Top: the default
     expect(shownRole(view, null)).toBe("SUPPORT");
+    // With Matchup Intel's lane: the lane's role where it has builds, also when the role chosen has none in this queue (chosen in another queue, or a shared link); a role chosen with builds still wins.
+    expect(shownRole(view, null, "MID")).toBe("MID");
+    expect(shownRole(view, "TOP", "MID")).toBe("MID");
+    expect(shownRole(view, "ADC", "MID")).toBe("MID");
+    expect(shownRole(view, "SUPPORT", "MID")).toBe("SUPPORT");
+    expect(shownRole(view, "MID", "SUPPORT")).toBe("MID");
+    // A lane the champion has no builds in: the most played.
+    expect(shownRole(view, "TOP", "JUNGLE")).toBe("SUPPORT");
+    expect(shownRole(view, null, "TOP")).toBe("SUPPORT");
   });
 
   it("finds the previous patch among the known ones, never across a season", () => {

@@ -12,16 +12,22 @@ import type { BuildQueueKey } from "@/domain/champion-builds";
   "v1.<iv>.<ciphertext>.<tag>" in hex, the ciphertext in pieces of at most 32 characters joined by
   "~": the jobs endpoint takes any run of 40 or more letters, digits, "_" and "-" out of an answer
   (server/jobs/answer-redact.ts), and hex in short pieces is never one, nor anything else it takes
-  out. The plain text is "Thresh:solo,Leona:solo". The
+  out. The plain text is "Thresh:solo,Leona:solo": at most two champions, on one queue (the page
+  holds one queue for both columns of Compare). The
   workflow opens it in scripts/production-audits.mjs with scripts/builds-probe.mjs (the same derivation, held equal by
   src/server/jobs/builds-audit.test.ts), masks each name and hands the list to the live check.
 */
 
 export const PROBE_LABEL = "uniiverse:builds-probe:v1";
 
+/** Whether a champion's id can stand in the probe (what scripts/builds-probe.mjs reads back): letters and digits, as Data Dragon's ids are. */
+export function probeable(champion: string): boolean {
+  return /^[A-Za-z0-9]{1,40}$/.test(champion);
+}
+
 /** The probe's plain text: each champion with the queue its builds are in. */
 export function probeText(probe: ReadonlyArray<{ champion: string; queue: BuildQueueKey }>): string {
-  return probe.filter((p) => /^[A-Za-z0-9]{1,40}$/.test(p.champion)).map((p) => `${p.champion}:${p.queue}`).join(",");
+  return probe.filter((p) => probeable(p.champion)).map((p) => `${p.champion}:${p.queue}`).join(",");
 }
 
 /** Seals the probe's text under the secret; null without a secret (nothing is sent then). */
