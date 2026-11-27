@@ -34,7 +34,9 @@
 
 **The owner's viewports:** every state fits at all eight configurations: the four sizes, sidebar open and folded, with the list, Ambessa, Ambessa against Darius, and Sion's five positions against Nasus. Rows a page (list / opponents / one opponent's games): 7 / 10 / 10 at 1366 × 768, 9 / 18 / 18 at 1440 × 900, 9 / 16 / 16 at 1648 × 900 and 11 / 22 / 20 at 1920 × 1080.
 
-**Known limit.** In a window 656 to 713px tall (a 1366 × 768 laptop's browser window is about 657px), a champion played in several positions with one opponent's games open keeps one game a column, and the page grows by what that row lacks: about 4px for two positions, 44px for five. Nothing is hidden. Before this change those windows showed the scrolling page, 1,400 to 2,400px tall. From 46rem (736px) tall, every state fits.
+**Known limits, being closed by a follow-up** (the same session; its own PR):
+- In a window 656 to 713px tall (a 1366 × 768 laptop's browser window is about 657px), a champion played in several positions with one opponent's games open keeps one game a column, and the page grows by what that row lacks: about 4px for two positions, 44px for five. Nothing is hidden. Before this change those windows showed the scrolling page, 1,400 to 2,400px tall. From 46rem (736px) tall, every state fits.
+- At 1280 to 1359px wide with the sidebar open, the preview opens in the sheet over the paged list (decision O1). The sheet still draws the long preview and scrolls inside: about 2,000px with Ambessa, in a 535 to 633px region. The page itself does not scroll.
 
 **State:** in its pull request.
 
