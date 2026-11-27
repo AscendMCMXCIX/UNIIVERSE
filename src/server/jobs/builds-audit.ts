@@ -54,7 +54,7 @@ export async function runBuildsAudit(ctx: Pick<JobContext, "db" | "log">, option
   const skipped = { noAbilities: 0 };
   // The candidates of the champions audited, from the counts the page holds (what the probe may open).
   const shown: AuditCandidate[] = [];
-  // Fresh candidates the page's cached counts do not hold yet, or hold with fewer games (new games since the entry was filled).
+  // Fresh candidates the page's cached counts lack or count differently (games stored, or erased, since the entry was filled).
   let newerGames = 0;
   for (const [i, championId] of champions.entries()) {
     const label = `c${i + 1}`;
