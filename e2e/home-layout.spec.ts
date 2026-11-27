@@ -712,8 +712,21 @@ test("profile Overview after one live change of the window's height that folds a
   // it again once the pool folded, the page's frame unchanged. The rail now follows that column only where it runs past the
   // window less the padding, and measures again when the column changes height (fit-rows.tsx, fitLimit and useFit).
   await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: baseURL! }]);
-  await page.goto("/players");
-  const href = (await playerEntry(page, "Demo Top").first().getAttribute("href"))!;
+  // A member whose primary pool has exactly six rows now: tests earlier in a full run may have changed one's pool on the
+  // shared demo server, so the member is chosen at run time, never assumed (Demo Top, Mid, ADC and Support start with six).
+  await page.setViewportSize({ width: 1920, height: 950 });
+  let href = "";
+  for (const name of ["Demo Top", "Demo Mid", "Demo ADC", "Demo Support"]) {
+    await page.goto("/players");
+    const candidate = (await playerEntry(page, name).first().getAttribute("href"))!;
+    await page.goto(candidate);
+    await page.locator("[data-testid=primary-pool]").first().waitFor();
+    if ((await page.locator("[data-testid=primary-pool] [data-testid=pool-item]").count()) === 6) {
+      href = candidate;
+      break;
+    }
+  }
+  expect(href, "a demo member with a six-row primary pool").not.toBe("");
   const rail = () =>
     page.evaluate(() => {
       const pad = parseFloat(getComputedStyle(document.getElementById("content")!).paddingBottom);

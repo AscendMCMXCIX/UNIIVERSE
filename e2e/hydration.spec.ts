@@ -58,10 +58,14 @@ test("a Select keeps its width when the page hydrates, so nothing beside it move
   test.skip(info.project.name !== "desktop", "the popover form is the desktop's (phones keep the native select)");
   await page.goto("/players");
   const profile = new URL((await page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']").getAttribute("href"))!, "http://x").pathname;
-  // The server's HTML alone: the native select, as the browser draws it before any code runs.
-  const bare = await browser.newContext({ javaScriptEnabled: false, viewport: { width: 1440, height: 900 }, baseURL });
+  // The server's HTML alone: the native select, as the browser draws it before the page's code runs. The app's script bundles
+  // are refused (its styles still load), so nothing hydrates; the HTML's own inline scripts still run, which reveal the streamed sections (with
+  // JavaScript off altogether those would stay hidden and measure 0px).
+  const bare = await browser.newContext({ viewport: { width: 1440, height: 900 }, baseURL });
+  await bare.route(/\/_next\/static\/chunks\/[^?]*\.js(\?|$)/, (route) => route.abort());
   const serverPage = await bare.newPage();
   await serverPage.goto(`${profile}?mode=solo`);
+  await expect(serverPage.locator("#overview-mode")).toBeVisible();
   const native = await serverPage.locator("#overview-mode").evaluate((e) => ({ tag: e.tagName, width: e.getBoundingClientRect().width }));
   const linkBefore = await serverPage.getByTestId("multikills-by-champion").evaluate((e) => e.getBoundingClientRect().top);
   await bare.close();
