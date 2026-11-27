@@ -48,14 +48,19 @@ export function newcombe(a, b, z = Z_95) {
   return { low: d - Math.hypot(pa - ia.low, ib.high - pb), high: d + Math.hypot(ia.high - pa, pb - ib.low) };
 }
 
-/** The probe from the environment ("Thresh:solo,Leona:solo"), or the demo's champions for a local run. */
+/**
+ * The probe from the environment ("Thresh:solo,Leona:solo"), or the demo's champions for a local
+ * run. One page load holds one queue for both columns, so a champion after the first is opened only
+ * on the first's queue (the builds audit names them so; an entry of another queue, from an older
+ * deployment's audit, is left out rather than opened on a queue it has no builds in).
+ */
 export function probeFrom(value, local) {
   const parsed = String(value ?? "")
     .split(",")
     .map((p) => /^([A-Za-z0-9]{1,40}):(solo|flex|draft|clash)$/.exec(p.trim()))
     .filter(Boolean)
     .map((m) => ({ champion: m[1], queue: m[2] }));
-  if (parsed.length) return parsed.slice(0, 2);
+  if (parsed.length) return parsed.filter((p, i) => i === 0 || (p.queue === parsed[0].queue && p.champion !== parsed[0].champion)).slice(0, 2);
   return local ? [{ champion: "Thresh", queue: "solo" }, { champion: "Leona", queue: "solo" }] : [];
 }
 
@@ -156,7 +161,10 @@ export function sectionProblems(col, rules = BUILD_RULES) {
   if (col.patches.length === 2 ? !(col.currentGames < rules.section) : col.patches.length !== 1) out.push("window");
   if (col.currentGames > col.games) out.push("current games");
   const parts = col.parts.map((p) => p.part);
-  for (const p of [...PARTS, "full"]) if (!parts.includes(p)) out.push(`${p} missing`);
+  for (const p of PARTS) if (!parts.includes(p)) out.push(`${p} missing`);
+  // The full build follows the core: its row where the core shows a choice (its later items, or the line that none is common), none where the core is too few or varied.
+  const coreShown = col.parts.find((p) => p.part === "core")?.state === "shown";
+  if (coreShown !== parts.includes("full")) out.push(coreShown ? "full missing" : "full without a core");
   for (const p of col.parts.filter((x) => PARTS.includes(x.part))) {
     if (p.state === "few" ? !(p.total < rules.part) : !(p.total >= rules.part)) out.push(`${p.part} state`);
     if (p.total > col.games || (TIMELINE_PARTS.includes(p.part) && col.timelineGames !== null && p.total > col.timelineGames)) out.push(`${p.part} total`);
@@ -166,7 +174,8 @@ export function sectionProblems(col, rules = BUILD_RULES) {
     if (p.win !== pct(p.wins / p.games) || p.pick !== pct(p.games / p.total)) out.push(`${p.part} figures`);
     if (!/likely \d{1,3}–\d{1,3}%/.test(p.tip)) out.push(`${p.part} range`);
     if (p.firm !== p.games >= rules.firmGames || p.greyed !== !p.firm) out.push(`${p.part} small sample`);
-    if (p.part !== "skills" && p.pictures === 0) out.push(`${p.part} icons`);
+    // Riot's pictures for every choice but the skill order (its keys) and "No boots" (words: a game that completed three items without boots).
+    if (p.part !== "skills" && !(p.part === "boots" && p.key === "none") && p.pictures === 0) out.push(`${p.part} icons`);
   }
   for (const f of col.parts.filter((x) => x.part === "full" && x.state === "shown")) {
     for (const later of [f.fourth, f.fifth].filter(Boolean)) if (!(later.games >= rules.choiceGames) || !(later.games / later.total >= rules.choiceShare)) out.push("full later items");
@@ -233,7 +242,8 @@ export function buildsVerdicts({ kind, probe, at, highest, roles = [], flex, off
     fact("a \"Highest win rate\" choice comes from 30 games and 15% of its part, 2 points and 99% clearly above the most common (re-computed from its counts)", hp.length === 0, { problems: hp });
     if (highest) fact("the \"Highest win rate\" view keeps every other rule too", sectionProblems(highest.columns[0]).length === 0, { problems: sectionProblems(highest.columns[0]) });
   } else if (first) {
-    fact("no \"Highest win rate\" view without a choice that qualifies: every row the most common", first.parts.every((p) => p.choice === "common"), { choices: first.parts.map((p) => p.choice) });
+    // A part with no choice (too few, or none common) names none: only the shown rows say which.
+    fact("no \"Highest win rate\" view without a choice that qualifies: every row the most common", first.parts.every((p) => p.state !== "shown" || p.choice === "common"), { choices: first.parts.map((p) => p.choice) });
   }
   // Each other role: its own games, the same rules.
   if (first && first.roles.length > 1) {

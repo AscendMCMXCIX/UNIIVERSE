@@ -82,8 +82,12 @@ describe("the populated builds facts", () => {
     }
   });
 
-  it("read the probe from the builds audit, or the demo's champions for a local run, and open them in one address", () => {
-    expect(probeFrom("Thresh:solo,Leona:flex,Nasus:solo", false)).toEqual([{ champion: "Thresh", queue: "solo" }, { champion: "Leona", queue: "flex" }]);
+  it("read the probe from the builds audit, or the demo's champions for a local run, and open them in one address, on one queue", () => {
+    // The page holds one queue for both columns: a champion of another queue is never opened beside the first (it would show "few" on a correct page).
+    expect(probeFrom("Thresh:solo,Leona:flex,Nasus:solo", false)).toEqual([{ champion: "Thresh", queue: "solo" }, { champion: "Nasus", queue: "solo" }]);
+    expect(probeFrom("Thresh:solo,Jinx:flex", false)).toEqual([{ champion: "Thresh", queue: "solo" }]);
+    expect(probeFrom("Jinx:flex,Ashe:flex", false)).toEqual([{ champion: "Jinx", queue: "flex" }, { champion: "Ashe", queue: "flex" }]);
+    expect(probeFrom("Thresh:solo,Thresh:solo", false)).toEqual([{ champion: "Thresh", queue: "solo" }]);
     expect(probeFrom("", true)).toEqual(probe);
     expect(probeFrom(undefined, false)).toEqual([]);
     expect(probeFrom("<script>:solo", false)).toEqual([]);
@@ -123,6 +127,31 @@ describe("the populated builds facts", () => {
     expect(sectionProblems(column(1, { patches: ["26.23", "26.22"], currentGames: 40 }))).toContain("window");
     // A timeline part above the games with a timeline.
     expect(sectionProblems(column(1, { timelineGames: 50 }))).toContain("skills total");
+  });
+
+  it("accept every state a correct page draws: no full build where the core items are too few or varied, \"No boots\" in words, a part with no choice beside the most common", () => {
+    const rules = "desktop: builds champion: every part shown with its thresholds kept (10 games and a tenth of its part), its win and pick rates as counted, its likely range in its ⓘ, small samples greyed, items and skills within the games with a timeline";
+    const withoutFull = PARTS.filter((x) => x.part !== "full");
+    const core = (over: Partial<BuildsPartRead>) => withoutFull.map((x) => (x.part === "core" ? { ...x, games: null, wins: null, key: null, choice: null, win: "", pick: "", tip: "", firm: null, greyed: null, pictures: 0, ...over } : x));
+    // The core "few" (15 games with three completed items: a support) or "varied" (40 spread over many sets): the page draws no full build row.
+    const few = column(1, { parts: core({ state: "few", total: 15 }) });
+    const varied = column(1, { parts: core({ state: "varied", total: 40 }) });
+    expect(sectionProblems(few)).toEqual([]);
+    expect(sectionProblems(varied)).toEqual([]);
+    expect(failed({ at: read({}, [few, varied]) })).toEqual([]);
+    // A core shown needs its full build row (its later items, or the line that none is common); none may follow a core that shows nothing.
+    expect(sectionProblems(column(1, { parts: withoutFull }))).toEqual(["full missing"]);
+    expect(sectionProblems(column(1, { parts: [...core({ state: "few", total: 15 }), PARTS.at(-1)!] }))).toEqual(["full without a core"]);
+    expect(sectionProblems(column(1, { parts: PARTS.map((x) => (x.part === "full" ? { ...x, state: "varied", fourth: null } : x)) }))).toEqual([]);
+    // "No boots" (a game that completed three items without any) is words, not a picture; any other boots choice draws one.
+    const boots = (over: Partial<BuildsPartRead>) => column(1, { parts: PARTS.map((x) => (x.part === "boots" ? { ...x, ...over } : x)) });
+    expect(sectionProblems(boots({ key: "none", pictures: 0 }))).toEqual([]);
+    expect(failed({ at: read({}, [boots({ key: "none", pictures: 0 }), column(2)]) })).toEqual([]);
+    expect(sectionProblems(boots({ key: "3158", pictures: 0 }))).toEqual(["boots icons"]);
+    expect(failed({ at: read({}, [boots({ key: "3158", pictures: 0 }), column(2)]) })).toEqual([rules]);
+    // No "Highest win rate" offered and a part with no choice (too few stat shards recorded): it names no choice, which is not a "Highest win rate" row.
+    const shardsFew = column(1, { parts: PARTS.map((x) => (x.part === "shards" ? { ...x, state: "few", total: 8, choice: null, games: null, wins: null, key: null, win: "", pick: "", tip: "", firm: null, greyed: null, pictures: 0 } : x)) });
+    expect(failed({ at: read({}, [shardsFew, column(2)]) })).toEqual([]);
   });
 
   it("re-compute every \"Highest win rate\" row from its counts: 30 games, 15%, 2 points, 99% clear", () => {

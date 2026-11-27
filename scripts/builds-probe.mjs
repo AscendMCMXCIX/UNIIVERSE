@@ -12,7 +12,9 @@
     characters joined by "~" (the jobs endpoint's redaction takes out any run of 40 or more letters,
     digits, "_" and "-": server/jobs/answer-redact.ts; hex in short pieces is never one).
     AES-256-GCM, key = HMAC-SHA256(CRON_SECRET, "uniiverse:builds-probe:v1"), 12-byte iv.
-    Plain text: each champion with its queue, "Thresh:solo,Leona:flex" (at most two).
+    Plain text: each champion with its queue, "Thresh:solo,Leona:solo" (at most two, on one queue:
+    the page holds one queue for both columns; scripts/builds-facts.mjs probeFrom opens a second
+    entry only on the first's queue).
 
   The Production check's workflow opens it in scripts/production-audits.mjs (unsealBuildsProbe),
   masks each name in the log at once and passes the list to the live check as LIVE_BUILDS_CHAMPIONS
