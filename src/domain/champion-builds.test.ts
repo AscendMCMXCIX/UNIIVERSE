@@ -349,6 +349,17 @@ describe("the patch window and the roles", () => {
     expect(previousPatch("17.1", ["17.1", "16.24"])).toBeNull();
     expect(previousPatch("17.1", [])).toBeNull();
   });
+
+  it("at the 2027 season's first patch, never falls back on 2026's last: too few games on 17.1 show the honest line, not 16.24's builds", () => {
+    const window = { current: "17.1", previous: previousPatch("17.1", ["17.1", "16.24", "16.23"]) };
+    expect(window.previous).toBeNull();
+    const view = championBuildsView("Pyke", [...lane("UTILITY", "16.24", 40), ...lane("UTILITY", "17.1", 6)], window, icons);
+    expect(view.status).toBe("few");
+    // With enough games on 17.1 the builds are 17.1's alone.
+    const enough = championBuildsView("Pyke", [...lane("UTILITY", "16.24", 40), ...lane("UTILITY", "17.1", 25)], window, icons);
+    expect(enough.status).toBe("shown");
+    if (enough.status === "shown") expect([enough.currentPatch, enough.builds[enough.defaultRole]!.patches]).toEqual(["27.1", ["27.1"]]);
+  });
 });
 
 describe("the queues (D5): each its own counts, never pooled", () => {
