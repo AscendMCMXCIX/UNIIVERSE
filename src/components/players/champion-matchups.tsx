@@ -597,7 +597,7 @@ function WorkspaceMatchups({ isOwn, me, role, vs, champ, data, onVs, onMatch, ti
                 {coverage}
               </p>
             ) : (
-              <p className="sr-only" data-testid="champion-preview-foot">
+              <p className="sr-only text-xs text-fg-subtle" data-testid="champion-preview-foot">
                 Every game here names its lane opponent.
               </p>
             )
