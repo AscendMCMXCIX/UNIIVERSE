@@ -20,7 +20,7 @@ import { resultBytes } from "@/server/db/egress";
   Champion Intel's builds from the team's stored matches (docs/CHAMPION_INTEL.md, "Builds and
   runes"), on synthetic records and timelines (no Riot request): only matches a current team member
   played count (a personal-use profile's and an archived profile's own games never do), only the
-  draft queues, no remake, every player on the champion (both teams, both spellings of a position),
+  draft queues, each counted on its own (D5: every row carries its queue), no remake, every player on the champion (both teams, both spellings of a position),
   never an erased player; the item and skill rules are the domain's; only totals leave the database
   (no PUUID, name or match id), in a few KB; the champion index is used; and the section is only for
   accounts that may see teammates' statistics.
@@ -143,6 +143,8 @@ beforeAll(async () => {
   await game(seatsAt({ puuid: "p-ace" }, { puuid: "", championId: "Ahri", position: "MIDDLE", removed: true }), { owners: [ace] });
   // A game no member played (a record stored some other way): never counted.
   await game(seatsAt({ puuid: "p-stranger" }, { puuid: "p-ahri-stranger", championId: "Ahri", position: "MIDDLE" }), { owners: [] });
+  // A Ranked Flex game with Ahri: counted, under its own queue, never added to Solo/Duo's.
+  await game(seatsAt({ puuid: "p-ace" }, { puuid: "p-ahri-flex", championId: "Ahri", position: "MIDDLE", win: true }), { owners: [ace], queueId: 440 });
 }, 120_000);
 
 afterAll(async () => {
@@ -150,15 +152,19 @@ afterAll(async () => {
 });
 
 const read = (ranks: SkillRanks | null = RANKS) => readBuildCounts(handle.db, { champion: "Ahri", patches: ["16.22", "16.21"], items: ITEMS, ranks });
-const count = (rows: Awaited<ReturnType<typeof read>>, dim: string, value?: string) => rows.filter((r) => r.dim === dim && (value === undefined || r.value === value)).reduce((s, r) => s + r.n, 0);
+/** A dim's games in one queue (Ranked Solo/Duo unless said). */
+const count = (rows: Awaited<ReturnType<typeof read>>, dim: string, value?: string, queue = 420) => rows.filter((r) => r.dim === dim && r.queue === queue && (value === undefined || r.value === value)).reduce((s, r) => s + r.n, 0);
 
 describe("the build counts", () => {
   it("count every player on the champion in the team's draft games, both teams and both spellings of a position, nothing else", async () => {
     const rows = await read();
     expect(count(rows, "games")).toBe(22);
     expect(new Set(rows.filter((r) => r.dim === "games").map((r) => `${r.patch} ${r.lane}`))).toEqual(new Set(["16.22 MIDDLE"]));
-    expect(rows.find((r) => r.dim === "games")).toMatchObject({ n: 22, w: 11, nm: 2 });
-    expect(count(rows, "queue", "420")).toBe(22);
+    expect(rows.find((r) => r.dim === "games" && r.queue === 420)).toMatchObject({ n: 22, w: 11, nm: 2 });
+    // The Flex game: its own queue's row, never added to Solo/Duo's (D5).
+    expect(count(rows, "games", undefined, 440)).toBe(1);
+    expect(new Set(rows.map((r) => r.queue))).toEqual(new Set([420, 440]));
+    expect(rows.some((r) => (r.dim as string) === "queue")).toBe(false);
     // One game has no timeline.
     expect(count(rows, "timeline")).toBe(21);
     expect(count(rows, "runes", "8200:8229,8226,8210,8237|8300:8304,8347")).toBe(22);
@@ -192,11 +198,19 @@ describe("the build counts", () => {
     expect(count(await read(null), "skills")).toBe(0);
   });
 
+  it("count the most games one player had with a value inside the database, and send that count only (the D6 spread guard)", async () => {
+    const rows = await read();
+    // Ace's own Ahri is in two of the games: the most one player has; everyone else on Ahri has one.
+    expect(rows.find((r) => r.dim === "games" && r.queue === 420)!.top).toBe(2);
+    expect(rows.find((r) => r.dim === "games" && r.queue === 440)!.top).toBe(1);
+    for (const r of rows) expect(r.top, `${r.dim} ${r.value}`).toBeLessThanOrEqual(r.n);
+  });
+
   it("send only totals: no PUUID, name or match id, in a few KB", async () => {
     const rows = await read();
     const text = JSON.stringify(rows);
     expect(text).not.toMatch(/p-ace|p-ahri|OC1_|#OCE/);
-    expect(Object.keys(rows[0]!).sort()).toEqual(["dim", "lane", "n", "nm", "patch", "value", "w"]);
+    expect(Object.keys(rows[0]!).sort()).toEqual(["dim", "lane", "n", "nm", "patch", "queue", "top", "value", "w"]);
     // The answer as Postgres sends it: one row, one value (its estimated bytes on the wire).
     expect(resultBytes([{ rows: text }]).bytes).toBeLessThan(4_000);
   });
@@ -223,14 +237,20 @@ describe("the builds section", () => {
     expect(await loadChampionBuilds(handle.db, member(), input)).not.toBeNull();
   });
 
-  it("shows the champion's builds on the current patch with its icons and names, the role from Riot's position", async () => {
-    const view = await loadChampionBuilds(handle.db, member(), input);
-    expect(view?.status).toBe("shown");
-    if (view?.status !== "shown") return;
+  it("shows the champion's builds on the current patch with its icons and names, the role from Riot's position, Ranked Solo/Duo's on their own", async () => {
+    const views = await loadChampionBuilds(handle.db, member(), input);
+    expect(views?.status).toBe("counted");
+    if (views?.status !== "counted") return;
+    expect(views.master).toBeNull();
+    // Ranked Flex's one game: its own view, too few.
+    expect(views.queues.flex).toMatchObject({ status: "few", queue: "flex", games: 1, role: "MID" });
+    const view = views.queues.solo;
+    expect(view.status).toBe("shown");
+    if (view.status !== "shown") return;
     expect(view.currentPatch).toBe("26.22");
     expect(view.roles).toEqual([{ role: "MID", games: 22 }]);
     const mid = view.builds.MID!;
-    expect(mid).toMatchObject({ games: 22, teamGames: 2, timelineGames: 21, patches: ["26.22"], widened: false, queues: [420] });
+    expect(mid).toMatchObject({ games: 22, teamGames: 2, timelineGames: 21, patches: ["26.22"], widened: false, queue: "solo" });
     expect(mid.runes.state === "shown" && mid.runes.standard.value.keystone).toEqual({ url: "https://ddragon.leagueoflegends.com/cdn/img/perk-images/Styles/Sorcery/ArcaneComet/ArcaneComet.png", name: "Arcane Comet" });
     // A rune the stored names lack: named plainly, no URL (a stand-in), never dropped.
     expect(mid.runes.state === "shown" && mid.runes.standard.value.primary[0]).toEqual({ url: "", name: "Rune 8226" });
@@ -238,10 +258,13 @@ describe("the builds section", () => {
     expect(mid.core.state === "shown" && mid.core.standard.value.map((i) => i.name)).toEqual(["Luden's Echo", "Zhonya's Hourglass", "Rabadon's Deathcap"]);
     expect(mid.boots.state === "shown" && mid.boots.standard.value).toMatchObject({ name: "Sorcerer's Shoes" });
     expect(mid.full?.items.map((i) => i.name)).toEqual(["Luden's Echo", "Zhonya's Hourglass", "Rabadon's Deathcap", "Void Staff"]);
-    expect(JSON.stringify(view)).not.toMatch(/p-ace|p-ahri|OC1_|#OCE/);
+    expect(JSON.stringify(views)).not.toMatch(/p-ace|p-ahri|OC1_|#OCE/);
+    // The spread guard's counts stay on the server: no `top` reaches the page.
+    expect(JSON.stringify(views)).not.toContain('"top"');
   });
 
   it("says honestly when a champion has too few games", async () => {
-    expect(await loadChampionBuilds(handle.db, member(), { championId: "Jinx", championName: "Jinx", ranks: RANKS })).toEqual({ status: "few", championName: "Jinx", currentPatch: "26.22", games: 0, role: null });
+    const jinx = await loadChampionBuilds(handle.db, member(), { championId: "Jinx", championName: "Jinx", ranks: RANKS });
+    expect(jinx?.status === "counted" && jinx.queues.solo).toEqual({ status: "few", source: "team", queue: "solo", championName: "Jinx", currentPatch: "26.22", games: 0, role: null });
   });
 });

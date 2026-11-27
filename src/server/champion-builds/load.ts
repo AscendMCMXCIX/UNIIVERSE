@@ -6,7 +6,7 @@ import { getCurrentPatch, listPatchesDesc } from "@/server/repositories/champion
 import { assetUrl, loadRiotAssets, loadRiotBuildData, type RiotAssets } from "@/server/riot/static/assets";
 import { log } from "@/server/observability/log";
 import { cachedFor } from "@/server/observability/cache";
-import { BUILDS_FORMAT, championBuildsView, itemClasses, previousPatch, type BuildCountRow, type BuildIcon, type ChampionBuildsView, type IconResolver, type SkillRanks } from "@/domain/champion-builds";
+import { BUILDS_FORMAT, championBuildsViews, itemClasses, previousPatch, type BuildCountRow, type BuildIcon, type ChampionBuildsViews, type IconResolver, type PatchWindow, type SkillRanks } from "@/domain/champion-builds";
 import type { Slot } from "@/domain/champion-lookup/types";
 import { readBuildCounts } from "./query";
 
@@ -20,10 +20,13 @@ import { readBuildCounts } from "./query";
     (the same right as a teammate's season figures; Leaderboards checks it the same way). Anyone
     else gets nothing: no section, no words.
   - Nothing without the game's current patch from Data Dragon (the offline fixture knows none).
+  - Every queue's counts come from one statement (query.ts), each queue a view of its own
+    (domain/champion-builds championBuildsViews): a queue chosen on the page reads nothing more.
   - The counts are cached for CACHE_SECONDS in Next's data cache, shared by every server instance
     (a per-instance cache would miss on every cold instance), keyed by the champion, the patch
     window, each ability's ranks, the static data's version and BUILDS_FORMAT: a new patch, new item
-    data or new rules are new keys. The tag is dropped on an erasure (forgetChampionBuilds), so an
+    data or new rules are new keys (countChampionBuilds, which the builds audit job calls too, so its
+    run warms the page's own entries). The tag is dropped on an erasure (forgetChampionBuilds), so an
     erased person's games leave the totals at once rather than within six hours. Only the
     production database is cached so: the in-memory demo (seeded afresh at every start, and read
     by the browser tests) is counted each time.
@@ -98,30 +101,52 @@ export interface ChampionBuildsInput {
   ranks: SkillRanks | null;
 }
 
+/** The counts of one champion on the game's current patch window, with what the views need: null without a current patch. */
+export interface ChampionBuildCounts {
+  rows: BuildCountRow[];
+  window: PatchWindow;
+  assets: RiotAssets | null;
+}
+
+/** The cache key of one champion's counts (the page's and the builds audit's alike). */
+export function buildsCacheKey(championId: string, patches: readonly string[], ranks: SkillRanks | null, assetsVersion: string | null): string[] {
+  const ranksKey = ranks ? [1, 2, 3, 4].map((s) => ranks[s as 1 | 2 | 3 | 4]).join(",") : "none";
+  return ["champion-builds", String(BUILDS_FORMAT), championId, patches.join("+"), ranksKey, assetsVersion ?? "no-items"];
+}
+
 /**
- * The builds view of one champion for this account, or null where nothing is shown at all (no
- * permission, no current patch). Never throws: a failure is the "unavailable" view.
+ * One champion's counts on the current patch window, cached as the page caches them: NOT gated on
+ * a session (the page's loadChampionBuilds is; the protected builds audit job calls this directly).
+ * Null without the game's current patch from Data Dragon. Throws on a database failure.
  */
-export async function loadChampionBuilds(db: Db, session: Session | null, input: ChampionBuildsInput): Promise<ChampionBuildsView | null> {
+export async function countChampionBuilds(db: Db, input: Pick<ChampionBuildsInput, "championId" | "ranks">): Promise<ChampionBuildCounts | null> {
+  const current = await getCurrentPatch(db);
+  if (!current || current.isFixture) return null;
+  // The known patches (cached with the current patch's cache name, so a new patch drops it too) and
+  // the names and icons every match view already reads. The items' shop facts (57 KB) are read only
+  // when the counts are: the names' version is theirs (the two are stored together, per version).
+  const [known, assets] = await Promise.all([cachedFor("patch:known", 10 * 60_000, () => listPatchesDesc(db), db), loadRiotAssets(db)]);
+  const previous = previousPatch(current.patch, known);
+  const patches = previous ? [current.patch, previous] : [current.patch];
+  const count = async () => {
+    const buildData = await loadRiotBuildData(db);
+    return readBuildCounts(db, { champion: input.championId, patches, items: itemClasses(buildData?.itemInfo ?? {}), ranks: input.ranks });
+  };
+  const rows: BuildCountRow[] = (await sharedCacheFor(db)) ? await unstable_cache(count, buildsCacheKey(input.championId, patches, input.ranks, assets?.version ?? null), { revalidate: CACHE_SECONDS, tags: [BUILDS_CACHE_TAG] })() : await count();
+  return { rows, window: { current: current.patch, previous }, assets };
+}
+
+/**
+ * The builds views of one champion for this account (every queue on its own), or null where
+ * nothing is shown at all (no permission, no current patch). Never throws: a failure is the
+ * "unavailable" view.
+ */
+export async function loadChampionBuilds(db: Db, session: Session | null, input: ChampionBuildsInput): Promise<ChampionBuildsViews | null> {
   if (!hasPermission(session, "view-teammate-stats")) return null;
   try {
-    const current = await getCurrentPatch(db);
-    if (!current || current.isFixture) return null;
-    // The known patches (cached with the current patch's cache name, so a new patch drops it too) and
-    // the names and icons every match view already reads. The items' shop facts (57 KB) are read only
-    // when the counts are: the names' version is theirs (the two are stored together, per version).
-    const [known, assets] = await Promise.all([cachedFor("patch:known", 10 * 60_000, () => listPatchesDesc(db), db), loadRiotAssets(db)]);
-    const previous = previousPatch(current.patch, known);
-    const patches = previous ? [current.patch, previous] : [current.patch];
-    const count = async () => {
-      const buildData = await loadRiotBuildData(db);
-      return readBuildCounts(db, { champion: input.championId, patches, items: itemClasses(buildData?.itemInfo ?? {}), ranks: input.ranks });
-    };
-    const ranksKey = input.ranks ? [1, 2, 3, 4].map((s) => input.ranks![s as 1 | 2 | 3 | 4]).join(",") : "none";
-    const rows: BuildCountRow[] = (await sharedCacheFor(db))
-      ? await unstable_cache(count, ["champion-builds", String(BUILDS_FORMAT), input.championId, patches.join("+"), ranksKey, assets?.version ?? "no-items"], { revalidate: CACHE_SECONDS, tags: [BUILDS_CACHE_TAG] })()
-      : await count();
-    return championBuildsView(input.championName, rows, { current: current.patch, previous }, iconResolver(assets));
+    const counted = await countChampionBuilds(db, input);
+    if (!counted) return null;
+    return championBuildsViews(input.championName, counted.rows, counted.window, iconResolver(counted.assets));
   } catch (err) {
     log("error", "champion-builds.failed", { champion: input.championId, error: err });
     return { status: "unavailable", championName: input.championName };

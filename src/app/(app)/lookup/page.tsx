@@ -6,7 +6,7 @@ import type { Db } from "@/server/db/types";
 import { loadLookupPage } from "@/server/champion-lookup/view";
 import { loadChampionBuilds, skillRanksOf } from "@/server/champion-builds/load";
 import { behindPatch, type LookupChampion } from "@/domain/champion-lookup/view";
-import { hasteFromAddress, paramOf, roleFromAddress } from "@/components/champion-lookup/address";
+import { hasteFromAddress, paramOf, queueFromAddress, roleFromAddress } from "@/components/champion-lookup/address";
 import { ChampionBuilds, ChampionBuildsLoading } from "@/components/champion-lookup/champion-builds";
 import { LookupView } from "@/components/champion-lookup/lookup-view";
 import { cn } from "@/lib/cn";
@@ -23,16 +23,17 @@ type Search = Record<string, string | string[] | undefined>;
  * its facts and base statistics, for every signed-in account; and, for accounts that may see
  * teammates' statistics, each champion's builds and runes counted in the team's stored matches
  * (LookupView's `builds`, server/champion-builds: totals only, cached, streamed in after the
- * abilities so they never wait for it). The champions, hastes and builds roles come from the
- * address (?champion=<id or name>&haste=<n>&role=<role>&champion2=<id or name>&haste2=<n>&role2=<role>);
+ * abilities so they never wait for it; every queue's counts at once, each shown on its own). The
+ * champions, hastes, builds roles and the builds' queue come from the address
+ * (?champion=<id or name>&haste=<n>&role=<role>&champion2=<id or name>&haste2=<n>&role2=<role>&queue=<solo|flex|draft|clash>);
  * each champion is checked against the roster. The page reads the session, the cached roster and
  * current patch, the stored abilities of the champions chosen and their build totals: no Riot
  * request, no one player's data.
  */
 /** One champion's builds, read while the rest of the page is already shown. */
 async function Builds({ db, session, champion }: { db: Db; session: Session; champion: LookupChampion }) {
-  const view = await loadChampionBuilds(db, session, { championId: champion.champion.id, championName: champion.champion.name, ranks: skillRanksOf(champion.abilities) });
-  return view ? <ChampionBuilds view={view} /> : null;
+  const views = await loadChampionBuilds(db, session, { championId: champion.champion.id, championName: champion.champion.name, ranks: skillRanksOf(champion.abilities) });
+  return views ? <ChampionBuilds views={views} /> : null;
 }
 
 export default async function ChampionIntelPage({ searchParams }: { searchParams: Promise<Search> }) {
@@ -68,6 +69,7 @@ export default async function ChampionIntelPage({ searchParams }: { searchParams
         initialHaste={haste}
         initialHaste2={second ? haste2 : 0}
         initialRoles={roles}
+        initialQueue={queueFromAddress(sp.queue)}
         builds={{ first: buildsOf(lookup), second: buildsOf(second) }}
         dropped={page.dropped}
         source={

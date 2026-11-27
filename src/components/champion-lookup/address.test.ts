@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { LOOKUP_PATH, hasteFromAddress, intelHref, legacyMatchupRedirect, lookupHref, paramOf, roleFromAddress, swappedHref, withoutHref } from "./address";
+import { LOOKUP_PATH, hasteFromAddress, intelHref, legacyMatchupRedirect, lookupHref, paramOf, queueFromAddress, roleFromAddress, sourceFromAddress, swappedHref, withoutHref } from "./address";
 import { parseRecent, withRecent, RECENT_MAX } from "./recent";
 
 /* Champion Intel's address and Matchup Intel's old links (docs/CHAMPION_INTEL.md, "Address"), and the device's Recent list. */
@@ -60,6 +60,26 @@ describe("the address", () => {
     expect(roleFromAddress("UTILITY")).toBeNull();
     expect(roleFromAddress(undefined)).toBeNull();
     expect(lookupHref("Ahri")).toBe("/lookup?champion=Ahri");
+  });
+
+  it("carries the builds' queue for the page (Ranked Solo/Duo left out), after both champions, kept by Swap and ✕", () => {
+    expect(intelHref({ id: "Thresh", haste: 0, role: "SUPPORT" }, null, { queue: "flex" })).toBe("/lookup?champion=Thresh&role=SUPPORT&queue=flex");
+    expect(intelHref({ id: "Thresh", haste: 0 }, null, { queue: "solo" })).toBe("/lookup?champion=Thresh");
+    expect(intelHref({ id: "Thresh", haste: 10 }, { id: "Leona", haste: 0, role: "ADC" }, { queue: "clash" })).toBe("/lookup?champion=Thresh&haste=10&champion2=Leona&role2=ADC&queue=clash");
+    expect(swappedHref({ id: "Thresh", haste: 0 }, { id: "Leona", haste: 0 }, { queue: "draft" })).toBe("/lookup?champion=Leona&champion2=Thresh&queue=draft");
+    expect(withoutHref({ id: "Thresh", haste: 0 }, { id: "Leona", haste: 0 }, 0, { queue: "flex" })).toBe("/lookup?champion=Leona&queue=flex");
+    // The Master+ source is Ranked Solo/Duo by definition: no queue beside it.
+    expect(intelHref({ id: "Thresh", haste: 0 }, null, { queue: "flex", source: "master" })).toBe("/lookup?champion=Thresh&source=master");
+    expect(intelHref({ id: "Thresh", haste: 0 }, null, { source: "team" })).toBe("/lookup?champion=Thresh");
+    // No champion, no page parts.
+    expect(intelHref(null, null, { queue: "flex" })).toBe("/lookup");
+    expect(queueFromAddress("flex")).toBe("flex");
+    expect(queueFromAddress("FLEX")).toBe("flex");
+    expect(queueFromAddress(["clash", "flex"])).toBe("clash");
+    for (const v of [undefined, "", "420", "aram", "solo duo", "x".repeat(80)]) expect(queueFromAddress(v), String(v)).toBe("solo");
+    expect(sourceFromAddress("master")).toBe("master");
+    expect(sourceFromAddress("Master")).toBe("master");
+    for (const v of [undefined, "", "team", "challenger"]) expect(sourceFromAddress(v), String(v)).toBe("team");
   });
 
   it("hands the server a parameter's first value, trimmed, or nothing", () => {

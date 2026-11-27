@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import path from "node:path";
 import { ESLint } from "eslint";
-import { DISPLAY_TIME_ZONE, calendarDay, localPeriodStarts, formatCompactCount, formatCount, formatDate, formatDateTime, formatDateTimeAfter, formatDayMonth, formatIsoDay, formatKilo, formatNumber, formatOrdinal, formatPerRank, formatSeconds, formatTimeOfDay, isoDay, timeAgo, formatLpChange } from "./format";
+import { DISPLAY_TIME_ZONE, calendarDay, localPeriodStarts, formatCompactCount, formatCount, formatDate, formatDateTime, formatDateTimeAfter, formatDayMonth, formatIsoDay, formatKilo, formatNumber, formatOrdinal, formatPerRank, formatSeconds, formatTimeOfDay, isoDay, timeAgo, formatLpChange, percentRange } from "./format";
 
 /*
   Every date on the site is written in the installation's time zone (Sydney unless
@@ -129,6 +129,13 @@ describe("numbers", () => {
     const places = [1, 2, 3, 4, 11, 12, 13, 21, 22, 23, 101, 111, 112, 1001];
     expect(places.map(formatOrdinal)).toEqual(["1st", "2nd", "3rd", "4th", "11th", "12th", "13th", "21st", "22nd", "23rd", "101st", "111th", "112th", "1,001st"]);
     expect([formatOrdinal(0), formatOrdinal(10), formatOrdinal(4.4)]).toEqual(["0th", "10th", "4th"]);
+  });
+
+  it("write a likely range as whole percents with an en dash, its low end first (Champion Intel's win rates)", () => {
+    expect(percentRange(0.4312, 0.6449)).toBe("43–64%");
+    expect(percentRange(0.0, 1)).toBe("0–100%");
+    expect(percentRange(0.7, 0.3)).toBe("30–70%");
+    expect(percentRange(0.245, 0.755)).toBe("25–76%");
   });
 
   it("write a game's LP change with its sign, a true minus for a loss", () => {

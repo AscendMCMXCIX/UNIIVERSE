@@ -3,7 +3,10 @@ import {
   HIGHEST_TIP,
   MOST_COMMON_TIP,
   PART_LABELS,
+  QUEUE_LABELS,
   QUEUE_TIP,
+  SMALL_SAMPLE_WORDS,
+  WIN_RATE_TIP,
   RANK_TIP,
   SOURCE_TIP,
   UNAVAILABLE_WORDS,
@@ -16,22 +19,25 @@ import {
   choiceTip,
   fewTip,
   fewWords,
+  firmWinRate,
   FIRST_POINTS_WORDS,
   fullTip,
   gamesTip,
   gamesWords,
   partEmptyWords,
+  otherQueueWords,
   patchTip,
   patchWords,
-  queueWords,
+  queueSelectLabel,
   sourceWords,
   type BuildPartKey,
 } from "./champion-builds-words";
 
 /*
-  Champion Intel's builds in words: the source line as the coordinator's brief words it ("From 143
-  games in the team's matches · patch 26.23 · all ranks · Draft and Ranked"), each ⓘ one idea in at
-  most 25 words, plain statistics (no advice, no "best", nothing verified or tracked).
+  Champion Intel's builds in words: the source line ("From 143 games in the team's matches · patch
+  26.23 · all ranks"; its queue is the queue choice beside it, D5), each ⓘ one idea in at most 25
+  words, every win rate's likely range (D6), plain statistics (no advice, no "best", nothing verified
+  or tracked).
 */
 
 /** Words as tip-length.test.ts counts them: whitespace-separated, each with a letter or a digit. */
@@ -45,17 +51,15 @@ describe("the builds' words", () => {
     expect(gamesWords({ games: 1 })).toBe("From 1 game");
     expect(patchWords({ patches: ["26.23"], currentGames: 40 })).toBe("patch 26.23");
     expect(patchWords({ patches: ["26.23", "26.22"], currentGames: 7 })).toBe("patches 26.22–26.23");
-    expect(queueWords([400, 420, 440])).toBe("Draft and Ranked");
-    expect(queueWords([420])).toBe("Ranked");
-    expect(queueWords([400, 440, 700])).toBe("Draft, Ranked and Clash");
-    expect(queueWords([])).toBe("Draft and Ranked");
-    expect(sourceWords({ games: 143, patches: ["26.23"], currentGames: 143, queues: [400, 420] })).toBe("From 143 games in the team's matches · patch 26.23 · all ranks · Draft and Ranked");
+    expect(sourceWords({ games: 143, patches: ["26.23"], currentGames: 143 })).toBe("From 143 games in the team's matches · patch 26.23 · all ranks");
+    // Weighted counts are written whole.
+    expect(gamesWords({ games: 809.6 })).toBe("From 810 games");
   });
 
   it("never put the current patch in the sample's range when it has no game yet: the previous patch alone, said as that", () => {
     // The first days of a patch: every game counted is on the previous one.
     expect(patchWords({ patches: ["26.23", "26.22"], currentGames: 0 })).toBe("patch 26.22, none yet on 26.23");
-    expect(sourceWords({ games: 31, patches: ["26.23", "26.22"], currentGames: 0, queues: [420] })).toBe("From 31 games in the team's matches · patch 26.22, none yet on 26.23 · all ranks · Ranked");
+    expect(sourceWords({ games: 31, patches: ["26.23", "26.22"], currentGames: 0 })).toBe("From 31 games in the team's matches · patch 26.22, none yet on 26.23 · all ranks");
     expect(patchTip({ patches: ["26.23", "26.22"], games: 31, currentGames: 0 })).toBe("Patch 26.23 has no games yet, so only the 31 games on 26.22 are counted.");
     // One game on the current patch: a range again, both counts in the ⓘ.
     expect(patchWords({ patches: ["26.23", "26.22"], currentGames: 1 })).toBe("patches 26.22–26.23");
@@ -66,10 +70,13 @@ describe("the builds' words", () => {
     expect(patchTip({ patches: ["26.23", "26.22"], games: 31, currentGames: 7 })).toBe("Patch 26.23 has 7 games so far, fewer than 20, so the 24 on 26.22 are counted too.");
   });
 
-  it("give each choice's record in plain words: won, of how many games, made in how many, naming what was counted together", () => {
+  it("give each choice's record in plain words: won, of how many games, its likely range, made in how many, naming what was counted together", () => {
     // A rune choice is its keystone and secondary tree (the page shown is the commonest of them), never "this rune page".
-    expect(choiceTip("runes", { winRate: 0.54, games: 87, share: 0.61, total: 143 })).toBe("Won 54% of the 87 games with this keystone and secondary tree; 61% of the 143 games with a full rune page recorded made it.");
-    expect(choiceTip("core", { winRate: 0.5, games: 40, share: 0.4, total: 100 })).toBe("Won 50% of the 40 games with these core items in any order; 40% of the 100 games with three completed items recorded made it.");
+    expect(choiceTip("runes", { winRate: 0.54, games: 87, share: 0.61, total: 143, range: { low: 0.4339, high: 0.6427 } })).toBe("Won 54% of 87 games with this keystone and secondary tree, likely 43–64%. 61% of 143 games with a full rune page recorded made it.");
+    expect(choiceTip("core", { winRate: 0.5, games: 40, share: 0.4, total: 100, range: { low: 0.352, high: 0.648 } })).toBe("Won 50% of 40 games with these core items in any order, likely 35–65%. 40% of 100 games with three completed items recorded made it.");
+    expect(firmWinRate({ games: 29 })).toBe(false);
+    expect(firmWinRate({ games: 30 })).toBe(true);
+    expect(SMALL_SAMPLE_WORDS).toBe("(small sample)");
     expect(RUNE_PAGE_WORDS).toContain("most common page");
     expect(CORE_ORDER_WORDS).toContain("most common order");
     expect(FIRST_POINTS_WORDS).toBe("most often first");
@@ -78,10 +85,15 @@ describe("the builds' words", () => {
     expect(partEmptyWords("varied", 31)).toBe("No common choice in 31 games");
   });
 
-  it("say the empty section honestly", () => {
-    expect(fewWords("26.23")).toBe("Not enough games on patch 26.23 in the team's matches yet");
-    expect(fewTip(12, "MID")).toBe("Builds show from 20 games of a champion in one role. The team's matches have 12 as Mid on this patch and the one before.");
-    expect(fewTip(0, null)).toContain("none on this patch or the one before");
+  it("say the empty section honestly, naming its queue, and offer another queue only as a choice", () => {
+    expect(fewWords("solo", "26.23")).toBe("Not enough Ranked Solo/Duo games on patch 26.23 in the team's matches yet");
+    expect(fewWords("flex", "26.23")).toBe("Not enough Ranked Flex games on patch 26.23 in the team's matches yet");
+    expect(fewTip(12, "MID", "solo")).toBe("Builds need 20 games in one role and queue. The team's Ranked Solo/Duo games have 12 as Mid on this patch and the one before.");
+    expect(fewTip(0, null, "clash")).toBe("Builds need 20 games in one role and queue. The team's Clash games have none on this patch or the one before.");
+    expect(otherQueueWords({ queue: "flex", role: "SUPPORT", games: 34 })).toBe("Show Ranked Flex (34 games as Support)");
+    expect(otherQueueWords({ queue: "solo", role: "MID", games: 1 })).toBe("Show Ranked Solo/Duo (1 game as Mid)");
+    expect(QUEUE_LABELS).toEqual({ solo: "Ranked Solo/Duo", flex: "Ranked Flex", draft: "Normal Draft", clash: "Clash" });
+    expect(queueSelectLabel("Thresh")).toBe("Thresh's builds: queue");
   });
 
   it("keep every ⓘ to one idea of at most 25 words, and never advise, judge or speak of tracking", () => {
@@ -91,24 +103,27 @@ describe("the builds' words", () => {
       QUEUE_TIP,
       MOST_COMMON_TIP,
       HIGHEST_TIP,
+      WIN_RATE_TIP,
       UNAVAILABLE_WORDS,
       patchTip({ patches: ["26.23", "26.22"], games: 1234, currentGames: 19 }),
       patchTip({ patches: ["26.23"], games: 40, currentGames: 40 }),
       gamesTip({ games: 1234, timelineGames: 1000, teamGames: 120 }),
-      fewTip(19, "SUPPORT"),
-      fewTip(0, null),
+      ...(["solo", "flex", "draft", "clash"] as const).flatMap((q) => [fewTip(19, "SUPPORT", q), fewTip(0, null, q), fewTip(1234, "JUNGLE", q)]),
       fullTip({ items: [], fourth: { games: 12, total: 40 }, fifth: { games: 10, total: 30 } }),
       fullTip({ items: [], fourth: { games: 12, total: 40 }, fifth: null }),
       fullTip({ items: [], fourth: { games: 1234, total: 4000 }, fifth: { games: 1000, total: 3000 } }, true),
       fullTip({ items: [], fourth: { games: 12, total: 40 }, fifth: null }, true),
       patchTip({ patches: ["26.23", "26.22"], games: 1234, currentGames: 0 }),
-      ...PARTS.map((p) => choiceTip(p, { winRate: 0.5, games: 1234, share: 0.5, total: 2468 })),
+      ...PARTS.map((p) => choiceTip(p, { winRate: 0.5, games: 1234, share: 0.5, total: 2468, range: { low: 0.472, high: 0.528 } })),
     ];
     for (const tip of tips) {
       expect(words(tip), tip).toBeLessThanOrEqual(25);
       expect(tip, tip).not.toMatch(REFUSED);
     }
-    for (const label of [...Object.values(PART_LABELS), FULL_EMPTY_WORDS, NO_BOOTS, DIFFERS_WORDS, RUNE_PAGE_WORDS, CORE_ORDER_WORDS, FIRST_POINTS_WORDS]) expect(label).not.toMatch(REFUSED);
+    for (const label of [...Object.values(PART_LABELS), ...Object.values(QUEUE_LABELS), FULL_EMPTY_WORDS, NO_BOOTS, DIFFERS_WORDS, RUNE_PAGE_WORDS, CORE_ORDER_WORDS, FIRST_POINTS_WORDS, SMALL_SAMPLE_WORDS, otherQueueWords({ queue: "draft", role: "JUNGLE", games: 1234 })]) expect(label).not.toMatch(REFUSED);
+    expect(HIGHEST_TIP).toBe("Among choices of 30 games or more, one that won clearly more than the most common, 99% sure not by chance. Shown only then.");
+    expect(QUEUE_TIP).toContain("never mixed");
+    expect(WIN_RATE_TIP).toContain("likely range");
     expect(SOURCE_TIP).toContain("Not a global sample");
     expect(RANK_TIP).toContain("not filtered by rank");
   });

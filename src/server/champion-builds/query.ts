@@ -2,14 +2,22 @@ import { sql, type SQL } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { LANE_NAMES, LANE_ORDER } from "@/domain/match-analysis";
 import { MAX_VALID_DURATION_S, MIN_VALID_DURATION_S } from "@/domain/season-stats";
-import { BUILD_DIMS, BUILD_QUEUES, SKILL_POINTS_READ, START_MS, type BuildCountRow, type BuildDim, type BuildLane, type ItemClasses, type SkillRanks } from "@/domain/champion-builds";
+import { BUILD_DIMS, BUILD_QUEUES, SKILL_POINTS_READ, START_MS, type BuildCountRow, type BuildDim, type BuildLane, type BuildQueueId, type ItemClasses, type SkillRanks } from "@/domain/champion-builds";
 
 /*
   The counts behind Champion Intel's builds (domain/champion-builds, docs/CHAMPION_INTEL.md "Builds
   and runes"): ONE statement per champion and patch window, inside the database, of which only
-  totals leave it, about one row per counted value (a part, a patch, a lane, a value, its games,
-  wins and team members' own games). No PUUID, name, match id or record ever leaves the database,
-  and nothing about any one player is kept (the multikill comparison's rule, multikill-baseline.ts).
+  totals leave it, about one row per counted value (a part, a patch, a lane, a queue, a value, its
+  games, wins, team members' own games, and the most games any one player had with it). No PUUID,
+  name, match id or record ever leaves the database, and nothing about any one player is kept (the
+  multikill comparison's rule, multikill-baseline.ts).
+
+  - Every queue in one statement, every row carrying its queue (D5, 26 Nov 2026): the page shows
+    one queue at a time and a queue switch reads nothing, so they are counted together and never
+    added together (domain/champion-builds championBuildsView reads one queue's rows).
+  - The most games one player had with a value (`top`) is worked out inside the database from the
+    player's key, which never leaves it: the "Highest win rate" spread guard (D6) needs that count
+    only, never who.
 
   - Which games: stored records (match_details) of Summoner's Rift draft games (BUILD_QUEUES) that a
     current team member played (an account_matches row of a linked account of a team member's
@@ -85,7 +93,8 @@ export async function readBuildCounts(db: Db, input: BuildCountsInput): Promise<
       ),
       g AS MATERIALIZED (
         SELECT r.match_id, r.queue_id, r.patch, p AS part, ${laneSql(sql`p->>'position'`)} AS lane,
-          (p->>'win')::boolean AS win, coalesce(p->>'puuid', '') IN (SELECT puuid FROM mem) AS member
+          (p->>'win')::boolean AS win, coalesce(p->>'puuid', '') IN (SELECT puuid FROM mem) AS member,
+          coalesce(p->>'puuid', '') AS pid
         FROM rec r CROSS JOIN LATERAL jsonb_array_elements(r.participants) AS p
         WHERE r.patch IN (SELECT jsonb_array_elements_text(${patches}::jsonb))
           AND p->>'championId' = ${input.champion} AND p->>'removed' IS NULL
@@ -107,7 +116,7 @@ export async function readBuildCounts(db: Db, input: BuildCountsInput): Promise<
         LEFT JOIN LATERAL (SELECT bool_and(${known}::jsonb ? (e->>1)) AS known_all FROM jsonb_array_elements(t.tl->'purchases') AS e) AS pu ON t.tl IS NOT NULL
       ),
       k AS (
-        SELECT patch, queue_id, lane, win, member, tl IS NOT NULL AS has_tl,
+        SELECT patch, queue_id, lane, win, member, pid, tl IS NOT NULL AS has_tl,
           CASE WHEN jsonb_typeof(part->'runes'->'primaryPerks') = 'array' AND jsonb_array_length(part->'runes'->'primaryPerks') = 4
                 AND jsonb_typeof(part->'runes'->'secondaryPerks') = 'array' AND jsonb_array_length(part->'runes'->'secondaryPerks') = 2
                 AND part->'runes'->>'primary' IS NOT NULL AND part->'runes'->>'secondary' IS NOT NULL
@@ -147,11 +156,12 @@ export async function readBuildCounts(db: Db, input: BuildCountsInput): Promise<
             CASE WHEN cardinality(done5) >= 3 THEN 'none' END) END AS boots,
           done5
         FROM b
-      )
-      SELECT coalesce(json_agg(json_build_array(dim, patch, lane, value, n, w, nm)), '[]') AS rows FROM (
-        SELECT x.dim, k.patch, k.lane, x.value, count(*)::int AS n, (count(*) FILTER (WHERE k.win))::int AS w, (count(*) FILTER (WHERE k.member))::int AS nm
+      ),
+      kp AS (
+        SELECT x.dim, k.patch, k.lane, k.queue_id AS q, x.value, k.pid,
+          count(*) AS c, count(*) FILTER (WHERE k.win) AS cw, count(*) FILTER (WHERE k.member) AS cm
         FROM k CROSS JOIN LATERAL (VALUES
-          ('games', ''), ('queue', k.queue_id::text), ('timeline', CASE WHEN k.has_tl THEN '' END),
+          ('games', ''), ('timeline', CASE WHEN k.has_tl THEN '' END),
           ('runes', k.runes), ('shards', k.shards), ('spells', k.spells), ('skills', k.skills),
           ('start', k.start), ('boots', k.boots),
           ('core', CASE WHEN cardinality(k.done5) >= 3 THEN array_to_string(k.done5[1:3], '>') END),
@@ -159,13 +169,18 @@ export async function readBuildCounts(db: Db, input: BuildCountsInput): Promise<
           ('fifth', CASE WHEN cardinality(k.done5) >= 5 THEN array_to_string(ARRAY(SELECT u FROM unnest(k.done5[1:3]) AS u ORDER BY u::int), ',') || '|' || k.done5[5] END)
         ) AS x(dim, value)
         WHERE x.value IS NOT NULL
-        GROUP BY x.dim, k.patch, k.lane, x.value) AS grouped`);
+        GROUP BY x.dim, k.patch, k.lane, k.queue_id, x.value, k.pid
+      )
+      SELECT coalesce(json_agg(json_build_array(dim, patch, lane, q, value, n, w, nm, top)), '[]') AS rows FROM (
+        SELECT dim, patch, lane, q, value, sum(c)::int AS n, sum(cw)::int AS w, sum(cm)::int AS nm, max(c)::int AS top
+        FROM kp GROUP BY dim, patch, lane, q, value) AS grouped`);
   });
   const [answer] = rowsOf<{ rows: unknown }>(result);
-  type Row = [string, string, string, string, number, number, number];
+  type Row = [string, string, string, number, string, number, number, number, number];
   const lanes = new Set<string>(LANE_ORDER);
   const dims = new Set<string>(BUILD_DIMS);
+  const queueIds = new Set<number>(BUILD_QUEUES);
   return parse<Row[]>(answer?.rows ?? [])
-    .filter(([dim, patch, lane]) => dims.has(dim) && lanes.has(lane) && typeof patch === "string")
-    .map(([dim, patch, lane, value, n, w, nm]) => ({ dim: dim as BuildDim, patch, lane: lane as BuildLane, value: String(value ?? ""), n: Number(n), w: Number(w), nm: Number(nm) }));
+    .filter(([dim, patch, lane, q]) => dims.has(dim) && lanes.has(lane) && typeof patch === "string" && queueIds.has(Number(q)))
+    .map(([dim, patch, lane, q, value, n, w, nm, top]) => ({ dim: dim as BuildDim, patch, lane: lane as BuildLane, queue: Number(q) as BuildQueueId, value: String(value ?? ""), n: Number(n), w: Number(w), nm: Number(nm), top: Number(top) }));
 }
