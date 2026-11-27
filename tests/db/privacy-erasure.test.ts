@@ -213,6 +213,18 @@ afterAll(async () => {
   await handle?.close();
 });
 
+/** Every public table's row count and the total of its rows' text, to prove a run changed nothing. */
+async function tableCounts(db: Db): Promise<Record<string, string>> {
+  const tables = ((await db.execute(sql`SELECT relname FROM pg_class c JOIN pg_namespace n ON n.oid = c.relnamespace WHERE n.nspname = 'public' AND c.relkind IN ('r', 'p') ORDER BY relname`)) as unknown as { rows?: Array<{ relname: string }> });
+  const names = (tables.rows ?? (tables as unknown as Array<{ relname: string }>)).map((r) => r.relname);
+  const out: Record<string, string> = {};
+  for (const name of names) {
+    const r = (await db.execute(sql.raw(`SELECT count(*)::text || ':' || coalesce(sum(length(t::text)), 0)::text AS v FROM public."${name}" t`))) as unknown as { rows?: Array<{ v: string }> };
+    out[name] = (r.rows ?? (r as unknown as Array<{ v: string }>))[0]!.v;
+  }
+  return out;
+}
+
 describe("personal-data erasure", () => {
   it("finds every identity, including an old-key PUUID and a former Riot ID, and previews without changing anything", async () => {
     const subject = await memberSubject(handle.db, { userId: id.alice });
@@ -392,8 +404,16 @@ describe("personal-data erasure", () => {
       await seed(restored.db);
       expect((await whereTraces(restored.db, ["AliceMain"])).length).toBeGreaterThan(0);
       expect(await importErasures(restored.db, JSON.parse(JSON.stringify(exported)))).toEqual({ added: 1, updated: 0 });
+      // The count first (Release 19): what full mode would change, with nothing changed.
+      const before = await tableCounts(restored.db);
+      const counted = await reconcileErasures(restored.db, { mode: "count" });
+      expect(counted).toMatchObject({ mode: "count", records: 1, unusable: 0, people: 1 });
+      expect(await tableCounts(restored.db)).toEqual(before);
+      expect((await whereTraces(restored.db, ["AliceMain"])).length).toBeGreaterThan(0);
       const result = await reconcileErasures(restored.db, { mode: "full" });
       expect(result).toMatchObject({ records: 1, unusable: 0, people: 1 });
+      // The count said exactly what full mode then changed.
+      expect({ people: counted.people, traces: counted.traces }).toEqual({ people: result.people, traces: result.traces });
       expect(await whereTraces(restored.db, ALICE_TRACES)).toEqual([]);
       // Reconciling again finds nothing more.
       expect(await reconcileErasures(restored.db, { mode: "full" })).toMatchObject({ people: 0, traces: 0 });

@@ -7,7 +7,9 @@
 # signed-out and forged-session requests to member pages are turned away with no player data; the
 # security headers are there; Riot's rules for a Personal key hold (no Riot API data on the public
 # pages, Riot's required notice, /riot.txt served for the Developer Portal); the public pages load
-# with no error, no sideways scroll and no serious axe violation (WCAG 2.1 AA). The member pages are checked too once the
+# with no error, no sideways scroll and no serious axe violation (WCAG 2.1 AA). Before the live check, two protected
+# audits re-derive Leaderboards' 30-day rule and the builds' thresholds on the server (scripts/production-audits.mjs;
+# counts only, a job not deployed yet is a warning). The member pages are checked too once the
 # verification account exists (Data jobs `verify-account`: a member with no player profile, its
 # password worked out from VERIFY_ACCOUNT_SECRET, or from CRON_SECRET until that is set), or
 # UNIIVERSE_VERIFY_USER / UNIIVERSE_VERIFY_PASSWORD are set.
@@ -159,11 +161,19 @@ jobs:
               esac
             fi
           fi
+          # The production audits (scripts/production-audits.mjs, docs/LIVE_VALIDATION.md): Leaderboards'
+          # 30-day rule and the builds' thresholds re-derived on the server, read for fixed counts only,
+          # before the secret is unset. Their counts, and the builds audit's champions (unsealed and
+          # masked at once), reach the live check through audits.env, deleted as soon as it is read.
+          # A job the deployment does not have yet (404) is a warning; any other failure fails the check.
+          node scripts/production-audits.mjs "$APP_URL" audits.md audits.env || status=1
+          if [ -f audits.env ]; then set -a; . ./audits.env; set +a; rm -f audits.env; fi
           unset CRON_SECRET VERIFY_ACCOUNT_SECRET
           if [ -n "${UNIIVERSE_VERIFY_USER:-}" ]; then echo "signed_in=true" >> "$GITHUB_OUTPUT"; else echo "signed_in=false" >> "$GITHUB_OUTPUT"; fi
           node scripts/live-check.mjs "$APP_URL" live-check || status=$?
           if [ -f live-check/summary.md ]; then cat live-check/summary.md >> "$GITHUB_STEP_SUMMARY"; fi
           if [ -f verify-account.md ]; then cat verify-account.md >> "$GITHUB_STEP_SUMMARY"; fi
+          if [ -f audits.md ]; then cat audits.md >> "$GITHUB_STEP_SUMMARY"; fi
           exit $status
 
       - name: Backups and database size
@@ -278,6 +288,7 @@ jobs:
               echo
               if [ -f live-check/summary.md ]; then sed -n '/^## Failures/,/^## Warnings/p' live-check/summary.md | sed '$d'; fi
               if [ -f verify-account.md ]; then cat verify-account.md; fi
+              if [ -f audits.md ] && grep -q '^- FAIL' audits.md; then grep '^- FAIL\|^  - ' audits.md; fi
               if [ -f data-check.md ]; then grep -E '^- (FAIL|warning)' data-check.md || true; fi
               echo
               echo "Screenshots and the full report: the run's production-check artifact."

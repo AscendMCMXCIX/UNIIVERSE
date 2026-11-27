@@ -164,6 +164,34 @@ describe("attributeLp", () => {
   });
 });
 
+describe("attributeLp across the 2027 ranked year's reset (Iron IV, Riot's count restarting)", () => {
+  it("records nothing for the game between the last 2026 reading and the reset reading, and the 2027 games from the 2027 readings", () => {
+    // d: a 16.24 game read in; x: a game after the last 2026 reading and before the reset reading;
+    // e and f: 17.1 games after it ("Ranked Rush": a promotion, then an LP figure).
+    const games = [...history, game("d", 22, 25, true), game("x", 200, 25, false), game("e", 380, 25, true), game("f", 440, 25, true)];
+    const readings = [
+      read("GOLD", "II", 46, 10, 10, 0, 20),
+      read("GOLD", "II", 70, 11, 10, 50, 190),
+      read("IRON", "IV", 0, 0, 0, 360, 385),
+      read("IRON", "III", 20, 1, 0, 410, 445),
+      read("IRON", "III", 60, 2, 0, 470),
+    ];
+    const out = attributeLp(readings, games);
+    expect(out.get("d")).toMatchObject({ kind: "lp", delta: 24 });
+    expect(out.get("x")).toMatchObject({ kind: "none", reason: "season-reset" });
+    expect(out.get("e")).toMatchObject({ kind: "promoted", before: { label: "Iron IV" }, after: { label: "Iron III" } });
+    expect(out.get("f")).toMatchObject({ kind: "lp", delta: 40 });
+  });
+
+  it("an unranked reading at the reset (no entry until a game) marks the games before the first 2027 rank as unranked, never an LP figure", () => {
+    const games = [...history, game("x", 200, 25, false), game("e", 380, 25, true)];
+    const readings = [read("GOLD", "II", 46, 10, 10, 0, 190), read(null, null, null, null, null, 360, 385), read("IRON", "IV", 50, 1, 0, 410)];
+    const out = attributeLp(readings, games);
+    expect(out.get("x")).toMatchObject({ kind: "none" });
+    expect(out.get("e")).toMatchObject({ kind: "none", reason: "unranked" });
+  });
+});
+
 describe("mergeReadings", () => {
   it("joins consecutive identical rows (overlapping runs) into one reading seen from the first to the last", () => {
     const merged = mergeReadings([read("GOLD", "II", 46, 10, 10, 10), read("GOLD", "II", 46, 10, 10, 0, 5), read("GOLD", "II", 50, 11, 10, 40)]);

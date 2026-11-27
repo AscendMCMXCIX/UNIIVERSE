@@ -482,14 +482,15 @@ below-the-fold ones lazily, and keep uploaded brand images small ([HOSTING_USAGE
     `TEST_DATABASE_URL`): its `now()` follows the faked clock, while PostgreSQL's stays on today. Run
     the same at today's date as well: a few tests fail under any faked clock, because rows written
     a moment apart get the same time.
-  - What stays tied to the date is the app's ranked year (`src/domain/ranked-year.ts`, 2026 only
-    until Riot publishes 2027's dates). Ranked progress names a season, and draws readings, only
-    inside a ranked year the app knows: from 1 January 2027 it names none. Match History's LP
-    marks are worked out only for games on a patch of a ranked year the app knows (16.x,
-    `rankedSeasonOfPatch`), and the demo's games are on its season's patches: from the demo's
-    Season 2027 (Riot's first 2027 patch in CI, 1 January on the offline fixture) no card has one.
-    So these browser tests pass in 2027 only with the 2027 change, which has to know 2027's dates
-    and its 17.x patches: `e2e/progress.spec.ts` (it takes the year from `RANKED_YEAR` instead of
-    naming one), the three tests of `e2e/match-lp.spec.ts` and `e2e/webkit.spec.ts`'s LP dash test
-    (the WebKit workflow, run by hand). None names a year, so none changes now; the 2027 change
-    runs them again.
+  - What stays tied to the date is the app's ranked years (`src/domain/ranked-year.ts`: 2026, and
+    2027 since Release 19, its first day an estimate until Riot publishes it). Each account's year
+    ends at its own reset reading, not at a date (docs/RANKED_PROGRESS.md, "The 2027 ranked year"),
+    so Ranked progress names its season and draws its readings in 2027 too, and Match History's LP
+    marks are worked out for games on any ranked year's patches (16.x and 17.x,
+    `rankedYearOfPatch`). The browser tests that depended on it take the year from the page
+    (`e2e/progress.spec.ts`: the tracking line's year, which the record's must equal, a ranked year
+    the app knows) or name none (`e2e/match-lp.spec.ts`, `e2e/webkit.spec.ts`'s LP dash). A year
+    after 2027 needs its entry in `RANKED_YEARS` before its first day, or each account stays on
+    2027's ladder until it does (the tests at fixed clocks in `src/domain/rank-timeline.test.ts`,
+    `src/components/players/ranked-progress.test.ts` and `tests/db/rank-audit-2027.test.ts` show
+    how the boundary behaves).

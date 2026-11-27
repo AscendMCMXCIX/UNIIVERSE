@@ -2,7 +2,7 @@
 
 How UNIIVERSE records rank and LP, what it can and cannot know, and why. Code:
 `src/domain/lp-attribution.ts` (one game's LP), `src/domain/rank-timeline.ts` (the chart),
-`src/domain/ranked-year.ts` (the 2026 ranked year and its seasons), `src/server/accounts/rank-history.ts`
+`src/domain/ranked-year.ts` (the ranked years, 2026 and 2027, and their seasons), `src/server/accounts/rank-history.ts`
 (readings), `src/server/jobs/rank-watch.ts` (the frequent readings), `src/server/jobs/rank-audit.ts`
 (the read-only audit).
 
@@ -47,6 +47,52 @@ So Ranked progress does not offer the seasons as separate periods (it did until 
 1 and Season 2 could only ever show "not recorded"). It names the season now ("2026 Season 3"); the
 year's coverage strip that marked the three seasons left the page on 18 Nov 2026 (below). Games are
 placed by patch; a reading by date.
+
+## The 2027 ranked year (Release 19, 27 Nov 2026)
+
+**What Riot has said.** Riot's /dev update of 16 Nov 2026 ("TL;DW: Season 1 2027 Dev Update"): "In
+January everybody's visual rank will reset to Iron IV, but MMR will be the same to ensure match
+quality", "Everyone will climb from Iron IV together with massive LP increases", and a new "Ranked
+Rush". No date, patch or number of splits was given (checked 27 Nov 2026; Data Dragon's latest was
+16.23.1). 2027's games are on game version 17 (Riot's public "27.x"), so a game's year comes from
+its patch, as 2026's did.
+
+**The boundary rule** (`ladderOf`, `src/domain/rank-timeline.ts`). An account's 2026 ladder ends at
+its **own reset reading**, not at a date: the first reading after a reset (the rank gone, or Riot's
+wins + losses count falling) taken no earlier than 21 days before 2027's first day. Nothing else
+resets the count within a year (Season 2's apex reset kept wins and losses), and the rank watch
+reads every ranked account at least hourly, so every account gets that reading within an hour of
+Riot's reset. Until it does, the account is still on 2026: January's readings before the reset stay
+in 2026's chart, its highest recorded rank and its 30-day change, and the card says "2026 Season 3"
+and "· 2026 (Riot)". After it, the card shows only the new ladder's readings, its highest rank,
+"2027 Season 1" and "· 2027 (Riot)". A missing entry for a moment that comes back with Riot's count
+unchanged opens nothing. An account first read after 2027's first day (linked then) starts on 2027
+by date. The 30-day change never crosses the reset (`anyYear` keeps every reading for Match
+History's summary and Team's panel; a reset is a reset link either way).
+
+**The estimate.** 2027's first day is an **estimate**, 7 January 2027 (`RANKED_2027_FROM`,
+`confirmed: false`), used only where no reading decides: an account with no reading, the season
+named by date, and `rank-audit`'s listing. When Riot publishes the date (27.1's patch notes, or a
+/dev post), a one-line change sets `RANKED_2027_FROM`, `confirmed: true` and the 2027 seasons Riot
+names. If Riot says nothing by 28 Dec 2026, the estimate stays: it moves labels only.
+
+**LP across the reset.** `match-lp` keeps 17.x games (it dropped them before Release 19), and
+`attributeLp` ends a segment at the reset: a game between the last 2026 reading and the reset
+reading records "season reset", and a 2027 game takes its figure from the 2027 readings. "Massive LP
+increases" mean many early 2027 games move a whole division: those say "Promoted", never an LP
+figure, which is honest (the LP before and after are in different divisions), not missing data.
+
+**Season views.** When version-check stores 17.1, every season view (profiles, Match History, All
+Champions, Leaderboards' records, Team Matches) moves to Season 2027 with no game in it yet, and
+offers Season 2026 beside it (`tests/db/season-rollover.test.ts`). The Production check's All
+Champions fact is a warning, not a failure, in a year's first 42 days for a player with games but
+none in the new season.
+
+**`rank-audit`** reports every ranked year begun, each account's ladder (`ladder.year`, opened by its
+"reset" reading, by "date", or the "first" year), Riot's count at the first reading of a later
+year's ladder against that year's stored games, `yearStarts` (how many account queues the reset has
+reached, opened by date, or still on 2026, and whether the first day is still an estimate), and the
+first stored game on each season's first patch (2027: the first 17.1 game, a check of Riot's date).
 
 ## What Ranked progress shows
 
@@ -173,10 +219,11 @@ rests on, with their times, so it can be checked.
 ## Readings: when ranks are read
 
 Each reading is one LEAGUE-V4 request per account, answering both queues. An unchanged reading
-moves the last row's `confirmed_at` on (migration `0065`); a change is a new row. Each queue's
-reading is one transaction holding a lock on that account and queue, so overlapping runs never
-store the same values twice, and a reading older than the newest one (a slow answer) changes
-nothing.
+moves the last row's `confirmed_at` on (migration `0065`); a change is a new row. An account's
+reading is one transaction holding a lock on its Solo/Duo and then its Flex queue (always in that
+order; both queues in one transaction since Release 19, where each queue had its own: 6 statements
+for an unchanged account instead of 10, the same rows), so overlapping runs never store the same
+values twice, and a queue's reading older than the newest one (a slow answer) changes nothing.
 
 Readings come from:
 - **account sync**, when each account is refreshed (every 45 minutes for active players at best,
@@ -249,7 +296,8 @@ traffic per run. No GitHub Actions minutes.
   `withoutChampion.championUnknownWithLength`, rows with a length under five minutes or with a
   counted length and no champion, which no version of the sync writes. Then the readings and the
   games between them, how many games have a figure and why the others have none, with the last few figures and the minutes
-  between each game and its two readings; the 2026 seasons' first patches as stored; the rank changes
+  between each game and its two readings; each account's ladder and how far a new year's reset has
+  reached (Release 19); every season's first patch as stored; the rank changes
   recorded; the year's games and rank changes week by week. Accounts appear as P1/A1 only. Its
   `readings`, `lastReading`, `medianMinutesBetweenReadings`, weekly `soloReadings`/`flexReadings` and
   daily `cadence[].readings` count the stored rows, one per rank change (an unchanged reading confirms the last row and adds none), not

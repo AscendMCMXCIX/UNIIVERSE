@@ -14,6 +14,7 @@ import "./skin-audit";
 import "./proficiency-audit";
 import "./multikill-audit";
 import "./rank-audit";
+import "./leaderboard-audit";
 import "./perf-probe";
 import "./riot-check";
 import "./privacy";

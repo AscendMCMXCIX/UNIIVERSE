@@ -2,7 +2,7 @@ import { and, desc, eq, gte, lt } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountMatches, rankSnapshots } from "@/server/db/schema";
 import { attributeLp, type LpRecord, type QueueGame, type RankReadingRow } from "@/domain/lp-attribution";
-import { RANKED_YEAR_START, rankedSeasonOfPatch } from "@/domain/ranked-year";
+import { RANKED_YEAR_START, rankedYearOfPatch } from "@/domain/ranked-year";
 import type { RankQueue } from "@/domain/rank-progress";
 
 /*
@@ -25,7 +25,7 @@ export interface PageGame {
   gameCreation: number;
 }
 
-/** LP records for the page's ranked games of the 2026 ranked year (others are absent from the map). */
+/** LP records for the page's ranked games of the ranked years UNIIVERSE knows, from 2026 on (others are absent from the map). */
 export async function lpForGames(db: Db, page: readonly PageGame[]): Promise<Map<string, LpRecord>> {
   const out = new Map<string, LpRecord>();
   const ranked = page.filter((g) => g.queueId !== null && QUEUE_OF[g.queueId] && g.gameCreation >= RANKED_YEAR_START);
@@ -55,8 +55,11 @@ export async function lpForGames(db: Db, page: readonly PageGame[]): Promise<Map
         .select({ matchId: accountMatches.matchId, gameCreation: accountMatches.gameCreation, gameDuration: accountMatches.gameDuration, win: accountMatches.win, patch: accountMatches.patch })
         .from(accountMatches)
         .where(and(eq(accountMatches.accountId, group.accountId), eq(accountMatches.queueId, QUEUE_ID[group.queue]), gte(accountMatches.gameCreation, from)));
+      // Every known ranked year's games (16.x and 17.x): Riot's reset between two years is a reset in
+      // the readings, where attributeLp ends one segment and starts the next, so no LP figure
+      // crosses it and a 2027 game takes its figure from the 2027 readings.
       const list: QueueGame[] = games
-        .filter((g) => (g.patch ? rankedSeasonOfPatch(g.patch) !== null : true))
+        .filter((g) => (g.patch ? rankedYearOfPatch(g.patch) !== null : true))
         .map((g) => ({ matchId: g.matchId, createdAt: g.gameCreation, durationS: g.gameDuration, win: g.win }));
       // A page game before the first reading read is before tracking: with no reading a week or more
       // before the page's oldest game, the first one read is the account's first.

@@ -175,7 +175,9 @@
 import { chromium } from "@playwright/test";
 import { AxeBuilder } from "@axe-core/playwright";
 import { hideTerms, redact } from "./redact.mjs";
-import { riotKeysOnPage } from "./riot-keys.mjs";
+import { riotFiguresOnPage, riotKeysOnPage } from "./riot-keys.mjs";
+import { accountsPageVerdict, bookmarkVerdict, jobsSessionVerdict, MANAGEMENT_CONTROLS, managementVerdict, noProfileVerdict, readBookmarkControls, readManagementControls } from "./boundary-facts.mjs";
+import { auditCounts, leaderboardScopeVerdicts, readLeaderboardScope } from "./leaderboard-facts.mjs";
 import { rosterRowLines } from "./roster-lines.mjs";
 import { championLookupVerdicts, readChampionLookup, readChampionWindow } from "./champion-lookup-facts.mjs";
 import { buildsVerdicts, probeFrom, probePath, readBuildsColumns } from "./builds-facts.mjs";
@@ -341,6 +343,10 @@ function riotCompliance() {
   // CI pins the public card's fields, this reads the page production serves. Counts only.
   const riotKeys = riotKeysOnPage(team.text);
   pass("riot", "the public team page's HTML and RSC payload carry no puuid, gameName, tagLine or riotId key", riotKeys.total === 0 && riotKeys.chunks > 0 && riotKeys.unreadable === 0, { ...riotKeys.keys, payloadChunks: riotKeys.chunks, unreadableChunks: riotKeys.unreadable });
+  // Nor any Riot figure in the page's data (Release 19, scripts/riot-keys.mjs riotFiguresOnPage): no
+  // statistics shown, no games, figures, rank or tier on any card or pool champion. Counts only.
+  const figures = riotFiguresOnPage(team.text);
+  pass("riot", "the public team page's HTML and RSC payload carry no Riot figure (statistics hidden, no games, win rate, KDA, CS, mastery, LP, tier or last game)", figures.total === 0 && figures.chunks > 0 && figures.unreadable === 0, { ...figures.figures, statsVisible: figures.statsVisible, gamesAboveZero: figures.games, tiers: figures.tiers, payloadChunks: figures.chunks });
 }
 
 /**
@@ -349,7 +355,7 @@ function riotCompliance() {
  * document is loaded and no field measurement is sent), GET only, and only the status, the address
  * it is sent to and true/false are reported.
  */
-async function memberRefusals(context) {
+async function memberRefusals(context, playerId) {
   const outsideAdmin = (to) => !!to && !new URL(to, base).pathname.startsWith("/admin") && !new URL(to, base).pathname.startsWith("/login");
   for (const path of ["/admin", "/admin/people", "/admin/audit", "/admin/system", "/admin/data", "/admin/settings", ...ADMIN_PAGES_LATER, ...PREVIEW_PAGES]) {
     const res = await context.request.get(`${base}${path}`, { maxRedirects: 0 });
@@ -364,6 +370,29 @@ async function memberRefusals(context) {
   const to = mode.headers()["location"] ?? "";
   const adminCookie = /uniiverse_view=admin/.test(mode.headers()["set-cookie"] ?? "");
   pass("security", "signed in as a member: the mode switch to Admin Mode keeps Player Mode", mode.status() >= 300 && mode.status() < 400 && outsideAdmin(to) && !adminCookie, { status: mode.status(), to: to.replace(base, ""), adminCookie });
+  // The permission boundaries (Release 19, scripts/boundary-facts.mjs): a session never opens the
+  // jobs endpoint; a teammate's Riot accounts open with no control to change them; My Profile shows
+  // an account with no profile no one else's profile or accounts. GET only, counts and statuses.
+  const tick = await context.request.get(`${base}/api/jobs/tick`, { maxRedirects: 0 });
+  const v1 = jobsSessionVerdict({ status: tick.status() });
+  check("security", v1.name, v1.status, v1.detail);
+  if (playerId) {
+    const accounts = await context.request.get(`${base}/players/${playerId}/accounts`, { maxRedirects: 0 });
+    const v2 = accountsPageVerdict({ status: accounts.status(), text: await accounts.text() });
+    check("security", v2.name, v2.status, v2.detail);
+  } else warn("security", "signed in as a member: a teammate's Riot accounts page was not tried", "no lineup player to open");
+  for (const path of ["/overview", "/overview/accounts"]) {
+    const mine = await context.request.get(`${base}${path}`, { maxRedirects: 0 });
+    const v3 = noProfileVerdict(path, { status: mine.status(), text: await mine.text() });
+    check("security", v3.name, v3.status, v3.detail);
+  }
+}
+
+/** A page's management controls the verification account must not be offered (scripts/boundary-facts.mjs); the local demo's visitor is the owner. */
+async function managementFacts(page, kind, where) {
+  if (local) return check("security", `${kind}: ${where}: no management controls for a member without the right`, "PASS", "not applicable: LIVE_LOCAL=1, the demo build's visitor is the local owner, who may manage everything (e2e/permission-boundaries.spec.ts checks a member on demo data)");
+  const v = managementVerdict(kind, where, await page.evaluate(readManagementControls, MANAGEMENT_CONTROLS[where]));
+  check("security", v.name, v.status, v.detail);
 }
 
 // ── Browser ───────────────────────────────────────────────────────────────────────────────────
@@ -2017,6 +2046,11 @@ async function teamMatches(page, log, kind, context) {
   if (!(await games.first().waitFor({ timeout: 20_000 }).then(() => true, () => false))) return warn("games", `${kind}: Team Matches lists no games`, "nothing to open");
   // Each member's performance score and place (25 Nov 2026; scripts/card-score-facts.mjs readTogetherScores).
   for (const v of togetherScoreVerdicts({ kind, games: await page.evaluate(readTogetherScores) })) check("games", v.name, v.status, v.detail);
+  // A teammate's bookmark shows as a state, with no control to remove it (scripts/boundary-facts.mjs).
+  if (!local) {
+    const b = bookmarkVerdict(kind, await page.evaluate(readBookmarkControls));
+    check("security", b.name, b.status, b.detail);
+  }
   const game = games.first();
   if (kind === "phone") return phoneGame(page, kind, "Team Matches", "team-matches", () => game.getByTestId("together-card").click({ position: { x: 24, y: 12 } }));
   // A game with four or more members lists them two to a row (their column is 34rem wide on the
@@ -2416,6 +2450,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
       playerId ??= await page.locator("[data-testid^=lineup-row-][data-player-id]").first().getAttribute("data-player-id").catch(() => null);
       await axe(page, kind, "team");
       await teamFacts(page, kind);
+      await guarded("security", `${kind}: Team's management controls`, () => managementFacts(page, kind, "team"));
       await guarded("type", `${kind}: Team Overview's text`, () => typeFacts(page, kind, "team", { tiers: true }));
       await guarded("team", `${kind}: shared kit`, () => sharedKitFacts(page, kind));
     }
@@ -2432,6 +2467,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
     await guarded(kind, "profile", async () => {
       if (await visit(page, log, kind, "profile", `/players/${playerId}`)) {
         await noteProfileTabs(page, kind, "overview");
+        await guarded("security", `${kind}: a teammate's profile's management controls`, () => managementFacts(page, kind, "profile"));
         await axe(page, kind, "profile");
         await guarded("type", `${kind}: the profile's text`, () => typeFacts(page, kind, "profile", { sentenceCase: true }));
         await guarded("ranked", `${kind}: Ranked progress`, () => rankedProgressEnds(page, kind));
@@ -2445,6 +2481,10 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
   await guarded(kind, "leaderboards", async () => {
     if (await visit(page, log, kind, "leaderboards", "/leaderboards")) {
       await leaderboardsFacts(page, kind);
+      // The 30-day rule against the leaderboard audit's own count (scripts/leaderboard-facts.mjs).
+      await guarded("leaderboards", `${kind}: the 30-day rule`, async () => {
+        for (const v of leaderboardScopeVerdicts({ kind, read: await page.evaluate(readLeaderboardScope), ...auditCounts() })) check("leaderboards", v.name, v.status, v.detail);
+      });
       await recordsFacts(page, kind);
       await multikillFacts(page, kind);
       if (kind === "desktop") await guarded("leaderboards", "desktop: the four boards on one screen", () => oneScreenFacts(page, "leaderboards", "leaderboards"));
@@ -2499,7 +2539,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
   if (kind === "phone") await guarded("frame", "phone held sideways (844 × 390)", () => sidewaysFrame(page, log, playerId));
   // Last in the desktop context, so a mode switch that went wrong cannot affect the other checks. Not
   // under LIVE_LOCAL: the demo build's visitor is the local owner, an administrator.
-  if (kind === "desktop" && !local) await guarded("security", "a member's refusals", () => memberRefusals(context));
+  if (kind === "desktop" && !local) await guarded("security", "a member's refusals", () => memberRefusals(context, playerId));
   await context.close();
 }
 await browser.close();
