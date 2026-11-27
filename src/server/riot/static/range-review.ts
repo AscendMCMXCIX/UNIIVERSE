@@ -92,7 +92,8 @@ export function countRangeReviews(champions: Readonly<Record<string, DdragonCham
       else if (display.kind === "self") counts.self += 1;
       else {
         counts.changedSinceReview += 1;
-        if (display.reviewedKind === "reach" || display.reviewedKind === "global") counts.hiddenSinceReview += 1;
+        const reviewedKind = display.kind === "changed" ? display.reviewedKind : null;
+        if (reviewedKind === "reach" || reviewedKind === "global") counts.hiddenSinceReview += 1;
       }
     }
   }
