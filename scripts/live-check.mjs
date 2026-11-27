@@ -107,8 +107,10 @@
     progress and Recent form where drawn) end within the window; Leaderboards' multikills and milestones
     show every row with no Show all, and no board leaves a blank band (its last line within 24px of its
     end unless its rows have grown to their cap, 3.5rem a row on average; the multikills' legend right
-    under their last row); a profile's pool showing fewer rows than it has says so in its Show all.
-    Positions, counts and the Show all's words only. At every width,
+    under their last row); a profile's pool showing fewer rows than it has says so in its Show all;
+    and (Release 19) the lowest section ends at least 12px above the page's own bottom padding (a
+    warning with less, the window being the hard limit). Positions, counts and the Show all's words
+    only. At every width,
     Records & achievements' old address (/leaderboards?view=records) opens the same page, the view gone
     from its address, at the season records (in view, focused). Counts, heights and true/false only.
   - settings: the picture and display-name help name the public team page, and Settings never
@@ -161,8 +163,10 @@
   - type (25 Nov 2026, the owner's readability request; scripts/type-facts.mjs): at every width the
     four text tiers are deployed with their values (primary, secondary, tertiary, disabled); on Team
     Overview, the teammate's profile and Settings no live text is drawn in the disabled tone (only a
-    disabled control or its label); on the profile and Settings, whose labels are sentence case, no
-    text in capitals outside a round pill and a member's own name style; on All Champions' table (not
+    disabled control or its label); on Team Overview (sentence case since 27 Nov 2026, the owner's
+    decision D4), the profile and Settings, whose labels are sentence case, no text in capitals
+    outside a round pill, a member's own name style and Team's backdrop lettering (artwork, hidden
+    from screen readers); on All Champions' table (not
     on narrow rows), every figure primary (a dash or zero tertiary), semibold only in the sorted
     column, under the one semibold heading. Counts, values and tags only.
   - reach (PR 2b; S4a, 20 Nov 2026): from the end of Match History, on the desktop and the tablet the
@@ -2051,8 +2055,8 @@ async function reachFacts(page, kind) {
 /**
  * The text hierarchy (the owner's readability request, 25 Nov 2026; scripts/type-facts.mjs): on the
  * page just opened, no live text in the disabled tone; with `tiers`, the four text tiers deployed;
- * with `sentenceCase`, no capitals outside a pill (the profile's Overview and Settings, whose labels
- * are sentence case; Team Overview keeps its approved capitals, so it is judged without).
+ * with `sentenceCase`, no capitals outside a pill (Team Overview, the profile's Overview and Settings,
+ * whose labels are sentence case: Team Overview's since 27 Nov 2026, the owner's decision D4).
  */
 async function typeFacts(page, kind, name, { tiers = false, sentenceCase = false } = {}) {
   const facts = await page.evaluate(readTypeFacts);
@@ -2319,7 +2323,7 @@ for (const [kind, options] of Object.entries(VIEWPORTS)) {
       playerId ??= await page.locator("[data-testid^=lineup-row-][data-player-id]").first().getAttribute("data-player-id").catch(() => null);
       await axe(page, kind, "team");
       await teamFacts(page, kind);
-      await guarded("type", `${kind}: Team Overview's text`, () => typeFacts(page, kind, "team", { tiers: true }));
+      await guarded("type", `${kind}: Team Overview's text`, () => typeFacts(page, kind, "team", { tiers: true, sentenceCase: true }));
       await guarded("team", `${kind}: shared kit`, () => sharedKitFacts(page, kind));
     }
   });
