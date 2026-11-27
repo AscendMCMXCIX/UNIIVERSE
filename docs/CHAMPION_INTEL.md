@@ -547,6 +547,15 @@ holds each; screenshots before and after in the lane's notes, never in the repos
   of the aligned board run a little past the screen, about 800px). One champion at 1440 × 900: the
   last row ends near 600px; at 1366 × 768, near 620px. Two at 1440 × 900: Aurelion Sol and Nunu at 20
   end near 690px, Teemo and Jayce near 840px.
+- **Matchup Intel's band** (27 Nov 2026, Compare with a lane; `e2e/champion-matchup.spec.ts` holds
+  each with 12px to spare, and was checked with every letter 1% wider, as CI's Chromium sets text):
+  at 1440 × 900 with the sidebar open the band ends near 300px (its three blocks side by side) and
+  both champions' five rows near 860px for a typical pair (Ahri and Zed, with the demo's figures and
+  a note: 875px with wider text); Teemo and Jayce's longest rows put R past 900px but P to E end near
+  785px (the documented exception: the band and P–E on screen for every pair, all five rows for the
+  typical ones). At 1366 × 768 the band is on screen (it ends near 300px), at 1920 × 1080 the band
+  and all five rows (near 880px; Teemo and Jayce near 905px). On phones and tablets the blocks stack
+  above the board and the page scrolls; nothing is wider than the screen at 320 to 430px and 200% text.
 - **Names**: the champion's name whole and on one line at 1366, 1440 and 1920, the sidebar open and
   folded, one champion and two ("Nunu & Willump", "Aurelion Sol", "Renata Glasc", "Twisted Fate",
   "Heimerdinger", "Fiddlesticks"); no ability name broken inside a word; on phones of 320, 375, 390
@@ -643,6 +652,10 @@ The app-wide checklist is [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md), where Champi
   champions in the address, Swap, removing either, the old links), `search.test.ts`;
   `src/server/riot/static/abilities.test.ts` (what is read from Data Dragon, the fixture against Data
   Dragon's own numbers, the build script).
+- Matchup Intel (Compare with a lane): its own tests, listed in [MATCHUP_INTEL.md](MATCHUP_INTEL.md),
+  "Tests" (`src/domain/matchup/*.test.ts`, `tests/db/lane-matchups.test.ts`,
+  `tests/db/matchup-notes.test.ts`, `tests/db/matchup-queue.test.ts`, `e2e/champion-matchup.spec.ts`,
+  `e2e/admin-matchup-notes.spec.ts`).
 - Database: `tests/db/champion-abilities.test.ts` (the sync, the per-champion reads, the patch marks);
   `tests/db/champion-builds.test.ts` (the counts: only current members' draft games, no remake, both
   teams and both spellings of a position, never an erased player, the item and skill rules the
@@ -685,6 +698,11 @@ with no new endpoint or request. The description should say both. The owner's ac
 (`src/server/riot/registration-description.test.ts` keeps the two copies the same):
 
 > Champion Intel, for signed-in accounts, is a static reference for one or two champions chosen by hand: each ability's name, icon, description, cost and base cooldowns per rank from Data Dragon, those cooldowns at an ability haste the reader chooses, by Riot's published formula, each champion's base statistics from Data Dragon, and the mechanics its ability descriptions name, with Riot's sentence for each. For members who may see teammates' statistics it also shows totals of the rune pages, summoner spells, items and skill orders observed in the team's stored completed games of the current patch, or of the previous one too where the current has too few (both teams, counts only, no player named), with their win rates, pick rates and numbers of games, labelled as the team's games and not a global sample, and no advice. It makes no Riot API request and has no timers or tracking.
+
+**Matchup Intel** (27 Nov 2026, Compare with a lane) adds to what the description must say: its
+proposed sentence and the owner's actions (writing and re-reviewing notes in Admin → Matchup notes,
+the registration paste, the privacy rows) are in [MATCHUP_INTEL.md](MATCHUP_INTEL.md), "For the owner";
+the D1 description (Release 19) carries the sentence into the text above.
 
 **Decisions left to the owner**: whether damage values, scaling and durations should come from a
 source beyond Data Dragon (CommunityDragon's game files hold them; RIOT_COMPLIANCE.md permits that

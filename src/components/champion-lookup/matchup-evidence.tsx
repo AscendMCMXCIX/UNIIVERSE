@@ -43,6 +43,9 @@ import { usePageQueue } from "./page-queue";
   carries no tone. Each line wraps between its label and its figures, never inside a figure.
 */
 
+/** A figure that opens its ⓘ is a finger's target on a touch screen (44px tall; 24px under a mouse, the line kept). */
+const TOUCH = "pointer-coarse:min-h-11";
+
 const Sep = () => (
   <span aria-hidden className="text-fg-subtle">
     {" · "}
@@ -64,24 +67,21 @@ function Figures({ e, a, b }: { e: LaneQueueEvidence; a: string; b: string }) {
   return (
     <dl className="space-y-0.5 text-sm" data-testid="matchup-figures">
       <Line label={aheadLabel(a)} testId="matchup-ahead" extra={{ "data-n": f.ahead.n, "data-of": f.ahead.of, "data-low": f.ahead.low.toFixed(4), "data-high": f.ahead.high.toFixed(4) }}>
-        <InfoTip text={shareTip(f.ahead)}>
+        <InfoTip text={shareTip(f.ahead)} className={TOUCH}>
           <span className="sr-only">{shareSpoken(f.ahead)}</span>
           <span aria-hidden>{shareWords(f.ahead)}</span>
         </InfoTip>
       </Line>
       <Line label={MEDIAN_LABEL} testId="matchup-median" extra={{ "data-gold": f.gold.median, "data-xp": f.xp.median, "data-cs": f.cs?.median ?? "" }}>
-        <InfoTip text={medianTip(a, b, f.gold)}>
+        <InfoTip text={medianTip(a, b, f.gold)} className={TOUCH}>
           <span className="sr-only">{medianSpoken({ gold: f.gold.median, cs: f.cs?.median ?? null, xp: f.xp.median }, a, b)}</span>
           <span aria-hidden>{medianWords({ gold: f.gold.median, cs: f.cs?.median ?? null, xp: f.xp.median })}</span>
         </InfoTip>
       </Line>
       {f.kills ? (
         <Line label={KILLS_LABEL} testId="matchup-kills" extra={{ "data-games": f.kills.games }}>
-          <InfoTip text={killsTip(f.kills, a, b)}>
-            {a} {formatCount(f.kills.a)}
-            <Sep />
-            {b} {formatCount(f.kills.b)}
-          </InfoTip>
+          {/* One text inside the ⓘ's button (a flex box drops the spaces between separate pieces). */}
+          <InfoTip text={killsTip(f.kills, a, b)} className={TOUCH}>{`${a} ${formatCount(f.kills.a)}\u00a0· ${b} ${formatCount(f.kills.b)}`}</InfoTip>
         </Line>
       ) : null}
       {f.firstBlood ? (
@@ -94,7 +94,7 @@ function Figures({ e, a, b }: { e: LaneQueueEvidence; a: string; b: string }) {
         </Line>
       ) : null}
       <Line label={wonLabel(a)} testId="matchup-won" extra={{ "data-n": f.won.n, "data-of": f.won.of }}>
-        <InfoTip text={shareTip(f.won)}>
+        <InfoTip text={shareTip(f.won)} className={TOUCH}>
           <span className="sr-only">{shareSpoken(f.won)}</span>
           <span aria-hidden>{shareWords(f.won)}</span>
         </InfoTip>
@@ -117,7 +117,7 @@ function QueueBody({ e, a, b, role, season, currentPatch }: { e: LaneQueueEviden
   return (
     <div className="space-y-1">
       <p className="text-xs text-fg-subtle" data-testid="matchup-sample" data-line={sampleWords(e, season)}>
-        {tip ? <InfoTip text={tip}>{sampleWords(e, season)}</InfoTip> : sampleWords(e, season)}
+        {tip ? <InfoTip text={tip} className={TOUCH}>{sampleWords(e, season)}</InfoTip> : sampleWords(e, season)}
       </p>
       <Figures e={e} a={a} b={b} />
     </div>

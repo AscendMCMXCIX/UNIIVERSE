@@ -61,7 +61,7 @@ test("the queue ranks what to write first; a note is written with the abilities 
   await page.locator('[data-testid="matchup-editor-ref"][data-ref="Garen.Q"]').click();
   await expect(page.locator('[data-testid="matchup-editor-ref"][data-ref="Darius.E"]')).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByTestId("matchup-editor-preview")).toContainText("Darius E, Garen Q");
-  await expectNoSeriousAxe(page, "the note editor", ["[role=dialog]"]);
+  await expectNoSeriousAxe(page, "the note editor", ["dialog[open]"]);
   await page.getByTestId("matchup-editor-publish").click();
   await expect(editor).toHaveCount(0);
   await expect(counts).toHaveAttribute("data-published", "3");

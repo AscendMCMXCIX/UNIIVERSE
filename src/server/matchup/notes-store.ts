@@ -192,20 +192,21 @@ async function reviewNow(db: Db, input: Pick<NoteInput, "scope" | "opponentId" |
   };
 }
 
-/** Saves a note as a draft or publishes it (a new one when `id` is null); refused with its problems. */
+/** Saves a note as a draft (a published one goes back to the drafts) or publishes it (a new one when `id` is null); refused with its problems. */
 export async function saveNote(db: Db, userId: string | null, id: string | null, raw: NoteInput, publish: boolean): Promise<MatchupNote> {
   const input = cleanNoteInput(raw);
   const problems = await checkNote(db, input);
   if (problems.length) throw new NoteRefused(problems);
   const review = publish ? await reviewNow(db, input, userId) : {};
-  const fields = { scope: input.scope, role: input.role, opponentId: input.opponentId, championId: input.championId, points: input.points, sources: input.sources, updatedBy: userId, updatedAt: new Date(), ...(publish ? { status: "published" as const, ...review } : {}) };
+  // Saving a draft of a published note takes it off the band until it is published (and reviewed) again: changed text never shows under an old review.
+  const fields = { scope: input.scope, role: input.role, opponentId: input.opponentId, championId: input.championId, points: input.points, sources: input.sources, updatedBy: userId, updatedAt: new Date(), status: publish ? ("published" as const) : ("draft" as const), ...review };
   try {
     if (id) {
       const [row] = await db.update(matchupNotes).set(fields).where(and(eq(matchupNotes.id, id), ne(matchupNotes.status, "retired"))).returning();
       if (!row) throw new NoteRefused([{ field: "scope", message: "That note is not there any more." }]);
       return noteOf(row);
     }
-    const [row] = await db.insert(matchupNotes).values({ ...fields, status: publish ? "published" : "draft", createdBy: userId }).returning();
+    const [row] = await db.insert(matchupNotes).values({ ...fields, createdBy: userId }).returning();
     return noteOf(row!);
   } catch (err) {
     if (err instanceof NoteRefused) throw err;

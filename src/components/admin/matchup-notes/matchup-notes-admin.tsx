@@ -171,7 +171,7 @@ export function MatchupNotesAdmin({ data }: { data: MatchupNotesAdminData }) {
             </button>
           ))}
         </div>
-        <RoleSegmented label="Role" roles={ROLES} value={role} onChange={setRole} allowAll testId="matchup-notes-role" />
+        <RoleSegmented label="Role" roles={ROLES} value={role} onChange={setRole} allowAll compactBelow="always" testId="matchup-notes-role" />
       </div>
       {tab === "queue" ? (
         <div className="space-y-6" data-testid="matchup-notes-queue">

@@ -245,9 +245,9 @@ export function MatchupBand({ data }: { data: MatchupBandData }) {
       data-blocks={blocks}
     >
       <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 border-b border-border px-3 py-1 sm:px-4">
-        <h2 id={id("title")} className="text-sm font-semibold text-fg">
+        {/* Its name says the lane and the two champions ("Matchup Intel, Top: Riven against Darius"), beginning with the words shown. */}
+        <h2 id={id("title")} aria-label={bandLabel(data.role, data.a.name, data.b.name)} className="text-sm font-semibold text-fg">
           {BAND_TITLE}
-          <span className="sr-only">, {bandLabel(data.role, data.a.name, data.b.name).slice(BAND_TITLE.length + 2)}</span>
         </h2>
         <p className="text-xs text-fg-muted" data-testid="matchup-band-subtitle">
           {BAND_SUBTITLE} · {ROLE_LABELS[data.role]}

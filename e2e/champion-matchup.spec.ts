@@ -71,10 +71,11 @@ test("the Lane control turns Compare into Matchup Intel: the band above the boar
   await expect(notes).toHaveAttribute("data-state", "shown");
   await expect(notes.getByTestId("matchup-note")).toHaveAttribute("data-freshness", "fresh");
   await expect(notes.getByTestId("matchup-notes-meta")).toHaveText(/^Patch \d+\.\d+$/);
-  await expect(notes.getByTestId("matchup-point")).toHaveCount(2);
+  // Two shown, the third behind "1 more · sources", opened in place.
+  await expect(notes.getByTestId("matchup-point").filter({ visible: true })).toHaveCount(2);
   await expect(notes.getByTestId("matchup-ref").first()).toBeVisible();
   await notes.getByTestId("matchup-notes-more").locator("summary").click();
-  await expect(notes.getByTestId("matchup-point")).toHaveCount(3);
+  await expect(notes.getByTestId("matchup-point").filter({ visible: true })).toHaveCount(3);
   await expect(notes.getByTestId("matchup-sources")).toContainText("Riot's Data Dragon");
   // Neutral words only; nothing scrolls inside.
   expect(await band(page).textContent()).not.toMatch(NEUTRAL);
@@ -119,7 +120,7 @@ test("a pair with fewer than 10 games says so, with no percentage; a pair with n
   const team = band(page).getByTestId("matchup-team");
   await expect(team).toHaveAttribute("data-state", "few");
   await expect(team).toHaveAttribute("data-games", "4");
-  await expect(team.getByTestId("matchup-team-line")).toHaveText("4 games in the team's matches (Ranked Solo/Duo, Season 2026). Figures show from 10.");
+  await expect(team.getByTestId("matchup-team-line")).toHaveText(/^4 games in the team's matches \(Ranked Solo\/Duo, Season 2026\)\. Figures show from 10\./);
   expect(await team.textContent()).not.toMatch(/\d+%/);
   await expect(band(page).getByTestId("matchup-note")).toHaveAttribute("data-freshness", "fresh");
   await expectNoSeriousAxe(page, "Matchup Intel with few games", ["[data-testid=matchup-band]"]);

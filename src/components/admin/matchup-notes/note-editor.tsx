@@ -95,7 +95,10 @@ export function NoteEditor({ id, initial, champions, currentPatch, onClose, onSa
               </button>
             ))}
           </div>
-          <RoleSegmented label="Lane" roles={ROLES} value={input.role} onChange={(r) => r && set({ role: r as Role })} testId="matchup-editor-role" />
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
+            <span className="label-text">Lane</span>
+            <RoleSegmented label="Lane" roles={ROLES} value={input.role} onChange={(r) => r && set({ role: r as Role })} compactBelow="always" testId="matchup-editor-role" />
+          </div>
           <div className="grid gap-3 sm:grid-cols-2">
             {input.scope === "pair" ? (
               <div>
@@ -117,7 +120,7 @@ export function NoteEditor({ id, initial, champions, currentPatch, onClose, onSa
           <legend className="text-sm font-semibold text-fg">Points</legend>
           <Problems list={problems} field="points" />
           {input.points.map((p, i) => (
-            <div key={i} className="space-y-2 rounded-md border border-border p-3" data-testid="matchup-editor-point">
+            <div key={i} className="space-y-2 border-t border-border pt-3" data-testid="matchup-editor-point">
               <div className="flex items-start gap-2">
                 <div className="min-w-0 flex-1">
                   <Label htmlFor={`matchup-point-${i}`}>Point {i + 1}</Label>
@@ -168,7 +171,7 @@ export function NoteEditor({ id, initial, champions, currentPatch, onClose, onSa
           <legend className="text-sm font-semibold text-fg">Sources</legend>
           <Problems list={problems} field="sources" />
           {input.sources.map((s, i) => (
-            <div key={i} className="grid gap-2 rounded-md border border-border p-3 sm:grid-cols-2" data-testid="matchup-editor-source">
+            <div key={i} className="grid gap-2 border-t border-border pt-3 sm:grid-cols-2" data-testid="matchup-editor-source">
               <div>
                 <Label htmlFor={`matchup-source-kind-${i}`}>Kind</Label>
                 <Select id={`matchup-source-kind-${i}`} value={s.kind} onValueChange={(v) => setSource(i, { kind: v as SourceKind })} options={Object.entries(SOURCE_KINDS).map(([k, label]) => ({ value: k, label }))} />
@@ -204,7 +207,7 @@ export function NoteEditor({ id, initial, champions, currentPatch, onClose, onSa
           ) : null}
         </fieldset>
 
-        <section aria-label="Preview" className="space-y-1 rounded-md bg-surface-2/50 p-3" data-testid="matchup-editor-preview">
+        <section aria-label="Preview" className="space-y-1 border-t border-border pt-3" data-testid="matchup-editor-preview">
           <p className="label-text">Preview, as the band shows it</p>
           <ul className="space-y-1">
             {input.points

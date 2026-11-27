@@ -124,6 +124,9 @@ describe("the notes' actions", () => {
     expect(await unpublishMatchupNoteAction(fresh.note.id)).toMatchObject({ ok: true, note: { status: "draft" } });
     expect(await deleteMatchupNoteDraftAction(fresh.note.id)).toMatchObject({ ok: false });
     expect(await saveMatchupNoteAction(fresh.note.id, pair(), true)).toMatchObject({ ok: true });
+    // A published note saved as a draft leaves the band until it is published again.
+    expect(await saveMatchupNoteAction(fresh.note.id, pair(), false)).toMatchObject({ ok: true, note: { status: "draft" } });
+    expect(await saveMatchupNoteAction(fresh.note.id, pair(), true)).toMatchObject({ ok: true, note: { status: "published" } });
   });
 
   it("delete a draft never published, and confirm a published note for the current patch", async () => {

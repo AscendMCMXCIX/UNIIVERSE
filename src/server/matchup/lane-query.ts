@@ -70,13 +70,18 @@ export async function readLaneGames(db: Db, input: LaneGamesInput): Promise<Lane
   const frames = sql.raw(`'$[0 to ${FRAMES_READ - 1}]'`);
   /** The lane a seat holds under `reading` (another seat's reading, for the rule's count). */
   const laneUnder = (reading: SQL, seat: string) => sql`(CASE ${reading} WHEN 'tp' THEN ${sql.raw(seat)}.tp WHEN 'ip' THEN ${sql.raw(seat)}.ip ELSE ${sql.raw(seat)}.pos END)`;
-  /** x's lane opponent is y, in the role, by x's reading (laneOpponentOf). */
+  /**
+   * x's lane opponent is y, in the role, by x's reading (laneOpponentOf): both hold the lane under it,
+   * x is its one holder on x's side and the other side has one too (the holders counted once per game
+   * and side in `sr`, window sums, so no seat is compared with every other one).
+   */
   const opponentIs = (x: string, y: string) => {
     const r = sql.raw(`${x}.reading`);
+    const side = sql.raw(`(CASE ${x}.reading WHEN 'tp' THEN ${x}.tp_side WHEN 'ip' THEN ${x}.ip_side ELSE ${x}.pos_side END)`);
+    const all = sql.raw(`(CASE ${x}.reading WHEN 'tp' THEN ${x}.tp_all WHEN 'ip' THEN ${x}.ip_all ELSE ${x}.pos_all END)`);
     return sql`${r} IS NOT NULL AND ${laneUnder(r, x)} = ${lane} AND ${laneUnder(r, y)} = ${lane}
       AND (${r} = 'tp' OR NOT ${sql.raw(`${x}.any_removed`)})
-      AND (SELECT count(*) FROM sr q WHERE q.match_id = ${sql.raw(x)}.match_id AND NOT q.removed AND q.team = ${sql.raw(x)}.team AND ${laneUnder(r, "q")} = ${lane}) = 1
-      AND (SELECT count(*) FROM sr q WHERE q.match_id = ${sql.raw(x)}.match_id AND NOT q.removed AND q.team <> ${sql.raw(x)}.team AND ${laneUnder(r, "q")} = ${lane}) = 1`;
+      AND ${side} = 1 AND ${all} - ${side} = 1`;
   };
   const series = (seat: string) => sql`CASE WHEN t.frames->'p'->(${sql.raw(seat)}->>'puuid') IS NOT NULL THEN jsonb_build_object(
       'g', jsonb_path_query_array(t.frames->'p'->(${sql.raw(seat)}->>'puuid')->'g', ${frames}),
@@ -114,7 +119,14 @@ export async function readLaneGames(db: Db, input: LaneGamesInput): Promise<Lane
         FROM lane_rec r CROSS JOIN LATERAL jsonb_array_elements(r.participants) AS e(p)
       ),
       sr AS MATERIALIZED (
-        SELECT s.*, CASE WHEN s.has_tp THEN CASE WHEN s.tp IS NOT NULL THEN 'tp' WHEN s.ip IS NOT NULL THEN 'ip' END WHEN s.pos IS NOT NULL THEN 'pos' END AS reading FROM s
+        SELECT s.*, CASE WHEN s.has_tp THEN CASE WHEN s.tp IS NOT NULL THEN 'tp' WHEN s.ip IS NOT NULL THEN 'ip' END WHEN s.pos IS NOT NULL THEN 'pos' END AS reading,
+          count(*) FILTER (WHERE NOT s.removed AND s.tp = ${lane}) OVER (PARTITION BY s.match_id, s.team) AS tp_side,
+          count(*) FILTER (WHERE NOT s.removed AND s.tp = ${lane}) OVER (PARTITION BY s.match_id) AS tp_all,
+          count(*) FILTER (WHERE NOT s.removed AND s.ip = ${lane}) OVER (PARTITION BY s.match_id, s.team) AS ip_side,
+          count(*) FILTER (WHERE NOT s.removed AND s.ip = ${lane}) OVER (PARTITION BY s.match_id) AS ip_all,
+          count(*) FILTER (WHERE NOT s.removed AND s.pos = ${lane}) OVER (PARTITION BY s.match_id, s.team) AS pos_side,
+          count(*) FILTER (WHERE NOT s.removed AND s.pos = ${lane}) OVER (PARTITION BY s.match_id) AS pos_all
+        FROM s
       ),
       pair AS (
         SELECT a.match_id, a.queue_id, a.patch, a.p AS ap, b.p AS bp
