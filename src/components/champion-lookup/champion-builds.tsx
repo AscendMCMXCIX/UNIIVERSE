@@ -501,7 +501,7 @@ export function ChampionBuilds({ views }: { views: ChampionBuildsViews }) {
   const form = compare ? FORMS.compare : FORMS.single;
   const sourceLine = (
     // One champion: beside the title where the section is wide (a desktop); narrower, on a line of its own under the title, the role and the view switch. Compare: its own row.
-    <p className={cn("min-w-0 text-xs text-fg-muted", compare ? undefined : "order-last basis-full @min-[52rem]/builds:order-none @min-[52rem]/builds:basis-auto")} data-testid="lookup-build-source" data-line={sourceWords(b)} data-games={Math.round(b.games)} data-patches={b.patches.join(",")} data-current-games={Math.round(b.currentGames)}>
+    <p className={cn("min-w-0 text-xs text-fg-muted", compare ? undefined : "order-last basis-full @min-[52rem]/builds:order-none @min-[52rem]/builds:basis-auto")} data-testid="lookup-build-source" data-line={sourceWords(b)} data-games={Math.round(b.games)} data-patches={b.patches.join(",")} data-current-games={Math.round(b.currentGames)} data-timeline-games={Math.round(b.timelineGames)}>
       <InfoTip text={gamesTip(b)} testId="lookup-build-games">
         {gamesWords(b)}
       </InfoTip>{" "}

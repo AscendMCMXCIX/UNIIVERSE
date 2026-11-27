@@ -17,6 +17,7 @@ export const JOB_NAMES: Record<string, { name: string; summary: string }> = {
   "rank-schedule-status": { name: "LP schedule check", summary: "Says whether the five-minute rank schedule is on and running." },
   "riot-check": { name: "Riot key check", summary: "Checks Riot accepts the configured key." },
   "skin-audit": { name: "Champion skins check", summary: "Checks the stored skins against Riot's champion data." },
+  "builds-audit": { name: "Champion Intel builds check", summary: "Re-checks the builds shown against their rules, from the counts themselves." },
   "account-sync": { name: "Linked accounts", summary: "Reads new games, ranks and mastery for the linked Riot accounts." },
   "timeline-backfill": { name: "Game timelines", summary: "Fetches the game timelines Matchups needs, a few each run." },
   "figures-backfill": { name: "Older games' extra figures", summary: "Fetches once more the older games stored before multikills were kept." },

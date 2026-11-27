@@ -2,7 +2,7 @@ import { sql, type SQL } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { LANE_NAMES, LANE_ORDER } from "@/domain/match-analysis";
 import { MAX_VALID_DURATION_S, MIN_VALID_DURATION_S } from "@/domain/season-stats";
-import { BUILD_DIMS, BUILD_QUEUES, SKILL_POINTS_READ, START_MS, type BuildCountRow, type BuildDim, type BuildLane, type BuildQueueId, type ItemClasses, type SkillRanks } from "@/domain/champion-builds";
+import { BUILD_DIMS, BUILD_QUEUES, MIN_SECTION_GAMES, SKILL_POINTS_READ, START_MS, type BuildCountRow, type BuildDim, type BuildLane, type BuildQueueId, type ItemClasses, type SkillRanks } from "@/domain/champion-builds";
 
 /*
   The counts behind Champion Intel's builds (domain/champion-builds, docs/CHAMPION_INTEL.md "Builds
@@ -183,4 +183,57 @@ export async function readBuildCounts(db: Db, input: BuildCountsInput): Promise<
   return parse<Row[]>(answer?.rows ?? [])
     .filter(([dim, patch, lane, q]) => dims.has(dim) && lanes.has(lane) && typeof patch === "string" && queueIds.has(Number(q)))
     .map(([dim, patch, lane, q, value, n, w, nm, top]) => ({ dim: dim as BuildDim, patch, lane: lane as BuildLane, queue: Number(q) as BuildQueueId, value: String(value ?? ""), n: Number(n), w: Number(w), nm: Number(nm), top: Number(top) }));
+}
+
+/** One champion's games in one lane, queue and patch, as the candidates statement answers. */
+export interface BuildCandidateRow {
+  champion: string;
+  lane: BuildLane;
+  queue: BuildQueueId;
+  patch: string;
+  n: number;
+}
+
+/**
+ * Which champions have games on the patch window, for the builds audit (server/jobs/builds-audit):
+ * the same games the builds count (stored records of the draft queues that a current team member
+ * played, remakes left out, every player on any champion, by Riot's position, never an erased one),
+ * reduced inside the database to games per champion, lane, queue and patch. A few KB: no PUUID,
+ * name or match id leaves the database. The patch comes from each record's game version, as the
+ * builds statement reads it; a record of another patch never unpacks its players.
+ */
+export async function readBuildCandidates(db: Db, patches: readonly string[]): Promise<BuildCandidateRow[]> {
+  if (!patches.length) return [];
+  const window = JSON.stringify(patches);
+  const queues = sql.raw(BUILD_QUEUES.map((q) => String(q)).join(", "));
+  const result = await db.execute(sql`
+    WITH rec AS MATERIALIZED (
+      SELECT d.queue_id, d.participants, v.patch
+      FROM match_details d
+      CROSS JOIN LATERAL (SELECT (m[1]::int)::text || '.' || (m[2]::int)::text AS patch FROM regexp_match(d.game_version, '^(\\d+)\\.(\\d+)') AS m) AS v
+      WHERE d.queue_id IN (${queues})
+        AND d.game_duration >= ${MIN_VALID_DURATION_S} AND d.game_duration <= ${MAX_VALID_DURATION_S}
+        AND v.patch IN (SELECT jsonb_array_elements_text(${window}::jsonb))
+        AND EXISTS (
+          SELECT 1 FROM account_matches am
+          JOIN riot_accounts ra ON ra.id = am.account_id AND ra.owner_type = 'player'
+          JOIN players pl ON pl.id = ra.player_id AND pl.team_member AND pl.archived_at IS NULL
+          WHERE am.match_id = d.match_id)
+    )
+    SELECT coalesce(json_agg(json_build_array(champion, lane, q, patch, n)), '[]') AS rows FROM (
+      SELECT counted.*, sum(n) OVER (PARTITION BY champion, lane, q) AS window_games FROM (
+        SELECT p->>'championId' AS champion, ${laneSql(sql`p->>'position'`)} AS lane, r.queue_id AS q, r.patch, count(*)::int AS n
+        FROM rec r CROSS JOIN LATERAL jsonb_array_elements(r.participants) AS p
+        WHERE p->>'removed' IS NULL AND coalesce(p->>'championId', '') <> ''
+        GROUP BY 1, 2, 3, 4) AS counted
+      WHERE lane IS NOT NULL) AS windowed
+    -- Only a champion-role-queue with enough games on the whole window can have builds: the rest stay in the database.
+    WHERE window_games >= ${MIN_SECTION_GAMES}`);
+  const [answer] = rowsOf<{ rows: unknown }>(result);
+  type Row = [string, string, number, string, number];
+  const lanes = new Set<string>(LANE_ORDER);
+  const queueIds = new Set<number>(BUILD_QUEUES);
+  return parse<Row[]>(answer?.rows ?? [])
+    .filter(([champion, lane, q, patch]) => typeof champion === "string" && lanes.has(lane) && queueIds.has(Number(q)) && typeof patch === "string")
+    .map(([champion, lane, q, patch, n]) => ({ champion, lane: lane as BuildLane, queue: Number(q) as BuildQueueId, patch, n: Number(n) }));
 }

@@ -28,6 +28,7 @@ export type JobKey =
   | "rank-schedule-status"
   | "verify-account"
   | "lane-opponent-recompute"
+  | "builds-audit"
   | "tick";
 
 export interface JobOutcome {
