@@ -223,6 +223,58 @@ test("All Champions at 1440 × 900 in Safari's engine: with a fine pointer the o
   await desk.close();
 });
 
+test("All Champions' short form and workspace window in Safari's engine: Sion vs Nasus at 1366 × 657 fits (the subgrid, :is() and the two-block variant); the window at 1280 × 800 has a fixed height and nothing scrolling inside", async ({ browser, page, baseURL }) => {
+  await page.goto("/players");
+  const href = (await page.locator("main a[data-testid='player-card'][data-player-name='Demo Sub (Top)']").getAttribute("href"))!;
+  const at = async (width: number, height: number, sidebar: "expanded" | "collapsed") => {
+    const context = await browser.newContext({ viewport: { width, height } });
+    await context.addCookies([
+      { name: "uniiverse_view", value: "player", url: baseURL! },
+      { name: "uniiverse_sidebar", value: sidebar, url: baseURL! },
+    ]);
+    const p = await context.newPage();
+    await p.goto(`${href}/champions?champion=Sion&crole=TOP&vs=Nasus`, { waitUntil: "load" });
+    await expect(p.getByTestId("champion-preview-content")).toBeVisible();
+    return { context, p };
+  };
+  const short = await at(1366, 657, "expanded");
+  if (!(await short.p.evaluate(() => matchMedia("(pointer: fine)").matches))) {
+    // Playwright's WebKit on Linux reports no fine pointer: the workspace's gate leaves it the flow (the test above).
+    await expect.poll(() => short.p.evaluate(() => !!document.querySelector("[data-workspace]"))).toBe(false);
+    await short.context.close();
+    return;
+  }
+  const pane = short.p.locator("aside[data-preview-pane]");
+  await expect(pane.getByTestId("champion-preview-pairing")).toBeVisible();
+  await expect
+    .poll(() =>
+      short.p.evaluate(() => {
+        const pad = parseFloat(getComputedStyle(document.getElementById("content")!).paddingBottom);
+        const cards = [...document.querySelectorAll("[data-testid=all-champions-table], aside[data-preview-pane]")].map((c) => c.getBoundingClientRect().bottom);
+        const stats = document.querySelector("aside[data-preview-pane] [data-testid=champion-preview-stats]")!;
+        return { fits: document.documentElement.scrollHeight <= innerHeight, cards: cards.every((b) => b <= innerHeight - pad + 0.5), subgrid: getComputedStyle(stats).gridTemplateColumns.startsWith("subgrid"), foot: Math.round(pad) };
+      }),
+    )
+    .toEqual({ fits: true, cards: true, subgrid: true, foot: 12 });
+  await fitsWidth(short.p, "the short form at 1366 × 657");
+  await short.context.close();
+  // The workspace window: a fixed height (the screen less 1rem above and below), nothing scrolling inside it.
+  const windowed = await at(1280, 800, "expanded");
+  const win = windowed.p.locator("dialog[open][data-testid=champion-preview][data-size=workspace]");
+  await expect(win).toBeVisible();
+  await expect(win.getByTestId("champion-preview-pairing")).toBeVisible();
+  await expect
+    .poll(() =>
+      win.evaluate((d) => ({
+        height: Math.abs(d.getBoundingClientRect().height - (innerHeight - 2 * parseFloat(getComputedStyle(document.documentElement).fontSize))) <= 1,
+        scrollers: [d, ...d.querySelectorAll("*")].filter((el) => /(auto|scroll)/.test(getComputedStyle(el).overflowY) && el.scrollHeight > el.clientHeight + 1).length,
+        fits: document.documentElement.scrollHeight <= innerHeight,
+      })),
+    )
+    .toEqual({ height: true, scrollers: 0, fits: true });
+  await windowed.context.close();
+});
+
 test("a teammate's profile: its sections switch, and a champion's preview sheet opens and closes by Back and Escape", async ({ page }) => {
   await page.goto("/players");
   const href = (await page.locator("main a[data-testid='player-card'][data-player-name='Demo Top']").getAttribute("href"))!;

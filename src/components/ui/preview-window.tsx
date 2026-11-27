@@ -54,9 +54,14 @@ export function SiblingSteps({ siblings, position }: { siblings: PreviewSiblings
   );
 }
 
-export function PreviewWindow({ siblings, headerExtra, size = "standard", ...modal }: Omit<React.ComponentProps<typeof DetailModal>, "size"> & { siblings?: PreviewSiblings | null; size?: "standard" | "wide" | "full" | "sheet" }) {
+/**
+ * `size="workspace"` with `headless`: All Champions' workspace window (docs/RESPONSIVE.md, "All
+ * Champions' workspace"), the docked pane's narrow form. No title bar: the content's own heading names
+ * it, and its ‹ › and labelled Close are the content's (the pane's P1), so no `siblings` are drawn here.
+ */
+export function PreviewWindow({ siblings, headerExtra, size = "standard", ...modal }: Omit<React.ComponentProps<typeof DetailModal>, "size"> & { siblings?: PreviewSiblings | null; size?: "standard" | "wide" | "full" | "sheet" | "workspace" }) {
   const extra =
-    siblings || headerExtra ? (
+    !modal.headless && (siblings || headerExtra) ? (
       <div className="flex items-center gap-1" data-testid="preview-window-nav">
         {headerExtra}
         {siblings ? <SiblingSteps siblings={siblings} /> : null}

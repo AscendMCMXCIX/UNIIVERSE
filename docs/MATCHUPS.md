@@ -33,8 +33,11 @@ the row's (two or more positions, or a game with none), so a one-position champi
 **The one-screen workspace (the owner's request of 27 Nov 2026).** On a desktop window with a mouse,
 from 1280px wide and at least 41 of the page's own rem tall (656px up to 1536px wide, a 1366 × 768
 laptop's browser window; up to 902px in the widest band, where the root grows: docs/RESPONSIVE.md,
-"All Champions' workspace"), All Champions never scrolls (below 46rem, 736px, only a champion of
-several positions with an opponent open can let it grow by what its one game a column lacks). The section is the rest of the window under the profile's
+"All Champions' workspace"), All Champions never scrolls, in any state (under 46 of the page's own
+rem, 736px at 16px, it takes its short form: the totals in the identity bar, the figures in one row of
+label and figure with the subs under them, the kills line and the coverage as one text, an 8px rhythm
+and the page's 12px foot; under 48 where the section is narrow, 1356–1463px with the sidebar open,
+where the tall form's lines wrap, keeping the 28px foot; docs/RESPONSIVE.md, "the short form"). The section is the rest of the window under the profile's
 band, its tabs and the one-line section header; the list and the preview are two cards side by side
 that both reach the window's foot, their footers on one baseline. **Nothing grows the page: the
 champions, the lane opponents and an opponent's games are in pages** of the complete rows that fit
@@ -43,9 +46,13 @@ shorter window or a larger root shows fewer rows; text never shrinks; nothing sc
 nothing is clipped), with a pager in each footer ("8–14 of 30", the shared `Pager`) that reaches
 every page, and keys that cross pages. Opening a champion or an opponent never changes the page's
 height and never moves a row. The preview is beside the list only where the section holds the
-opponents' two columns (64.75rem: 1366px with the sidebar open, 1280px with it folded); in a
-narrower workspace (1280–1359px with the sidebar open: open decision O1) it opens in the sheet over
-the paged list. Everywhere else (phones, tablets, short or narrow windows, a larger text size) the
+opponents' two columns (64.75rem: 1356px with the sidebar open, 1280px with it folded); in a
+narrower workspace (1280–1355px with the sidebar open, or a larger root) it opens in **the workspace
+window** over the paged list (28 Nov 2026; the sheet before, whose unpaged preview scrolled inside
+it): the pane's own content in a window as tall as the screen less 1rem above and below, up to
+56.25rem wide, P1 its title bar, the opponents and an opponent's games paged inside it, nothing
+scrolling; Escape goes back from an opponent's games to the grid first, then closes it; Back closes
+it; ‹ › step champions, the list's page following under it. Everywhere else (phones, tablets, short or narrow windows, a larger text size) the
 page keeps the flow described next, unchanged. Measured rows per page (sidebar open and folded): the
 champions 7, 9, 9 and 11 at 1366 × 768, 1440 × 900, 1648 × 900 and 1920 × 1080; Ambessa's lane
 opponents 10, 18, 16 and 22 (two columns); an opponent's games 10, 18, 16 and 20.
@@ -124,7 +131,9 @@ are partial (complete, it repeats what is on screen and is read out instead). Ev
 5. **An opponent's detail, without an accordion** (`vs` in the address, replaced). In the workspace it
    opens **in place of the grid**, the focus on its heading: one header line ("‹ All opponents", the
    opponent, "9 games · 6W 3L · 67%", and ‹ 3 of 40 › to the previous or next opponent in the grid's
-   order and search, the address replaced, the focus kept on the button), one paragraph (the KDA and
+   order and search, the address replaced, the focus kept on the button; the line never wraps the
+   steps onto a line of their own: where the region lacks room the record wraps inside itself, between
+   "13 games ·", "6W 7L · 46%" and "(small sample)"), one paragraph (the KDA and
    the 10:00 sentence), and its games in two columns from a 37rem region, paged; the footer holds the
    link to Matchup Intel and the games' pager. "All opponents" or Escape bring the grid back on the
    page holding that opponent (the one opened, or the one ‹ › stepped to; after a linked opponent

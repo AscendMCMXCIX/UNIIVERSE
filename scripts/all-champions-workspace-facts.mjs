@@ -44,6 +44,8 @@ export function readWorkspace() {
     height: document.documentElement.scrollHeight,
     pad,
     workspace: !!document.querySelector("[data-workspace]"),
+    // The short form (under 46 of the page's own rem: docs/RESPONSIVE.md): the section marks it once hydrated.
+    short: !!document.querySelector("[data-ws-short]"),
     cards,
     scrollers: main ? [...main.querySelectorAll("*")].filter(scrolls).length : 0,
     regions,
@@ -105,7 +107,7 @@ export function workspaceVerdicts({ size, read, list, opponents, games, steps })
     return out;
   }
   const limit = read.window - read.pad + 0.5;
-  fact("All Champions is one workspace: the page does not scroll, its cards end above the page's padding, nothing in main scrolls", read.height <= read.window && read.cards.every((c) => c.bottom <= limit) && read.scrollers === 0, { window: read.window, height: read.height, bottoms: read.cards.map((c) => c.bottom), limit: Math.round(limit), scrollers: read.scrollers });
+  fact("All Champions is one workspace: the page does not scroll, its cards end above the page's padding, nothing in main scrolls", read.height <= read.window && read.cards.every((c) => c.bottom <= limit) && read.scrollers === 0, { window: read.window, height: read.height, bottoms: read.cards.map((c) => c.bottom), limit: Math.round(limit), scrollers: read.scrollers, short: !!read.short });
   const margins = read.cards.map((c) => c.margin).filter((m) => typeof m === "number");
   const least = margins.length ? Math.min(...margins) : null;
   if (least !== null) out.push({ name: `${size}: room to spare: each list ends at least ${WORKSPACE_MARGIN}px above its footer`, status: least >= WORKSPACE_MARGIN ? "PASS" : least >= 0 ? "WARN" : "FAIL", detail: { margins, min: WORKSPACE_MARGIN } });
