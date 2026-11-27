@@ -125,6 +125,7 @@ async function run(ctx: Pick<JobContext, "db" | "log" | "startedAt" | "budgetMs"
       self: ranges.self,
       none: ranges.none,
       changedSinceReview: ranges.changedSinceReview,
+      hiddenSinceReview: ranges.hiddenSinceReview,
       notReviewed: ranges.notReviewed,
       noRangeYet: ranges.noRangeYet,
     },

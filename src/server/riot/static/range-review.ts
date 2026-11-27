@@ -10,8 +10,9 @@ import { RANGE_TABLE_HASH, rangeReviewRows, rangeReviewsFor } from "./ability-ra
 /*
   How the reviewed ability ranges stand against the abilities stored for the current game version
   (docs/CHAMPION_INTEL.md, "Ranges"; docs/DATA_PIPELINES.md, "Champion abilities"): how many ranges
-  the page shows, how many are "Global", cast on the champion or not the reach, how many are hidden
-  because Riot changed the ability since its review, and how many spells have no review yet. Counted
+  the page shows, how many are "Global", cast on the champion or not the reach, how many reviewed
+  abilities Riot changed since their review (and how many of those were shown ranges, now hidden
+  until reviewed again), and how many spells have no review yet. Counted
   by the version-check job once per game version (and again after a deploy that changes the table),
   stored in app_settings "ability_range_review" (a few hundred bytes), read by Admin's Data &
   Integrations. Counts and versions only: no champion is named in a job's output.
@@ -39,8 +40,10 @@ export interface RangeReviewCounts {
   self: number;
   /** Reviewed as not the reach, or failing the rule's validation: not shown. */
   none: number;
-  /** Hidden until reviewed again: Riot changed the spell id, its range or its text since its row. */
+  /** Reviewed rows Riot changed since (the spell id, its range or its text): each needs reviewing again, and the page shows nothing for it until then. */
   changedSinceReview: number;
+  /** Of those, the rows reviewed as a reach or "Global": ranges the page showed and now hides until reviewed again (a changed self or none row showed nothing before either). */
+  hiddenSinceReview: number;
   /** Spells with no row yet: nothing shown. */
   notReviewed: number;
   /** Spells stored before rules format 5 (no range yet): nothing shown until the next read. */
@@ -63,6 +66,7 @@ export function countRangeReviews(champions: Readonly<Record<string, DdragonCham
     self: 0,
     none: 0,
     changedSinceReview: 0,
+    hiddenSinceReview: 0,
     notReviewed: 0,
     noRangeYet: 0,
     at: now.toISOString(),
@@ -86,17 +90,20 @@ export function countRangeReviews(champions: Readonly<Record<string, DdragonCham
       else if (display.kind === "reach") counts.shown += 1;
       else if (display.kind === "global") counts.global += 1;
       else if (display.kind === "self") counts.self += 1;
-      else counts.changedSinceReview += 1;
+      else {
+        counts.changedSinceReview += 1;
+        if (display.reviewedKind === "reach" || display.reviewedKind === "global") counts.hiddenSinceReview += 1;
+      }
     }
   }
   return counts;
 }
 
-/** The stored counts, or null when none are stored or they are not in this shape. */
+/** The stored counts, or null when none are stored or they are not in this shape (counts stored before `hiddenSinceReview` read as none, so the next version-check counts again). */
 export async function readRangeReviewCounts(db: Db): Promise<RangeReviewCounts | null> {
   const [row] = await db.select({ value: appSettings.value }).from(appSettings).where(eq(appSettings.key, KEY));
   const v = row?.value as Partial<RangeReviewCounts> | undefined;
-  return v && typeof v === "object" && typeof v.tableHash === "string" && typeof v.shown === "number" && typeof v.changedSinceReview === "number" && typeof v.notReviewed === "number" ? (v as RangeReviewCounts) : null;
+  return v && typeof v === "object" && typeof v.tableHash === "string" && typeof v.shown === "number" && typeof v.changedSinceReview === "number" && typeof v.hiddenSinceReview === "number" && typeof v.notReviewed === "number" ? (v as RangeReviewCounts) : null;
 }
 
 /**
@@ -116,7 +123,7 @@ export async function ensureRangeReviewCounts(db: Db, version: string, options: 
   const counts = countRangeReviews(index.champions, version, rangeReviewsFor, now);
   await db.insert(appSettings).values({ key: KEY, value: counts, updatedAt: now }).onConflictDoUpdate({ target: appSettings.key, set: { value: counts, updatedAt: now } });
   options.log?.(
-    `Ability ranges ${counts.version ?? "(no version)"}: ${counts.shown} shown, ${counts.global} global, ${counts.self} cast on the champion (not shown), ${counts.none} not the reach; ${counts.changedSinceReview} hidden until reviewed again; ${counts.notReviewed} not reviewed${counts.noRangeYet ? `; ${counts.noRangeYet} stored before ranges were read` : ""} (${counts.rows} rows).`,
+    `Ability ranges ${counts.version ?? "(no version)"}: ${counts.shown} shown, ${counts.global} global, ${counts.self} cast on the champion (not shown), ${counts.none} not the reach; ${counts.changedSinceReview} changed since their review (${counts.hiddenSinceReview} ${counts.hiddenSinceReview === 1 ? "range" : "ranges"} hidden until reviewed again); ${counts.notReviewed} not reviewed${counts.noRangeYet ? `; ${counts.noRangeYet} stored before ranges were read` : ""} (${counts.rows} rows).`,
   );
   return counts;
 }

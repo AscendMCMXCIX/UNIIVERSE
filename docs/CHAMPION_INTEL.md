@@ -269,8 +269,10 @@ change any row (reviewer `owner`), and spot-check rows on the page ("For the own
 1. `node scripts/static/review-ability-ranges.mjs --version <new> --check` (or `--from
    championFull.json`; `--was <previous championFull.json>` adds Riot's old and new text): the rows
    Riot changed (spell id, range, text), rows whose spell is gone, and the count of spells with no
-   row; exit 1 when a row no longer matches. Admin → Data & Integrations shows the same as a count
-   ("3 ranges are hidden until reviewed again: Riot changed those abilities.").
+   row; exit 1 when a row no longer matches. Admin → Data & Integrations shows the same as a count,
+   and how many of those abilities showed a range the page now hides (a changed ability reviewed as
+   cast on the champion or not the reach showed nothing either way): "Riot changed 3 reviewed
+   abilities since their review: review them again. 2 of their ranges are hidden until then."
 2. Review each changed row against Riot's new text, as the first review did (`--draft out.json`
    writes every spell's draft and evidence; the changed rows go to two independent reviewers with
    `scripts/static/range-review-brief.md`, the draft taken out, and the verdicts are combined by its
@@ -291,10 +293,13 @@ visible.
 
 **Counts.** The version-check job counts the table against the stored abilities once per version,
 and again after a deploy that changes the table (`RANGE_TABLE_HASH`): ranges shown, "Global", cast
-on the champion, not the reach, hidden since Riot changed them, not reviewed, and stored before
-rules format 5. It stores them in `app_settings` "ability_range_review" (a few hundred bytes), logs
-one line ("Ability ranges 16.23.1: 269 shown, 11 global, 181 cast on the champion (not shown), 231 not
-the reach; 0 hidden until reviewed again; 0 not reviewed (692 rows).") and adds them to its summary
+on the champion, not the reach, reviewed abilities Riot changed since their review (`changedSinceReview`,
+each to review again) and of those the ones that showed a range, now hidden until reviewed again
+(`hiddenSinceReview`: reviewed as a reach or Global), not reviewed, and stored before rules format 5.
+It stores them in `app_settings` "ability_range_review" (a few hundred bytes; counts stored before
+`hiddenSinceReview` existed are counted again), logs one line ("Ability ranges 16.23.1: 269 shown, 11
+global, 181 cast on the champion (not shown), 231 not the reach; 0 changed since their review (0
+ranges hidden until reviewed again); 0 not reviewed (692 rows).") and adds them to its summary
 (`abilityRanges`): counts only, no champion named. An ordinary run reads only the stored counts.
 Admin → Data & Integrations shows them under "Riot's static data between patches".
 

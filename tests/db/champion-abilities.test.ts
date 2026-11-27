@@ -576,12 +576,12 @@ describe("version-check job and the ability ranges", () => {
     expect((await rangeOf("KogMaw", "E"))!.range).toEqual([1200, 1200, 1200, 1200, 1200]);
     expect((await rangeOf("Riven", "Q"))!.range).toEqual([275, 275, 275, 275, 275]);
     // Gangplank's Q and E, Kog'Maw's Q and R and Riven's E are reaches, Gangplank's R the whole map; each W is cast on the champion; Kog'Maw's E (unconfirmed) and Riven's Q and R (several abilities) are none.
-    expect(first.summary).toMatchObject({ abilityRanges: { version: "16.22.1", shown: 5, global: 1, self: 3, none: 3, changedSinceReview: 0, notReviewed: 0, noRangeYet: 0 } });
+    expect(first.summary).toMatchObject({ abilityRanges: { version: "16.22.1", shown: 5, global: 1, self: 3, none: 3, changedSinceReview: 0, hiddenSinceReview: 0, notReviewed: 0, noRangeYet: 0 } });
     const summary = first.summary as { abilityRanges: unknown; logs: string[] };
     expect(JSON.stringify(summary.abilityRanges)).not.toMatch(/Gangplank|KogMaw|Riven/);
     const lines = summary.logs.filter((l) => l.startsWith("Ability ranges"));
     expect(lines).toHaveLength(1);
-    expect(lines[0]).toMatch(/^Ability ranges 16\.22\.1: 5 shown, 1 global, 3 cast on the champion \(not shown\), 3 not the reach; 0 hidden until reviewed again; 0 not reviewed \(\d+ rows\)\.$/);
+    expect(lines[0]).toMatch(/^Ability ranges 16\.22\.1: 5 shown, 1 global, 3 cast on the champion \(not shown\), 3 not the reach; 0 changed since their review \(0 ranges hidden until reviewed again\); 0 not reviewed \(\d+ rows\)\.$/);
     expect(lines[0]).not.toMatch(/Gangplank|KogMaw|Riven/);
     expect(await readRangeReviewCounts(job.db)).toMatchObject({ version: "16.22.1", tableHash: RANGE_TABLE_HASH, spells: 12, shown: 5 });
     // The page: Kog'Maw's Q and R from the stored record and the table, his W cast on himself, his E and passive none.
@@ -595,6 +595,10 @@ describe("version-check job and the ability ranges", () => {
     // Stored counts for another table (a deploy that changed it): counted again.
     await job.db.execute(sql`UPDATE app_settings SET value = value || '{"tableHash": "0000000000000000"}'::jsonb WHERE key = 'ability_range_review'`);
     expect(await ensureRangeReviewCounts(job.db, "16.22.1")).toMatchObject({ tableHash: RANGE_TABLE_HASH, shown: 5 });
+    // Counts stored before the hidden ranges were counted apart from the changed rows: read as none, so counted again.
+    await job.db.execute(sql`UPDATE app_settings SET value = value - 'hiddenSinceReview' WHERE key = 'ability_range_review'`);
+    expect(await readRangeReviewCounts(job.db)).toBeNull();
+    expect(await ensureRangeReviewCounts(job.db, "16.22.1")).toMatchObject({ shown: 5, changedSinceReview: 0, hiddenSinceReview: 0 });
   });
 
   it("re-reads a record stored under rules format 4 (no range) on the next run, and nothing shows a range until then", async () => {
@@ -616,7 +620,7 @@ describe("version-check job and the ability ranges", () => {
     versions = ["16.23.1", "16.22.1"];
     moved = { version: "16.23.1", id: "KogMaw", slot: 0, range: [1280, 1280, 1280, 1280, 1280] };
     const run = await runJob(job.db, "version-check", "test");
-    expect(run.summary).toMatchObject({ version: "16.23.1", abilityRanges: { version: "16.23.1", shown: 4, global: 1, changedSinceReview: 1 } });
+    expect(run.summary).toMatchObject({ version: "16.23.1", abilityRanges: { version: "16.23.1", shown: 4, global: 1, changedSinceReview: 1, hiddenSinceReview: 1 } });
     const e = await rangeOf("KogMaw", "Q");
     expect(e!.range).toEqual([1280, 1280, 1280, 1280, 1280]);
     expect(e!.changed).toEqual({ since: "16.22.1", text: false, cooldown: false, cost: false, range: true });

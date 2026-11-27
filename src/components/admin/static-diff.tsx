@@ -39,20 +39,34 @@ export type RangeReviewSummary = {
   version: string | null;
   shown: number;
   global: number;
+  /** Reviewed abilities Riot changed since their review: each needs reviewing again. */
   changedSinceReview: number;
+  /** Of those, the ones that showed a range (reach or Global), hidden until reviewed again. */
+  hiddenSinceReview: number;
   notReviewed: number;
   noRangeYet: number;
 };
 
+/** The warning's words: how many reviewed abilities Riot changed (each to review again), and how many of them showed a range the page now hides. */
+function changedWords(changed: number, hidden: number): string {
+  const one = changed === 1;
+  const head = `Riot changed ${formatCount(changed)} reviewed ${one ? "ability" : "abilities"} since ${one ? "its" : "their"} review: review ${one ? "it" : "them"} again`;
+  if (hidden === 0) return `${head}. ${one ? "It showed no range" : "None of them showed a range"}, so none is hidden.`;
+  if (one) return `${head}. Its range is hidden until then.`;
+  return `${head}. ${hidden === changed ? `Their ${formatCount(hidden)} ranges are` : `${formatCount(hidden)} of their ranges ${hidden === 1 ? "is" : "are"}`} hidden until then.`;
+}
+
 /**
- * The ability ranges' line, and a warning when Riot changed reviewed abilities (their ranges are
- * hidden until the table is reviewed again: docs/CHAMPION_INTEL.md, "Ranges", the per-patch steps).
+ * The ability ranges' line, and a warning when Riot changed reviewed abilities: each needs reviewing
+ * again, and those that showed a range (reach or Global) hide it until then; a changed ability
+ * reviewed as cast on the champion or not the reach showed nothing either way (docs/CHAMPION_INTEL.md,
+ * "Ranges", the per-patch steps).
  */
 export function rangeReviewLines(r: RangeReviewSummary): { text: string; warn: boolean }[] {
   const patch = r.version ? patchFromVersion(r.version) : null;
   const at = patch ? publicPatchName(patch) : null;
   const out = [{ text: `Ability ranges${at ? ` at ${at}` : ""}: ${formatCount(r.shown)} shown, ${formatCount(r.global)} Global, ${formatCount(r.notReviewed)} not reviewed yet.`, warn: false }];
-  if (r.changedSinceReview > 0) out.push({ text: `${formatCount(r.changedSinceReview)} ${r.changedSinceReview === 1 ? "range is" : "ranges are"} hidden until reviewed again: Riot changed ${r.changedSinceReview === 1 ? "that ability" : "those abilities"}.`, warn: true });
+  if (r.changedSinceReview > 0) out.push({ text: changedWords(r.changedSinceReview, Math.min(r.hiddenSinceReview, r.changedSinceReview)), warn: true });
   if (r.noRangeYet > 0) out.push({ text: `${formatCount(r.noRangeYet)} abilities were stored before ranges were read; the next game-data update reads them.`, warn: false });
   return out;
 }
