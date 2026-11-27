@@ -562,7 +562,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     lastLess: 1,
     active: paged && rows.length > 0,
     observe: () => [listToolbarRef.current, listHeadRef.current],
-    key: [rows.length, data, sort, q],
+    key: [rows.length, data.season, data.mode, data.filter.role, data.filter.accountId, sort.key, sort.dir, q],
     cap: pageCaps?.champions ?? null,
   });
   const sortBy = (key: SortKey) => setSort((cur) => (cur.key === key ? { key, dir: cur.dir === "asc" ? "desc" : "asc" } : { key, dir: defaultDir(key) }));

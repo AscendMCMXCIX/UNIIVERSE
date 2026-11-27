@@ -72,7 +72,8 @@ describe("All Champions' preview facts", () => {
     expect(failed({ ...DEMO, opponents: DEMO.opponents!.map((o) => ({ ...o, small: false })) })).toEqual([one]);
     expect(failed({ ...DEMO, opponents: DEMO.opponents!.map((o, i) => (i === 0 ? { ...o, rate: false } : o)) })).toHaveLength(1);
   });
-  it("fail a win rate that is not the wins over the games", () => {
+  it("fail a win rate that is not the wins over the games (the small sample's words read out after it are not the figure)", () => {
+    expect(failed({ ...DEMO, winRate: "29% (Only 3 games, so this win rate isn't reliable yet.)" })).toEqual([]);
     expect(failed({ ...DEMO, winRate: "40%" })).toEqual(["desktop: the preview shows the win rate, the wins over the games"]);
     expect(failed({ ...DEMO, winRate: "—" })).toHaveLength(1);
   });

@@ -1735,12 +1735,15 @@ async function championPreviewFacts(page, kind) {
   await content.waitFor({ timeout: 15_000 }).catch(() => {});
   // Loaded: the foot line comes with the answer (or the "could not be loaded" line in its place).
   await page.waitForFunction(() => !document.querySelector("[data-testid=champion-preview-loading]"), null, { timeout: 15_000 }).catch(() => {});
+  // The opponents as drawn (in the workspace the grid gives way to an opponent's games once one opens: read them first).
+  const shownFirst = await page.evaluate(readChampionPreview, i);
   const opponent = content.locator("[data-testid=champion-preview-opponent] > button").first();
   if (await opponent.count()) {
     await opponent.click();
     await content.getByTestId("champion-preview-lookup").waitFor({ timeout: 15_000 }).catch(() => {});
   }
-  const at = await page.evaluate(readChampionPreview, i);
+  const read = await page.evaluate(readChampionPreview, i);
+  const at = read.open && shownFirst.open && !(read.opponents ?? []).length ? { ...read, opponents: shownFirst.opponents, folded: shownFirst.folded } : read;
   const yOpen = await rowTop();
   const whileOpen = paged ? await listState() : null;
   // Escape from here first, for the position (the next row's step below opens it again). In the workspace the first

@@ -233,8 +233,8 @@ export function useRowBudget(
     active: boolean;
     /** The fixed bands above the rows (read when it subscribes): a wrap there moves the first row. */
     observe?: () => ReadonlyArray<Element | null | undefined>;
-    /** What the rows are (data, champion, position, opponent, search, order): measured again when it changes. */
-    key: unknown;
+    /** What the rows are (their count, the champion, the position, the search, the order: primitives): measured again when it changes. */
+    key: ReadonlyArray<string | number | boolean | null | undefined>;
     /** A browser test's cap on the measured count (server/demo/test-hooks.ts). */
     cap?: number | null;
   },
@@ -244,7 +244,13 @@ export function useRowBudget(
   React.useLayoutEffect(() => {
     opts.current = o;
   });
-  const { active, key, cap } = o;
+  const { active, cap } = o;
+  const key = JSON.stringify(o.key);
+  // The count as last set, and the counts it took: a measure that would flip back to the count before the last (a row
+  // whose height depends on what the page holds) settles on the smaller of the two, which fits either way, so the
+  // measure always comes to rest.
+  const current = React.useRef<number | null>(null);
+  const taken = React.useRef<number[]>([]);
   const measure = React.useCallback(() => {
     const { footRef, cardRef, rowSelector, probeRem, lastLess = 0 } = opts.current;
     const list = listRef.current;
@@ -260,12 +266,21 @@ export function useRowBudget(
     const root = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
     // The tallest drawn row (they are one height), a divided list's last row counted with its border.
     const rowPx = drawn.length ? Math.max(...drawn.map((r) => r.getBoundingClientRect().height + (r.nextElementSibling ? 0 : lastLess))) : probeRem * root;
-    const next = rowBudget({ room: limit - top, rowPx, lastLess, min: 1, max: opts.current.cap ?? Infinity });
-    setRows((was) => (was === next ? was : next));
+    let next = rowBudget({ room: limit - top, rowPx, lastLess, min: 1, max: opts.current.cap ?? Infinity });
+    const was = current.current;
+    if (next === was) return;
+    const t = taken.current;
+    if (was !== null && t.length >= 2 && t[t.length - 2] === next && t[t.length - 1] === was) next = Math.min(was, next);
+    t.push(next);
+    if (t.length > 6) t.shift();
+    if (next === was) return;
+    current.current = next;
+    setRows(next);
   }, [listRef]);
   React.useLayoutEffect(() => {
     // Inactive (the list not drawn: an opponent's games in its place), the last count is kept for when it comes back.
     if (!active) return;
+    taken.current = [];
     measure();
     window.addEventListener("resize", measure);
     void document.fonts?.ready.then(measure);

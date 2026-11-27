@@ -74,7 +74,8 @@ export function readChampionPreview(rowIndex) {
   const lookup = [...content.querySelectorAll("[data-testid=champion-preview-lookup]")];
   const href = lookup[0]?.getAttribute("href") ?? "";
   const q = new URL(href || "/", location.origin).searchParams;
-  const opened = opponents.find((o) => o.querySelector("button[aria-pressed=true]"))?.getAttribute("data-champion") ?? null;
+  // The opened opponent: its pressed row (the flow, the table beside it), else its games' own section (the workspace, in the grid's place).
+  const opened = opponents.find((o) => o.querySelector("button[aria-pressed=true]"))?.getAttribute("data-champion") ?? content.querySelector("[data-testid=champion-preview-pairing]")?.getAttribute("data-champion") ?? null;
   return {
     open: true,
     // The champion the preview shows against the row it was opened from (compared here, not returned).
@@ -155,7 +156,8 @@ export function championPreviewVerdicts({ kind, at, step, escaped, kept }) {
   if (at.scrolling) fact("the page is the one thing that scrolls: the pane has no scroll box of its own, nothing inside the page's main area scrolls, and the pane's header (the champion, ‹ › and Close) is on screen", !at.scrolling.scrollBox && at.scrolling.scrollers === 0 && at.scrolling.head, at.scrolling);
   fact("the preview of the first champion with 3+ games shows that champion: its portrait, its name, and the position it was played in most (the row's first position icon, chosen in the preview)", at.sameChampion && at.portrait && at.named && ROLE_KEY.test(at.role ?? "") && !!at.position?.chosen && !!at.position?.first, { sameChampion: at.sameChampion, portrait: at.portrait, named: at.named, role: ROLE_KEY.test(at.role ?? "") ? at.role : `other words (${(at.role ?? "").length} characters)`, position: at.position });
   fact('the preview says "N games · NW NL" for that position, its icon\'s games on the row (no more than the row\'s), the wins and losses adding up', !!m && games === at.roleGames && games <= (at.rowGames ?? 0) && wins + losses === games, { record: at.record, roleGames: at.roleGames, rowGames: at.rowGames });
-  const rate = /^(\d{1,3})%$/.exec(at.winRate ?? "");
+  // The figure, then (under 5 games) the small sample's words read out after it.
+  const rate = /^(\d{1,3})%(?:\s|$)/.exec(at.winRate ?? "");
   fact("the preview shows the win rate, the wins over the games", !!rate && !!m && games > 0 && Math.abs(Number(rate[1]) - (100 * wins) / games) <= 0.5 + 1e-9, { winRate: at.winRate, record: at.record });
   if (at.loading || at.answered === false) fact("the opponents loaded", false, { loading: at.loading, answered: at.answered });
   else if (at.noOpponents) out.push({ name: `${kind}: skipped: no lane opponent is known for this champion yet (its rows, the link to Champion Intel)`, status: "WARN", detail: { opponents: 0 } });
