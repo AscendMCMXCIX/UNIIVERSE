@@ -36,7 +36,8 @@ laptop's browser window; up to 902px in the widest band, where the root grows: d
 "All Champions' workspace"), All Champions never scrolls, in any state (under 46 of the page's own
 rem, 736px at 16px, it takes its short form: the totals in the identity bar, the figures in one row of
 label and figure with the subs under them, the kills line and the coverage as one text, an 8px rhythm
-and the page's 12px foot; docs/RESPONSIVE.md, "the short form"). The section is the rest of the window under the profile's
+and the page's 12px foot; under 48 where the section is narrow, 1356–1463px with the sidebar open,
+where the tall form's lines wrap, keeping the 28px foot; docs/RESPONSIVE.md, "the short form"). The section is the rest of the window under the profile's
 band, its tabs and the one-line section header; the list and the preview are two cards side by side
 that both reach the window's foot, their footers on one baseline. **Nothing grows the page: the
 champions, the lane opponents and an opponent's games are in pages** of the complete rows that fit
@@ -45,8 +46,8 @@ shorter window or a larger root shows fewer rows; text never shrinks; nothing sc
 nothing is clipped), with a pager in each footer ("8–14 of 30", the shared `Pager`) that reaches
 every page, and keys that cross pages. Opening a champion or an opponent never changes the page's
 height and never moves a row. The preview is beside the list only where the section holds the
-opponents' two columns (64.75rem: 1366px with the sidebar open, 1280px with it folded); in a
-narrower workspace (1280–1359px with the sidebar open, or a larger root) it opens in **the workspace
+opponents' two columns (64.75rem: 1356px with the sidebar open, 1280px with it folded); in a
+narrower workspace (1280–1355px with the sidebar open, or a larger root) it opens in **the workspace
 window** over the paged list (28 Nov 2026; the sheet before, whose unpaged preview scrolled inside
 it): the pane's own content in a window as tall as the screen less 1rem above and below, up to
 56.25rem wide, P1 its title bar, the opponents and an opponent's games paged inside it, nothing

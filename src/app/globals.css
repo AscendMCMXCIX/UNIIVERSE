@@ -352,17 +352,26 @@ p a.text-accent {
 }
 /*
   All Champions' short workspace (docs/RESPONSIVE.md, "All Champions' workspace", the short form): a workspace
-  window under 46 of the page's own rem. Per band of widths as `ws`, below 46 × the band's widest root rounded up
-  to the pixel: 736 to 1536px, then 750, 763, 776, 789, 803 and 816 to 1920, 882 to 2240, 948 to 2560, 1012 beyond.
-  Or the page measured it short ([data-ws-short]: a larger browser text size, which a media query cannot read).
-  WS_SHORT_QUERY in ui/posture.ts is the first block's media text; the second block's is WS_QUERY
-  (posture.test.ts compares both). :is(), not :where(): its classes beat the `ws:` ones and the container-query
-  ones by specificity, whatever their order in the stylesheet.
+  window under 46 of the page's own rem, and under 48 where the section is narrow (64.75 to 71.5 of its rem: the
+  pane beside the list in 1356–1463px with the sidebar open, where the approved tall form's lines wrap; 768px, the first
+  band's, as no other band holds a narrow section at the default text size). Each 46rem bound is per band of widths,
+  46 × the band's widest root rounded up to the pixel: 736 to 1536px, then a band every 64px
+  (750, 763, 776, 789, 803 and 816 to 1920; 829, 842, 856, 869 and 882 to 2240; 895, 909, 922, 935 and 948 to 2560;
+  962, 975, 988 and 1001 to 2816; 1012 beyond), so a bound is at most 14px past the page's own 46rem anywhere in its
+  band (the ws gate's bands are 320px wide from 1920; each of these lies inside one of them and asks its least
+  height). Or the page measured it short ([data-ws-short]: under 46 of its own rem; [data-ws-short-narrow]: under
+  48), for a larger browser text size, which a media query cannot read.
+  Its four blocks' media texts: WS_SHORT_QUERY; WS_QUERY with [data-ws-short]; WS_SHORT_NARROW_QUERY in a narrow
+  section; WS_QUERY with [data-ws-short-narrow] in a narrow section (ui/posture.ts; posture.test.ts compares each).
+  The narrow section is a container query (the section's own, @container/section): it reaches the section's
+  descendants (the pane) and never the shell's main, so a narrow section keeps the page's 28px foot from 46rem.
+  :is(), not :where(): its classes beat the `ws:` ones and the container-query ones by specificity, whatever
+  their order in the stylesheet.
   ws-short:      the section and its descendants (the pane, the workspace window);
-  ws-short-host: the shell's main that holds such a section (its foot).
+  ws-short-host: the shell's main that holds such a section (its foot), under 46rem.
 */
 @custom-variant ws-short {
-  @media (pointer: fine) and (min-width: 80rem) and (max-width: 1536px) and (min-height: 656px) and (max-height: 735.98px), (pointer: fine) and (min-width: 1536px) and (max-width: 1600px) and (min-height: 668px) and (max-height: 749.98px), (pointer: fine) and (min-width: 1600px) and (max-width: 1664px) and (min-height: 680px) and (max-height: 762.98px), (pointer: fine) and (min-width: 1664px) and (max-width: 1728px) and (min-height: 691px) and (max-height: 775.98px), (pointer: fine) and (min-width: 1728px) and (max-width: 1792px) and (min-height: 703px) and (max-height: 788.98px), (pointer: fine) and (min-width: 1792px) and (max-width: 1856px) and (min-height: 715px) and (max-height: 802.98px), (pointer: fine) and (min-width: 1856px) and (max-width: 1920px) and (min-height: 727px) and (max-height: 815.98px), (pointer: fine) and (min-width: 1920px) and (max-width: 2240px) and (min-height: 786px) and (max-height: 881.98px), (pointer: fine) and (min-width: 2240px) and (max-width: 2560px) and (min-height: 845px) and (max-height: 947.98px), (pointer: fine) and (min-width: 2560px) and (min-height: 902px) and (max-height: 1011.98px) {
+  @media (pointer: fine) and (min-width: 80rem) and (max-width: 1536px) and (min-height: 656px) and (max-height: 735.98px), (pointer: fine) and (min-width: 1536px) and (max-width: 1600px) and (min-height: 668px) and (max-height: 749.98px), (pointer: fine) and (min-width: 1600px) and (max-width: 1664px) and (min-height: 680px) and (max-height: 762.98px), (pointer: fine) and (min-width: 1664px) and (max-width: 1728px) and (min-height: 691px) and (max-height: 775.98px), (pointer: fine) and (min-width: 1728px) and (max-width: 1792px) and (min-height: 703px) and (max-height: 788.98px), (pointer: fine) and (min-width: 1792px) and (max-width: 1856px) and (min-height: 715px) and (max-height: 802.98px), (pointer: fine) and (min-width: 1856px) and (max-width: 1920px) and (min-height: 727px) and (max-height: 815.98px), (pointer: fine) and (min-width: 1920px) and (max-width: 1984px) and (min-height: 786px) and (max-height: 828.98px), (pointer: fine) and (min-width: 1984px) and (max-width: 2048px) and (min-height: 786px) and (max-height: 841.98px), (pointer: fine) and (min-width: 2048px) and (max-width: 2112px) and (min-height: 786px) and (max-height: 855.98px), (pointer: fine) and (min-width: 2112px) and (max-width: 2176px) and (min-height: 786px) and (max-height: 868.98px), (pointer: fine) and (min-width: 2176px) and (max-width: 2240px) and (min-height: 786px) and (max-height: 881.98px), (pointer: fine) and (min-width: 2240px) and (max-width: 2304px) and (min-height: 845px) and (max-height: 894.98px), (pointer: fine) and (min-width: 2304px) and (max-width: 2368px) and (min-height: 845px) and (max-height: 908.98px), (pointer: fine) and (min-width: 2368px) and (max-width: 2432px) and (min-height: 845px) and (max-height: 921.98px), (pointer: fine) and (min-width: 2432px) and (max-width: 2496px) and (min-height: 845px) and (max-height: 934.98px), (pointer: fine) and (min-width: 2496px) and (max-width: 2560px) and (min-height: 845px) and (max-height: 947.98px), (pointer: fine) and (min-width: 2560px) and (max-width: 2624px) and (min-height: 902px) and (max-height: 961.98px), (pointer: fine) and (min-width: 2624px) and (max-width: 2688px) and (min-height: 902px) and (max-height: 974.98px), (pointer: fine) and (min-width: 2688px) and (max-width: 2752px) and (min-height: 902px) and (max-height: 987.98px), (pointer: fine) and (min-width: 2752px) and (max-width: 2816px) and (min-height: 902px) and (max-height: 1000.98px), (pointer: fine) and (min-width: 2816px) and (min-height: 902px) and (max-height: 1011.98px) {
     &:is([data-workspace], [data-workspace] *) {
       @slot;
     }
@@ -372,9 +381,23 @@ p a.text-accent {
       @slot;
     }
   }
+  @media (pointer: fine) and (min-width: 80rem) and (max-width: 1536px) and (min-height: 656px) and (max-height: 767.98px) {
+    @container section (min-width: 64.75rem) and (width < 71.5rem) {
+      &:is([data-workspace] *) {
+        @slot;
+      }
+    }
+  }
+  @media (pointer: fine) and (min-width: 80rem) and (max-width: 1536px) and (min-height: 656px), (pointer: fine) and (min-width: 1536px) and (max-width: 1600px) and (min-height: 668px), (pointer: fine) and (min-width: 1600px) and (max-width: 1664px) and (min-height: 680px), (pointer: fine) and (min-width: 1664px) and (max-width: 1728px) and (min-height: 691px), (pointer: fine) and (min-width: 1728px) and (max-width: 1792px) and (min-height: 703px), (pointer: fine) and (min-width: 1792px) and (max-width: 1856px) and (min-height: 715px), (pointer: fine) and (min-width: 1856px) and (max-width: 1920px) and (min-height: 727px), (pointer: fine) and (min-width: 1920px) and (max-width: 2240px) and (min-height: 786px), (pointer: fine) and (min-width: 2240px) and (max-width: 2560px) and (min-height: 845px), (pointer: fine) and (min-width: 2560px) and (min-height: 902px) {
+    @container section (min-width: 64.75rem) and (width < 71.5rem) {
+      &:is([data-workspace][data-ws-short-narrow] *) {
+        @slot;
+      }
+    }
+  }
 }
 @custom-variant ws-short-host {
-  @media (pointer: fine) and (min-width: 80rem) and (max-width: 1536px) and (min-height: 656px) and (max-height: 735.98px), (pointer: fine) and (min-width: 1536px) and (max-width: 1600px) and (min-height: 668px) and (max-height: 749.98px), (pointer: fine) and (min-width: 1600px) and (max-width: 1664px) and (min-height: 680px) and (max-height: 762.98px), (pointer: fine) and (min-width: 1664px) and (max-width: 1728px) and (min-height: 691px) and (max-height: 775.98px), (pointer: fine) and (min-width: 1728px) and (max-width: 1792px) and (min-height: 703px) and (max-height: 788.98px), (pointer: fine) and (min-width: 1792px) and (max-width: 1856px) and (min-height: 715px) and (max-height: 802.98px), (pointer: fine) and (min-width: 1856px) and (max-width: 1920px) and (min-height: 727px) and (max-height: 815.98px), (pointer: fine) and (min-width: 1920px) and (max-width: 2240px) and (min-height: 786px) and (max-height: 881.98px), (pointer: fine) and (min-width: 2240px) and (max-width: 2560px) and (min-height: 845px) and (max-height: 947.98px), (pointer: fine) and (min-width: 2560px) and (min-height: 902px) and (max-height: 1011.98px) {
+  @media (pointer: fine) and (min-width: 80rem) and (max-width: 1536px) and (min-height: 656px) and (max-height: 735.98px), (pointer: fine) and (min-width: 1536px) and (max-width: 1600px) and (min-height: 668px) and (max-height: 749.98px), (pointer: fine) and (min-width: 1600px) and (max-width: 1664px) and (min-height: 680px) and (max-height: 762.98px), (pointer: fine) and (min-width: 1664px) and (max-width: 1728px) and (min-height: 691px) and (max-height: 775.98px), (pointer: fine) and (min-width: 1728px) and (max-width: 1792px) and (min-height: 703px) and (max-height: 788.98px), (pointer: fine) and (min-width: 1792px) and (max-width: 1856px) and (min-height: 715px) and (max-height: 802.98px), (pointer: fine) and (min-width: 1856px) and (max-width: 1920px) and (min-height: 727px) and (max-height: 815.98px), (pointer: fine) and (min-width: 1920px) and (max-width: 1984px) and (min-height: 786px) and (max-height: 828.98px), (pointer: fine) and (min-width: 1984px) and (max-width: 2048px) and (min-height: 786px) and (max-height: 841.98px), (pointer: fine) and (min-width: 2048px) and (max-width: 2112px) and (min-height: 786px) and (max-height: 855.98px), (pointer: fine) and (min-width: 2112px) and (max-width: 2176px) and (min-height: 786px) and (max-height: 868.98px), (pointer: fine) and (min-width: 2176px) and (max-width: 2240px) and (min-height: 786px) and (max-height: 881.98px), (pointer: fine) and (min-width: 2240px) and (max-width: 2304px) and (min-height: 845px) and (max-height: 894.98px), (pointer: fine) and (min-width: 2304px) and (max-width: 2368px) and (min-height: 845px) and (max-height: 908.98px), (pointer: fine) and (min-width: 2368px) and (max-width: 2432px) and (min-height: 845px) and (max-height: 921.98px), (pointer: fine) and (min-width: 2432px) and (max-width: 2496px) and (min-height: 845px) and (max-height: 934.98px), (pointer: fine) and (min-width: 2496px) and (max-width: 2560px) and (min-height: 845px) and (max-height: 947.98px), (pointer: fine) and (min-width: 2560px) and (max-width: 2624px) and (min-height: 902px) and (max-height: 961.98px), (pointer: fine) and (min-width: 2624px) and (max-width: 2688px) and (min-height: 902px) and (max-height: 974.98px), (pointer: fine) and (min-width: 2688px) and (max-width: 2752px) and (min-height: 902px) and (max-height: 987.98px), (pointer: fine) and (min-width: 2752px) and (max-width: 2816px) and (min-height: 902px) and (max-height: 1000.98px), (pointer: fine) and (min-width: 2816px) and (min-height: 902px) and (max-height: 1011.98px) {
     &:has([data-workspace]) {
       @slot;
     }

@@ -74,19 +74,40 @@ export const WS_MIN_HEIGHT_REM = 41;
 
 /*
   The workspace's short form (docs/RESPONSIVE.md, "All Champions' workspace", the short form; globals.css,
-  the `ws-short` and `ws-short-host` variants): a workspace window under WS_SHORT_REM of the page's own rem.
-  There the totals join the identity bar, the figures take one row of label-and-figure with their subs
-  under them, the bands are 8px apart, the detail's controls take the mouse's 32px and the page's foot
-  12px, so every state fits down to the workspace's least height. The CSS bands decide the server's HTML
-  and the hydration render (each band's bound is 46 of its widest root, so at the default text size the
-  page's own check never adds a window the CSS left tall); once hydrated, the page adds the short form
-  where its own rem is short and the CSS says tall (a larger browser text size): [data-ws-short].
+  the `ws-short` and `ws-short-host` variants): a workspace window under WS_SHORT_REM of the page's own rem,
+  or under WS_SHORT_NARROW_REM where the section is narrow (WS_PANE_SECTION_REM to WS_NARROW_SECTION_REM of
+  its rem: the pane beside the list in 1356–1463px with the sidebar open, where the approved tall form's lines
+  wrap: the totals under the positions, the kills line, a two-season header). There the totals join the
+  identity bar, the figures take one row of label-and-figure with their subs under them, the bands are 8px
+  apart and the detail's controls take the mouse's 32px (and under WS_SHORT_REM the page's foot 12px), so
+  every state fits from the workspace's least height up. The CSS bands decide the server's HTML and the
+  hydration render (each band's bound is its widest root's, so at the default text size the page's own
+  check never adds a window the CSS left tall); once hydrated, the page adds the short form where its own
+  rem is short and the CSS says tall (a larger browser text size): [data-ws-short], [data-ws-short-narrow].
 */
 /** The workspace's short form below this many of the page's own rem (46 × 16 = 736px): docs/RESPONSIVE.md, "the short form". */
 export const WS_SHORT_REM = 46;
 /** Byte-identical to the first @media of `ws-short` (and of `ws-short-host`) in globals.css (posture.test.ts). */
 export const WS_SHORT_QUERY =
-  "(pointer: fine) and (min-width: 80rem) and (max-width: 1536px) and (min-height: 656px) and (max-height: 735.98px), (pointer: fine) and (min-width: 1536px) and (max-width: 1600px) and (min-height: 668px) and (max-height: 749.98px), (pointer: fine) and (min-width: 1600px) and (max-width: 1664px) and (min-height: 680px) and (max-height: 762.98px), (pointer: fine) and (min-width: 1664px) and (max-width: 1728px) and (min-height: 691px) and (max-height: 775.98px), (pointer: fine) and (min-width: 1728px) and (max-width: 1792px) and (min-height: 703px) and (max-height: 788.98px), (pointer: fine) and (min-width: 1792px) and (max-width: 1856px) and (min-height: 715px) and (max-height: 802.98px), (pointer: fine) and (min-width: 1856px) and (max-width: 1920px) and (min-height: 727px) and (max-height: 815.98px), (pointer: fine) and (min-width: 1920px) and (max-width: 2240px) and (min-height: 786px) and (max-height: 881.98px), (pointer: fine) and (min-width: 2240px) and (max-width: 2560px) and (min-height: 845px) and (max-height: 947.98px), (pointer: fine) and (min-width: 2560px) and (min-height: 902px) and (max-height: 1011.98px)";
+  "(pointer: fine) and (min-width: 80rem) and (max-width: 1536px) and (min-height: 656px) and (max-height: 735.98px), (pointer: fine) and (min-width: 1536px) and (max-width: 1600px) and (min-height: 668px) and (max-height: 749.98px), (pointer: fine) and (min-width: 1600px) and (max-width: 1664px) and (min-height: 680px) and (max-height: 762.98px), (pointer: fine) and (min-width: 1664px) and (max-width: 1728px) and (min-height: 691px) and (max-height: 775.98px), (pointer: fine) and (min-width: 1728px) and (max-width: 1792px) and (min-height: 703px) and (max-height: 788.98px), (pointer: fine) and (min-width: 1792px) and (max-width: 1856px) and (min-height: 715px) and (max-height: 802.98px), (pointer: fine) and (min-width: 1856px) and (max-width: 1920px) and (min-height: 727px) and (max-height: 815.98px), (pointer: fine) and (min-width: 1920px) and (max-width: 1984px) and (min-height: 786px) and (max-height: 828.98px), (pointer: fine) and (min-width: 1984px) and (max-width: 2048px) and (min-height: 786px) and (max-height: 841.98px), (pointer: fine) and (min-width: 2048px) and (max-width: 2112px) and (min-height: 786px) and (max-height: 855.98px), (pointer: fine) and (min-width: 2112px) and (max-width: 2176px) and (min-height: 786px) and (max-height: 868.98px), (pointer: fine) and (min-width: 2176px) and (max-width: 2240px) and (min-height: 786px) and (max-height: 881.98px), (pointer: fine) and (min-width: 2240px) and (max-width: 2304px) and (min-height: 845px) and (max-height: 894.98px), (pointer: fine) and (min-width: 2304px) and (max-width: 2368px) and (min-height: 845px) and (max-height: 908.98px), (pointer: fine) and (min-width: 2368px) and (max-width: 2432px) and (min-height: 845px) and (max-height: 921.98px), (pointer: fine) and (min-width: 2432px) and (max-width: 2496px) and (min-height: 845px) and (max-height: 934.98px), (pointer: fine) and (min-width: 2496px) and (max-width: 2560px) and (min-height: 845px) and (max-height: 947.98px), (pointer: fine) and (min-width: 2560px) and (max-width: 2624px) and (min-height: 902px) and (max-height: 961.98px), (pointer: fine) and (min-width: 2624px) and (max-width: 2688px) and (min-height: 902px) and (max-height: 974.98px), (pointer: fine) and (min-width: 2688px) and (max-width: 2752px) and (min-height: 902px) and (max-height: 987.98px), (pointer: fine) and (min-width: 2752px) and (max-width: 2816px) and (min-height: 902px) and (max-height: 1000.98px), (pointer: fine) and (min-width: 2816px) and (min-height: 902px) and (max-height: 1011.98px)";
+/**
+ * The short form's bound where the section is narrow (48 × 16 = 768px, so a 1366 × 768 screen's full
+ * window keeps the approved tall form): the tall form there needs about 765px for a champion of five
+ * positions with an opponent's games open, every optional line and a two-season header.
+ */
+export const WS_SHORT_NARROW_REM = 48;
+/**
+ * A narrow section is under this many of its rem (globals.css: `@container section … (width < 71.5rem)`), from the
+ * pane's 64.75: a two-season header wraps up to about 70.9rem (CI's wider text, doubled), and the sidebar folded leaves
+ * 71.5rem or more at every width (1280px folded is 71.5rem), so a narrow section is one beside the open sidebar.
+ */
+export const WS_NARROW_SECTION_REM = 71.5;
+/**
+ * Byte-identical to the third @media of `ws-short` in globals.css (posture.test.ts): the first band only, as a
+ * section of 64.75 to 71.5rem at the default text size exists only from 1356 to 1463px wide (with the sidebar
+ * open); a larger root goes through the page's own check.
+ */
+export const WS_SHORT_NARROW_QUERY = "(pointer: fine) and (min-width: 80rem) and (max-width: 1536px) and (min-height: 656px) and (max-height: 767.98px)";
 
 /** The page's root size in px (the user's text size, the app's width clamp, any emulated text size). */
 export function rootPx(): number {
@@ -101,13 +122,16 @@ export function workspaceNow(): boolean {
 function subscribeWorkspace(onChange: () => void) {
   const query = window.matchMedia(WS_QUERY);
   const short = window.matchMedia(WS_SHORT_QUERY);
+  const narrow = window.matchMedia(WS_SHORT_NARROW_QUERY);
   query.addEventListener("change", onChange);
   short.addEventListener("change", onChange);
+  narrow.addEventListener("change", onChange);
   // The root and the window's height move with a resize (and a zoom, which fires one).
   window.addEventListener("resize", onChange);
   return () => {
     query.removeEventListener("change", onChange);
     short.removeEventListener("change", onChange);
+    narrow.removeEventListener("change", onChange);
     window.removeEventListener("resize", onChange);
   };
 }
@@ -127,4 +151,18 @@ export function workspaceShortNow(): boolean {
 /** null on the server and while hydrating (the CSS bands decide the first paint); then true or false. */
 export function useWorkspaceShort(): boolean | null {
   return React.useSyncExternalStore<boolean | null>(subscribeWorkspace, workspaceShortNow, unknownYet);
+}
+
+/**
+ * Whether the window is short for a narrow section now (under WS_SHORT_NARROW_REM of the page's own rem, the
+ * workspace applying): the CSS's first band, or the page's own rem (a larger text size). The section's width
+ * is the CSS's to decide (its container query), so this alone changes nothing in a wider section.
+ */
+export function workspaceShortNarrowNow(): boolean {
+  return workspaceNow() && (window.matchMedia(WS_SHORT_NARROW_QUERY).matches || window.innerHeight < WS_SHORT_NARROW_REM * rootPx() - 0.5);
+}
+
+/** null on the server and while hydrating (the CSS decides the first paint); then true or false. */
+export function useWorkspaceShortNarrow(): boolean | null {
+  return React.useSyncExternalStore<boolean | null>(subscribeWorkspace, workspaceShortNarrowNow, unknownYet);
 }

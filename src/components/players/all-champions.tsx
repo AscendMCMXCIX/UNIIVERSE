@@ -18,7 +18,7 @@ import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone
 import { SampleNote } from "./sample-note";
 import { ArrowDown, ArrowUp, ArrowUpDown, X } from "lucide-react";
 import { useAddressItem } from "@/components/ui/address-item";
-import { isTyping, keepsEscape, modalOpen, rootPx, useWindowPosture, useWorkspace, useWorkspaceShort } from "@/components/ui/posture";
+import { isTyping, keepsEscape, modalOpen, rootPx, useWindowPosture, useWorkspace, useWorkspaceShort, useWorkspaceShortNarrow } from "@/components/ui/posture";
 import { Pager } from "@/components/ui/pager";
 import { useRowBudget } from "@/components/ui/fit-rows";
 import { pageCount, pageOf, pageRange, usePagedList } from "@/components/ui/row-budget";
@@ -334,13 +334,13 @@ const PANE_ROOM_REM = 47.5;
 /**
  * In the one-screen workspace the pane needs the opponents' two columns beside the list: the list's
  * 22.5rem, the 1rem gap, the pane's 2.5rem of padding and two opponent columns (38.625rem) with the
- * cards' borders. A narrower workspace section (1280–1359px with the sidebar open, or a larger root)
+ * cards' borders. A narrower workspace section (1280–1355px with the sidebar open, or a larger root)
  * opens the preview in the workspace window over the paginated list: the pane's own content, paged,
  * in a window as tall as the screen less 1rem above and below (docs/RESPONSIVE.md, "All Champions'
  * workspace"; until 28 Nov 2026 the sheet, whose unpaged preview scrolled inside it). Below it the
  * opponents would get one column, the identity and the toolbar wrap.
  */
-const WS_PANE_SECTION_REM = 64.75;
+export const WS_PANE_SECTION_REM = 64.75;
 function useRoomForPane(ref: React.RefObject<HTMLElement | null>, ws: boolean): boolean {
   const [roomy, setRoomy] = React.useState(true);
   React.useLayoutEffect(() => {
@@ -566,6 +566,8 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   // The short form (docs/RESPONSIVE.md, "the short form"): the CSS bands decide the first paint; once hydrated the section
   // is marked where the page's own rem is short and the CSS cannot tell (a larger browser text size).
   const short = useWorkspaceShort();
+  // And under 48 of the page's own rem, the short form of a narrow section (the CSS's container query decides the width).
+  const shortNarrow = useWorkspaceShortNarrow();
   const budget = useRowBudget(listRef, {
     footRef: listFootRef,
     cardRef,
@@ -652,7 +654,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   const windowed = useWindowPosture();
   const roomy = useRoomForPane(sectionRef, paged);
   const sheet = !!selected && hydrated && (windowed || !roomy);
-  // The workspace's section too narrow for the pane (1280–1359px with the sidebar open, a larger root): the workspace window.
+  // The workspace's section too narrow for the pane (1280–1355px with the sidebar open, a larger root): the workspace window.
   // Touch phones, tablets and the flow (windowed, or a section under PANE_ROOM_REM) keep the sheet.
   const workspaceWindow = sheet && paged && !windowed;
   const split = !!selected && !sheet;
@@ -993,7 +995,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     // The workspace (ws:, globals.css): the section is the rest of the shell's window-tall column, its cards reaching the frame's foot.
     // Its parts 12px apart: space-y in the flow; a gap in the workspace's flex column, which only its laid-out parts take (a
     // margin would also go to the layout before a closed or top-layer dialog, or the flow's hidden legend, and shorten the frame).
-    <section ref={sectionRef} className="@container/section space-y-3 ws:flex ws:flex-1 ws:flex-col ws:gap-3 ws:space-y-0" aria-labelledby="all-champions" data-testid="all-champions" data-workspace={workspace ? "" : undefined} data-ws-short={workspace && short === true ? "" : undefined}>
+    <section ref={sectionRef} className="@container/section space-y-3 ws:flex ws:flex-1 ws:flex-col ws:gap-3 ws:space-y-0" aria-labelledby="all-champions" data-testid="all-champions" data-workspace={workspace ? "" : undefined} data-ws-short={workspace && short === true ? "" : undefined} data-ws-short-narrow={workspace && shortNarrow === true ? "" : undefined}>
       {/* The profile's one heading layout (as Season performance and Match History). */}
       <SectionHeader
         id="all-champions"
@@ -1189,7 +1191,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           <div ref={paneSpacerRef} aria-hidden data-pane-spacer />
           {/* The workspace: in the frame, not pinned, its overflow visible (a flex item that clips gets no least height and would cut silently). */}
           <aside ref={paneRef} className="sticky top-[calc(var(--bar-top)+var(--tabs-top)+0.75rem)] min-w-0 overflow-clip rounded-card border border-border bg-surface panel-depth ws:static ws:flex ws:flex-1 ws:flex-col ws:overflow-visible" aria-labelledby="champion-preview-title" data-preview-pane data-testid="champion-preview">
-            <span className="sr-only" aria-live="polite">
+            <span className="sr-only" aria-live="polite" data-testid="champion-preview-announce">
               {announce(selected, selRole)}
             </span>
             {/* Another champion cross-fades in (120ms; at once with reduced motion). */}
@@ -1220,7 +1222,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           of other windows (the owner's request: a prominent, easily accessible close action). While a
           game's window is open over it, the sheet steps aside (never two windows) and comes back when
           the game closes. */}
-      {/* The workspace window (1280–1359px with the sidebar open): the pane's content in a window as tall as the screen less
+      {/* The workspace window (1280–1355px with the sidebar open): the pane's content in a window as tall as the screen less
           1rem above and below, its P1 the title bar (‹ › and the labelled Close), its opponents and an opponent's games paged
           in place, nothing scrolling. Escape goes innermost first (an opponent's games back to the grid, then the window);
           Back closes it; the native modal holds the focus. */}
@@ -1243,11 +1245,13 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           testId="champion-preview"
           returnFocus={() => returnButton(selected.championId)}
         >
+          {/* The live region outside the keyed body, as the pane's: it stays as ‹ › step champions and its words change in place,
+              so the champion stepped to is read (a live region inserted with its words already in it is never read). */}
+          <span className="sr-only" aria-live="polite" data-testid="champion-preview-announce">
+            {announce(selected, selRole)}
+          </span>
           {/* Another champion cross-fades in (120ms; at once with reduced motion), as in the pane. */}
           <div key={selected.championId} className="flex flex-auto flex-col px-5 motion-safe:swap-in" data-preview-pane="" data-testid="champion-preview-window-body">
-            <span className="sr-only" aria-live="polite">
-              {announce(selected, selRole)}
-            </span>
             <PreviewContent
               {...contentProps(selected, selRole)}
               chrome="pane"

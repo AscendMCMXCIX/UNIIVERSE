@@ -25,9 +25,10 @@ import { widenText } from "./wide-text";
   scrolls, nothing is clipped, every name and K/D/A whole, everything inside its card).
 
   Shorter windows, down to the workspace's least height (41rem, 656px at 16px: a 1366 × 768 laptop's
-  browser window), take the short form under 46 of the page's own rem (docs/RESPONSIVE.md, "the short
-  form"), and every state fits there too, a champion of five positions with an opponent's games open
-  and every optional line drawn included. Where the section is too narrow for the pane (1280–1359px
+  browser window), take the short form under 46 of the page's own rem, and under 48 where the section
+  is narrow (1356–1463px with the sidebar open: docs/RESPONSIVE.md, "the short form"), and every state
+  fits there too, a champion of five positions with an opponent's games open and every optional line
+  drawn included. Where the section is too narrow for the pane (1280–1355px
   with the sidebar open) the preview opens in the workspace window: fitsWindow() holds it to the same
   promise, the window inside the screen less 1rem above and below.
 */
@@ -222,7 +223,7 @@ async function fits(page: Page, at: string) {
 }
 
 /**
- * The workspace window's promise (1280–1359px with the sidebar open): fits() for the page and the
+ * The workspace window's promise (1280–1355px with the sidebar open): fits() for the page and the
  * window's body (its lists' margins, nothing scrolling, clipped or outside it), and the window inside
  * the screen, as tall as it less 1rem above and below, its body ending at its foot.
  */
@@ -260,7 +261,7 @@ async function twoSeasons(page: Page) {
 const cfg = ([w, h]: [number, number], side: Side) => `${w}x${h}-${side === "expanded" ? "open" : "folded"}`;
 const shot = (page: Page, name: string) => page.screenshot({ path: `${SHOTS}/ws-${name}.png`, animations: "disabled" });
 const pane = (page: Page) => page.locator("aside[data-preview-pane][data-testid=champion-preview]");
-/** The workspace window (1280–1359px with the sidebar open) and its body, the pane's content. */
+/** The workspace window (1280–1355px with the sidebar open) and its body, the pane's content. */
 const wsWindow = (page: Page) => page.locator("dialog[open][data-testid=champion-preview][data-size=workspace]");
 const wsBody = (page: Page) => wsWindow(page).locator("[data-preview-pane]");
 const listCard = (page: Page) => page.getByTestId("all-champions-table");
@@ -822,6 +823,20 @@ test("with CI's wider text: the list, Ambessa, Darius and Sion still fit, with t
     await open(page, path, [1366, 656], "expanded");
     await fits(page, `wide text 1366x656 ${path.split("?")[1]}`);
   }
+  // The narrowest panes just above 46rem (the short form of a narrow section, to 48rem), and the tall form at 48rem: with
+  // CI's wider text the tall form's kills line wraps in panes up to 1376px with the sidebar open, and kept no games row at
+  // 1366 × 736 (739/736) until 28 Nov 2026.
+  for (const size of [
+    [1356, 736],
+    [1366, 736],
+    [1366, 751],
+    [1376, 744],
+    [1356, 768],
+  ] as Array<[number, number]>) {
+    await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, size, "expanded");
+    await fits(page, `wide text ${size.join("x")} open Sion vs Nasus`);
+    expect(await shortForm(page), `wide text ${size.join("x")} open: the ${size[1] < 768 ? "short" : "tall"} form`).toBe(size[1] < 768);
+  }
   // The workspace window.
   for (const path of [`${top}?champion=Ambessa&crole=TOP`, `${sub}?champion=Sion&crole=TOP&vs=Nasus`]) {
     await open(page, path, [1280, 689], "expanded");
@@ -987,8 +1002,10 @@ test("a linked preview's first paint: no opponent, game or champion row moves wh
     [[1280, 800], "expanded", `${top}?champion=Ambessa&crole=TOP`],
     [[1340, 800], "expanded", `${top}?champion=Ambessa&crole=TOP`],
     [[1366, 736], "expanded", `${sub}?champion=Sion&crole=TOP&vs=Nasus`],
-    // The short form is CSS: nothing moves at hydration there either.
+    // The short form is CSS: nothing moves at hydration there either, a narrow section's (a container query) included.
     [[1366, 657], "expanded", `${sub}?champion=Sion&crole=TOP&vs=Nasus`],
+    [[1440, 760], "expanded", `${sub}?champion=Sion&crole=TOP&vs=Nasus`],
+    [[1366, 736], "collapsed", `${sub}?champion=Sion&crole=TOP&vs=Nasus`],
   ];
   for (const [size, side, path] of cases) {
     const at = `${cfg(size, side)} ${path.split("?")[1]}`;
@@ -1115,21 +1132,94 @@ test("the 41rem gate's band edges and both sides of the short form's bound: ever
       await fits(page, `${cfg(size, side)} ${state}`);
     }
   // The short form's bound (46 of the band's widest root): short under it, tall at it. The bands include their upper edge,
-  // where the next band's bound holds too (1600 and 1920), so the bound is tested inside its band.
-  for (const [w, below, at] of [
-    [1366, 735, 736],
-    [1599, 749, 750],
-    [1900, 815, 816],
-  ] as const)
-    for (const [h, short] of [
-      [below, true],
-      [at, false],
-    ] as const) {
-      const size: [number, number] = [w, h];
-      await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, size, "expanded");
-      await fits(page, `${cfg(size, "expanded")} Sion vs Nasus`);
-      expect(await shortForm(page), `${cfg(size, "expanded")}: the ${short ? "short" : "tall"} form`).toBe(short);
+  // where the next band's bound holds too (1600 and 1920), so the bound is tested inside its band; at 1920 itself the band
+  // to 1984 holds (829, 13.5px past 1920's own 46rem). From 1920 the bands are 64px wide, as below: until 28 Nov 2026 they
+  // were 320px, and 1920 × 850 (a 1920 × 1080 screen's window with the Dock and a bookmarks bar), 2240 × 900 and
+  // 2560 × 970, 46 to 49.7 of their own rem, took the short form. A narrow section (64.75 to 71.5rem: 1356–1463px with the
+  // sidebar open) takes it to 48rem, so 1366 at 736 is short there and tall folded.
+  for (const [w, h, side, short] of [
+    [1366, 735, "collapsed", true],
+    [1366, 736, "collapsed", false],
+    [1599, 749, "expanded", true],
+    [1599, 750, "expanded", false],
+    [1900, 815, "expanded", true],
+    [1900, 816, "expanded", false],
+    [1920, 828, "expanded", true],
+    [1920, 829, "expanded", false],
+    [1920, 850, "expanded", false],
+    [1920, 881, "collapsed", false],
+    [2000, 845, "expanded", false],
+    [2240, 900, "expanded", false],
+    [2560, 970, "collapsed", false],
+    [1366, 767, "expanded", true],
+    [1366, 768, "expanded", false],
+    [1463, 767, "expanded", true],
+    [1464, 767, "expanded", false],
+    [1280, 740, "collapsed", false],
+  ] as const) {
+    const size: [number, number] = [w, h];
+    await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, size, side);
+    await fits(page, `${cfg(size, side)} Sion vs Nasus`);
+    expect(await shortForm(page), `${cfg(size, side)}: the ${short ? "short" : "tall"} form`).toBe(short);
+  }
+});
+
+test("a narrow section (1356–1463px with the sidebar open) keeps the short form to 48rem: the narrowest panes fit from 736 to 767px with every optional line, the tall form from 768", async ({ page }) => {
+  test.setTimeout(360_000);
+  // In a pane under about 40rem (1356–1376px open) the tall form's totals take a line under the positions and its kills line
+  // wraps: at 1356–1363 × 736 Sion vs Nasus with every optional line kept no games row (739/736), and its margin stayed
+  // under 12px to 751 (docs/RESPONSIVE.md, "the short form").
+  const states: Array<[string, string]> = [
+    ["Sion vs Nasus", `${sub}?champion=Sion&crole=TOP&vs=Nasus`],
+    ["Sion", `${sub}?champion=Sion&crole=TOP`],
+    ["Sion Jungle vs Lee Sin", `${sub}?champion=Sion&crole=JUNGLE&vs=LeeSin`],
+    ["Aatrox vs Darius", `${top}?champion=Aatrox&crole=TOP&vs=Darius`],
+    ["Ambessa vs Darius", `${top}?champion=Ambessa&crole=TOP&vs=Darius`],
+  ];
+  for (const size of [
+    [1356, 736],
+    [1360, 744],
+    [1356, 752],
+    [1366, 751],
+    [1440, 760],
+    [1463, 767],
+  ] as Array<[number, number]>)
+    for (const [state, path] of states) {
+      const at = `${cfg(size, "expanded")} ${state}`;
+      await open(page, path, size, "expanded");
+      await expect(pane(page), `${at}: the pane`).toBeVisible();
+      expect(await shortForm(page), `${at}: the short form`).toBe(true);
+      await fits(page, at);
+      if (state === "Sion vs Nasus") await everyOptionalLine(page, at);
     }
+  // The page's foot stays 28px in a narrow section from 46rem (the short form's 12px foot is the shell's, under 46rem).
+  await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, [1366, 740], "expanded");
+  expect((await shortReadings(page)).pad, "1366x740 open: the page's 28px foot").toBeCloseTo(1.75, 2);
+  // From 48rem the approved tall form, which fits there with every optional line.
+  for (const size of [
+    [1356, 768],
+    [1366, 768],
+    [1440, 768],
+  ] as Array<[number, number]>) {
+    await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, size, "expanded");
+    expect(await shortForm(page), `${cfg(size, "expanded")}: the tall form`).toBe(false);
+    const at = `${cfg(size, "expanded")} Sion vs Nasus`;
+    await fits(page, at);
+    // Every optional line drawn there too: the coverage, the partial multikills' words, the totals after the positions.
+    await expect(pane(page).getByTestId("champion-preview-coverage"), `${at}: the coverage`).toBeVisible();
+    await expect(pane(page).getByTestId("champion-preview-partial"), `${at}: the partial multikills' words`).toBeVisible();
+    await expect(pane(page).locator("[data-testid=champion-preview-positions] [data-testid=champion-preview-total]"), `${at}: the totals after the positions`).toContainText(", 1 with no recorded position");
+  }
+  // A wider section keeps 46rem: folded (1280px folded is 71.5rem), and from 1464px open.
+  for (const [size, side] of [
+    [[1366, 740], "collapsed"],
+    [[1464, 740], "expanded"],
+    [[1280, 744], "collapsed"],
+  ] as Array<[[number, number], Side]>) {
+    await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, size, side);
+    expect(await shortForm(page), `${cfg(size, side)}: the tall form`).toBe(false);
+    await fits(page, `${cfg(size, side)} Sion vs Nasus`);
+  }
 });
 
 /** Whether the pane's figures are in the short form: the stats' list a subgrid of one row (in the tall form, a grid of its own). */
@@ -1153,7 +1243,7 @@ const shortReadings = (page: Page) =>
     };
   });
 
-test("the short form applies below 46 of the page's own rem only: the figures in one row, the totals in the identity bar, the page's 12px foot; the identity bar level with the list's toolbar", async ({ page }) => {
+test("the short form applies below 46 of the page's own rem only (48 in a narrow section): the figures in one row, the totals in the identity bar, the page's 12px foot; the identity bar level with the list's toolbar", async ({ page }) => {
   test.setTimeout(240_000);
   for (const side of SIDES) {
     await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, [1366, 657], side);
@@ -1169,8 +1259,10 @@ test("the short form applies below 46 of the page's own rem only: the figures in
       expect(Math.abs(rules[0]! - rules[1]!), `1366x657 ${side} ${path.split("?")[1]}: the toolbar's rule level with the identity bar's`).toBeLessThanOrEqual(1);
     }
   }
-  // At 46rem and up the approved layout: P3's three lines (62px at a 16px root), the totals after the positions, the 28px foot.
-  const tall: Array<[[number, number], Side]> = [...SIZES.flatMap((size) => SIDES.map((side): [[number, number], Side] => [size, side])), [[1366, 736], "expanded"]];
+  // At 46rem and up the approved layout (from 48rem in a narrow section: 1366 × 768 open): P3's three lines (62px at a 16px
+  // root), the totals after the positions, the 28px foot. 1920 × 850 and 2560 × 970 too, which took the short form until
+  // 28 Nov 2026 (the bands from 1920 were 320px wide).
+  const tall: Array<[[number, number], Side]> = [...SIZES.flatMap((size) => SIDES.map((side): [[number, number], Side] => [size, side])), [[1366, 736], "collapsed"], [[1920, 850], "expanded"], [[2560, 970], "collapsed"]];
   for (const [size, side] of tall) {
     await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, size, side);
     const at = cfg(size, side);
@@ -1258,47 +1350,78 @@ test("the detail's header never puts ‹ n of N › on a line of its own, at eve
   }
 });
 
-test("a two-season header (the season choice wraps it at 1366 with the sidebar open): every state still fits", async ({ page }) => {
-  for (const h of [656, 657])
+test("a two-season header (the season choice wraps it in a section under about 71rem: to 1366, or to 1440 or so, with the sidebar open): every state still fits", async ({ page }) => {
+  test.setTimeout(240_000);
+  // The floor, and just above 46rem in the narrow panes (the short form of a narrow section), where the tall form kept no
+  // games row for Sion vs Nasus (753/736 at 1356) and under 12px to 765px; then the tall form at 48rem.
+  for (const [w, h] of [
+    [1366, 656],
+    [1366, 657],
+    [1356, 736],
+    [1356, 760],
+    [1366, 744],
+    [1440, 744],
+    [1356, 768],
+    [1366, 768],
+  ] as Array<[number, number]>)
     for (const [state, path] of [
       ["Sion vs Nasus", `${sub}?champion=Sion&crole=TOP&vs=Nasus`],
       ["Sion", `${sub}?champion=Sion&crole=TOP`],
       ["Aatrox vs Darius", `${top}?champion=Aatrox&crole=TOP&vs=Darius`],
     ]) {
-      await open(page, path!, [1366, h], "expanded");
+      await open(page, path!, [w, h], "expanded");
       const layoutTop = () => page.evaluate(() => document.querySelector("[data-testid=all-champions-layout]")!.getBoundingClientRect().top);
       const before = await layoutTop();
       await twoSeasons(page);
-      expect((await layoutTop()) - before, `1366x${h} ${state}: the section's header took a second line`).toBeGreaterThanOrEqual(10);
-      await fits(page, `1366x${h} two seasons ${state}`);
+      // To 1366 it wraps on every profile; wider, on a profile whose filters are wider (Demo Sub (Top)'s, to about 1440).
+      if (w <= 1366) expect((await layoutTop()) - before, `${w}x${h} ${state}: the section's header took a second line`).toBeGreaterThanOrEqual(10);
+      await fits(page, `${w}x${h} two seasons ${state}`);
     }
 });
 
-test("a resize across the short form's bound keeps the opponent and the games' page, and one screen", async ({ page }) => {
-  await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, [1366, 740], "expanded");
-  await fits(page, "1366x740");
-  await pane(page).getByTestId("games-next").click();
-  await expect.poll(async () => (await region(page, "games")).page).toBe(2);
-  const before = await region(page, "games");
-  await page.setViewportSize({ width: 1366, height: 730 });
+test("a resize across the short form's bound keeps the opponent and the games' page, and one screen: 46rem folded, 48rem in a narrow section", async ({ page }) => {
+  test.setTimeout(240_000);
+  for (const [side, tallH, shortH] of [
+    ["collapsed", 740, 730],
+    ["expanded", 776, 760],
+  ] as const) {
+    const at = (h: number) => `1366x${h} ${side}`;
+    await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, [1366, tallH], side);
+    await fits(page, at(tallH));
+    expect(await shortForm(page), `${at(tallH)}: the tall form`).toBe(false);
+    await pane(page).getByTestId("games-next").click();
+    await expect.poll(async () => (await region(page, "games")).page).toBe(2);
+    const before = await region(page, "games");
+    await page.setViewportSize({ width: 1366, height: shortH });
+    await settled(page);
+    await fits(page, `${at(shortH)} after the resize`);
+    expect(await shortForm(page), `${at(shortH)}: the short form`).toBe(true);
+    await expect(pane(page).getByTestId("champion-preview-pairing")).toHaveAttribute("data-champion", "Nasus");
+    const short = await region(page, "games");
+    // The page holding the first game shown before (keepPage), or the last where there are fewer pages.
+    expect(short.page, `${at(shortH)}: the games' page kept or clamped`).toBe(Math.min(short.pages, Math.floor((before.per * (before.page - 1)) / short.per) + 1));
+    await page.setViewportSize({ width: 1366, height: tallH });
+    await settled(page);
+    await fits(page, `${at(tallH)} again`);
+    expect(await shortForm(page), `${at(tallH)} again: the tall form`).toBe(false);
+    await expect(pane(page).getByTestId("champion-preview-pairing")).toHaveAttribute("data-champion", "Nasus");
+    const back = await region(page, "games");
+    expect(back.page).toBeGreaterThanOrEqual(1);
+    expect(back.page).toBeLessThanOrEqual(back.pages);
+  }
+  // The sidebar folded across the narrow section's edge at 1366 × 750: short open (a 65.4rem section), tall folded (76.9rem).
+  await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, [1366, 750], "expanded");
+  expect(await shortForm(page), "1366x750 open: the short form (a narrow section)").toBe(true);
+  await fits(page, "1366x750 open");
+  await page.getByTestId("sidebar-toggle").click();
+  await page.waitForTimeout(400);
   await settled(page);
-  await fits(page, "1366x730 after the resize");
-  expect(await shortForm(page)).toBe(true);
+  await fits(page, "1366x750 folded");
+  expect(await shortForm(page), "1366x750 folded: the tall form").toBe(false);
   await expect(pane(page).getByTestId("champion-preview-pairing")).toHaveAttribute("data-champion", "Nasus");
-  const short = await region(page, "games");
-  // The page holding the first game shown before (keepPage), or the last where there are fewer pages.
-  expect(short.page, "1366x730: the games' page kept or clamped").toBe(Math.min(short.pages, Math.floor(before.per * (before.page - 1) / short.per) + 1));
-  await page.setViewportSize({ width: 1366, height: 740 });
-  await settled(page);
-  await fits(page, "1366x740 again");
-  expect(await shortForm(page)).toBe(false);
-  await expect(pane(page).getByTestId("champion-preview-pairing")).toHaveAttribute("data-champion", "Nasus");
-  const back = await region(page, "games");
-  expect(back.page).toBeGreaterThanOrEqual(1);
-  expect(back.page).toBeLessThanOrEqual(back.pages);
 });
 
-test("a larger browser text size: the page's own rem decides the short form (an 18px root at 1366 × 768), and the workspace window where the section is narrow", async ({ page }) => {
+test("a larger browser text size: the page's own rem decides the short form (an 18px root at 1366 × 768, and under 48 of it in a narrow section), and the workspace window where the section is narrower", async ({ page }) => {
   await page.addInitScript(() => {
     const add = () => {
       if (!document.head) return false;
@@ -1319,9 +1442,18 @@ test("a larger browser text size: the page's own rem decides the short form (an 
   await expect(wsBody(page)).toBeVisible();
   expect(await shortForm(page, "dialog[open] [data-preview-pane]"), "1366x768 open at 18px: the short form in the window").toBe(true);
   await fitsWindow(page, "1366x768 open at 18px");
+  // A narrow section at 18px (1560px open: 66.7 of its rem) under 48 of its rem (840px: 46.7) takes the short form by the
+  // page's own check ([data-ws-short-narrow]; the CSS's first band cannot reach 1560px); at 870px (48.3) the tall form.
+  await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, [1560, 840], "expanded");
+  await expect(page.locator("[data-workspace][data-ws-short-narrow]:not([data-ws-short])")).toHaveCount(1);
+  expect(await shortForm(page), "1560x840 open at 18px: the short form (a narrow section)").toBe(true);
+  await fits(page, "1560x840 open at 18px");
+  await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, [1560, 870], "expanded");
+  expect(await shortForm(page), "1560x870 open at 18px: the tall form").toBe(false);
+  await fits(page, "1560x870 open at 18px");
 });
 
-test("the workspace window (1280–1359px with the sidebar open): the pane's content paged inside it, nothing scrolling; every record through its pages; Escape, Back, ‹ › and the focus kept inside", async ({ page }) => {
+test("the workspace window (1280–1355px with the sidebar open): the pane's content paged inside it, nothing scrolling; every record through its pages; Escape, Back, ‹ › and the focus kept inside", async ({ page }) => {
   test.setTimeout(360_000);
   for (const size of [
     [1280, 689],
@@ -1410,6 +1542,66 @@ test("the workspace window (1280–1359px with the sidebar open): the pane's con
   await open(page, `${top}?champion=Ambessa&crole=TOP`, [1280, 800], "collapsed");
   await expect(pane(page)).toBeVisible();
   await expect(page.locator("dialog[open][data-testid=champion-preview]")).toHaveCount(0);
+});
+
+test("the workspace window ends at 1355px with the sidebar open (the pane from 1356), reads the champion each ‹ › steps to, and has the pane's surface", async ({ page }) => {
+  // Its band: a section under 64.75rem (1355px open: 64.69rem), the pane from 1356 (64.75rem), the narrowest panes there.
+  for (const [w, inWindow] of [
+    [1354, true],
+    [1355, true],
+    [1356, false],
+    [1359, false],
+  ] as const) {
+    await open(page, `${top}?champion=Ambessa&crole=TOP`, [w, 700], "expanded");
+    const at = `${w}x700 open`;
+    if (inWindow) {
+      await expect(wsBody(page), `${at}: the workspace window`).toBeVisible();
+      await expect(pane(page)).toHaveCount(0);
+      await fitsWindow(page, at);
+    } else {
+      await expect(pane(page), `${at}: the pane`).toBeVisible();
+      await expect(page.locator("dialog[open][data-testid=champion-preview]")).toHaveCount(0);
+      await fits(page, at);
+    }
+  }
+  // ‹ › in the window: its live region stays (it is not inside the keyed body that cross-fades), and its words change in
+  // place, so a screen reader reads the champion stepped to (a live region inserted with its words is never read), as in the
+  // pane. Until 28 Nov 2026 it was remounted with each champion and nothing was read.
+  for (const [size, where] of [
+    [[1280, 689], "dialog[open][data-testid=champion-preview]"],
+    [[1366, 768], "aside[data-preview-pane]"],
+  ] as Array<[[number, number], string]>) {
+    await open(page, `${top}?champion=Ambessa&crole=TOP`, size, "expanded");
+    const live = page.locator(`${where} [data-testid=champion-preview-announce]`);
+    await expect(live).toHaveCount(1);
+    await expect(live).toHaveAttribute("aria-live", "polite");
+    await live.evaluate((el) => {
+      const w = window as unknown as { __live: Element; __heard: string[] };
+      w.__live = el;
+      w.__heard = [];
+      new MutationObserver(() => w.__heard.push(el.textContent ?? "")).observe(el, { childList: true, characterData: true, subtree: true });
+    });
+    const before = (await live.textContent())!;
+    expect(before).toContain("Ambessa");
+    await page.locator(`${where} [data-testid=champion-preview-next]`).click();
+    await expect(page.getByTestId("champion-preview-content")).not.toHaveAttribute("data-champion", "Ambessa");
+    const after = await page.evaluate(() => {
+      const w = window as unknown as { __live: Element; __heard: string[] };
+      return { connected: w.__live.isConnected, text: w.__live.textContent ?? "", heard: w.__heard };
+    });
+    const at = `${size.join("x")} open`;
+    expect(after.connected, `${at}: the same live region after ›`).toBe(true);
+    expect(after.text, `${at}: its words the next champion's`).not.toBe(before);
+    expect(after.heard.at(-1), `${at}: its words changed in place (read)`).toBe(after.text);
+  }
+  // The window's surface is the pane's (panel-depth: its sheen, its top hairline and its soft shadow), not shadow-2xl over it:
+  // both set box-shadow, and the stylesheet's order gave the window shadow-2xl's until 28 Nov 2026.
+  await open(page, `${top}?champion=Ambessa&crole=TOP`, [1366, 768], "expanded");
+  const paneLook = await pane(page).evaluate((el) => ({ shadow: getComputedStyle(el).boxShadow, image: getComputedStyle(el).backgroundImage }));
+  await open(page, `${top}?champion=Ambessa&crole=TOP`, [1280, 689], "expanded");
+  const windowLook = await wsWindow(page).evaluate((el) => ({ shadow: getComputedStyle(el).boxShadow, image: getComputedStyle(el).backgroundImage }));
+  expect(paneLook.shadow, "the pane's panel-depth: an inset hairline").toContain("inset");
+  expect(windowLook, "the workspace window's surface: the pane's").toEqual(paneLook);
 });
 
 test("the section's parts are spaced by a gap, not margins: an open match window, the workspace window and the first paint leave the frame its full height", async ({ page }) => {

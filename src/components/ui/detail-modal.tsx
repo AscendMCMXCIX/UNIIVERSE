@@ -82,7 +82,7 @@ const SIZE: Record<ModalSize, string> = {
   // its own, nothing measured), under the status bar and the Dynamic Island (pt-safe), clear of the
   // notch sideways (the dialog's px-safe). Its content keeps a readable width (mobile-nav.tsx).
   screen: "inset-0 h-auto w-auto max-h-none rounded-none border-0 pt-safe",
-  // All Champions' workspace window (1280–1359px with the sidebar open, or a larger root): a fixed height, the box it is
+  // All Champions' workspace window (1280–1355px with the sidebar open, or a larger root): a fixed height, the box it is
   // fixed to less 1rem above and below (m-auto centres it), never content-sized; its measured pages fill it.
   workspace: "h-[calc(100%-2rem)] w-[min(56.25rem,calc(100%-2rem))] max-h-none rounded-card",
 };
@@ -154,8 +154,19 @@ const EXIT_MS = 140;
  * browser did not report the end of.
  */
 const REST_MS = 400;
-/** The opening motions a window's own animationend reports (MOTION, MODAL_MOTION). */
+/**
+ * The opening motions a window's own animationend reports (MOTION, MODAL_MOTION): `fade-in` is the
+ * workspace window's only (MOTION.workspace). Every window's ::backdrop fades in too (MODAL_BACKDROP),
+ * and its animationend is dispatched on the dialog itself (its pseudoElement "::backdrop"): that one
+ * never counts, or a sheet would be at rest (the toasts moved into it) while it still slides in.
+ */
 const OPENING_MOTIONS = new Set(["modal-in", "sheet-in", "screen-in", "fade-in"]);
+/** Whether an animationend on the dialog is its own opening motion's end (never its backdrop's, never a fade it does not open with). */
+export function opensWith(size: ModalSize, e: { animationName: string; pseudoElement?: string | null }): boolean {
+  if (e.pseudoElement) return false;
+  if (e.animationName === "fade-in") return size === "workspace";
+  return OPENING_MOTIONS.has(e.animationName);
+}
 /**
  * When the window counts as open for its content (see AfterOpen): modal-in runs 180 ms on an
  * ease-out curve, which is over 90% of the way by 120 ms; the rest is a barely visible settle.
@@ -871,10 +882,11 @@ export function DetailModal({
         if (e.target === ref.current) requestClose();
       }}
       onAnimationEnd={(e) => {
-        if (e.target !== ref.current) return;
+        // The dialog's own motions only: not a descendant's, not its backdrop's (dispatched on the dialog, e.pseudoElement set).
+        if (e.target !== ref.current || e.pseudoElement) return;
         // The opening motion is over: the content may render, and the window is at rest (the toasts
         // come into it, top-layer.ts).
-        if (OPENING_MOTIONS.has(e.animationName)) {
+        if (opensWith(size, e)) {
           settle();
           noteModalAtRest(e.currentTarget);
         }
@@ -886,9 +898,11 @@ export function DetailModal({
       // Closing ends the opening motion too, so the closing one is the only one left to run.
       data-entered={screen && (entered || closing) ? "true" : undefined}
       className={cn(
-        // The workspace window has the pane's surface (its P1 is the pane's own, bg-surface): one or the other, as cn does not merge classes.
-        "max-w-none border p-0 text-fg shadow-2xl shadow-black/50 open:flex open:flex-col",
-        size === "workspace" ? "border-border bg-surface panel-depth" : "border-border-strong bg-bg-elevated",
+        // The workspace window has the pane's surface (its P1 is the pane's own, bg-surface), panel-depth's sheen, hairline and
+        // shadow included: one surface or the other, never both, as cn does not merge classes (shadow-2xl and panel-depth both
+        // set box-shadow, and the stylesheet's order would pick one).
+        "max-w-none border p-0 text-fg open:flex open:flex-col",
+        size === "workspace" ? "border-border bg-surface panel-depth" : "border-border-strong bg-bg-elevated shadow-2xl shadow-black/50",
         // A screen is fixed to the screen's edges (SIZE.screen): no auto margins. The window's own
         // focus (it takes the focus as it opens after a tap or a click, and always for a screen)
         // draws no ring: nothing in it is lit up.

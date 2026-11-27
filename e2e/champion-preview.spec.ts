@@ -854,6 +854,44 @@ test("phones: a sheet; ‹ › switch, Back closes it and the list keeps its pla
   await expect(preview).toHaveCount(0);
 });
 
+test("phones: the sheet comes to rest (the toasts move into it) when its own slide ends, never at its backdrop's fade", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "the sheet is for phones");
+  // Every window's ::backdrop fades in (160ms) and that animationend is dispatched on the dialog itself; the sheet slides in for
+  // 220ms. top-layer.ts moves the toasts into a window once it is at rest, so they never ride its transform while it moves.
+  await page.addInitScript(() => {
+    const w = window as unknown as { __motion: Array<{ name: string; pseudo: string; t: number }>; __toasterIn: number | null };
+    w.__motion = [];
+    w.__toasterIn = null;
+    document.addEventListener(
+      "animationend",
+      (e) => {
+        if (e.target instanceof HTMLDialogElement) w.__motion.push({ name: e.animationName, pseudo: e.pseudoElement, t: performance.now() });
+      },
+      true,
+    );
+    new MutationObserver(() => {
+      if (w.__toasterIn === null && document.querySelector("dialog[open] [data-testid=toaster]")) w.__toasterIn = performance.now();
+    }).observe(document, { childList: true, subtree: true });
+  });
+  const profile = await demoMember(page);
+  await page.goto(`${profile}/champions`);
+  const rows = page.getByTestId("top-champion");
+  await expect(rows.first()).toBeVisible();
+  await openRow(page, rows.first());
+  await expect(page.locator("dialog[open][data-testid=champion-preview]")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __toasterIn: number | null }).__toasterIn !== null), { message: "the toasts in the sheet" }).toBe(true);
+  const r = await page.evaluate(() => {
+    const w = window as unknown as { __motion: Array<{ name: string; pseudo: string; t: number }>; __toasterIn: number };
+    return { motion: w.__motion, toasterIn: w.__toasterIn };
+  });
+  const backdrop = r.motion.find((m) => m.pseudo === "::backdrop");
+  const own = r.motion.find((m) => m.name === "sheet-in" && !m.pseudo);
+  expect(backdrop, "the backdrop's fade ends on the dialog (what made the sheet at rest early)").toBeDefined();
+  expect(own, "the sheet's own slide").toBeDefined();
+  expect(backdrop!.t, "the backdrop's fade ends first").toBeLessThan(own!.t);
+  expect(r.toasterIn, "the toasts move in once the slide has ended, not at the backdrop's fade").toBeGreaterThanOrEqual(own!.t - 1);
+});
+
 test("phones at 320px and 200% text: the sheet's labelled Close, ‹ › and every line of the identity stay inside the sheet", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "the sheet is for phones");
   await page.setViewportSize({ width: 320, height: 568 });

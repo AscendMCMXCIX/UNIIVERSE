@@ -241,9 +241,10 @@ fill the frame to the window's foot, their footers on one baseline (a workspace'
 the one exception to "no card stretched"). A shorter desktop window, down to a laptop's browser
 window (41rem tall: 656px at 16px), keeps the workspace with fewer rows; under 46rem the workspace
 takes its short form (the totals in the identity bar, the figures in one row, an 8px rhythm, the
-page's 12px foot), and every state fits, a champion of five positions with an opponent's games open
+page's 12px foot), and under 48rem where the section is narrow (1356–1463px with the sidebar open,
+where the tall form's lines wrap), and every state fits, a champion of five positions with an opponent's games open
 and every optional line drawn included, the 12px margin too. Where the section is too narrow for the
-pane (1280–1359px with the sidebar open) the preview opens in the workspace window, paged inside it,
+pane (1280–1355px with the sidebar open) the preview opens in the workspace window, paged inside it,
 nothing scrolling. Phones, tablets, windows under 41rem and large text keep its scrolling page.
 
 **A layout held to a measure keeps a margin** (Release 19, the owner's request of 26 Nov 2026). A test
@@ -255,7 +256,8 @@ itself (`fit-rows.tsx`), so its margin does not depend on the test. In a fixed w
 Champions) the frame fills to `#content`'s bottom padding by construction, so the margin is measured
 inside each card: **from a list's last row to its footer, at least 12px**, the paged list's own guard
 band (`useRowBudget`). It holds everywhere the workspace applies, from 41rem tall (the short form
-under 46rem) and in the workspace window, with the wider text too.
+under 46rem, 48 in a narrow section) and in the workspace window, with the wider text and a two-season
+header too.
 
 **Page layout.** One frame for every page, so pages differ by their content, not their scaffolding:
 - **The shared frame** (S2c, `app-shell.tsx`): every page sits in one column, at most `--content-wide`

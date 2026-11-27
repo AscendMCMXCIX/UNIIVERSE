@@ -731,24 +731,51 @@ frame and the page by exactly that much (**the floor**: a list never shows fewer
 column). It is the safety net only: from 41rem every state fits (28 Nov 2026), a champion of five
 positions with an opponent's games open and every optional line drawn included (the partial
 multikills' words and ⓘ, the averages' coverage, "29 games in all, 1 with no recorded position"),
-because under 46rem the workspace takes its short form.
+because under 46rem (48 in a narrow section) the workspace takes its short form.
 
 **The short form** (28 Nov 2026; until then, between 41 and 46rem, a champion of several positions
 with an opponent open let the page grow by what its one game a column lacked: 4px for Aatrox at
 1366 × 657, 44px for Sion's five positions): a workspace window under 46 of the page's own rem
 (`WS_SHORT_REM`; 736px at 16px). `@custom-variant ws-short` (the section and its descendants, the
-workspace window included) and `ws-short-host` (the shell's main) in globals.css ask the `ws` gate's
-ten bands, each with an upper height of 46 × the band's widest root rounded up to the pixel (735.98px
-to 1536px wide, then 749.98, 762.98, 775.98, 788.98, 802.98 and 815.98 to 1920, 881.98 to 2240,
-947.98 to 2560, 1011.98 beyond: `WS_SHORT_QUERY` in `ui/posture.ts` is the same string, and
-`posture.test.ts` compares them); a band includes its upper edge, where the next band's bound holds
-too (1600 × 750 is short by the band to 1664). A second block takes `[data-ws-short]` under the `ws`
-gate: once hydrated, `useWorkspaceShort()` marks the section where the page's own rem is short and
-the CSS cannot tell (a larger browser text size: 1366 × 768 at an 18px root is 42.7 of its rem). At
-the default text size the page's check is inside the CSS bands, so hydration moves nothing. The
-variant uses `:is()`, not `:where()`, so its classes beat the `ws:` and container-query ones by
-specificity, whatever the stylesheet's order. What it changes, and only there (the same cells, words
-and font sizes):
+workspace window included) and `ws-short-host` (the shell's main) in globals.css ask bands of widths
+inside the `ws` gate's, each with its least height and an upper height of 46 × the band's widest root
+rounded up to the pixel: 735.98px to 1536px wide, then a band every 64px (749.98, 762.98, 775.98,
+788.98, 802.98 and 815.98 to 1920; 828.98, 841.98, 855.98, 868.98 and 881.98 to 2240; 894.98 to
+947.98 to 2560; 961.98 to 1000.98 to 2816; 1011.98 beyond), so a bound is at most 14px past the
+page's own 46rem anywhere in its band (`WS_SHORT_QUERY` in `ui/posture.ts` is the same string, and
+`posture.test.ts` compares them). Until 28 Nov 2026 the bands from 1920 were the gate's 320px, and
+their bound reached up to 66px past it: 1920 × 816–881 (a 1920 × 1080 screen's window with the Dock
+and a bookmarks bar is about 1920 × 860), 2240 × 882–947 and 2560 × 949–1011, 46 to 49.7 of their
+own rem, lost the approved tall form, which fits there. A band includes its upper edge, where the
+next band's bound holds too (1600 × 750 is short by the band to 1664; 1920 × 828 by the band to
+1984, 13.5px past 1920's own 46rem). A second block takes `[data-ws-short]` under the `ws` gate: once
+hydrated, `useWorkspaceShort()` marks the section where the page's own rem is short and the CSS
+cannot tell (a larger browser text size: 1366 × 768 at an 18px root is 42.7 of its rem). At the
+default text size the page's check is inside the CSS bands, so hydration moves nothing. The variant
+uses `:is()`, not `:where()`, so its classes beat the `ws:` and container-query ones by specificity,
+whatever the stylesheet's order.
+
+**A narrow section** (28 Nov 2026) takes the short form to 48 of the page's own rem
+(`WS_SHORT_NARROW_REM`; 768px at 16px, so a 1366 × 768 screen's full window keeps the tall form): a
+section of 64.75 to 71.5 of its rem (`WS_PANE_SECTION_REM` to `WS_NARROW_SECTION_REM`), the pane beside
+the list in 1356–1463px with the sidebar open (folded, the section is 71.5rem or more at every width). There the approved tall form's lines wrap: in a pane
+under about 40rem (1356–1376px open) the totals take a line of their own under the positions (68px
+instead of 47.5) and the kills line two (40px instead of 20), and in a section under about 71rem a
+two-season header takes a second line (36 → 50px). At 1356–1363 × 736 Sion vs Nasus with every
+optional line kept no games row (the page 739/736, its games 0px above their footer), with CI's wider
+text so did 1366 × 736, its margin stayed under 12px to 751, and with a two-season header to 765px
+(753/736). The short form's third and fourth blocks are a container query on the section
+(`@container section (min-width: 64.75rem) and (width < 71.5rem)`) inside the first band's media query
+under 767.98px (`WS_SHORT_NARROW_QUERY`; a narrow section at the default text size exists only from
+1356 to 1463px wide) or under the `ws` gate with `[data-ws-short-narrow]` (`useWorkspaceShortNarrow()`:
+under 48 of the page's own rem, for a larger text size; the container query decides the width). A
+container query reaches the section's descendants, never the shell's main: a narrow section keeps the
+page's 28px foot from 46rem, which it does not need (Sion vs Nasus with every line keeps 18px or more
+of margin there, 16 with a two-season header). From 48rem, and in a wider section (folded, or from
+1464px open) from 46rem, the tall form fits every state with every optional line, CI's wider text and a
+two-season header (15px or more).
+
+What the short form changes, and only there (the same cells, words and font sizes):
 - P1 carries the champion's totals ("29 games in all, 1 with no recorded position") as its second
   line, under the name, beside the 36px portrait: P1 stays 53px, level with the list's toolbar (a
   second copy, `champion-preview-total-identity`; the one after the positions, or at P4's end for one
@@ -769,12 +796,13 @@ and font sizes):
   P3 → P4 6px; in an opponent's detail its back button and ‹ › take the mouse's 32px (touch keeps
   44: the variant asks a fine pointer), its parts 4px apart and its games' heads `pb-1`;
 - `#content`'s bottom padding 12px instead of 28 (`ws-short-host:pb-3`, on the shell's main and
-  `MAIN_CLASS`), the section's gap: both cards end 12px above the window. It keeps a two-season
-  header (the season choice wraps it at 1366 with the sidebar open, 36 → 50px) at 15px or more.
+  `MAIN_CLASS`), the section's gap: both cards end 12px above the window (under 46rem only, not in a
+  narrow section's 46–48rem). It keeps a two-season header (the season choice wraps the section's
+  header in a section under about 71rem, 36 → 50px) at 15px or more.
 Measured at the floor (1366 × 656, the sidebar open): Sion vs Nasus with every line keeps 2 games a
 page and 29px of margin, Aatrox vs Darius 4 games, Ambessa vs Darius 6, Sion Jungle vs Lee Sin 4,
 Ambessa 8 opponents; the list 5 rows. At 46rem
-and up nothing changes but the detail's header, below.
+and up (48 in a narrow section) nothing changes but the detail's header, below.
 
 **The detail's header**, at every workspace height: ‹ n of N › never takes a line of its own. The
 header does not wrap; the back button, the opponent's portrait and name and the steps keep their
@@ -784,8 +812,8 @@ sample)"), so the win rate stays with its record. It is 36px, or 40 where the re
 76px before 28 Nov 2026 and its games had 2 a page instead of 6).
 
 The preview is a pane only where the section holds the opponents' two columns beside the list
-(64.75rem: `WS_PANE_SECTION_REM`). A narrower workspace section (1280–1359px with the sidebar open,
-or a larger root) opens it in **the workspace window** over the paged list (28 Nov 2026; until then
+(64.75rem: `WS_PANE_SECTION_REM`, 1356px wide with the sidebar open). A narrower workspace section
+(1280–1355px with the sidebar open, or a larger root) opens it in **the workspace window** over the paged list (28 Nov 2026; until then
 the sheet, whose unpaged preview, about 2,014px with Ambessa, scrolled inside it: 535px of room at
 1280 × 689). It is `PreviewWindow size="workspace"` with `headless`: a modal window as tall as the
 screen less 1rem above and below (`h-[calc(100%-2rem)]`, a share of the box it is fixed to, never a
@@ -847,11 +875,19 @@ and Forward, filters that keep the champion, a resize, the sidebar and 125% zoom
 the shorter laptop windows (1366 × 657 and 1280 × 689 open and folded, 1536 × 730, 1600 × 772,
 1648 × 789: eleven states each, every one fitting, the optional lines drawn for Sion vs Nasus), the
 gate's band edges (each band's least height, five states) and both sides of the short form's bound
-(1366 × 735 / 736, 1599 × 749 / 750, 1900 × 815 / 816), the short form only below the bound (P3, the
-totals' place, the 12px foot, P1 level with the toolbar), nothing cut and no figure cell over the
-next, the detail's header on one line at 657 and 768, a two-season header at 1366 × 656 / 657, a
-resize across the bound, an 18px root, the workspace window at 1280 × 689, 1280 × 800 and 1340 × 720
-(every state paged inside it, every record through its pages, Escape, Back, ‹ › and Tab kept inside),
+(1366 × 735 / 736 folded, 1599 × 749 / 750, 1900 × 815 / 816, 1920 × 828 / 829, and tall at 1920 ×
+850 and 881, 2000 × 845, 2240 × 900 and 2560 × 970; a narrow section's 1366 × 767 / 768 and
+1463 / 1464 × 767, and 1280 × 740 folded), a narrow section (1356 × 736 and 752, 1360 × 744, 1366 × 751, 1440 × 760 and
+1463 × 767 open, five states, every optional line; the tall form at 1356, 1366 and 1440 × 768; 46rem
+again folded and from 1464px), the short form only below the bound (P3, the totals' place, the 12px
+foot, P1 level with the toolbar), nothing cut and no figure cell over the next, the detail's header on
+one line at 657 and 768, a two-season header (1366 × 656 / 657, 1356 × 736 / 760 / 768, 1366 × 744 /
+768, 1440 × 744), a resize across both bounds and a fold of the sidebar across a narrow section's edge,
+an 18px root (1366 × 768 folded, short by the page's own rem; open, the workspace window; 1560 × 840 / 870
+open, a narrow section short and tall by its own rem), the workspace window at 1280 × 689, 1280 × 800 and 1340 × 720 (every state paged
+inside it, every record through its pages, Escape, Back, ‹ › and Tab kept inside), its band's edge
+(1355px open the window, 1356 the pane), its live region kept across ‹ › (the champion stepped to is
+read) and its surface the pane's (`panel-depth`'s shadow, not `shadow-2xl`'s),
 a linked preview's first
 paint (nothing moves at hydration), the pagers' constant width, the focus after leaving an opponent
 (from a later page, after ‹ ›, from a link), after closing a champion paged away, across a zoom over
@@ -1169,10 +1205,10 @@ Leaderboards (one page since 19 Nov 2026, one dashboard since 25 Nov 2026: no vi
 
 All Champions (27 Nov 2026): 1366 × 768, 1440 × 900, 1648 × 900 and 1920 × 1080, the sidebar open or
 folded, are the one-screen workspace with the pane; 1280 × 800 folded and 1360 × 768 open too; 1280
-× 800 open (1280–1359px wide with the sidebar open) is the workspace with the preview in the
+× 800 open (1280–1355px wide with the sidebar open) is the workspace with the preview in the
 workspace window (the sheet until 28 Nov 2026); a laptop's browser window (1366 × 657 in a 1366 × 768
 screen, 1280 × 689 in a 1280 × 800 one, 1536 × 730 at 125%) is the workspace in its short form, every
-state fitting; 1024–1279px, windows under the band's height (1366 × 640, 1280 × 640), a 110% zoom on
+state fitting, and so is 1366 × 736–767 with the sidebar open (a narrow section); 1024–1279px, windows under the band's height (1366 × 640, 1280 × 640), a 110% zoom on
 a 1366 × 768 laptop, touch tablets held sideways (`pointer: coarse`), phones and a text size too
 large for the gate are the flow.
 
