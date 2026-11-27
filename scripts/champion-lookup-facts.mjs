@@ -319,7 +319,7 @@ export function championLookupVerdicts({ kind, champion, at, wide, hastedRead, a
   fact("the builds name no player: no Riot ID or account id in them, one champion or two", !at.buildsIdentity && !(dual?.buildsIdentity ?? false), { at: at.buildsIdentity, dual: dual?.buildsIdentity ?? null });
   if (dual !== undefined && dual.buildsLevel !== null) fact("Compare: each champion's builds on one row after R, level in both columns", dual.buildsLevel === true, { level: dual.buildsLevel });
   // Changed on 27 Nov 2026 (Matchup Intel back inside Champion Intel's Compare): both champions and the lane.
-  fact("Matchup Intel's old address lands on Champion Intel's Compare with both champions and its lane (champion, vs, role)", legacy.url === "/lookup?champion=Riven&champion2=Mordekaiser&lane=TOP" && legacy.champion === "Riven" && legacy.secondChampion === "Mordekaiser" && legacy.heading === "Champion Intel", { url: legacy.url, champion: legacy.champion, second: legacy.secondChampion });
+  fact("Matchup Intel's old address lands on Champion Intel's Compare with both champions and its lane (champion, vs, role)", legacy.url === "/lookup?champion=Riven&champion2=Mordekaiser&lane=TOP" && legacy.champion === "Riven" && legacy.secondChampion === "Mordekaiser" && legacy.heading === "Champion Intel", { url: legacy.url, champion: legacy.champion, second: legacy.secondChampion, heading: legacy.heading });
   fact("no timer, countdown, ready time or \"verified\" anywhere on the page", !at.timerWords && !hastedRead.timerWords, null);
   return out;
 }
