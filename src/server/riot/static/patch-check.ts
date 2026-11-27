@@ -19,15 +19,18 @@ export interface PatchCounts {
   costs: { perRank: number; none: number; words: number; unresolved: number };
   cooldowns: Record<string, number>;
   mechanicChips: number;
-  /** Spells whose cost or cooldown the page shows (resolved): the figure a rules break would drop. */
+  /** Spells whose cost or cooldown the page shows (resolved). */
   resolved: number;
+  /** Spells whose cost resolves (per rank, no cost or Riot's words), and whose cooldown does: each the figure a break of its own rules would drop (the combined `resolved` hides a cooldown break, as nearly every spell's cost resolves). */
+  resolvedCosts: number;
+  resolvedCooldowns: number;
 }
 
 const SPELL = new Set(["Q", "W", "E", "R"]);
 
 /** Counts of what the rules make of each champion's abilities (records as the sync stores them). `names` gives a champion's name for the mechanics' own-name rule (the id stands in). */
 export function patchCounts(records: Readonly<Record<string, DdragonChampionAbilities>>, names: Readonly<Record<string, string>> = {}): PatchCounts {
-  const out: PatchCounts = { champions: 0, spells: 0, costs: { perRank: 0, none: 0, words: 0, unresolved: 0 }, cooldowns: {}, mechanicChips: 0, resolved: 0 };
+  const out: PatchCounts = { champions: 0, spells: 0, costs: { perRank: 0, none: 0, words: 0, unresolved: 0 }, cooldowns: {}, mechanicChips: 0, resolved: 0, resolvedCosts: 0, resolvedCooldowns: 0 };
   for (const [id, record] of Object.entries(records)) {
     out.champions += 1;
     const partype = record.facts?.partype ?? null;
@@ -44,6 +47,8 @@ export function patchCounts(records: Readonly<Record<string, DdragonChampionAbil
       const key = cd.kind === "unknown" ? `unknown:${cd.reason}` : cd.kind;
       out.cooldowns[key] = (out.cooldowns[key] ?? 0) + 1;
       if (cost || cd.kind !== "unknown") out.resolved += 1;
+      if (cost) out.resolvedCosts += 1;
+      if (cd.kind !== "unknown") out.resolvedCooldowns += 1;
     }
   }
   return out;
@@ -93,13 +98,25 @@ export function patchDiff(baseline: Readonly<Record<string, DdragonChampionAbili
   return out;
 }
 
-/** The problems that fail a patch check: a rules crash (unreadable champions), or resolved figures dropping by more than `maxDropPct` per cent. */
+/**
+ * The problems that fail a patch check: a rules crash (unreadable champions), or resolved figures
+ * dropping by more than `maxDropPct` points of spells: costs, cooldowns and either, each on its own
+ * share (a break of the cooldown rules alone moves the combined share by only about 4 points, as
+ * nearly every spell's cost still resolves), or mechanics chips per champion by more than that per cent.
+ */
 export function patchProblems(input: { unreadable: readonly string[]; baseline: PatchCounts; next: PatchCounts; maxDropPct: number }): string[] {
   const problems: string[] = [];
   if (input.unreadable.length) problems.push(`${input.unreadable.length} champion(s) the rules could not read: ${input.unreadable.join(", ")}`);
-  const share = (c: PatchCounts) => (c.spells ? c.resolved / c.spells : 0);
-  const drop = (share(input.baseline) - share(input.next)) * 100;
-  if (drop > input.maxDropPct) problems.push(`resolved costs or cooldowns fell from ${Math.round(share(input.baseline) * 1000) / 10}% to ${Math.round(share(input.next) * 1000) / 10}% of spells (more than ${input.maxDropPct} points)`);
+  const pct = (x: number) => Math.round(x * 1000) / 10;
+  for (const [figure, words] of [
+    ["resolved", "resolved costs or cooldowns"],
+    ["resolvedCosts", "resolved costs"],
+    ["resolvedCooldowns", "resolved cooldowns"],
+  ] as const) {
+    const share = (c: PatchCounts) => (c.spells ? (c[figure] ?? 0) / c.spells : 0);
+    const drop = (share(input.baseline) - share(input.next)) * 100;
+    if (drop > input.maxDropPct) problems.push(`${words} fell from ${pct(share(input.baseline))}% to ${pct(share(input.next))}% of spells (more than ${input.maxDropPct} points)`);
+  }
   const chips = (c: PatchCounts) => (c.champions ? c.mechanicChips / c.champions : 0);
   if (chips(input.baseline) > 0 && (chips(input.baseline) - chips(input.next)) / chips(input.baseline) * 100 > input.maxDropPct) problems.push(`mechanics chips per champion fell from ${chips(input.baseline).toFixed(2)} to ${chips(input.next).toFixed(2)} (more than ${input.maxDropPct}%)`);
   return problems;
