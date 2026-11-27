@@ -23,6 +23,8 @@ import { previousPatch } from "@/domain/champion-builds";
   - Leona in support (and the bot lane): a few Ranked Solo/Duo games on the current patch and the
     rest on the previous one: the previous patch is added (and said); her bot lane has too few in
     Solo/Duo to show, so one role.
+  - A Nasus or a Leona in a game moved for another champion (a Ranked Flex game of Thresh's) plays
+    the fixture's build too, so no moved game keeps a seeded build, which follows the random ids.
   - Everything else stays on its own patch: Ahri, Jinx and the other champions the browser tests
     open show the honest "not enough games" line.
   The "Highest win rate" view and a role choice between two roles are the Master+ demo's
@@ -178,8 +180,13 @@ export async function applyDemoBuilds(db: Db): Promise<void> {
     }
   }
 
-  // A Nasus in a game moved for another champion plays Nasus's build too (every moved game's builds are the fixture's).
-  for (const r of records) if (patchOf.has(r.matchId)) for (const p of seats(r, "Nasus", TOP)) if (!rewrite.get(r.matchId)?.has(p.puuid)) give(r.matchId, p.puuid, NASUS);
+  // A Nasus or a Leona in a game moved for another champion plays that champion's build too (every
+  // moved game's builds are the fixture's). Leona's own games are Solo/Duo's, so a Leona met in a
+  // Ranked Flex game moved for Thresh kept the demo's seeded build, which is drawn from a sequence
+  // seeded by the game's match id (server/demo/seed), and so by the member's random player id: on
+  // the current patch it differed from one fresh demo to the next.
+  const everyMoved = [["Nasus", TOP, NASUS], ["Leona", SUPPORT, LEONA], ["Leona", BOT, LEONA]] as const;
+  for (const r of records) if (patchOf.has(r.matchId)) for (const [champion, positions, build] of everyMoved) for (const p of seats(r, champion, positions)) if (!rewrite.get(r.matchId)?.has(p.puuid)) give(r.matchId, p.puuid, build);
 
   for (const r of records) {
     const patch = patchOf.get(r.matchId);
