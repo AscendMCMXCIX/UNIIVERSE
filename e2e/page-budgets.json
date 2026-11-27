@@ -327,10 +327,11 @@
    "small": 0
   },
   "privacy@se1-150": {
-   "screens": 48,
+   "screens": 51.5,
    "frame": 0,
    "frameScrolled": 0,
-   "small": 0
+   "small": 0,
+   "why": "Release 19 (27 Nov 2026): the privacy notice's Matchup Intel rows (the matchup notes' stored row and the match records' use for the lane totals at 10 minutes), the owner's request of 26 Nov 2026, item 4, as at i15; measured 50.49 at se1 with 150% text, plus 2%."
   },
   "no-access@se1-150": {
    "screens": 2.05,
