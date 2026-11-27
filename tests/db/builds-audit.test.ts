@@ -111,8 +111,12 @@ describe("the builds audit", () => {
   it("holds the page's cached counts to themselves: a game stored after they were cached is counted as newer, never a violation", async () => {
     const db = handle.db;
     const run = () => runBuildsAudit({ db, log: () => {} }, { now: new Date("2026-11-27T00:00:00Z"), secret: "a-cron-secret" });
-    // One of Thresh's Ranked Flex games, as Thresh's Ranked Solo/Duo support games are.
-    const found = await db.execute(sql`SELECT match_id FROM match_details WHERE queue_id = 440 AND jsonb_path_query_array(participants, '$[*].championId') ?| ARRAY['Thresh']::text[] AND game_version LIKE '16.22%' ORDER BY match_id LIMIT 1`);
+    // One of Thresh's Ranked Flex games, as Thresh's Ranked Solo/Duo support games are: one with a
+    // single Thresh and no Leona or Nasus (the other champions with builds), so moving it to Solo/Duo
+    // changes Thresh's count alone. The first by match id alone is not that game in every fresh demo:
+    // the ids carry the members' random player ids, and when Demo Top's came first, its Flex game with
+    // Thresh and a Nasus in top made Nasus's count newer too (2).
+    const found = await db.execute(sql`SELECT match_id FROM match_details WHERE queue_id = 440 AND game_version LIKE '16.22%' AND jsonb_array_length(jsonb_path_query_array(participants, '$[*] ? (@.championId == "Thresh")')) = 1 AND NOT (jsonb_path_query_array(participants, '$[*].championId') ?| ARRAY['Leona', 'Nasus']::text[]) ORDER BY match_id LIMIT 1`);
     const [moved] = ((found as unknown as { rows?: unknown[] }).rows ?? (found as unknown as unknown[])) as Array<{ match_id: string }>;
     expect(moved).toBeDefined();
     pageCache.on = true;
