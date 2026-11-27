@@ -99,6 +99,8 @@ const part = (puuid: string, name: string | null, teamId_: number, championId: s
   runes: { keystone: 8112, primary: 8100, secondary: 8300 },
   ...over,
 });
+/** Riot's four multikill counters, so the database copies the player into the multikill comparison's table (match_multikills, migration 0070). */
+const COUNTERS = { doubleKills: 1, tripleKills: 0, quadraKills: 0, pentaKills: 0 };
 const strangers = (teamId_: number, n: number, from = 0) => Array.from({ length: n }, (_, i) => part(`stranger-${teamId_}-${from + i}`, `Stranger${from + i}#EUW`, teamId_, ["Garen", "Lux", "Jinx", "Thresh", "LeeSin"][i % 5]!, ["TOP", "JUNGLE", "BOTTOM", "UTILITY", "MIDDLE"][i % 5]!));
 
 async function seed(db: Db): Promise<void> {
@@ -133,8 +135,8 @@ async function seed(db: Db): Promise<void> {
     game(id.carolAccount, "OC1_CAROL", "Jinx", "ADC", 200),
   ]);
   await db.insert(matchDetails).values([
-    { matchId: "OC1_SOLO", platform: "oc1", queueId: 420, gameCreation: 1, gameDuration: 1800, teams: [], participants: [part("puuid-alice-main", "AliceMain#OCE", 100, "Ahri", "MIDDLE"), ...strangers(100, 4), ...strangers(200, 5, 10)] },
-    { matchId: "OC1_SHARED", platform: "oc1", queueId: 420, gameCreation: 1, gameDuration: 1800, teams: [{ teamId: 100, win: true, bans: [], objectives: { champion: 23, tower: 9 } }, { teamId: 200, win: false, bans: [], objectives: { champion: 12 } }], participants: [part("puuid-alice-main", "AliceMain#OCE", 100, "Ahri", "MIDDLE", { kills: 11, stats: { pentaKills: 1 } }), part("puuid-bob", "Bob#OCE", 100, "Garen", "TOP"), ...strangers(100, 3, 1), ...strangers(200, 5, 20)] },
+    { matchId: "OC1_SOLO", platform: "oc1", queueId: 420, gameCreation: 1, gameDuration: 1800, teams: [], participants: [part("puuid-alice-main", "AliceMain#OCE", 100, "Ahri", "MIDDLE", { stats: COUNTERS }), ...strangers(100, 4), ...strangers(200, 5, 10)] },
+    { matchId: "OC1_SHARED", platform: "oc1", queueId: 420, gameCreation: 1, gameDuration: 1800, teams: [{ teamId: 100, win: true, bans: [], objectives: { champion: 23, tower: 9 } }, { teamId: 200, win: false, bans: [], objectives: { champion: 12 } }], participants: [part("puuid-alice-main", "AliceMain#OCE", 100, "Ahri", "MIDDLE", { kills: 11, stats: { ...COUNTERS, pentaKills: 1 } }), part("puuid-bob", "Bob#OCE", 100, "Garen", "TOP", { stats: COUNTERS }), ...strangers(100, 3, 1), ...strangers(200, 5, 20)] },
     { matchId: "OC1_VS", platform: "oc1", queueId: 0, gameCreation: 1, gameDuration: 1800, teams: [], participants: [part("puuid-bob", "Bob#OCE", 100, "Ahri", "MIDDLE"), part("puuid-alice-alt", "AliceAlt#OCE", 200, "Syndra", "MIDDLE"), ...strangers(100, 4, 30), ...strangers(200, 4, 40)] },
     { matchId: "OC1_OLDKEY", platform: "oc1", queueId: 420, gameCreation: 1, gameDuration: 1800, teams: [], participants: [part("puuid-alice-oldkey", "AliceOld#OCE", 100, "Zed", "MIDDLE"), ...strangers(100, 4, 50), ...strangers(200, 5, 60)] },
     // Carol's game: Alice was on the other team, before either linked an account; known only by her old-key PUUID.
@@ -229,6 +231,8 @@ describe("personal-data erasure", () => {
     // Nothing changed.
     expect((await handle.db.select().from(users).where(eq(users.id, id.alice))).length).toBe(1);
     expect((await handle.db.select().from(privacyErasures)).length).toBe(0);
+    // Her two games with Riot's counters are in the multikill comparison's table (copied by the database), until the erasure.
+    expect(rowsOf<{ n: number }>(await handle.db.execute(sql`SELECT count(*)::int AS n FROM match_multikills WHERE puuid = 'puuid-alice-main'`))).toEqual([{ n: 2 }]);
   });
 
   it("refuses the Owner, yourself, an administrator unless the Owner asks, and the last administrator", async () => {
@@ -290,6 +294,11 @@ describe("personal-data erasure", () => {
     expect(bobVs!.enemyChampionId).toBeNull();
     const [bobJournal] = await db.select().from(rankedGames).where(eq(rankedGames.playerId, id.bobPlayer));
     expect(bobJournal).toMatchObject({ enemyChampionId: null, teammatePlayerId: null, notPlayedWith: [] });
+    // The multikill comparison's copy of the shared game (match_multikills, kept by the database from
+    // the record): her row went with her entry, Bob's stays; her own games' rows went with them.
+    const counted = rowsOf<{ slot: number; puuid: string }>(await db.execute(sql`SELECT slot, puuid FROM match_multikills WHERE match_id = 'OC1_SHARED' ORDER BY slot`));
+    expect(counted.map((r) => [Number(r.slot), r.puuid])).toEqual([[1, "puuid-bob"]]);
+    expect(rowsOf<{ n: number }>(await db.execute(sql`SELECT count(*)::int AS n FROM match_multikills WHERE match_id IN ('OC1_SOLO', 'OC1_OLDKEY') OR puuid LIKE 'puuid-alice%'`))).toEqual([{ n: 0 }]);
     // Carol's game, where she was known only by an old-key PUUID, is de-identified too.
     const [carol] = await db.select().from(matchDetails).where(eq(matchDetails.matchId, "OC1_CAROL"));
     expect(carol!.participants.filter((p) => p.removed)).toHaveLength(1);

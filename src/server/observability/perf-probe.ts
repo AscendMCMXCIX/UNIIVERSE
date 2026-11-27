@@ -8,7 +8,8 @@ import { processEgress } from "@/server/db/egress";
 import { getTeamRoster } from "@/server/team/roster";
 import { invalidateLeaderboardCache, loadLeaderboardData, type LeaderboardData } from "@/server/leaderboards/service";
 import { buildFormView, buildRecordsView, recordsSeason, type FormView, type RecordsView } from "@/server/leaderboards/recent-view";
-import { invalidateMultikillBaselineCache, loadMultikillBaseline } from "@/server/leaderboards/multikill-baseline";
+import { explainMultikillBaseline, invalidateMultikillBaselineCache, loadMultikillBaseline, type BaselinePlan } from "@/server/leaderboards/multikill-baseline";
+import { invalidateMultikillCountingCache } from "@/server/accounts/multikill-counting";
 import type { MultikillBaseline } from "@/domain/multikill-score";
 import { invalidatePlayedTogetherCache, loadPlayedTogether, type PlayedTogether } from "@/server/matches/played-together";
 import { getMatchGroups, type MatchGroupsResult } from "@/server/matches/possible-groups";
@@ -314,8 +315,10 @@ export async function runPerfProbe(
         }),
       );
       // The multikill score's comparison: the other players in the season's stored records, as
-      // aggregates (cold computes it, warm reuses its cache). Counts only.
+      // aggregates (cold computes it with Riot's counting rule, as a fresh instance does after a
+      // deploy; warm reuses its cache). Counts only.
       invalidateMultikillBaselineCache();
+      invalidateMultikillCountingCache();
       const comparison = await step("leaderboards.multikill-baseline", () => loadMultikillBaseline(db, team.id, data, recordsSeason(data, {})), {
         warm: true,
         note: (r) => {
@@ -324,6 +327,16 @@ export async function runPerfProbe(
         },
       });
       push(comparison);
+      // The same statement under EXPLAIN (ANALYZE, BUFFERS): the pages it read, and that it reads
+      // the players' counters (match_multikills), never the records (27 Nov 2026). Numbers and table names only.
+      push(
+        await step("leaderboards.multikill-statement", () => explainMultikillBaseline(db, data, recordsSeason(data, {})), {
+          note: (r) => {
+            const p = r as BaselinePlan;
+            return `${p.executionMs} ms in the database · ${p.hit} pages from its cache · ${p.read} read · ${p.temp} temporary · reads ${p.relations.join(" and ") || "no table"}`;
+          },
+        }),
+      );
       const multikillBaseline = await loadMultikillBaseline(db, team.id, data, recordsSeason(data, {}));
       push(
         await step("leaderboards.records", async () => buildRecordsView(data, {}, null, { multikillBaseline }), {
