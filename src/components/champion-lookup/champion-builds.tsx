@@ -234,8 +234,9 @@ const FORMS = {
     span: "col-span-full text-xs text-fg-subtle @min-[24rem]/group:col-span-3",
     choice: "col-span-full min-w-0 @min-[15rem]/group:col-span-1",
     figure: "text-sm tabular-nums @min-[15rem]/group:text-right",
-    // One line ("Pick rate" wrapped in its 3.25rem column at 1366 with text a hair wider, Release 19): at the column's end, any excess into the gap before it.
-    headFigure: "label-text whitespace-nowrap @min-[15rem]/group:justify-self-end @min-[15rem]/group:text-right",
+    // One line where the figures have their 3.25rem columns ("Pick rate" wrapped there at 1366 with text a hair wider, Release 19): at the column's end, any
+    // excess into the gap before it. Where the table stacks (a narrow phone at a large text size) a heading may wrap, so nothing reaches past the column.
+    headFigure: "label-text @min-[15rem]/group:justify-self-end @min-[15rem]/group:whitespace-nowrap @min-[15rem]/group:text-right",
     partHead: "sr-only @min-[24rem]/group:not-sr-only",
   },
   compare: {
@@ -246,7 +247,7 @@ const FORMS = {
     span: "col-span-full text-xs text-fg-subtle @min-[53.25rem]/board:col-span-3",
     choice: "col-span-full min-w-0 @min-[16.5rem]/board:@max-[22rem]/board:col-span-1 @min-[35.25rem]/board:col-span-1",
     figure: "text-sm tabular-nums @min-[16.5rem]/board:@max-[22rem]/board:text-right @min-[35.25rem]/board:text-right",
-    headFigure: "label-text whitespace-nowrap @min-[16.5rem]/board:@max-[22rem]/board:justify-self-end @min-[16.5rem]/board:@max-[22rem]/board:text-right @min-[35.25rem]/board:justify-self-end @min-[35.25rem]/board:text-right",
+    headFigure: "label-text @min-[16.5rem]/board:@max-[22rem]/board:justify-self-end @min-[16.5rem]/board:@max-[22rem]/board:whitespace-nowrap @min-[16.5rem]/board:@max-[22rem]/board:text-right @min-[35.25rem]/board:justify-self-end @min-[35.25rem]/board:whitespace-nowrap @min-[35.25rem]/board:text-right",
     partHead: "sr-only @min-[53.25rem]/board:not-sr-only",
   },
 } as const;
