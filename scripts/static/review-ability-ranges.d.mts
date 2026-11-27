@@ -45,5 +45,14 @@ export function spellsOf(full: unknown): { version: string; spells: TableSpell[]
 export function rowMatches(row: RangeTableRow | null | undefined, spell: TableSpell | null | undefined): boolean;
 export function checkTable(table: { rows: RangeTableRow[] }, full: unknown): { version: string; spells: number; rows: number; matching: Record<string, number>; changed: Array<{ key: string; reviewer: string; kind: string; moved: string[] }>; unreviewed: string[]; gone: string[] };
 export function draftAll(full: unknown, table: { rows: RangeTableRow[] }): { version: string; drafts: Array<Record<string, unknown> & { champion: string; slot: string; draft: RangeDraft }> };
-export function writeTable(table: { rows: RangeTableRow[] }, full: unknown, date: string): { table: RangeTable; done: Record<string, number> };
+export function writeTable(
+  table: { rows: RangeTableRow[] },
+  full: unknown,
+  date: string,
+): {
+  table: RangeTable;
+  done: { kept: number; keptStale: number; keptGone: number; replaced: number; dropped: number; droppedGone: number; added: number; leftForReview: number };
+  /** Rows whose spell is not in the file: reviewed ones kept, automated drafts dropped ("Champion:Q" keys). */
+  gone: { kept: string[]; dropped: string[] };
+};
 export function serialiseTable(table: RangeTable): string;

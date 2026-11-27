@@ -145,4 +145,27 @@ describe("the drafting script's fixed rules", () => {
     expect(JSON.parse(text).rows).toEqual(first.rows);
     expect(text.split("\n").filter((l) => l.startsWith('    {"champion"'))).toHaveLength(first.rows.length);
   });
+
+  it("never deletes a review: given a file without some champions (partial, or older), --write keeps their reviewed rows, drops only their automated drafts, and counts and names both", () => {
+    // The committed table against the seven champions of the sample: every other champion's rows are "gone" from that file.
+    const inSample = new Set(Object.values(sample.data).map((c) => (c as { id: string }).id));
+    const reviewed = rows as unknown as Parameters<typeof script.writeTable>[0]["rows"];
+    const outside = reviewed.filter((r) => !inSample.has(r.champion));
+    expect(outside.length).toBeGreaterThan(600);
+    const { table: next, done, gone } = script.writeTable({ rows: reviewed }, sample, "2026-11-28");
+    expect(next.rows).toHaveLength(reviewed.length);
+    expect(done.keptGone).toBe(outside.length);
+    expect(done.droppedGone).toBe(0);
+    expect(gone.kept).toEqual(outside.map((r) => `${r.champion}:${r.slot}`));
+    for (const r of outside) expect(next.rows).toContainEqual(r);
+    // The check on the new table then lists every one of them as gone (exit 1), so a partial file cannot pass unseen.
+    expect(script.checkTable(next, sample).gone).toHaveLength(outside.length);
+    // An automated draft whose spell is not in the file is dropped, counted and named; a reviewed one beside it stays.
+    const draftRow = { ...outside[0]!, reviewer: "automated draft" as const };
+    const mixed = script.writeTable({ rows: [draftRow, outside[1]!] }, sample, "2026-11-28");
+    expect(mixed.done).toMatchObject({ keptGone: 1, droppedGone: 1 });
+    expect(mixed.gone).toEqual({ kept: [`${outside[1]!.champion}:${outside[1]!.slot}`], dropped: [`${draftRow.champion}:${draftRow.slot}`] });
+    expect(mixed.table.rows).toContainEqual(outside[1]);
+    expect(mixed.table.rows).not.toContainEqual(draftRow);
+  });
 });

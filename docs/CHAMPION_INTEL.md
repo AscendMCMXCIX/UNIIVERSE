@@ -276,7 +276,10 @@ change any row (reviewer `owner`), and spot-check rows on the page ("For the own
    `scripts/static/range-review-brief.md`, the draft taken out, and the verdicts are combined by its
    rules); `--write` keeps the matching rows, keeps a confirmed row that no longer matches (hidden
    until reviewed again), redrafts a stale automated draft from the fixed rules, and adds the new
-   high-confidence drafts. A reviewed row gets the new version, date and reviewer.
+   high-confidence drafts. It never deletes a reviewed row: one whose spell is not in the file (a
+   partial or older file, or a spell Riot removed) stays, counted as `keptGone`, and the check it
+   runs after writing lists it as gone (exit 1); delete such a row by hand only once Riot has removed
+   the spell. A reviewed row gets the new version, date and reviewer.
 3. Open a pull request; the table is in `src/`, so it deploys (batch it with other merges). Until
    then only the changed rows' ranges are hidden; every other range stays.
 
