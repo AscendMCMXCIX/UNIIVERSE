@@ -179,6 +179,7 @@
 import { chromium } from "@playwright/test";
 import { AxeBuilder } from "@axe-core/playwright";
 import { hideTerms, redact } from "./redact.mjs";
+import { softWait } from "./soft-wait.mjs";
 import { riotFiguresOnPage, riotKeysOnPage } from "./riot-keys.mjs";
 import { accountsPageVerdict, bookmarkVerdict, jobsSessionVerdict, MANAGEMENT_CONTROLS, managementVerdict, noProfileVerdict, readBookmarkControls, readManagementControls } from "./boundary-facts.mjs";
 import { auditCounts, leaderboardScopeVerdicts, readLeaderboardScope } from "./leaderboard-facts.mjs";
@@ -500,7 +501,7 @@ async function visit(page, log, kind, name, path, { fullPage = true, publicPage 
   // A notFound() or an error after the page began streaming still answers 200: wait for the page's
   // heading or one of those screens, then say which. Every member page has a heading in <main>
   // (e2e/quality.spec.ts); the waiting never fails by itself.
-  if (!publicPage) await page.locator("main h1, main h2, [data-testid=not-found], [data-testid=page-error]").first().waitFor({ timeout: 20_000 }).catch(() => {});
+  if (!publicPage) await softWait(page.locator("main h1, main h2, [data-testid=not-found], [data-testid=page-error]").first(), { timeout: 20_000 });
   const facts = await page.evaluate(() => ({
     at: location.pathname + location.search,
     screen: document.querySelector("[data-testid=not-found]") ? "not-found" : document.querySelector("[data-testid=page-error]") ? "page-error" : null,
@@ -1364,7 +1365,7 @@ function healthPatchNow() {
 async function championLookupFacts(page, kind) {
   await page.getByTestId("lookup-view").and(page.locator("[data-ready=true]")).waitFor({ timeout: 20_000 });
   // The builds arrive after the abilities (streamed): waited for, never a failure of their own here.
-  await page.locator('[data-panel="1"] [data-testid="lookup-builds-view"]').waitFor({ timeout: 20_000 }).catch(() => {});
+  await softWait(page.locator('[data-panel="1"] [data-testid="lookup-builds-view"]'), { timeout: 20_000 });
   const at = await page.evaluate(readChampionLookup);
   await page.setViewportSize({ width: 1920, height: 1080 });
   await page.evaluate(() => new Promise((resolve) => requestAnimationFrame(() => requestAnimationFrame(resolve))));
@@ -1377,7 +1378,7 @@ async function championLookupFacts(page, kind) {
   const hastedRead = await page.evaluate(readChampionLookup);
   // The champion's name: the window of every champion, then its search.
   await page.locator('[data-panel="1"] [data-testid="lookup-change"]').click().catch(() => {});
-  await page.locator('[data-testid="lookup-picker-grid"] button[data-champion]').first().waitFor({ timeout: 10_000 }).catch(() => {});
+  await softWait(page.locator('[data-testid="lookup-picker-grid"] button[data-champion]').first(), { timeout: 10_000 });
   const all = await page.evaluate(readChampionWindow);
   await page.getByTestId("lookup-picker-search").fill("ahr").catch(() => {});
   await page.waitForFunction(() => /found$/.test(document.querySelector('[data-testid="lookup-picker-count"]')?.textContent?.trim() ?? ""), null, { timeout: 5_000 }).catch(() => {});
@@ -1398,7 +1399,7 @@ async function championLookupFacts(page, kind) {
     await page.getByTestId("lookup-picker-search").fill("jinx");
     await page.locator('[data-testid="lookup-picker-grid"] button[data-champion="Jinx"]').click({ timeout: 10_000 });
     await page.locator('[data-panel="2"][data-champion="Jinx"]:not([aria-busy])').waitFor({ timeout: 20_000 });
-    await page.locator('[data-panel="2"] [data-testid="lookup-builds-view"]').waitFor({ timeout: 20_000 }).catch(() => {});
+    await softWait(page.locator('[data-panel="2"] [data-testid="lookup-builds-view"]'), { timeout: 20_000 });
     dual = await page.evaluate(readChampionLookup);
     step = "swap";
     await page.getByTestId("lookup-swap").click({ timeout: 5_000 });
@@ -1419,7 +1420,9 @@ async function championLookupFacts(page, kind) {
   }
   // Matchup Intel's old address: one redirect, to Champion Intel's Compare with both champions and the lane.
   await page.goto(`${base}/resources/matchups?role=top&champion=Riven&vs=Mordekaiser`, { waitUntil: "domcontentloaded" });
-  await page.getByTestId("lookup-panel").waitFor({ timeout: 20_000 }).catch(() => {});
+  // Compare shows two columns, so the wait names the second one, shown inside main: until React
+  // reveals the streamed page, both sit in a hidden block outside main (the heading with them).
+  await softWait(page.locator('main [data-testid="lookup-panel"][data-panel="2"]'), { timeout: 20_000 });
   const legacy = await page.evaluate(readChampionLookup);
   // The patch /api/health names (read at the start against production; a local run asks once here).
   const healthPatch = report.health ? report.health.patch : healthPatchNow();
@@ -1446,8 +1449,8 @@ async function buildsChampionFacts(page, log, kind) {
   if (!probe.length) return say({});
   hideTerms(probe.map((p) => p.champion));
   if (!(await visit(page, log, kind, "builds", probePath(probe), { fullPage: false, shownPath: "/lookup?champion=<builds champion>" }))) return;
-  await page.getByTestId("lookup-view").and(page.locator("[data-ready=true]")).waitFor({ timeout: 20_000 }).catch(() => {});
-  for (let n = 1; n <= probe.length; n++) await page.locator(`[data-panel="${n}"] [data-testid="lookup-builds-view"]`).waitFor({ timeout: 20_000 }).catch(() => {});
+  await softWait(page.getByTestId("lookup-view").and(page.locator("[data-ready=true]")), { timeout: 20_000 });
+  for (let n = 1; n <= probe.length; n++) await softWait(page.locator(`[data-panel="${n}"] [data-testid="lookup-builds-view"]`), { timeout: 20_000 });
   // Their names as the page writes them (an id is not always the name): hidden too.
   hideTerms(await page.locator('[data-testid="lookup-name"]').allTextContents().catch(() => []));
   await axe(page, kind, "builds", "[data-testid=lookup-builds]");
@@ -1521,7 +1524,7 @@ async function buildsChampionFacts(page, log, kind) {
  */
 async function matchupFacts(page) {
   await page.getByTestId("lookup-view").and(page.locator("[data-ready=true]")).waitFor({ timeout: 20_000 });
-  await page.getByTestId("matchup-band").waitFor({ timeout: 20_000 }).catch(() => {});
+  await softWait(page.getByTestId("matchup-band"), { timeout: 20_000 });
   const at = await page.evaluate(readMatchup, MATCHUP_READ);
   let swapped;
   let stopped;
@@ -1595,7 +1598,7 @@ async function allChampions(page, log, kind, playerId) {
     // Release 10 (PLAN S2b): on a phone Filters is in the list's search and sort row, on the search's
     // line, 44px, and never a row of its own above the scope line.
     if (kind === "phone" && facts.rows > 0) {
-      await page.locator("[data-testid=all-champions-toolbar] [data-filter-toggle]").waitFor({ timeout: 10_000 }).catch(() => {});
+      await softWait(page.locator("[data-testid=all-champions-toolbar] [data-filter-toggle]"), { timeout: 10_000 });
       const row = await page.evaluate(() => {
         const toggle = document.querySelector("[data-testid=all-champions-toolbar] [data-filter-toggle]");
         const search = document.querySelector("[data-testid=all-champions-search]");
@@ -1644,7 +1647,7 @@ async function allChampions(page, log, kind, playerId) {
       const after = { x: await names(), y: await page.evaluate(() => scrollY), rows: await rowTops() };
       let pane = { found: false };
       if (opened) {
-        await page.getByTestId("champion-preview-foot").waitFor({ timeout: 15_000 }).catch(() => {});
+        await softWait(page.getByTestId("champion-preview-foot"), { timeout: 15_000 });
         await page.waitForTimeout(300);
         pane = await paneFacts();
         await shot(page, `${kind}-champion-preview`);
@@ -1712,23 +1715,23 @@ async function championPreviewFacts(page, kind) {
   const scrolled = await page.evaluate(() => Math.round(scrollY));
   await button.click();
   const content = page.getByTestId("champion-preview-content");
-  await content.waitFor({ timeout: 15_000 }).catch(() => {});
+  await softWait(content, { timeout: 15_000 });
   // Loaded: the foot line comes with the answer (or the "could not be loaded" line in its place).
   await page.waitForFunction(() => !document.querySelector("[data-testid=champion-preview-loading]"), null, { timeout: 15_000 }).catch(() => {});
   const opponent = content.locator("[data-testid=champion-preview-opponent] > button").first();
   if (await opponent.count()) {
     await opponent.click();
-    await content.getByTestId("champion-preview-lookup").waitFor({ timeout: 15_000 }).catch(() => {});
+    await softWait(content.getByTestId("champion-preview-lookup"), { timeout: 15_000 });
   }
   const at = await page.evaluate(readChampionPreview, i);
   const yOpen = await rowTop();
   // Escape from here first, for the position (the next row's step below opens it again).
   await page.keyboard.press("Escape");
-  await page.getByTestId("champion-preview-content").waitFor({ state: "detached", timeout: 5_000 }).catch(() => {});
+  await softWait(page.getByTestId("champion-preview-content"), { state: "detached", timeout: 5_000 });
   await page.waitForTimeout(200);
   const kept = { scrolled, open: yOpen - y0, closed: (await rowTop()) - y0 };
   await button.click();
-  await content.waitFor({ timeout: 15_000 }).catch(() => {});
+  await softWait(content, { timeout: 15_000 });
   // ↓ from the row: the next row's preview, the address replaced (the list keeps the keys while the focus is in it).
   let step = null;
   if (rows.length > 1) {
@@ -2210,7 +2213,7 @@ async function reachFacts(page, kind) {
     }
     await shot(page, `${kind}-match-history-filters-from-the-frame`);
     await page.keyboard.press("Escape");
-    await sheet.waitFor({ state: "detached", timeout: 5_000 }).catch(() => {});
+    await softWait(sheet, { state: "detached", timeout: 5_000 });
   }
   pass("reach", name, offered && opened, { offered, opened, ...(form ?? {}), ...at });
 }
@@ -2251,7 +2254,7 @@ async function cardScoreFacts(page, kind) {
     opened = await page.evaluate(readOpenedScore);
     if (opened.open) {
       await page.goBack();
-      await page.locator("li[data-expanded], [data-testid=match-detail]").first().waitFor({ state: "detached", timeout: 15_000 }).catch(() => undefined);
+      await softWait(page.locator("li[data-expanded], [data-testid=match-detail]").first(), { state: "detached", timeout: 15_000 });
     }
   }
   for (const v of cardScoreVerdicts({ kind, cards, opened })) check("games", v.name, v.status, v.detail);

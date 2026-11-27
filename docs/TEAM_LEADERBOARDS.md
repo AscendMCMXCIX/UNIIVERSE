@@ -184,6 +184,21 @@ The owner asked (26 Nov 2026) for the multikill score to be reassessed against i
 
 **After the audit.** The coordinator runs it once after this release deploys and writes its outcome here. Keep: the evidence replaces the breakdown's caveat ("All supported Summoner's Rift queues are compared together, per game.") with the measured one. Candidate: a separate release, after the calibrated simulation and the owner's approval, with the change set out in the design (one multiplier on typical, "In their games ×1.08 → 72.5", shown in the breakdown, the Production check's recomputation kept and a new fact for the factor).
 
+**The first audit on production (27 Nov 2026): inconclusive, the formula stays.** Data jobs run 45983330118 on cd8fdea, minutes after Release 19 deployed. It covered 7 ranked members and 21,799 comparison games in 660 role and champion groups (season 16, nested counting), and its M0 equalled the page's board for every member. No rule held, so by the rule written beforehand M0 stays unchanged, the breakdown's caveat stays as it is, and the audit runs again in about a month:
+- **R0** met: 7 ranked members (5 needed) and 21,799 comparison games (1,000 needed).
+- **R1, keep M0 with evidence:** not met. The members' own games differ a little beyond chance (spread 0.057, homogeneity p 0.004; the own-games factors run from 0.92 to 1.10, median 0.98). 3 of the 10 queue groups with 300+ games lie outside ±8%. M0's placebo follows the member's score at ρ 0.32 (under 0.3 to keep).
+- **R2, M5 a candidate:** not met. The own-games spread qualifies (0.05+, p under 0.01), but allies and opponents do not agree on it (ρ 0.14, needed 0.5+; mean |log ratio| 0.079, needed under 0.05). M5's placebo follows the member more than M0's does (0.43 against 0.32; at most half was needed). So the factor does not measure what it is meant to, and the calibrated simulation was not run.
+- **R3** needs R2. Its own figure would hold: high-propensity champions' triples and larger are 1.26 times their equal-tendency count (95% 1.17–1.36, above 1.15).
+- **R4:** the empirical-Bayes spread is 0.35, inside 0.12–0.40, so the cushion stays 40.
+
+What else the figures show (anonymous aggregates, no member's score or place):
+- **First place is fragile with 7 ranked members, under every model.** In the bootstrap of each member's games, M0's first stays first 42% of the time (M5 58%, M5eb 66%; M1a, the player's own kills, 97%, but it changes first and the top three). M0's split-half reliability (Spearman–Brown) is 0.60.
+- **The role-and-champion adjustment is what decides the order.** Without it (Mflat) the order correlates 0.14 with M0, and champion only (M2) 0.32. Role only, game pace, minutes and queue (M3, M1b–M1d) correlate 0.96 and change first place. The empirical-Bayes cushion and the per-kind rates (M0eb, M4) keep M0's order exactly.
+- **Placebos:** of the adjusted models, M5eb's follows the member least (0.21) and M4's most (0.46). This is a hint, not a rule's evidence: R2's agreement test failed for both factor models.
+- **Cost:** 1.6 s in all (531 ms in the database, 577 ms computing), a 317 KB answer.
+
+**Next:** the audit runs again in about a month, before the 2027 ranked year begins (7 Jan 2027 is the estimate; docs/RANKED_PROGRESS.md, "The 2027 ranked year"), because R4 needs two audits a month apart and a new season starts with few games. A scheduled check on 28 Dec 2026 reminds the next session. A formula change still needs R2's evidence, the calibrated simulation and the owner's approval.
+
 **Privacy of the audit.** It prints anonymous aggregates only: no name, player id, PUUID, Riot ID or match id, and no member's score, label or place (the own-games factors appear only as their minimum, median and maximum; a test checks the printed answer holds none of the seeded identifiers). Inside the database the members' PUUIDs are only matched, as the page's comparison does; what leaves it is aggregates, plus each member game's lane opponent as a cell (position, champion, kills, queue, pace, minutes, multikill points) with no identity: in practice one game a cell, read in memory by the job and never stored or printed. Games come back in the order asked, so no match id leaves the database either.
 
 ## Who can see it, who is on it

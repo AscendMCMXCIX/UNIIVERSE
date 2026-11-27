@@ -37,6 +37,9 @@ Each item says what to do, what to expect and where to look when it fails.
 node scripts/live-check.mjs [base url] [output folder]
 ```
 
+**Waiting before a fact reads the page** (27 Nov 2026): every wait whose timeout should not stop the run goes through `softWait` (`scripts/soft-wait.mjs`, its unit test `src/server/ops/live-check-soft-wait.test.ts`). A timeout returns false, and the fact then fails with what the page showed. Any other error is thrown and stops the run, above all a strict-mode violation: a locator that matches several elements throws at once, so nothing would have waited. Name one element, inside `main` where the page streams. Until React reveals the streamed content, it sits in a hidden block outside `main`.
+- That is what failed Matchup Intel's old-address fact once on production (run 45984417570). The check waited on `getByTestId("lookup-panel")`, which Compare's two columns both match. The swallowed error let it read both columns before the heading was in `main`.
+
 - **Base url:** defaults to https://team-uniiverse.vercel.app.
 - **Output folder:** defaults to `live-check-<time>`. It holds the screenshots, `report.json` and `summary.md`. The run exits with 1 when any check fails.
 - **Sign-in:** `UNIIVERSE_VERIFY_USER` and `UNIIVERSE_VERIFY_PASSWORD`, for a non-admin team member who is not in the lineup. They are read from the environment and never printed. In a cloud session they go in the environment's settings, and the site must be under its allowed domains.

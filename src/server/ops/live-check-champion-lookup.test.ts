@@ -117,6 +117,10 @@ describe("Champion Intel's Production check facts", () => {
     expect(failed({ legacy: { ...LEGACY, url: "/lookup?champion=Riven", champion: "Riven", secondChampion: null } })).toHaveLength(1);
     expect(failed({ legacy: { ...LEGACY, url: "/lookup?champion=Mordekaiser", champion: "Mordekaiser", secondChampion: null } })).toHaveLength(1);
     expect(failed({ legacy: { ...LEGACY, url: "/lookup?champion=Riven&champion2=Mordekaiser" } })).toHaveLength(1);
+    // Read before React revealed the page (27 Nov 2026): both champions in the hidden block, no heading in main; the detail says so.
+    expect(failed({ legacy: { ...LEGACY, heading: "" } })).toHaveLength(1);
+    const unrevealed = run({ legacy: { ...LEGACY, heading: "" } }).find((v) => v.status === "FAIL");
+    expect(unrevealed?.detail).toMatchObject({ second: "Mordekaiser", heading: "" });
     expect(failed({ at: { ...AT, timerWords: true } })).toHaveLength(1);
   });
 
