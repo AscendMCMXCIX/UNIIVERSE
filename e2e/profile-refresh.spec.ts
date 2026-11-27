@@ -82,8 +82,11 @@ test("Refresh ends the toolbar in the same place on every tab of a profile, neve
     expect(at!.x, `${tab}: Refresh after the filters`).toBeGreaterThanOrEqual(filters.x + filters.width - 1);
     // On the filters' row: its top level with theirs (the folded Filters button on a phone), never a row below them.
     expect(Math.abs(at!.y - filters.y), `${tab}: Refresh on the filters' row`).toBeLessThanOrEqual(2);
-    // The status sits under the heading, on the scope line.
-    expect(note!.y, tab).toBeGreaterThanOrEqual(title!.y + title!.height - 1);
+    // The status sits on the scope line: under the heading, or after it where the scope line shares
+    // the title's line (SectionHeader's scopeBesideTitle from xl: All Champions' one-line header,
+    // docs/RESPONSIVE.md, "All Champions' workspace").
+    const besideTitle = note!.x >= title!.x + title!.width - 1 && note!.y < title!.y + title!.height && note!.y + note!.height > title!.y;
+    expect(note!.y >= title!.y + title!.height - 1 || besideTitle, `${tab}: the status on the scope line`).toBe(true);
     // Touch screens: a finger-sized button.
     if (isPhone(page)) expect(at!.height, tab).toBeGreaterThanOrEqual(44);
     expect(await page.evaluate(() => document.documentElement.scrollWidth - window.innerWidth), tab).toBeLessThanOrEqual(1);

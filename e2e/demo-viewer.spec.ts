@@ -16,25 +16,38 @@ async function asViewer(browser: Browser, baseURL: string, viewer: "member" | "n
   return ctx.newPage();
 }
 
-async function firstPreviewFoot(page: Page) {
+/**
+ * The first champion's preview says what a lane opponent is: in its foot line under the opponents,
+ * or, in a desktop's one-screen workspace (docs/MATCHUPS.md, "All Champions' workspace"), in the
+ * opponents' ⓘ, the foot keeping the coverage alone.
+ */
+async function expectDefinition(page: Page, words: string) {
   const row = page.getByTestId("top-champion").first();
   await row.getByTestId("open-champion").click();
   const foot = page.getByTestId("champion-preview-foot");
-  await expect(foot).toBeVisible();
-  return foot;
+  await expect(foot).toBeAttached();
+  const inWorkspace = await page.evaluate(() => !!document.querySelector("[data-workspace]") && getComputedStyle(document.getElementById("content")!).display === "flex");
+  if (inWorkspace) {
+    const about = page.getByTestId("champion-preview").getByRole("button", { name: "About lane opponents" });
+    await expect(about).toHaveAccessibleDescription(new RegExp(words.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+    await expect(foot).not.toContainText("Lane opponent:");
+  } else {
+    await expect(foot).toBeVisible();
+    await expect(foot).toContainText(words);
+  }
 }
 
 test("a member's own Champions say \"your\"; the same profile seen by a teammate says \"their\"", async ({ browser, baseURL, page }) => {
   const own = await asViewer(browser, baseURL!, "member");
   await own.goto("/overview/champions");
-  await expect(await firstPreviewFoot(own)).toContainText("Lane opponent: the enemy Riot placed in your position.");
+  await expectDefinition(own, "Lane opponent: the enemy Riot placed in your position.");
   await own.context().close();
 
   // The demo's usual viewer (the Owner, without a player profile) on the same player's profile.
   await page.goto("/players");
   const href = await page.locator("main a[data-testid='player-card']", { hasText: "Demo ADC" }).first().getAttribute("href");
   await page.goto(`${new URL(href!, "http://x").pathname}/champions`);
-  await expect(await firstPreviewFoot(page)).toContainText("Lane opponent: the enemy Riot placed in their position.");
+  await expectDefinition(page, "Lane opponent: the enemy Riot placed in their position.");
 });
 
 test("the member viewer is a Standard Player: My Profile is theirs, Admin is closed to them", async ({ browser, baseURL }) => {

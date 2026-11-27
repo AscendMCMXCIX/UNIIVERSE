@@ -22,6 +22,28 @@ export function championsFirstForTest(cookie: string | null | undefined): number
 }
 
 /*
+  BROWSER TESTS ONLY: All Champions' one-screen workspace pages its champions, its lane opponents and
+  an opponent's games by the rows that fit the window (useRowBudget), and the default demo's lists are
+  shorter than a page (8 champions, 4 opponents, 13 games). A test caps the measured count ("3"
+  champions a page, "1" opponent or game a column) so CI's usual server exercises the page jumps, the
+  keys across pages and the pagers on the demo's data. A cap only lowers the measured count: it never
+  draws a row that does not fit. Read only on the in-memory demo.
+*/
+
+export const CHAMPIONS_PER_PAGE_TEST_COOKIE = "uniiverse-test-champions-per-page";
+export const OPPONENTS_PER_COLUMN_TEST_COOKIE = "uniiverse-test-opponents-per-column";
+
+/** The most champions a page shows for a browser test's cookie (1–19); null anywhere but the in-memory demo, or for any other value. */
+export function championsPerPageForTest(cookie: string | null | undefined): number | null {
+  return demoTestHooksAllowed() && typeof cookie === "string" && /^(1[0-9]|[1-9])$/.test(cookie) ? Number(cookie) : null;
+}
+
+/** The most lane opponents (and an opponent's games) a column shows for a browser test's cookie (1–5); null anywhere but the in-memory demo, or for any other value. */
+export function opponentsPerColumnForTest(cookie: string | null | undefined): number | null {
+  return demoTestHooksAllowed() && typeof cookie === "string" && /^[1-5]$/.test(cookie) ? Number(cookie) : null;
+}
+
+/*
   BROWSER TESTS ONLY: the preview's lane opponents offer their search from four opponents
   (domain/champion-preview OPPONENT_SEARCH_FROM), and the demo's champions meet at most three in a
   position that has a second position beside it. A test names a smaller threshold ("2") so a search

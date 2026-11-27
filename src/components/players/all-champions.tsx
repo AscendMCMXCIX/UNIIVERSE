@@ -18,7 +18,10 @@ import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone
 import { SampleNote } from "./sample-note";
 import { ArrowDown, ArrowUp, ArrowUpDown, X } from "lucide-react";
 import { useAddressItem } from "@/components/ui/address-item";
-import { isTyping, modalOpen, useWindowPosture } from "@/components/ui/posture";
+import { isTyping, modalOpen, rootPx, useWindowPosture, useWorkspace } from "@/components/ui/posture";
+import { Pager } from "@/components/ui/pager";
+import { useRowBudget } from "@/components/ui/fit-rows";
+import { pageCount, pageOf, pageRange, usePagedList } from "@/components/ui/row-budget";
 import { PreviewWindow, SiblingSteps, type PreviewSiblings } from "@/components/ui/preview-window";
 import { LABELLED_CLOSE } from "@/components/ui/window-control";
 import { PreviewContent, selectionFor, usePreviewAddress, usePreviewData, type ListScope } from "./champion-preview";
@@ -86,6 +89,14 @@ const FIRST = 20;
 */
 const GRID =
   "@min-[44rem]:grid-cols-[minmax(11.75rem,1fr)_minmax(3.25rem,4.5rem)_minmax(4.5rem,6rem)_minmax(3.25rem,4.25rem)_minmax(3.5rem,4.5rem)_minmax(3rem,4.25rem)_minmax(5.25rem,6.5rem)_minmax(4.375rem,5.25rem)] @min-[44rem]:gap-x-2 @min-[44rem]:px-3 @min-[76rem]:grid-cols-[minmax(14rem,1fr)_minmax(4rem,4.5rem)_minmax(4.75rem,5.25rem)_minmax(5.5rem,6.25rem)_minmax(4rem,4.5rem)_minmax(6rem,6.5rem)_repeat(3,minmax(4rem,4.5rem))_minmax(6.5rem,7.25rem)] @min-[76rem]:gap-x-2 @min-[76rem]:px-5";
+/*
+  A linked preview's first paint (the server's HTML and the hydration render) draws the list beside the pane. In the
+  workspace a section under 64.75rem (1280–1355px wide with the sidebar open) gets the sheet once hydrated, and until
+  then its CSS hides the pane's column and gives the list the whole frame: there the rows and the heading row keep the
+  wide table's template (GRID's 44rem tier: a section that narrow never reaches 76rem), so the list is drawn as the
+  sheet will leave it and nothing moves when it opens.
+*/
+const SHEET_FIRST_PAINT_GRID = "ws:@max-[64.75rem]/section:@min-[44rem]:grid-cols-[minmax(11.75rem,1fr)_minmax(3.25rem,4.5rem)_minmax(4.5rem,6rem)_minmax(3.25rem,4.25rem)_minmax(3.5rem,4.5rem)_minmax(3rem,4.25rem)_minmax(5.25rem,6.5rem)_minmax(4.375rem,5.25rem)] ws:@max-[64.75rem]/section:@min-[44rem]:gap-x-2";
 /** A sortable number, or null when the figure is missing (missing rows always sort last). */
 function sortValue(c: ChampionRow, key: SortKey): number | null {
   switch (key) {
@@ -320,21 +331,42 @@ const notClient = () => false;
  * pool" took a second line as the pane opened and every row below moved).
  */
 const PANE_ROOM_REM = 47.5;
-function useRoomForPane(ref: React.RefObject<HTMLElement | null>): boolean {
+/**
+ * In the one-screen workspace the pane needs the opponents' two columns beside the list: the list's
+ * 22.5rem, the 1rem gap, the pane's 2.5rem of padding and two opponent columns (38.625rem) with the
+ * cards' borders. A narrower workspace section (1280–1359px with the sidebar open) opens the
+ * preview in the sheet over the paginated list (open decision O1 of 27 Nov 2026): below it the
+ * opponents get one column, the identity and the toolbar wrap, and a champion of five positions
+ * with an opponent open keeps one game a page.
+ */
+const WS_PANE_SECTION_REM = 64.75;
+function useRoomForPane(ref: React.RefObject<HTMLElement | null>, ws: boolean): boolean {
   const [roomy, setRoomy] = React.useState(true);
   React.useLayoutEffect(() => {
     const el = ref.current;
     if (!el) return;
-    const check = () => {
-      const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
-      setRoomy(el.clientWidth >= PANE_ROOM_REM * rem - 0.5);
-    };
+    const check = () => setRoomy(el.clientWidth >= (ws ? WS_PANE_SECTION_REM : PANE_ROOM_REM) * rootPx() - 0.5);
     check();
     const observer = new ResizeObserver(check);
     observer.observe(el);
     return () => observer.disconnect();
-  }, [ref]);
+  }, [ref, ws]);
   return roomy;
+}
+
+/**
+ * The workspace's first paint (the server's HTML and the hydration render, before the page can
+ * measure): the champions' rows drawn by the window's height in the Leaderboards' tiers (globals.css,
+ * board-at-*), each one row fewer than fit the tier's smallest window in every band of widths
+ * (row-budget's arithmetic: posture.test.ts recomputes it), so hydration only adds rows below them.
+ */
+export const WS_TIER_ROWS = { gate: 3, mid: 7, tall: 9 } as const;
+/** A row's first-paint class in the workspace, by its index on the list. */
+export function wsTierClass(i: number): string | undefined {
+  if (i >= WS_TIER_ROWS.tall) return "ws:hidden";
+  if (i >= WS_TIER_ROWS.mid) return "ws:board-below-tall:hidden";
+  if (i >= WS_TIER_ROWS.gate) return "ws:board-below-mid:hidden";
+  return undefined;
 }
 
 /** The room the pane leaves under itself at the window's foot when it is taller than the window (px). */
@@ -431,6 +463,29 @@ function usePanePlacement(columnRef: React.RefObject<HTMLElement | null>, spacer
   return React.useCallback(() => anchorRef.current?.(), []);
 }
 
+/** How to read the list's marks: "*" from some games only, "—" not counted yet. */
+function MultikillLegend({ multikills, kills, className }: { multikills: boolean; kills: boolean; className?: string }) {
+  return (
+    <p className={cn("flex flex-wrap items-center gap-x-1.5 text-xs text-fg-muted", className)} data-testid="multikill-legend">
+      <span>
+        {multikills && kills ? "Kills and multikills" : kills ? "Kills" : "Multikills"}: <span className="font-semibold text-warn">*</span> only some games counted so far · <span className="text-fg-subtle">—</span> not counted yet (never shown as zero)
+      </span>
+      {multikills ? <InfoTip text={MULTIKILL_HELP} label="About multikills" /> : null}
+    </p>
+  );
+}
+
+/** What a filter change writes back: the sort the address held and, while one is open, the champion and its position (never the opponent). */
+function keepFor(sort: string | null, champion: string | null, role: Role | null): Record<string, string> | undefined {
+  const k: Record<string, string> = {};
+  if (isSortKey(sort)) k.sort = sort;
+  if (champion) {
+    k.champion = champion;
+    if (role) k.crole = role;
+  }
+  return Object.keys(k).length ? k : undefined;
+}
+
 const defaultDir = (key: SortKey): Dir => (key === "champion" ? "asc" : "desc");
 const masteryText = (n: number | null | undefined) => (n == null ? "—" : formatCompactCount(n));
 
@@ -443,15 +498,13 @@ const masteryText = (n: number | null | undefined) => (n == null ? "—" : forma
  * in a position it was played in: a pane beside the narrowed list on a computer (no row moves, nothing
  * covers the list), a sheet on a phone; it lives in the URL, so it can be linked, and Back closes it.
  */
-export function AllChampions({ data, basePath, championsById, playerId, isOwn, initialPreview, initialPairing, status, refresh, firstRows = FIRST, opponentSearchFrom }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion>; playerId: string; /** The viewer's own profile: the preview says "you". */ isOwn: boolean; /** The server's render of a linked preview (?champion=), so it opens without a request. */ initialPreview?: ChampionPreviewData | null; initialPairing?: PairingGamesData | null; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null; /** The rows shown before Show all (FIRST; smaller only for a browser test on the demo, server/demo/test-hooks.ts). */ firstRows?: number; /** The opponents from which the preview offers its search (OPPONENT_SEARCH_FROM; smaller only for a browser test on the demo). */ opponentSearchFrom?: number }) {
+export function AllChampions({ data, basePath, championsById, playerId, isOwn, initialPreview, initialPairing, status, refresh, firstRows = FIRST, opponentSearchFrom, pageCaps }: { data: PlayerOverviewData; basePath: string; championsById: Record<string, PortraitChampion>; playerId: string; /** The viewer's own profile: the preview says "you". */ isOwn: boolean; /** The server's render of a linked preview (?champion=), so it opens without a request. */ initialPreview?: ChampionPreviewData | null; initialPairing?: PairingGamesData | null; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null; /** The rows shown before Show all (FIRST; smaller only for a browser test on the demo, server/demo/test-hooks.ts). */ firstRows?: number; /** The opponents from which the preview offers its search (OPPONENT_SEARCH_FROM; smaller only for a browser test on the demo). */ opponentSearchFrom?: number; /** The workspace's measured pages capped, for a browser test on the demo (server/demo/test-hooks.ts). */ pageCaps?: { champions: number | null; opponents: number | null } }) {
   const [query, setQuery] = React.useState("");
   // The table's own search: once it has gone up under the pinned tabs, the row offers a copy (PageToolbar).
   const searchRef = React.useRef<HTMLInputElement>(null);
   // Opened from Overview's multikills (?sort=multikills) or any other link with a sort: that order first.
   const initialSort = useSearchParams().get("sort");
   const [sort, setSort] = React.useState<{ key: SortKey; dir: Dir }>(() => (isSortKey(initialSort) ? { key: initialSort, dir: defaultDir(initialSort) } : { key: "games", dir: "desc" }));
-  // A filter changed keeps the sort the address held (Overview's ?sort=multikills): the address keeps every choice it had.
-  const keep = React.useMemo(() => (isSortKey(initialSort) ? { sort: initialSort } : undefined), [initialSort]);
   const [all, setAll] = React.useState(false);
   // Phones: Filters (the bar's own button, drawn here) and Refresh join the search and sort row
   // instead of a row of their own above the scope line (PLAN §S2b). Before the page knows it is a
@@ -497,9 +550,31 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
       ),
     [data.topChampions, q, sort, champ],
   );
+  const cardRef = React.useRef<HTMLDivElement>(null);
+  const listRef = React.useRef<HTMLUListElement>(null);
+  const listFootRef = React.useRef<HTMLDivElement>(null);
+  const listToolbarRef = React.useRef<HTMLDivElement>(null);
+  const listHeadRef = React.useRef<HTMLDivElement>(null);
+  // All Champions' one-screen workspace (docs/RESPONSIVE.md, "All Champions' workspace"): null on the
+  // server and while hydrating (the CSS gate, the `ws` variant, decides the first paint), then whether
+  // the window holds it. `data-workspace` marks the section while it may (ws !== false); the lists
+  // show measured pages once it does (paged).
+  const ws = useWorkspace();
+  const workspace = ws !== false;
+  const paged = ws === true;
+  const budget = useRowBudget(listRef, {
+    footRef: listFootRef,
+    cardRef,
+    rowSelector: "[data-testid=top-champion]",
+    probeRem: 3.1875,
+    lastLess: 1,
+    active: paged && rows.length > 0,
+    observe: () => [listToolbarRef.current, listHeadRef.current],
+    key: [rows.length, data.season, data.mode, data.filter.role, data.filter.accountId, sort.key, sort.dir, q],
+    cap: pageCaps?.champions ?? null,
+  });
   const sortBy = (key: SortKey) => setSort((cur) => (cur.key === key ? { key, dir: cur.dir === "asc" ? "desc" : "asc" } : { key, dir: defaultDir(key) }));
   const label = COLUMNS.find((c) => c.key === sort.key)!.label;
-  const shown = React.useMemo(() => (all || q ? rows : rows.slice(0, firstRows)), [all, q, rows, firstRows]);
   // Some champions' multikills come from only some of their games (or none yet): the list says how to read them.
   const multikillsIncomplete = rows.some((c) => !!c.multikills && c.multikills.counted < c.multikills.games);
   // Kills come from each game's full record: a champion with games still without it is marked the same way.
@@ -519,8 +594,44 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   const selected = picked?.row ?? null;
   const selRole = picked?.role ?? null;
   const selectedKey = selected?.championId ?? null;
+  // A filter changed keeps the champion open (the owner's success criterion of 27 Nov 2026, "select
+  // any champion … change filters"; decision O2), never the opponent, and the sort the address held
+  // (Overview's ?sort=multikills): the filters write them back as they are.
+  const keep = keepFor(initialSort, selectedKey, selRole);
+  // The champion has no game in the new filters: its preview's keys go, by a replace, and the list shows its first page.
+  const dropRef = React.useRef<(() => void) | null>(null);
+  React.useLayoutEffect(() => {
+    dropRef.current = address.drop;
+  });
+  const orphan = !!address.sel && !picked;
+  React.useEffect(() => {
+    if (orphan) dropRef.current?.();
+  }, [orphan]);
   const sectionRef = React.useRef<HTMLElement>(null);
-  const cardRef = React.useRef<HTMLDivElement>(null);
+  const perPage = paged ? budget : null;
+  const selectedIndex = selectedKey ? rows.findIndex((c) => c.championId === selectedKey) : -1;
+  // The filters the list shows (a refresh with new games keeps the page; another filter starts again).
+  const filterKey = `${data.season}|${data.mode}|${f.role ?? ""}|${f.accountId ?? ""}`;
+  const { page, go } = usePagedList({ perPage, total: rows.length, selected: selectedKey, selectedIndex, search: q, order: sort, data: filterKey });
+  const pages = perPage === null ? 1 : pageCount(rows.length, perPage);
+  const range = perPage === null ? null : pageRange(page, perPage, rows.length);
+  // The rows drawn: a page of them in the workspace once measured; else the first twenty, then all
+  // (Show all), as always; in the workspace before it measures, the first twenty with their tiers.
+  const offset = range && range.from > 0 ? range.from - 1 : 0;
+  const shown = React.useMemo(() => (range ? rows.slice(offset, offset + (perPage ?? 0)) : all || q ? rows : rows.slice(0, firstRows)), [range, rows, offset, perPage, all, q, firstRows]);
+  // Read out after a page change the reader made (the pager, the keys), never after a resize.
+  const [live, setLive] = React.useState("");
+  const pageWords = (p: number) => {
+    if (perPage === null) return "";
+    const r = pageRange(p, perPage, rows.length);
+    return `Champions ${formatCount(r.from)} to ${formatCount(r.to)} of ${formatCount(rows.length)}`;
+  };
+  const turn = (p: number) => {
+    go(p);
+    setLive(pageWords(p));
+  };
+  // A row to focus once it is drawn (a key that turned the page).
+  const focusRow = React.useRef<string | null>(null);
   // A game opened from the preview (an opponent's games): the match window, with the game in the
   // address (`?match=`) by the one history rule, so it has a history entry of its own: Back closes
   // the game and leaves the preview as it was, and Back from a page a link in it opened comes back
@@ -535,19 +646,23 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   // windows that get the sheet until the page has hydrated and opens it.
   const hydrated = React.useSyncExternalStore(subscribeNothing, isClient, notClient);
   const windowed = useWindowPosture();
-  const roomy = useRoomForPane(sectionRef);
+  const roomy = useRoomForPane(sectionRef, paged);
   const sheet = !!selected && hydrated && (windowed || !roomy);
   const split = !!selected && !sheet;
   const paneRef = React.useRef<HTMLElement>(null);
   const paneColumnRef = React.useRef<HTMLDivElement>(null);
   const paneSpacerRef = React.useRef<HTMLDivElement>(null);
-  const anchorPane = usePanePlacement(paneColumnRef, paneSpacerRef, paneRef, cardRef, split && hydrated);
+  // The flow's pane placement (the page scrolls the pane); in the workspace nothing scrolls, and the pane fills the frame.
+  const anchorPane = usePanePlacement(paneColumnRef, paneSpacerRef, paneRef, cardRef, split && hydrated && ws === false);
   // Another champion in the pane: its top (name, ‹ › and Close) under the tabs, wherever the list is scrolled.
   React.useLayoutEffect(() => {
     if (selectedKey) anchorPane();
   }, [selectedKey, anchorPane]);
   const rowOf = (id: string) => cardRef.current?.querySelector<HTMLElement>(`[data-testid=top-champion][data-champion="${id}"]`) ?? null;
   const rowButton = (id: string) => rowOf(id)?.querySelector<HTMLButtonElement>("[data-open-champion]") ?? null;
+  /** Where the focus goes as the preview closes: the champion's row; where the list was paged away from it (the pane keeps
+   *  its champion), the first row of the page shown, so the focus is never left on the page's body and the list stays on its page. */
+  const returnButton = (id: string) => rowButton(id) ?? cardRef.current?.querySelector<HTMLButtonElement>("[data-testid=top-champion] [data-open-champion]") ?? null;
   const [viaKeys, setViaKeys] = React.useState(false);
   const show = (c: ChampionRow, role: Role | null, keys: boolean) => {
     setViaKeys(keys);
@@ -566,7 +681,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     address.close();
     // The focus goes back to its row where it was in the preview or on the row (a click elsewhere keeps its own).
     const at = document.activeElement;
-    if (back && (!at || at === document.body || !!at.closest("[data-preview-pane]") || !!at.closest("[data-testid=top-champion]"))) rowButton(back)?.focus({ preventScroll: true });
+    if (back && (!at || at === document.body || !!at.closest("[data-preview-pane]") || !!at.closest("[data-testid=top-champion]"))) returnButton(back)?.focus({ preventScroll: true });
   };
   const closeRef = React.useRef(close);
   const chooseRef = React.useRef(choose);
@@ -577,13 +692,22 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     chooseRoleRef.current = chooseRole;
   });
   // Escape closes the pane (a window opened over it closes first, by itself; the sheet is a window
-  // and closes itself; a field being typed in or an open menu keeps its Escape).
+  // and closes itself; a field being typed in or an open menu keeps its Escape). In the workspace an
+  // opponent's games, open in the grid's place, go first: Escape brings the grid back (its page, the
+  // focus on that opponent's cell: champion-matchups.tsx), and again closes the pane.
+  const vsRef = React.useRef<string | null>(null);
+  const setVsRef = React.useRef<((vs: string | null) => void) | null>(null);
+  React.useLayoutEffect(() => {
+    vsRef.current = paged ? (address.sel?.vs ?? null) : null;
+    setVsRef.current = address.setVs;
+  });
   React.useEffect(() => {
     if (!split) return;
     const onKey = (e: KeyboardEvent) => {
       if (e.key !== "Escape" || e.defaultPrevented || modalOpen() || isTyping(e.target)) return;
       e.preventDefault();
-      closeRef.current();
+      if (vsRef.current) setVsRef.current?.(null);
+      else closeRef.current();
     };
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
@@ -598,38 +722,104 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     const was = shownRef.current;
     shownRef.current = selectedKey;
     const at = document.activeElement;
-    if (was && !selectedKey && (!at || at === document.body)) cardRef.current?.querySelector<HTMLButtonElement>(`[data-testid=top-champion][data-champion="${was}"] [data-open-champion]`)?.focus({ preventScroll: true });
+    // Its row, or where the list was paged away from it the first row of the page shown (as close() does).
+    const card = cardRef.current;
+    if (was && !selectedKey && (!at || at === document.body)) (card?.querySelector<HTMLButtonElement>(`[data-testid=top-champion][data-champion="${was}"] [data-open-champion]`) ?? card?.querySelector<HTMLButtonElement>("[data-testid=top-champion] [data-open-champion]"))?.focus({ preventScroll: true });
   }, [selectedKey]);
+  // The rows a step walks: every row in the workspace (its pages turn as it crosses them), the drawn ones in the flow.
+  const walk = range ? rows : shown;
   /** ↑/↓ (or K/J) on the list, and ‹ › in the preview, move it to the row above or below, in that champion's most played position. */
   const step = (fromId: string, d: -1 | 1, focus: boolean) => {
-    const i = shown.findIndex((c) => c.championId === fromId);
+    const i = walk.findIndex((c) => c.championId === fromId);
     if (i < 0) return;
-    const next = shown[(i + d + shown.length) % shown.length];
+    const next = walk[(i + d + walk.length) % walk.length];
     if (!next || next.championId === fromId) return;
     // A step keeps the focus where it is (the list, or ‹ › in the preview): the heading takes it only on a keyboard's open.
+    // The pane's ‹ › are drawn again with the next champion (its body cross-fades in), so the arrow pressed is found again.
+    const at = document.activeElement as HTMLElement | null;
+    const arrow = at?.closest<HTMLElement>("[data-preview-pane] [data-testid=champion-preview-prev], [data-preview-pane] [data-testid=champion-preview-next]");
+    if (arrow) stepArrow.current = arrow.dataset.testid === "champion-preview-next" ? "next" : "prev";
     setViaKeys(false);
     address.show(next.championId, next.role);
+    if (range && perPage !== null) {
+      // Across a page's edge the page turns (the selection's page) and the focus follows once the row is drawn.
+      const to = rows.findIndex((c) => c.championId === next.championId);
+      if (focus) focusRow.current = next.championId;
+      if (to >= 0 && pageOf(to, perPage) !== page) setLive(pageWords(pageOf(to, perPage)));
+      return;
+    }
     if (focus) {
       const b = rowButton(next.championId);
       b?.focus({ preventScroll: true });
       b?.closest("li")?.scrollIntoView({ block: "nearest" });
     }
   };
-  const at = selectedKey ? shown.findIndex((c) => c.championId === selectedKey) : -1;
+  // The pane's ‹ › pressed: the focus on the same arrow of the next champion's controls, or the other where it is now
+  // disabled at an end (as an opponent's ‹ › keep it).
+  const stepArrow = React.useRef<"prev" | "next" | null>(null);
+  React.useLayoutEffect(() => {
+    const which = stepArrow.current;
+    if (!which) return;
+    stepArrow.current = null;
+    const at = document.activeElement as HTMLButtonElement | null;
+    if (at && at !== document.body && at.isConnected && !at.disabled) return;
+    const pane = paneRef.current;
+    const same = pane?.querySelector<HTMLButtonElement>(`[data-testid=champion-preview-${which}]`);
+    const other = pane?.querySelector<HTMLButtonElement>(`[data-testid=champion-preview-${which === "next" ? "prev" : "next"}]`);
+    (same && !same.disabled ? same : other && !other.disabled ? other : same)?.focus({ preventScroll: true });
+  }, [selectedKey]);
+  // Focus a row a key moved to once its page is drawn.
+  React.useLayoutEffect(() => {
+    const id = focusRow.current;
+    if (!id) return;
+    const b = rowButton(id);
+    if (b) {
+      b.focus({ preventScroll: true });
+      focusRow.current = null;
+    }
+  });
+  const at = selectedKey ? walk.findIndex((c) => c.championId === selectedKey) : -1;
   const siblings: PreviewSiblings = {
     prev: selectedKey && at > 0 ? () => step(selectedKey, -1, false) : null,
-    next: selectedKey && at >= 0 && at < shown.length - 1 ? () => step(selectedKey, 1, false) : null,
+    next: selectedKey && at >= 0 && at < walk.length - 1 ? () => step(selectedKey, 1, false) : null,
     label: "Champion",
     prevTestId: "champion-preview-prev",
     nextTestId: "champion-preview-next",
   };
+  /** The workspace's page keys: a row to go to (its page shown, the focus on it once drawn). */
+  const goToRow = (index: number) => {
+    if (perPage === null || index < 0 || index >= rows.length) return;
+    const p = pageOf(index, perPage);
+    focusRow.current = rows[index]!.championId;
+    if (p !== page) turn(p);
+    else rowButton(rows[index]!.championId)?.focus({ preventScroll: true });
+  };
   const onListKey = (e: React.KeyboardEvent) => {
     // Keys inside the open preview are its own (its positions, its opponents, its games, its links).
-    if (!selectedKey || e.altKey || e.ctrlKey || e.metaKey || (e.target as Element).closest?.("#champion-preview, [data-preview-pane]")) return;
+    if (e.altKey || e.ctrlKey || e.metaKey || (e.target as Element).closest?.("#champion-preview, [data-preview-pane]")) return;
+    if (range && perPage !== null) {
+      // PageUp/PageDown: a page (the focus on its first row; PageUp its last); Home/End: the first or last row overall.
+      if (e.key === "PageDown" || e.key === "PageUp") {
+        e.preventDefault();
+        const p = e.key === "PageDown" ? Math.min(pages, page + 1) : Math.max(1, page - 1);
+        if (p === page) return;
+        const r = pageRange(p, perPage, rows.length);
+        goToRow(e.key === "PageDown" ? r.from - 1 : r.to - 1);
+        return;
+      }
+      if (e.key === "Home" || e.key === "End") {
+        e.preventDefault();
+        goToRow(e.key === "Home" ? 0 : rows.length - 1);
+        return;
+      }
+    }
+    if (!selectedKey) return;
     const d = e.key === "ArrowDown" || e.key === "j" ? 1 : e.key === "ArrowUp" || e.key === "k" ? -1 : 0;
     if (!d) return;
     e.preventDefault();
-    step(selectedKey, d, true);
+    // In the workspace from the focused row (else the open one); in the flow from the open one, as always.
+    const focused = range ? ((e.target as Element).closest?.("[data-testid=top-champion]") as HTMLElement | null)?.dataset.champion : null;
+    step(focused ?? selectedKey, d, true);
   };
   const listKeyRef = React.useRef(onListKey);
   React.useLayoutEffect(() => {
@@ -639,7 +829,9 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   // The rows, kept while nothing they show changes.
   const rowItems = React.useMemo(
     () =>
-      shown.map((c, i) => {
+      shown.map((c, n) => {
+          // Its place on the whole list (the rank drawn, and read out with the list's size).
+          const i = (range ? offset : 0) + n;
           const ch = champ(c.championId);
           const r = c.selected;
           const p = c.performance;
@@ -657,7 +849,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           const narrowFigure = split || sorted === "champion" || sorted === "games" || sorted === "win" ? null : (summaryPairs(c, sorted).find((pair) => pair.sorted) ?? null);
           return (
             // A row lights up while pointed at or focused (a quiet tint; the whole row opens the champion's window).
-            <li key={c.championId} data-role={c.role ?? ""} className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2 @max-[17rem]:grid-cols-[minmax(0,1fr)] transition-colors duration-150 hover:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:outline has-[[data-open-champion]:focus-visible]:outline-2 has-[[data-open-champion]:focus-visible]:-outline-offset-2 has-[[data-open-champion]:focus-visible]:outline-accent @min-[44rem]:py-1.5 md:group-data-[split]/list:py-1.5 data-[selected=true]:bg-surface-3 data-[selected=true]:hover:bg-surface-3 data-[selected=true]:has-[[data-open-champion]:focus-visible]:bg-surface-3 data-[selected=true]:before:absolute data-[selected=true]:before:inset-y-0 data-[selected=true]:before:left-0 data-[selected=true]:before:w-0.5 data-[selected=true]:before:bg-accent", !split && GRID)} data-selected={selectedKey === c.championId || undefined} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-roles={c.roles.map((x) => x.role).join(",")} data-no-role={c.noRole || undefined} data-kills={p.totalKills ?? ""} data-mastery={c.mastery?.points ?? ""} data-multikills={c.multikills?.counted ? MULTIKILL_KINDS.map((k) => c.multikills![k.key]).join(",") : ""} data-multikill-coverage={c.multikills ? multikillCoverage(c.multikills).state : ""}>
+            <li key={c.championId} data-role={c.role ?? ""} aria-setsize={rows.length} aria-posinset={i + 1} className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2 @max-[17rem]:grid-cols-[minmax(0,1fr)] transition-colors duration-150 hover:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:outline has-[[data-open-champion]:focus-visible]:outline-2 has-[[data-open-champion]:focus-visible]:-outline-offset-2 has-[[data-open-champion]:focus-visible]:outline-accent @min-[44rem]:py-1.5 md:group-data-[split]/list:py-1.5 data-[selected=true]:bg-surface-3 data-[selected=true]:hover:bg-surface-3 data-[selected=true]:has-[[data-open-champion]:focus-visible]:bg-surface-3 data-[selected=true]:before:absolute data-[selected=true]:before:inset-y-0 data-[selected=true]:before:left-0 data-[selected=true]:before:w-0.5 data-[selected=true]:before:bg-accent", split ? SHEET_FIRST_PAINT_GRID : GRID, !range && wsTierClass(i))} data-selected={selectedKey === c.championId || undefined} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-roles={c.roles.map((x) => x.role).join(",")} data-no-role={c.noRole || undefined} data-kills={p.totalKills ?? ""} data-mastery={c.mastery?.points ?? ""} data-multikills={c.multikills?.counted ? MULTIKILL_KINDS.map((k) => c.multikills![k.key]).join(",") : ""} data-multikill-coverage={c.multikills ? multikillCoverage(c.multikills).state : ""}>
               <span className="flex min-w-0 items-center gap-3">
                 <span className="hidden w-5 shrink-0 text-right text-xs tabular-nums text-fg-subtle @4xl/section:block" aria-hidden>
                   {i + 1}
@@ -679,7 +871,9 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
                       line: five touch marks and "In pool" fit the table's narrowest champion column, and
                       five mouse buttons the list beside the pane; only five or four mouse buttons in the
                       table's narrowest column (a window of about 770–1100px) let "In pool" go under them. */}
-                  <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-fg-muted" data-testid="champion-role-line">
+                  {/* In the workspace every row is one height (the "In pool" chip's line, 1rem and its border, with or without
+                      it), so a page of rows measures the same as the next and the pages never shift as they turn. */}
+                  <span className="mt-0.5 flex flex-wrap items-center gap-x-1.5 gap-y-0.5 text-xs text-fg-muted ws:min-h-[calc(1rem+2px)]" data-testid="champion-role-line">
                     <RoleIcons row={c} champion={ch.name} active={selectedKey === c.championId ? selRole : null} onPick={(role, keys) => chooseRoleRef.current(c, role, keys)} onAhead={(role) => void previewData.preview(c.championId, role)} />
                     {/* Kept on one line, except in a list under 17rem (a large text size), where it wraps inside the phone. */}
                     {narrowFigure ? (
@@ -743,9 +937,9 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
             </li>
           );
         }),
-    [shown, champ, sorted, total, selectedKey, selRole, split, previewData],
+    [shown, champ, sorted, total, selectedKey, selRole, split, previewData, range, offset, rows.length],
   );
-  const contentProps = (c: ChampionRow, role: Role | null) => ({ playerId, isOwn, row: c, role, vs: address.sel?.vs ?? null, champ, data: previewData, onVs: address.setVs, onRole: address.setRole, titleId: "champion-preview-title", onMatch: game.open, searchFrom: opponentSearchFrom });
+  const contentProps = (c: ChampionRow, role: Role | null) => ({ playerId, isOwn, row: c, role, vs: address.sel?.vs ?? null, champ, data: previewData, onVs: address.setVs, onRole: address.setRole, titleId: "champion-preview-title", onMatch: game.open, searchFrom: opponentSearchFrom, paged, perColumnCap: pageCaps?.opponents ?? null });
   // What the preview shows, read out as it opens or switches (polite: the focus stays where it is).
   const announce = (c: ChampionRow, role: Role | null) => {
     const fig = roleFigures(c, role)?.selected ?? c.selected;
@@ -775,7 +969,10 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     </div>
   );
   return (
-    <section ref={sectionRef} className="@container/section space-y-3" aria-labelledby="all-champions" data-testid="all-champions">
+    // The workspace (ws:, globals.css): the section is the rest of the shell's window-tall column, its cards reaching the frame's foot.
+    // Its parts 12px apart: space-y in the flow; a gap in the workspace's flex column, which only its laid-out parts take (a
+    // margin would also go to the layout before a closed or top-layer dialog, or the flow's hidden legend, and shorten the frame).
+    <section ref={sectionRef} className="@container/section space-y-3 ws:flex ws:flex-1 ws:flex-col ws:gap-3 ws:space-y-0" aria-labelledby="all-champions" data-testid="all-champions" data-workspace={workspace ? "" : undefined}>
       {/* The profile's one heading layout (as Season performance and Match History). */}
       <SectionHeader
         id="all-champions"
@@ -791,6 +988,8 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
         statusAfterText
         // Phones: Filters (and Refresh) on the title's line, the scope under them (SectionHeader's toolbarBesideScope, as Season performance).
         toolbarBesideScope
+        // From xl the scope follows the title on its line where both fit (36px instead of 54: the workspace's rows have it).
+        scopeBesideTitle
         status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
         // Below sm Refresh is in the list's row (with Filters); its place here is drawn from sm only.
         refresh={status && !(phone && toolsInRow) ? <RefreshButton status={status} refresh={refresh} className={toolsInRow ? "max-sm:hidden" : undefined} /> : null}
@@ -806,8 +1005,12 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           section of 47.5rem or more: PANE_ROOM_REM): the list narrows to its champions, their positions,
           games and win rates (its own width then sets its layout: the card becomes the container its
           rows and toolbar read), and the pane takes the rest. */}
-      <div className={cn(split && "grid items-start gap-4 md:[@media(min-height:30.0625rem)]:@min-[47.5rem]:grid-cols-[minmax(22.5rem,min(32%,24rem))_minmax(0,1fr)]")} data-testid="all-champions-layout" data-split={split || undefined}>
-      <div ref={cardRef} className={cn("group/list relative min-w-0 rounded-card border border-border bg-surface panel-depth", split && "@container")} data-split={split || undefined} data-testid="all-champions-table">
+      {/* The workspace: the layout fills the frame; beside the pane both cards reach its foot (stretched), their footers on one
+          baseline. The pane only where the section holds the opponents' two columns beside the list (WS_PANE_SECTION_REM). The
+          workspace's grid and column classes are marked important: the flow's (an arbitrary media variant) come later in the
+          stylesheet, and the workspace's must win wherever it applies. */}
+      <div className={cn(split ? "grid items-start gap-4 md:[@media(min-height:30.0625rem)]:@min-[47.5rem]:grid-cols-[minmax(22.5rem,min(32%,24rem))_minmax(0,1fr)] ws:flex-1 ws:grid-cols-1! ws:items-stretch ws:@min-[64.75rem]/section:grid-cols-[minmax(22.5rem,min(32%,24rem))_minmax(0,1fr)]!" : "ws:flex ws:flex-1 ws:flex-col")} data-testid="all-champions-layout" data-split={split || undefined}>
+      <div ref={cardRef} className={cn("group/list relative min-w-0 rounded-card border border-border bg-surface panel-depth", split ? "@container ws:flex ws:flex-col" : "ws:flex ws:flex-1 ws:flex-col")} data-split={split || undefined} data-testid="all-champions-table" data-ws-region={range ? "list" : undefined} data-per={perPage ?? undefined} data-page={range ? page : undefined} data-pages={range ? pages : undefined} data-total={range ? rows.length : undefined}>
         {data.topChampions.length ? (
           // Below 76rem the toolbar has the rows' padding, so the search lines up with the champions.
           // From a 20.5rem card (a 360px phone) the search and Sort by share one row; on a narrower
@@ -818,12 +1021,16 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           // search then shows its short placeholder "Find…" whole, from a 375px phone, its padding there 4px
           // less beside the icon and 6px at the end while empty: 52px of room for the word's 47), else takes the next line; the search keeps
           // at least 4.5rem and the tools take the line under it only when it would not (a large text size).
-          <div ref={toolbarRef} className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 sm:@min-[20.5rem]:flex-nowrap @min-[44rem]:flex-wrap @min-[76rem]:px-4" data-testid="all-champions-toolbar">
+          <div ref={(el) => {
+            toolbarRef.current = el;
+            listToolbarRef.current = el;
+          }} className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 sm:@min-[20.5rem]:flex-nowrap @min-[44rem]:flex-wrap @min-[76rem]:px-4 ws:py-2" data-testid="all-champions-toolbar">
             <div className={cn("flex min-w-0 flex-[1_1_12rem] flex-wrap items-center gap-2 max-sm:flex-[1_1_0%] @min-[44rem]:max-w-xs", refreshHere ? "max-sm:min-w-[min(11.75rem,100%)]" : "max-sm:min-w-[min(8.5rem,100%)]")}>
               <SearchInput ref={searchRef} value={query} onChange={setQuery} placeholder={phone || split ? "Find…" : "Find a champion or role…"} label="Find a champion or a role" className="flex-[1_1_4.5rem] max-sm:[&_input]:pl-8 max-sm:[&_input:placeholder-shown]:pr-1.5" testId="all-champions-search" />
               {toolsBesideSort ? null : phoneTools}
             </div>
-            <span className="ml-auto hidden text-xs tabular-nums text-fg-subtle @min-[44rem]:inline" aria-live="polite" data-testid="all-champions-count">
+            {/* The workspace's footer gives the range, so its count is drawn only while searching ("3 of 30 champions"). */}
+            <span className={cn("ml-auto hidden text-xs tabular-nums text-fg-subtle @min-[44rem]:inline", !q && "ws:hidden")} aria-live="polite" data-testid="all-champions-count">
               {q ? `${rows.length} of ${data.topChampions.length}` : data.topChampions.length} champion{(q ? rows.length : data.topChampions.length) === 1 ? "" : "s"}
             </span>
             {/* What the bar under Games shows, as a chart's key, on screen for every reader where the
@@ -877,8 +1084,14 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
             {/* Pinned under the profile's section tabs, which stay pinned above it (globals.css: --bar-top, --tabs-top).
                 Beside the preview the list keeps a heading row of the same height, so no row moves as it
                 opens: the champion, and its games and win rate at the right (the figures it shows). */}
+            {split && !hydrated ? (
+              // The first paint of a linked preview where the sheet will take it (SHEET_FIRST_PAINT_GRID): the wide heading row.
+              <div className={cn("hidden items-center border-b border-border/70 bg-surface px-3 ws:@max-[64.75rem]/section:@min-[44rem]:grid!", GRID)} role="group" aria-label="Sort the champions">
+                {COLUMNS.map((c) => heading(c))}
+              </div>
+            ) : null}
             {split ? (
-              <div className="sticky top-[calc(var(--bar-top)+var(--tabs-top))] z-[1] hidden items-center justify-between gap-4 border-b border-border/70 bg-surface px-3 md:flex" role="group" aria-label="Sort the champions" data-testid="all-champions-header">
+              <div ref={listHeadRef} className="sticky top-[calc(var(--bar-top)+var(--tabs-top))] z-[1] hidden items-center justify-between gap-4 border-b border-border/70 bg-surface px-3 md:flex ws:static ws:@max-[64.75rem]/section:hidden!" role="group" aria-label="Sort the champions" data-testid="all-champions-header">
                 <span className="flex min-w-0 items-center gap-3">
                   {heading(COLUMNS[0]!)}
                   {/* Sorted by a figure the narrowed list does not show (KDA, mastery…): said here, once, instead of under every row. */}
@@ -898,37 +1111,72 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
                 </span>
               </div>
             ) : (
-              <div className={cn("sticky top-[calc(var(--bar-top)+var(--tabs-top))] z-[1] hidden items-center border-b border-border/70 bg-surface px-3 @min-[44rem]:grid", GRID)} role="group" aria-label="Sort the champions" data-testid="all-champions-header">
+              <div ref={listHeadRef} className={cn("sticky top-[calc(var(--bar-top)+var(--tabs-top))] z-[1] hidden items-center border-b border-border/70 bg-surface px-3 @min-[44rem]:grid ws:static", GRID)} role="group" aria-label="Sort the champions" data-testid="all-champions-header">
                 {COLUMNS.map((c) => heading(c))}
               </div>
             )}
-            <ul className="divide-y divide-border/60" onKeyDown={(e) => listKeyRef.current(e)}>
+            <ul ref={listRef} className="divide-y divide-border/60" onKeyDown={(e) => listKeyRef.current(e)} aria-label="Champions" aria-describedby={workspace ? "all-champions-range" : undefined}>
               {rowItems}
             </ul>
-            {!all && !q && rows.length > firstRows ? (
-              <button type="button" onClick={() => setAll(true)} className="flex min-h-11 w-full items-center justify-center rounded-b-card border-t border-border/70 text-sm font-medium text-accent transition-colors hover:bg-accent/5" data-testid="all-champions-more">
+            {/* Show all is the flow's (the workspace pages instead, and hides it until it knows). */}
+            {!range && !all && !q && rows.length > firstRows ? (
+              <button type="button" onClick={() => setAll(true)} className="flex min-h-11 w-full items-center justify-center rounded-b-card border-t border-border/70 text-sm font-medium text-accent transition-colors hover:bg-accent/5 ws:hidden" data-testid="all-champions-more">
                 Show all {rows.length} champions
               </button>
             ) : null}
           </>
         )}
+        {workspace && rows.length ? (
+          // The workspace's footer, at the card's foot: the multikill legend (the wide list, where its marks are drawn), then
+          // the range and the pager. Before the page measures, the total only.
+          <div ref={listFootRef} className="mt-auto hidden min-h-11 items-center gap-3 border-t border-border/70 px-3 ws:flex @min-[76rem]:px-4" data-ws-foot="" data-testid="all-champions-foot">
+            {range && !split && (multikillsIncomplete || killsIncomplete) ? <MultikillLegend multikills={multikillsIncomplete} kills={killsIncomplete} className="min-w-0 flex-[0_1_auto]" /> : null}
+            <Pager
+              layout="inline"
+              label="Champion pages"
+              page={range ? page : 1}
+              pages={range ? pages : 1}
+              onPage={turn}
+              range={
+                range && pages > 1 ? (
+                  <>
+                    <span className="sr-only">Champions </span>
+                    {formatCount(range.from)}–{formatCount(range.to)} of {formatCount(rows.length)}
+                  </>
+                ) : (
+                  `${formatCount(rows.length)} champion${rows.length === 1 ? "" : "s"}`
+                )
+              }
+              widest={`${rows.length}–${rows.length} of ${rows.length}`}
+              rangeId="all-champions-range"
+              prevLabel="Previous page"
+              nextLabel="Next page"
+              live={live}
+              testId="all-champions-pager"
+              prevTestId="all-champions-prev"
+              nextTestId="all-champions-next"
+            />
+          </div>
+        ) : null}
       </div>
       {split && selected ? (
         // The pane's column, as tall as the list (the grid's row): a spacer, then the pane, which the page
         // scrolls (usePanePlacement: pinned under the section tabs while it fits the window; taller, it
         // moves with the page between the tabs and the window's foot). Nothing in it scrolls on its own;
         // its header (portrait, name, ‹ › and Close) stays pinned under the tabs while the pane passes.
-        <div ref={paneColumnRef} className="hidden min-w-0 self-stretch [overflow-anchor:none] md:[@media(min-height:30.0625rem)]:@min-[47.5rem]:block" data-testid="champion-preview-column">
+        <div ref={paneColumnRef} className="hidden min-w-0 self-stretch [overflow-anchor:none] md:[@media(min-height:30.0625rem)]:@min-[47.5rem]:block ws:hidden! ws:flex-col ws:@min-[64.75rem]/section:flex!" data-testid="champion-preview-column">
           <div ref={paneSpacerRef} aria-hidden data-pane-spacer />
-          <aside ref={paneRef} className="sticky top-[calc(var(--bar-top)+var(--tabs-top)+0.75rem)] min-w-0 overflow-clip rounded-card border border-border bg-surface panel-depth" aria-labelledby="champion-preview-title" data-preview-pane data-testid="champion-preview">
+          {/* The workspace: in the frame, not pinned, its overflow visible (a flex item that clips gets no least height and would cut silently). */}
+          <aside ref={paneRef} className="sticky top-[calc(var(--bar-top)+var(--tabs-top)+0.75rem)] min-w-0 overflow-clip rounded-card border border-border bg-surface panel-depth ws:static ws:flex ws:flex-1 ws:flex-col ws:overflow-visible" aria-labelledby="champion-preview-title" data-preview-pane data-testid="champion-preview">
             <span className="sr-only" aria-live="polite">
               {announce(selected, selRole)}
             </span>
             {/* Another champion cross-fades in (120ms; at once with reduced motion). */}
-            <div key={selected.championId} className="px-5 pb-5 motion-safe:swap-in">
+            <div key={selected.championId} className="px-5 pb-5 motion-safe:swap-in ws:flex ws:flex-1 ws:flex-col ws:pb-0">
               <PreviewContent
                 {...contentProps(selected, selRole)}
                 chrome="pane"
+                layout={workspace ? "workspace" : "flow"}
                 controls={
                   <div className="flex shrink-0 items-center gap-1" data-testid="champion-preview-controls">
                     <SiblingSteps siblings={siblings} />
@@ -944,14 +1192,8 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
         </div>
       ) : null}
       </div>
-      {rows.length && (multikillsIncomplete || killsIncomplete) ? (
-        <p className="flex flex-wrap items-center gap-x-1.5 px-1 text-xs text-fg-muted" data-testid="multikill-legend">
-          <span>
-            {multikillsIncomplete && killsIncomplete ? "Kills and multikills" : killsIncomplete ? "Kills" : "Multikills"}: <span className="font-semibold text-warn">*</span> only some games counted so far · <span className="text-fg-subtle">—</span> not counted yet (never shown as zero)
-          </span>
-          {multikillsIncomplete ? <InfoTip text={MULTIKILL_HELP} label="About multikills" /> : null}
-        </p>
-      ) : null}
+      {/* The flow's legend under the list (the workspace moves it into the list's footer, or beside the pane into P4). */}
+      {!range && rows.length && (multikillsIncomplete || killsIncomplete) ? <MultikillLegend multikills={multikillsIncomplete} kills={killsIncomplete} className="px-1 ws:hidden" /> : null}
       {/* Touch phones, the phone's frame and short windows: the same content in a sheet (the phone
           window shell), its ‹ › and its Close in its header: the pane's labelled Close, not the quiet ✕
           of other windows (the owner's request: a prominent, easily accessible close action). While a

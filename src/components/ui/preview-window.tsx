@@ -4,6 +4,7 @@ import type * as React from "react";
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { DetailModal } from "./detail-modal";
 import { WINDOW_CONTROL_TOUCH } from "./window-control";
+import { formatCount } from "@/lib/format";
 
 /*
   PreviewWindow: the phone window shell (PLAN S4a, container 8; docs/DESIGN_SYSTEM.md §7). The
@@ -29,14 +30,23 @@ export interface PreviewSiblings {
 /** The look of a window's and a Peek's own controls (‹ ›, ✕): 36px, 44px on touch screens (WINDOW_CONTROL_TOUCH). */
 export const PREVIEW_NAV = `inline-flex h-9 w-9 items-center justify-center rounded-lg bg-bg/60 text-fg-muted transition-colors hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:text-fg-disabled disabled:hover:bg-bg/60 disabled:hover:text-fg-disabled focus-visible:outline-2 focus-visible:outline-accent ${WINDOW_CONTROL_TOUCH}`;
 
-/** ‹ › for an item's siblings: disabled at either end of the list, never wrapping. */
-export function SiblingSteps({ siblings }: { siblings: PreviewSiblings }) {
+/**
+ * ‹ › for an item's siblings: disabled at either end of the list, never wrapping. With `position`,
+ * where the item stands between them ("3 of 40", read as "Opponent 3 of 40").
+ */
+export function SiblingSteps({ siblings, position }: { siblings: PreviewSiblings; position?: { at: number; of: number } }) {
   const label = siblings.label.toLowerCase();
   return (
     <>
       <button type="button" onClick={siblings.prev ?? undefined} disabled={!siblings.prev} aria-label={`Previous ${label}`} className={PREVIEW_NAV} data-testid={siblings.prevTestId}>
         <ChevronLeft className="h-4 w-4" aria-hidden />
       </button>
+      {position ? (
+        <span className="whitespace-nowrap px-0.5 text-xs tabular-nums text-fg-subtle" data-testid="sibling-position">
+          <span className="sr-only">{siblings.label} </span>
+          {formatCount(position.at)} of {formatCount(position.of)}
+        </span>
+      ) : null}
       <button type="button" onClick={siblings.next ?? undefined} disabled={!siblings.next} aria-label={`Next ${label}`} className={PREVIEW_NAV} data-testid={siblings.nextTestId}>
         <ChevronRight className="h-4 w-4" aria-hidden />
       </button>

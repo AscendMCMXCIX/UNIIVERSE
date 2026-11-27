@@ -188,10 +188,11 @@ import { championLookupVerdicts, readChampionLookup, readChampionWindow } from "
 import { buildsVerdicts, probeFrom, probePath, readBuildsColumns } from "./builds-facts.mjs";
 import { MATCHUP_READ, matchupVerdicts, readMatchup } from "./matchup-facts.mjs";
 import { fitVerdicts, postGameVerdicts, readFit, readInspection, readPostGame, switchVerdicts } from "./post-game-facts.mjs";
-import { championPreviewVerdicts, readChampionPreview, readChampionRows, targetRow } from "./champion-preview-facts.mjs";
+import { championPreviewVerdicts, firstWithGames, readChampionPreview, readChampionRows, targetRow } from "./champion-preview-facts.mjs";
 import { breakdownKeyboardVerdicts, breakdownVerdicts, MULTIKILL_ROLE_LABEL, multikillVerdicts, readBreakdownFocus, readMultikillBoard, readMultikillBreakdown } from "./multikill-facts.mjs";
 import { cardScoreVerdicts, firstScored, readCardScores, readOpenedScore, readTogetherScores, togetherScoreVerdicts } from "./card-score-facts.mjs";
 import { oneScreenInput, oneScreenVerdicts, readOneScreen } from "./one-screen-facts.mjs";
+import { readPage, readWorkspace, walkSummary, workspaceVerdicts } from "./all-champions-workspace-facts.mjs";
 import { TABLE_FIGURES, readTableFigures, readTypeFacts, tableFigureVerdicts, typeVerdicts } from "./type-facts.mjs";
 import { execFileSync } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
@@ -647,7 +648,7 @@ async function frameChecks(page, kind, context) {
     const tappedAt = Date.now();
     await avatar.tap();
     const screen = page.getByTestId("account-sheet");
-    const opened = await screen.waitFor({ timeout: 15_000 }).then(() => true, () => false);
+    const opened = await softWait(screen, { timeout: 15_000 });
     pass("frame", "phone: the avatar opens the account screen on the first tap", opened, { openedAfterMs: opened ? Date.now() - tappedAt : null });
     if (opened) {
       // At rest: its opening motion run and dropped (data-entered), within a few seconds.
@@ -781,7 +782,7 @@ async function accountMenuFirstTap(page, kind, trigger) {
   const tappedAt = Date.now();
   if (kind === "tablet") await trigger.tap();
   else await trigger.click();
-  const menu = await page.getByTestId("account-menu").waitFor({ timeout: 15_000 }).then(() => true, () => false);
+  const menu = await softWait(page.getByTestId("account-menu"), { timeout: 15_000 });
   pass("frame", `${kind}: the account menu opens on the first ${kind === "tablet" ? "tap" : "click"}`, menu, { openedAfterMs: menu ? Date.now() - tappedAt : null });
   await page.keyboard.press("Escape");
   await page.waitForTimeout(400);
@@ -920,10 +921,10 @@ async function sharedKitFacts(page, kind) {
     const before = await page.evaluate(() => ({ y: Math.round(scrollY), entries: history.length }));
     await open.click();
     const panel = page.getByTestId("player-detail");
-    const opened = await panel.waitFor({ state: "visible", timeout: 10_000 }).then(() => true, () => false);
+    const opened = await softWait(panel, { state: "visible", timeout: 10_000 });
     const address = /[?&]player=/.test(page.url());
     await page.goBack();
-    const closed = await panel.waitFor({ state: "hidden", timeout: 10_000 }).then(() => true, () => false);
+    const closed = await softWait(panel, { state: "hidden", timeout: 10_000 });
     const after = await page.evaluate(() => ({ y: Math.round(scrollY), path: location.pathname, player: /[?&]player=/.test(location.search) }));
     pass("team", peekName, opened && address && closed && !after.player && after.path === "/team" && after.y === before.y, { opened, address, closed, stillOnTeam: after.path === "/team", moved: after.y - before.y });
   }
@@ -935,11 +936,11 @@ async function sharedKitFacts(page, kind) {
   const url = page.url();
   await tip.tap();
   const bubble = page.locator("[data-testid=info-tip-bubble]");
-  const shown = await bubble.waitFor({ state: "visible", timeout: 5_000 }).then(() => true, () => false);
+  const shown = await softWait(bubble, { state: "visible", timeout: 5_000 });
   const box = shown ? await bubble.boundingBox() : null;
   const inside = !!box && box.x >= 0 && box.y >= 0 && box.x + box.width <= 390 + 0.5 && box.y + box.height <= 844 + 0.5;
   if (box) await page.touchscreen.tap(box.x + box.width / 2, box.y + box.height / 2);
-  const gone = await bubble.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
+  const gone = await softWait(bubble, { state: "detached", timeout: 5_000 });
   await page.waitForTimeout(300);
   const after = await page.evaluate(() => ({ dialogs: document.querySelectorAll("dialog[open]").length }));
   pass("team", tipName, shown && inside && gone && after.dialogs === 0 && page.url() === url, { shown, inside, closed: gone, windowsOpened: after.dialogs, addressKept: page.url() === url });
@@ -1626,7 +1627,7 @@ async function allChampions(page, log, kind, playerId) {
     const before = { x: await names(), y: await page.evaluate(() => scrollY), rows: await rowTops() };
     await open.click();
     const content = page.getByTestId("champion-preview-content");
-    const opened = await content.waitFor({ timeout: 15_000 }).then(() => true, () => false);
+    const opened = await softWait(content, { timeout: 15_000 });
     // The pane: an aside in the page beside the list (not a window), within the screen's width, the list's card and the selected row's name clear of it.
     const paneFacts = () =>
       page.evaluate(() => {
@@ -1655,14 +1656,15 @@ async function allChampions(page, log, kind, playerId) {
         pass("all-champions", `${kind}: the preview opens in a pane beside the list (no window, within the screen, the list and the row's name clear of it, nothing wider than the screen, no scroll box of its own and nothing scrolling inside the page)`, pane.found && !pane.window && pane.within && pane.besideList && pane.nameClear && !pane.sideways && !pane.scrollBox && pane.scrollers === 0, pane);
         await page.keyboard.press("Escape");
       }
-      const escaped = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
+      const escaped = await softWait(content, { state: "detached", timeout: 5_000 });
       await open.click();
-      const again = await content.waitFor({ timeout: 15_000 }).then(() => true, () => false);
+      const again = await softWait(content, { timeout: 15_000 });
       await page.goBack();
-      const backed = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
+      const backed = await softWait(content, { state: "detached", timeout: 5_000 });
       const still = after.x.length === before.x.length && after.x.every((x, i) => Math.abs(x - before.x[i]) <= 1) && after.y === before.y && after.rows.length === before.rows.length && after.rows.every((t, i) => Math.abs(t - before.rows[i]) <= 1);
       pass("games", `${kind}: the champion preview opens beside the list, which stays where it was (every champion's name at the same x, every row's top, the page not scrolled); Escape and Back close it`, opened && still && escaped && again && backed, { opened, before: { y: before.y }, after: { y: after.y }, rowsKept: still, escaped, backed });
       await guarded("all-champions", `${kind}: the preview's content`, () => championPreviewFacts(page, kind));
+      await guarded("all-champions", `${kind}: the one-screen workspace`, () => workspaceFacts(page));
     } else {
       // The sheet (the phone window shell).
       const sheet = await page.locator("dialog[open][data-testid=champion-preview]").count();
@@ -1672,7 +1674,7 @@ async function allChampions(page, log, kind, playerId) {
         await axe(page, kind, "champion-preview", "[data-testid=champion-preview]");
         await page.goBack();
       }
-      const closed = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
+      const closed = await softWait(content, { state: "detached", timeout: 5_000 });
       pass("games", `${kind}: the champion preview opens (a sheet) and Back closes it`, opened && sheet === 1 && closed, { opened, sheet, closed });
     }
   }
@@ -1686,18 +1688,36 @@ async function allChampions(page, log, kind, playerId) {
  * A list with no such champion is a warning, not a failure.
  */
 async function championPreviewFacts(page, kind) {
-  // The whole list ("Show all", a toggle in the page: no request), so the page can scroll for the browsing position.
+  // The one-screen workspace (27 Nov 2026): the list in pages. The row is read on its second page where it has one (a page
+  // change is the page's own state: no request), so a jump back to the first page shows in the browsing position.
+  const paged = await page.evaluate(() => Number(document.querySelector("[data-ws-region=list]")?.getAttribute("data-pages") ?? "0"));
+  if (paged >= 2) {
+    await page.getByTestId("all-champions-next").click().catch(() => {});
+    await page.waitForFunction(() => document.querySelector("[data-ws-region=list]")?.getAttribute("data-page") === "2", null, { timeout: 5_000 }).catch(() => {});
+  }
+  // The flow: the whole list ("Show all", a toggle in the page: no request), so the page can scroll for the browsing position.
   const all = page.getByTestId("all-champions-more");
-  if (await all.count()) await all.click().catch(() => {});
-  const rows = await page.evaluate(readChampionRows);
-  const i = targetRow(rows, 3);
+  if (!paged && (await all.count())) await all.click().catch(() => {});
+  let rows = await page.evaluate(readChampionRows);
+  let i = targetRow(rows, 3);
+  if (i < 0 && paged >= 2) {
+    // No row of 3+ games on the second page: the first page's.
+    await page.getByTestId("all-champions-prev").click().catch(() => {});
+    await page.waitForFunction(() => document.querySelector("[data-ws-region=list]")?.getAttribute("data-page") === "1", null, { timeout: 5_000 }).catch(() => {});
+    rows = await page.evaluate(readChampionRows);
+    i = targetRow(rows, 3);
+  }
   if (i < 0) return warn("all-champions", `${kind}: skipped: no champion on the list has 3 or more games, so the preview's content was not read`, { rows: rows.length });
   const row = page.locator("[data-testid=top-champion]").nth(i);
   const button = row.locator("[data-open-champion]");
-  // The browsing position (row 4.5d): the row brought to the middle of the screen, where it stays.
+  // The workspace's browsing position: the list's page and every drawn row's top, before, open and after Escape.
+  const listState = () => page.evaluate(() => ({ page: Number(document.querySelector("[data-ws-region=list]")?.getAttribute("data-page") ?? "0"), tops: [...document.querySelectorAll("[data-testid=top-champion]")].map((r) => Math.round(r.getBoundingClientRect().top)) }));
+  const moved = (a, b) => (a.tops.length === b.tops.length ? Math.max(0, ...a.tops.map((t, k) => Math.abs(t - b.tops[k]))) : 999);
+  const before = paged ? await listState() : null;
+  // The flow's browsing position (row 4.5d): the row brought to the middle of the screen, where it stays.
   // In the middle of the screen; a row near the list's top is scrolled up to about 200px from the
   // window's top instead, then down a step at a time while anything pinned covers it.
-  await row.evaluate(async (r) => {
+  if (!paged) await row.evaluate(async (r) => {
     const frame = () => new Promise((done) => requestAnimationFrame(() => requestAnimationFrame(done)));
     r.scrollIntoView({ block: "center" });
     await frame();
@@ -1718,18 +1738,25 @@ async function championPreviewFacts(page, kind) {
   await softWait(content, { timeout: 15_000 });
   // Loaded: the foot line comes with the answer (or the "could not be loaded" line in its place).
   await page.waitForFunction(() => !document.querySelector("[data-testid=champion-preview-loading]"), null, { timeout: 15_000 }).catch(() => {});
+  // The opponents as drawn (in the workspace the grid gives way to an opponent's games once one opens: read them first).
+  const shownFirst = await page.evaluate(readChampionPreview, i);
   const opponent = content.locator("[data-testid=champion-preview-opponent] > button").first();
   if (await opponent.count()) {
     await opponent.click();
     await softWait(content.getByTestId("champion-preview-lookup"), { timeout: 15_000 });
   }
-  const at = await page.evaluate(readChampionPreview, i);
+  const read = await page.evaluate(readChampionPreview, i);
+  const at = read.open && shownFirst.open && !(read.opponents ?? []).length ? { ...read, opponents: shownFirst.opponents, folded: shownFirst.folded } : read;
   const yOpen = await rowTop();
-  // Escape from here first, for the position (the next row's step below opens it again).
+  const whileOpen = paged ? await listState() : null;
+  // Escape from here first, for the position (the next row's step below opens it again). In the workspace the first
+  // Escape takes the opponent's games back to the grid, the second closes the pane.
   await page.keyboard.press("Escape");
+  if (paged) await page.waitForTimeout(150).then(() => page.keyboard.press("Escape"));
   await softWait(page.getByTestId("champion-preview-content"), { state: "detached", timeout: 5_000 });
   await page.waitForTimeout(200);
-  const kept = { scrolled, open: yOpen - y0, closed: (await rowTop()) - y0 };
+  const after = paged ? await listState() : null;
+  const kept = paged ? { pages: paged, pageBefore: before.page, pageOpen: whileOpen.page, pageClosed: after.page, open: moved(whileOpen, before), closed: moved(after, before) } : { scrolled, open: yOpen - y0, closed: (await rowTop()) - y0 };
   await button.click();
   await softWait(content, { timeout: 15_000 });
   // ↓ from the row: the next row's preview, the address replaced (the list keeps the keys while the focus is in it).
@@ -1737,26 +1764,170 @@ async function championPreviewFacts(page, kind) {
   if (rows.length > 1) {
     const before = await page.evaluate(() => ({ url: location.href, length: history.length }));
     await button.focus();
+    const from = await row.getAttribute("data-champion");
     await page.keyboard.press("ArrowDown");
     const next = (i + 1) % rows.length;
+    // The next row: the flow's next drawn one; in the workspace the row that took the focus (↓ may turn the page).
     const moved = await page
-      .waitForFunction((n) => {
-        const row = document.querySelectorAll("[data-testid=top-champion]")[n];
-        const c = document.querySelector("[data-testid=champion-preview-content]");
-        return !!row && !!c && c.getAttribute("data-champion") === row.getAttribute("data-champion") && (c.getAttribute("data-role") ?? "") === (row.getAttribute("data-role") ?? "");
-      }, next, { timeout: 10_000 })
+      .waitForFunction(
+        ({ n, start, inPages }) => {
+          const row = (inPages ? document.activeElement?.closest("[data-testid=top-champion]") : document.querySelectorAll("[data-testid=top-champion]")[n]) ?? null;
+          const c = document.querySelector("[data-testid=champion-preview-content]");
+          return !!row && !!c && row.getAttribute("data-champion") !== start && c.getAttribute("data-champion") === row.getAttribute("data-champion") && (c.getAttribute("data-role") ?? "") === (row.getAttribute("data-role") ?? "");
+        },
+        { n: next, start: from, inPages: paged >= 2 },
+        { timeout: 10_000 },
+      )
       .then(() => true, () => false);
-    const after = await page.evaluate((n) => {
-      const row = document.querySelectorAll("[data-testid=top-champion]")[n];
+    const after = await page.evaluate(({ n, inPages }) => {
+      const row = (inPages ? document.activeElement?.closest("[data-testid=top-champion]") : document.querySelectorAll("[data-testid=top-champion]")[n]) ?? null;
       const q = new URLSearchParams(location.search);
       return { url: location.href, length: history.length, address: q.get("champion") === row?.getAttribute("data-champion") && (q.get("crole") ?? "") === (row?.getAttribute("data-role") ?? "") };
-    }, next);
+    }, { n: next, inPages: paged >= 2 });
     step = { next: moved, address: after.address && after.url !== before.url, replaced: after.length === before.length };
   }
   await page.keyboard.press("Escape");
-  const closed = await content.waitFor({ state: "detached", timeout: 5_000 }).then(() => true, () => false);
+  const closed = await softWait(content, { state: "detached", timeout: 5_000 });
   const escaped = { closed, address: await page.waitForFunction(() => !new URLSearchParams(location.search).has("champion"), null, { timeout: 5_000 }).then(() => true, () => false) };
   for (const v of championPreviewVerdicts({ kind, at, step, escaped, kept })) check("all-champions", v.name, v.status, v.detail);
+}
+
+/**
+ * All Champions' one-screen workspace (27 Nov 2026, the owner's request; scripts/all-champions-workspace-facts.mjs): at
+ * 1440 × 900, 1920 × 950 and 1920 × 1080 (the window resized in the desktop's context, no reload), the page is the window,
+ * every champion is reachable through the list's pages, the first champion with 3+ games opens beside the list without
+ * changing the page's height, every lane opponent is reachable through its pages (most games first), its most-met
+ * opponent's games open in place and are reachable through theirs, and Escape steps back. Page changes are the page's own
+ * state (no request); each size opens one preview and one opponent through the page's two light actions, as a click does.
+ * Counts, px and hashes only (the walks hash each id in the page).
+ */
+async function workspaceFacts(page) {
+  const settle = async () => {
+    let last = "";
+    for (let waited = 0; waited < 3000; waited += 250) {
+      await page.waitForTimeout(250);
+      const now = JSON.stringify(await page.evaluate(readWorkspace));
+      if (now === last) return;
+      last = now;
+    }
+  };
+  /** Presses a region's Next until it is disabled (at most 60), reading each page. */
+  const walk = async (region, next) => {
+    const pages = [await page.evaluate(readPage, region)];
+    for (let n = 0; n < 60; n++) {
+      const button = page.getByTestId(next);
+      if (!(await button.count()) || (await button.isDisabled())) break;
+      const at = pages.at(-1)?.page ?? 0;
+      await button.click();
+      await page.waitForFunction(({ region, at }) => Number(document.querySelector(`[data-ws-region="${region}"]`)?.getAttribute("data-page")) === at + 1, { region, at }, { timeout: 5_000 }).catch(() => {});
+      pages.push(await page.evaluate(readPage, region));
+    }
+    return pages;
+  };
+  /** Back to a region's first page (its "Page 1" button), for what comes next. */
+  const first = async (region, testId) => {
+    const one = page.getByTestId(testId).locator("[aria-label='Page 1']");
+    if (await one.count()) await one.click().catch(() => {});
+    await page.waitForFunction((region) => Number(document.querySelector(`[data-ws-region="${region}"]`)?.getAttribute("data-page") ?? "1") === 1, region, { timeout: 5_000 }).catch(() => {});
+  };
+  const height = () => page.evaluate(() => document.documentElement.scrollHeight);
+  try {
+    for (const [width, height0] of [[1440, 900], [1920, 950], [1920, 1080]]) {
+      const size = `${width} × ${height0}`;
+      await page.setViewportSize({ width, height: height0 });
+      await page.evaluate(() => window.scrollTo(0, 0));
+      if (await page.getByTestId("champion-preview-content").count()) {
+        await page.keyboard.press("Escape");
+        await page.keyboard.press("Escape");
+      }
+      await settle();
+      const read = await page.evaluate(readWorkspace);
+      if (!read.workspace) {
+        for (const v of workspaceVerdicts({ size, read })) check("all-champions", v.name, v.status, v.detail);
+        continue;
+      }
+      await first("list", "all-champions-pager");
+      const listPages = await walk("list", "all-champions-next");
+      const list = { ...walkSummary(listPages), total: listPages[0]?.total ?? 0, per: listPages[0]?.per ?? 1 };
+      await first("list", "all-champions-pager");
+      await settle();
+      // The first champion with 3+ games on the first page, opened: the page's height and every row's top as they were.
+      const rows = await page.evaluate(readChampionRows);
+      const i = firstWithGames(rows, 3);
+      let steps = { opened: null };
+      let opponents = null;
+      let games = null;
+      if (i >= 0) {
+        const tops = () => page.evaluate(() => [...document.querySelectorAll("[data-testid=top-champion]")].map((r) => Math.round(r.getBoundingClientRect().top)));
+        const before = { height: await height(), tops: await tops(), listPage: Number((await page.evaluate(() => document.querySelector("[data-ws-region=list]")?.getAttribute("data-page"))) ?? "1") };
+        await page.locator("[data-testid=top-champion]").nth(i).locator("[data-open-champion]").click();
+        const content = page.getByTestId("champion-preview-content");
+        await softWait(content, { timeout: 15_000 });
+        await page.waitForFunction(() => document.querySelector("[data-testid=champion-preview-opponents]")?.getAttribute("data-state") !== "loading", null, { timeout: 15_000 }).catch(() => {});
+        await settle();
+        const now = await tops();
+        const beside = await page.evaluate(() => {
+          const pane = document.querySelector("aside[data-preview-pane]")?.getBoundingClientRect();
+          const card = document.querySelector("[data-testid=all-champions-table]")?.getBoundingClientRect();
+          return !!pane && !!card && card.right <= pane.left + 0.5 && !document.querySelector("dialog[open]");
+        });
+        steps = { opened: { heightBefore: before.height, heightAfter: await height(), beside, rowsKept: now.length === before.tops.length && now.every((t, k) => Math.abs(t - before.tops[k]) <= 1) } };
+        const state = await page.evaluate(() => document.querySelector("[data-testid=champion-preview-opponents]")?.getAttribute("data-state") ?? "");
+        if (state === "answered") {
+          const count = await page.evaluate(() => Number(document.querySelector("[data-testid=champion-preview-opponent-count]")?.firstChild?.textContent?.replace(/,/g, "") ?? "0"));
+          const oppPages = await walk("opponents", "opponents-next");
+          opponents = { ...walkSummary(oppPages), total: oppPages[0]?.total ?? 0, count };
+          await first("opponents", "opponents-pager");
+          await settle();
+          // Its most-met opponent (Most games: the first cell): its games in place, the page's height kept.
+          const oppPage = () => page.evaluate(() => Number(document.querySelector("[data-ws-region=opponents]")?.getAttribute("data-page") ?? "0"));
+          const opponentsPageBefore = await oppPage();
+          const heightBefore = await height();
+          await page.locator("[data-testid=champion-preview-opponent] > button").first().click();
+          await softWait(page.getByTestId("champion-preview-games"), { timeout: 15_000 });
+          await settle();
+          const heightAfter = await height();
+          const record = await page.evaluate(() => Number(/^(\d[\d,]*) games?/.exec(document.querySelector("[data-testid=champion-preview-pairing-record]")?.textContent?.trim() ?? "")?.[1]?.replace(/,/g, "") ?? "0"));
+          const stepsShown = await page.evaluate(() => !!document.querySelector("[data-testid=champion-preview-opponent-next]"));
+          const gamePages = await walk("games", "games-next");
+          games = { ...walkSummary(gamePages), record };
+          steps.detail = { heightBefore, heightAfter, steps: stepsShown };
+          // Escape: the grid on the page it was opened from, then the pane closed, the list on its page.
+          await page.keyboard.press("Escape");
+          await softWait(page.getByTestId("champion-preview-opponent-list"), { timeout: 5_000 });
+          await settle();
+          const opponentsPage = await oppPage();
+          // With a second page of opponents: one opened from it comes back to it (not to the first page).
+          let laterPageBefore = null;
+          let laterPage = null;
+          if (oppPages.length > 1) {
+            await page.getByTestId("opponents-next").click();
+            await page.waitForFunction(() => Number(document.querySelector("[data-ws-region=opponents]")?.getAttribute("data-page")) === 2, null, { timeout: 5_000 }).catch(() => {});
+            await settle();
+            laterPageBefore = await oppPage();
+            await page.locator("[data-testid=champion-preview-opponent] > button").first().click();
+            await softWait(page.getByTestId("champion-preview-pairing"), { timeout: 15_000 });
+            await settle();
+            await page.keyboard.press("Escape");
+            await softWait(page.getByTestId("champion-preview-opponent-list"), { timeout: 5_000 });
+            await settle();
+            laterPage = await oppPage();
+          }
+          await page.keyboard.press("Escape");
+          const closed = await softWait(content, { state: "detached", timeout: 5_000 });
+          const listPage = Number((await page.evaluate(() => document.querySelector("[data-ws-region=list]")?.getAttribute("data-page"))) ?? "0");
+          steps.escaped = { opponentsPageBefore, opponentsPage, laterPageBefore, laterPage, closed, listPageBefore: before.listPage, listPage };
+        } else {
+          opponents = { ...walkSummary([]), total: 0, count: 0 };
+          await page.keyboard.press("Escape");
+          await softWait(content, { state: "detached", timeout: 5_000 });
+        }
+      }
+      for (const v of workspaceVerdicts({ size, read, list, opponents, games, steps })) check("all-champions", v.name, v.status, v.detail);
+    }
+  } finally {
+    await page.setViewportSize(VIEWPORTS.desktop.viewport);
+  }
 }
 
 /**
@@ -1809,7 +1980,7 @@ async function everyRoleRow(page) {
 async function phoneGame(page, kind, name, slug, open) {
   await open();
   const win = page.getByTestId("match-detail");
-  const shown = await win.getByTestId("match-breakdown").first().waitFor({ timeout: 30_000 }).then(() => true, () => false);
+  const shown = await softWait(win.getByTestId("match-breakdown").first(), { timeout: 30_000 });
   const box = shown ? await win.boundingBox() : null;
   pass("games", `${kind}: ${name} opens a game as a whole screen`, shown && !!box && box.width >= page.viewportSize().width - 1, box ? Math.round(box.width) : null);
   pass("games", `${kind}: ${name}'s open game is in the address (?match=)`, /[?&]match=/.test(page.url()), page.url().replace(base, ""));
@@ -1829,7 +2000,7 @@ async function phoneGame(page, kind, name, slug, open) {
     }
   }
   await page.goBack();
-  const closed = await win.waitFor({ state: "detached", timeout: 15_000 }).then(() => true, () => false);
+  const closed = await softWait(win, { state: "detached", timeout: 15_000 });
   pass("games", `${kind}: Back closes the game and returns to ${name}`, closed && !/[?&]match=/.test(page.url()), page.url().replace(base, ""));
 }
 
@@ -2075,7 +2246,7 @@ async function wideChecks(page, log) {
  */
 async function rankedProgressEnds(page, kind) {
   const name = `${kind}: Ranked progress ends with its chart, with no History and coverage under it`;
-  if (!(await page.getByTestId("ranked-progress").waitFor({ timeout: 8_000 }).then(() => true, () => false))) return check("ranked", name, "PASS", "not applicable: no Ranked progress on this profile");
+  if (!(await softWait(page.getByTestId("ranked-progress"), { timeout: 8_000 }))) return check("ranked", name, "PASS", "not applicable: no Ranked progress on this profile");
   const f = await page.getByTestId("ranked-progress").evaluate((card) => ({
     disclosure: !!card.querySelector("details, summary, [data-testid=ranked-details]"),
     parts: ["ranked-coverage", "ranked-events", "ranked-key", "ranked-table"].filter((id) => card.querySelector(`[data-testid=${id}]`)).length,
@@ -2087,7 +2258,7 @@ async function rankedProgressEnds(page, kind) {
 async function teamMatches(page, log, kind, context) {
   if (!(await visit(page, log, kind, "team-matches", "/matches", { fullPage: false }))) return;
   const games = page.getByTestId("together-game");
-  if (!(await games.first().waitFor({ timeout: 20_000 }).then(() => true, () => false))) return warn("games", `${kind}: Team Matches lists no games`, "nothing to open");
+  if (!(await softWait(games.first(), { timeout: 20_000 }))) return warn("games", `${kind}: Team Matches lists no games`, "nothing to open");
   // Each member's performance score and place (25 Nov 2026; scripts/card-score-facts.mjs readTogetherScores).
   for (const v of togetherScoreVerdicts({ kind, games: await page.evaluate(readTogetherScores) })) check("games", v.name, v.status, v.detail);
   // A teammate's bookmark shows as a state, with no control to remove it (scripts/boundary-facts.mjs).
@@ -2111,7 +2282,7 @@ async function teamMatches(page, log, kind, context) {
   const toggle = game.getByTestId("together-open");
   await game.getByTestId("together-card").click({ position: { x: 24, y: 12 } });
   await page.waitForFunction(() => document.querySelector("[data-testid=together-open][aria-expanded=true]"), null, { timeout: 10_000 }).catch(() => {});
-  const breakdown = await game.getByTestId("match-breakdown").waitFor({ timeout: 30_000 }).then(() => true, () => false);
+  const breakdown = await softWait(game.getByTestId("match-breakdown"), { timeout: 30_000 });
   const windows = await page.getByTestId("match-detail").count();
   const address = page.url();
   pass("games", `${kind}: a Team Matches game opens under its card`, (await toggle.getAttribute("aria-expanded")) === "true" && breakdown, { breakdown });
@@ -2191,14 +2362,14 @@ async function reachFacts(page, kind) {
   if (at.foot === null) return at.barBottom > 0 ? check("reach", name, "PASS", { notApplicable: "nothing pinned while the filter bar is still on screen (the list too short)", ...at }) : pass("reach", name, false, { pinned: false, ...at });
   if (at.barBottom > at.foot + 1) return check("reach", name, "PASS", { notApplicable: "the list is too short for its filter bar to go up under what is pinned", ...at });
   const control = page.getByTestId(kind === "phone" ? "topbar-filters" : "toolbar-filters");
-  const offered = await control.waitFor({ timeout: 5_000 }).then(() => true, () => false);
+  const offered = await softWait(control, { timeout: 5_000 });
   let opened = false;
   let form = null;
   if (offered) {
     if (kind === "phone") await control.tap();
     else await control.click();
     const sheet = page.getByTestId("filter-sheet");
-    opened = await sheet.waitFor({ timeout: 10_000 }).then(() => true, () => false);
+    opened = await softWait(sheet, { timeout: 10_000 });
     // Where previews open beside the list (the tablet and the desktop) it is a popover: anchored, no
     // modal window, its Role played segments whole ("Support" inside it), nothing scrolling sideways.
     if (opened && kind !== "phone") {
@@ -2265,7 +2436,7 @@ async function matchHistory(page, log, kind, playerId) {
   if (!(await visit(page, log, kind, "match-history", path, { fullPage: false }))) return;
   const card = page.getByTestId("match-card").first();
   await noteProfileTabs(page, kind, "matches");
-  if (!(await card.waitFor({ timeout: 20_000 }).then(() => true, () => false))) return warn("games", `${kind}: Match History lists no games`, path);
+  if (!(await softWait(card, { timeout: 20_000 }))) return warn("games", `${kind}: Match History lists no games`, path);
   if (kind === "desktop") {
     // The 12px floor reaches the game cards (Release 11): no running text under 12px on the first cards.
     const small = await page.evaluate(() => {
@@ -2360,7 +2531,7 @@ async function matchHistory(page, log, kind, playerId) {
   }
   else {
     await card.click({ position: { x: 24, y: 16 } });
-    const opened = await page.getByTestId("match-expanded").getByTestId("match-breakdown").first().waitFor({ timeout: 30_000 }).then(() => true, () => false);
+    const opened = await softWait(page.getByTestId("match-expanded").getByTestId("match-breakdown").first(), { timeout: 30_000 });
     pass("games", `${kind}: Match History opens a game under its card`, opened);
     await shot(page, `${kind}-match-history-open`);
     if (kind !== "tablet") await axe(page, kind, "match-history-game-open");
@@ -2434,7 +2605,7 @@ async function matchHistory(page, log, kind, playerId) {
         pass("games", `${kind}: Next keeps the open game's header in place (±2px)`, y1 !== null && Math.abs(y1 - y0) <= 2, { y0: Math.round(y0), y1: y1 === null ? null : Math.round(y1) });
       }
       await page.goBack();
-      const closed = await page.locator("li[data-expanded]").waitFor({ state: "detached", timeout: 10_000 }).then(() => true, () => false);
+      const closed = await softWait(page.locator("li[data-expanded]"), { state: "detached", timeout: 10_000 });
       pass("games", `${kind}: Back closes the open game and keeps Match History`, closed && !/[?&]match=/.test(page.url()) && /\/matches/.test(page.url()), page.url().replace(base, ""));
     }
   }

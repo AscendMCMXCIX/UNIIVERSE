@@ -208,3 +208,44 @@ disabled control dimmed with opacity; the disabled tone on live text; an alpha o
 team's own colours (page, panel and selected row), and the Production check's text facts
 (docs/LIVE_VALIDATION.md, "The text hierarchy").
 
+
+## 8. 27 Nov 2026: All Champions as a one-screen workspace (the owner's request)
+
+The owner: the whole All Champions experience in one desktop window, without scrolling, by its
+layout and not by trimming padding; height-aware pages instead of growing lists; a horizontal
+summary; the lane opponents (the main cause, with dozens of them) in two columns and in pages, an
+opponent's details in place; nothing dropped; the phone, the tablet and large text kept.
+docs/RESPONSIVE.md, "All Champions' workspace", has the rules; docs/MATCHUPS.md the content.
+
+**Page heights, before → after** (the demo with a champion of 40 lane opponents: Demo Top's
+Ambessa, `UNIIVERSE_DEMO_WIDE_CHAMPION=1`; before, the same page measured on the default demo's
+four-opponent champions: map3 §2.1):
+
+| State | 1366 × 768 | 1440 × 900 | 1648 × 900 | 1920 × 1080 |
+|---|---|---|---|---|
+| the preview open (before: Viego, 4 opponents) | 927 → 768 | 900 → 900 | 918 → 900 | 1,080 → 1,080 |
+| an opponent open (before: Viego vs Lee Sin, 13 games) | 1,303 → 768 | 1,263 → 900 | 1,302 → 900 | 1,420 → 1,080 |
+| five positions with an opponent open (Sion vs Nasus) | 1,436 → 768 | 1,326 → 900 | 1,367 → 900 | 1,490 → 1,080 |
+
+Production's Ambessa (about 40 opponents) would have been a page of about 2,200px at 1440 × 900.
+
+**Rows per page** (sidebar open and folded alike): the champions 7 / 9 / 9 / 11; Ambessa's lane
+opponents 10 / 18 / 16 / 22 (two columns); Darius's games 10 / 18 / 16 / 20. Thirty champions take
+5 / 4 / 4 / 3 pages, Ambessa's 40 opponents 4 / 3 / 3 / 2 (one more in the win-rate orders, for the
+divider's slots).
+
+| Where | Before | After | Why |
+|---|---|---|---|
+| The page | grew with the list, the preview and an opponent's games | the window: two cards to its foot, their footers on one baseline | the owner's one screen |
+| The champions | the first 20, then Show all | pages of the rows that fit, a pager ("1–7 of 30"); every row one height | no list grows the page; the pages never shift |
+| The summary | 288px: a 48px portrait and three lines; a position selector of one; the win rate text-3xl; the coverage sentence always | about 166px: one identity bar (the one position said there), the positions only for two or more, five figure cells (the win rate text-2xl), the kills line | horizontal, every figure kept |
+| The lane opponents | one table of every opponent, the controls over it in two or three lines | two columns of merged cells ("9 · 5W 4L") under one toolbar line, in pages; the divider a cell of its own, never a page's last, again at the top of every page in the small samples | the opponents were the main cause of height |
+| An opponent | beside the table, every game listed (13 games: 441px) | in place of the grid, "‹ All opponents", ‹ 3 of 40 ›, its games in two columns and pages | details without growing the page |
+| Sentences | "Choose an opponent…" drawn; "Averages over all 20 Jungle games…" drawn; "Lane opponent: the enemy Riot placed…" drawn | the hint and the complete coverage read out; the definition in the opponents' ⓘ, "Known in N of M games." kept in the footer | they repeated what is on screen (decision O3) |
+| A filter change | closed the preview | keeps the champion (and its position) open (decision O2) | "select any champion … change filters" |
+| 1280–1359px with the sidebar open | a pane with one column of opponents | the sheet over the paged list (decision O1) | one game a page for five positions otherwise |
+| K/D/A in an opponent's games | cut at 1366 with the sidebar open ("10/…") | whole in both layouts (4.25rem at least) | no clipped data |
+| A laptop's browser window (1366 × 657 in a 1366 × 768 screen; 1536 × 730 at 125%) | the long page (the gate asked 46rem, 736px; review of 27 Nov 2026) | the workspace with fewer rows (the gate asks 41rem, 656px, per band of 64px to 1920) | "at shorter desktop sizes, reduce visible row counts" |
+
+Kept: the flow everywhere else (phones, tablets, short windows, large text) byte for byte but the
+K/D/A fix; the address and history contract; every figure.

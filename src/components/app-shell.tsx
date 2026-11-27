@@ -61,7 +61,7 @@ function DataLine({ status }: { status: ShellStatus }) {
 }
 
 /** The shared page column (see the main element); on Team Overview a column its lineup can grow into, as main is. */
-const FRAME = "mx-auto w-full max-w-[var(--content-wide)] lg:has-[[data-fills-height]]:flex lg:has-[[data-fills-height]]:flex-1 lg:has-[[data-fills-height]]:flex-col max-sm:has-[[data-fills-height]]:flex max-sm:has-[[data-fills-height]]:flex-1 max-sm:has-[[data-fills-height]]:flex-col";
+const FRAME = "mx-auto w-full max-w-[var(--content-wide)] lg:has-[[data-fills-height]]:flex lg:has-[[data-fills-height]]:flex-1 lg:has-[[data-fills-height]]:flex-col max-sm:has-[[data-fills-height]]:flex max-sm:has-[[data-fills-height]]:flex-1 max-sm:has-[[data-fills-height]]:flex-col ws-host:flex ws-host:flex-1 ws-host:flex-col";
 
 /** Things only this person can fix about their own account: an action card at the top of the page, not a header error. */
 function AccountNudges({ status }: { status: ShellStatus }) {
@@ -169,7 +169,7 @@ export function AppShell({ status, children }: { status: ShellStatus; children: 
                 its phone carousel's card takes the height left between the bars (phones, Release 16): on
                 that page only, main is a column its content can grow into (every other page is unchanged). */}
             {/* id and tabIndex: the skip link's target (focused without an outline: it is not a control). */}
-            <main id="content" tabIndex={-1} className="min-w-0 flex-1 px-safe-4 py-5 pb-tabbar outline-none sm:px-safe-6 md:pb-6 lg:px-8 lg:py-7 lg:has-[[data-fills-height]]:flex lg:has-[[data-fills-height]]:flex-col max-sm:has-[[data-fills-height]]:flex max-sm:has-[[data-fills-height]]:flex-col">
+            <main id="content" tabIndex={-1} className="min-w-0 flex-1 px-safe-4 py-5 pb-tabbar outline-none sm:px-safe-6 md:pb-6 lg:px-8 lg:py-7 lg:has-[[data-fills-height]]:flex lg:has-[[data-fills-height]]:flex-col max-sm:has-[[data-fills-height]]:flex max-sm:has-[[data-fills-height]]:flex-col ws-host:flex ws-host:flex-col">
               <AccountNudges status={status} />
               <SectionTabs allowed={allowed} team={{ name: b.teamName, logo: logoSrc(b), logoStill: logoStillSrc(b) }} />
               {/* THE FRAME: one content column for every page, at most --content-wide and centred in

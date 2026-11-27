@@ -105,7 +105,9 @@ export async function ProfileFrame({ db, header, session, basePath, children }: 
           The section bar belongs to the profile card: tucked right under it (its own margin), and a
           child of the whole profile, so it can stay pinned while every section scrolls (ProfileTabs). */}
       {/* On desktops the section's content starts 6px under the tabs' rule (16px elsewhere), the room the taller profile band takes (TALL_BAND in profile-header.tsx). */}
-      <ProfileFrameShell initial={identity} className="mx-auto max-w-[var(--content-max)] space-y-4 lg:[&>[data-testid=profile-tabs]]:mb-1.5">
+      {/* All Champions' one-screen workspace (ws-host, globals.css): the column is a flex column its section fills to the
+          window's foot; w-full, because a flex item with mx-auto shrinks to its content. */}
+      <ProfileFrameShell initial={identity} className="mx-auto max-w-[var(--content-max)] space-y-4 lg:[&>[data-testid=profile-tabs]]:mb-1.5 ws-host:flex ws-host:w-full ws-host:flex-1 ws-host:flex-col">
         <ProfileHeader identity={identity} self={self} editable={editable} champions={champions} basePath={basePath} publicFigures={editable && publicRiotDataAllowed()} />
         <ProfileTabs basePath={basePath} />
         {children}

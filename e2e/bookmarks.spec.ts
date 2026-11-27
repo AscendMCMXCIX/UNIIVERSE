@@ -28,7 +28,10 @@ test("bookmark a game played together, find it under Bookmarked, remove it", asy
   // The member-count filter does not apply to bookmarks.
   await expect(page.getByTestId("together-min")).toHaveCount(0);
 
+  // Reload once the server has answered the removal: a reload sent while the action's request is in flight can cancel it.
+  const removed = page.waitForResponse((r) => r.request().method() === "POST" && !!r.request().headers()["next-action"]);
   await saved.first().getByTestId("bookmark-game").click();
+  await removed;
   await page.reload();
   await expect(page.getByTestId("together-empty")).toContainText("No bookmarked games yet");
 });

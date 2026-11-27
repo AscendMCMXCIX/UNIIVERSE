@@ -59,3 +59,21 @@ describe("closing the preview leaves the list where the reader is (keepListPlace
     expect(entries.map((e) => e.mode)).toEqual(["auto"]);
   });
 });
+
+describe("the preview's close rule (listQuery, closeGoesBack)", () => {
+  it("goes Back only while the list's query is the one the preview's entry was pushed over", async () => {
+    const { closeGoesBack, listQuery } = await import("./preview-data");
+    // The list's own query, without the preview's keys, in one order.
+    expect(listQuery("?season=16&mode=all&champion=Ambessa&crole=TOP&vs=Darius")).toBe("mode=all&season=16");
+    expect(listQuery("?mode=all&season=16")).toBe(listQuery("?season=16&mode=all&tab=matchups"));
+    const pushedOver = listQuery("?season=16&mode=all");
+    // Opened, then closed with the same filters: Back (the list's entry is under it).
+    expect(closeGoesBack(pushedOver, "?season=16&mode=all&champion=Ambessa&crole=TOP")).toBe(true);
+    expect(closeGoesBack(pushedOver, "?mode=all&champion=Ambessa&season=16&vs=Darius")).toBe(true);
+    // A filter changed while it was open (the champion kept, O2): Back would bring the old filters back, so it replaces.
+    expect(closeGoesBack(pushedOver, "?season=16&mode=solo&champion=Ambessa&crole=TOP")).toBe(false);
+    expect(closeGoesBack(pushedOver, "?season=16&mode=all&role=TOP&champion=Ambessa")).toBe(false);
+    // Not pushed by this page (a linked preview): never Back.
+    expect(closeGoesBack(null, "?season=16&mode=all&champion=Ambessa")).toBe(false);
+  });
+});

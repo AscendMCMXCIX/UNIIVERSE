@@ -1,5 +1,5 @@
 /** Types for scripts/champion-preview-facts.mjs (the live check is plain JavaScript run by node). */
-export interface ChampionRow { games: number; open: boolean; top?: number; screen?: number }
+export interface ChampionRow { games: number; open: boolean; top?: number; screen?: number; /** The list's page and pages where it has pages (the workspace), else null. */ page?: number | null; pages?: number | null }
 export interface ChampionPreviewRead {
   open: boolean;
   sameChampion?: boolean;
@@ -36,4 +36,6 @@ export function readChampionRows(): ChampionRow[];
 export function readChampionPreview(rowIndex: number): ChampionPreviewRead;
 export function firstWithGames(rows: ChampionRow[], min?: number): number;
 export function targetRow(rows: ChampionRow[], min?: number): number;
-export function championPreviewVerdicts(input: { kind: string; at: ChampionPreviewRead; step: { next: boolean; address: boolean; replaced: boolean } | null; escaped: { closed: boolean; address: boolean }; kept?: { scrolled: number; open: number; closed: number } }): Verdict[];
+/** The browsing position: the flow's scroll (the row's top moved, px), or the workspace's page (its pages, the page before, open and after Escape, and the most a drawn row's top moved). */
+export type Kept = { scrolled: number; open: number; closed: number } | { pages: number; pageBefore: number; pageOpen: number; pageClosed: number; open: number; closed: number };
+export function championPreviewVerdicts(input: { kind: string; at: ChampionPreviewRead; step: { next: boolean; address: boolean; replaced: boolean } | null; escaped: { closed: boolean; address: boolean }; kept?: Kept }): Verdict[];

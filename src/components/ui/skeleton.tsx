@@ -140,20 +140,39 @@ export function PlayersSkeleton() {
  * table's panel: the search row, the column headings and the champions' rows.
  */
 export function ChampionsSkeleton() {
+  // On a workspace window (globals.css, the `ws` variant; all-champions.tsx) the page's shape: the
+  // one-line heading, one card filling the frame to the window's foot, its rows the list's first-paint
+  // tiers (WS_TIER_ROWS), and the footer its pager stands in; everywhere else today's page.
+  // (3 rows below board-at-mid: WS_TIER_ROWS.gate, the gate's 41rem; 6 from it; 9 at board-at-tall.)
   return (
-    <div className="space-y-3" role="status" aria-live="polite" aria-label="Loading" data-testid="champions-skeleton">
-      <HeadingSkeleton />
-      <div className="rounded-card border border-border bg-surface panel-depth" aria-hidden>
-        <div className="flex items-center gap-3 border-b border-border px-3 py-2.5">
+    <div className="space-y-3 ws:flex ws:flex-1 ws:flex-col" role="status" aria-live="polite" aria-label="Loading" data-workspace="" data-testid="champions-skeleton">
+      <div className="ws:hidden">
+        <HeadingSkeleton />
+      </div>
+      <div className="hidden h-9 items-center gap-3 ws:flex">
+        <Skeleton className="h-7 w-40" />
+        <Skeleton className="h-4 w-[min(20rem,100%)]" />
+      </div>
+      <div className="rounded-card border border-border bg-surface panel-depth ws:flex ws:flex-1 ws:flex-col" aria-hidden>
+        <div className="flex items-center gap-3 border-b border-border px-3 py-2.5 ws:py-2">
           <Skeleton className="h-11 w-full max-w-xs md:pointer-fine:h-9" />
         </div>
         <div className="flex h-9.5 items-center border-b border-border px-3">
           <Skeleton className="h-3 w-24" />
         </div>
         <div className="divide-y divide-border/60">
-          {Array.from({ length: 6 }, (_, i) => (
-            <RowSkeleton key={i} className="h-14" picture="h-9 w-9 rounded-md" />
+          {Array.from({ length: 9 }, (_, i) => (
+            <div key={i} className={cn("h-14 items-center gap-3 px-3 ws:h-12.5", i >= 6 ? "hidden ws:board-at-tall:flex" : i >= 3 ? "flex ws:board-below-mid:hidden" : "flex")}>
+              <Skeleton className="h-9 w-9 shrink-0 rounded-md" />
+              <div className="min-w-0 flex-1 space-y-2">
+                <Skeleton className="h-4 w-36 max-w-full" />
+                <Skeleton className="h-3 w-52 max-w-full" />
+              </div>
+            </div>
           ))}
+        </div>
+        <div className="mt-auto hidden h-11 items-center justify-end border-t border-border/70 px-3 ws:flex">
+          <Skeleton className="h-4 w-40" />
         </div>
       </div>
       <p className="sr-only">Loading…</p>

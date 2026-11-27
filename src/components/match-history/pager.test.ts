@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { pageList, pagerFold, pagerItems, pagerRem, type PagerItem } from "./pager";
+import { pageList, pagerFold, pagerItems, pagerRem, widestItems, type PagerItem } from "./pager";
+import { MOUSE_BUTTON_REM, lineItems } from "@/components/ui/pager-data";
 
 /*
   Match History's pager (pager.ts): the pages it offers, and how a phone too narrow for every
@@ -83,5 +84,27 @@ describe("Match History's pager", () => {
       expect(fold.hide).toBe(`@max-[${rem}]/pages:hidden`);
       expect(fold.show).toBe(`hidden @max-[${rem}]/pages:inline`);
     }
+  });
+});
+
+/*
+  The workspace's inline pager (ui/pager.tsx) reserves the widest line its page count draws, folded
+  or not, for its buttons: Previous at that width's left end and Next at its right end on every page,
+  so a second click on ‹ where the first was never lands on a page number (review of 27 Nov 2026).
+*/
+describe("the inline pager's reserved line", () => {
+  const items = (line: PagerItem[]) => ["<", ...line.map((x) => ("gap" in x ? "…" : x.page)), ">"] as ReturnType<typeof shown>;
+  it("draws what the line shows, folded or whole (lineItems)", () => {
+    for (let pages = 2; pages <= 40; pages++)
+      for (let page = 1; page <= pages; page++)
+        for (const folded of [false, true]) expect(items(lineItems(pagerItems(page, pages), folded)), `page ${page} of ${pages}, ${folded ? "folded" : "whole"}`).toEqual(shown(pagerItems(page, pages), folded));
+  });
+  it("is as wide as the widest page's line, with a mouse's 2rem buttons, at every page count, folded or whole", () => {
+    for (let pages = 2; pages <= 40; pages++)
+      for (const folded of [false, true]) {
+        const reserved = pagerRem(lineItems(widestItems(pages), folded), MOUSE_BUTTON_REM);
+        const widest = Math.max(...Array.from({ length: pages }, (_, i) => pagerRem(lineItems(pagerItems(i + 1, pages), folded), MOUSE_BUTTON_REM)));
+        expect(reserved, `${pages} pages, ${folded ? "folded" : "whole"}`).toBeCloseTo(widest, 6);
+      }
   });
 });

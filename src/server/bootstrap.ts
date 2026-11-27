@@ -2,7 +2,7 @@ import type { Db } from "@/server/db/types";
 import { getDbHandle, type DbHandle } from "@/server/db/client";
 import { getCurrentPatch } from "@/server/repositories/champions";
 import { runJob } from "@/server/jobs";
-import { applyFullRosterFixture, applyScreenshotFixture, seedDemoAccounts, seedDemoRoster, seedDemoVerificationAccount } from "@/server/demo/seed";
+import { applyFullRosterFixture, applyScreenshotFixture, applyWideChampionFixture, seedDemoAccounts, seedDemoRoster, seedDemoVerificationAccount } from "@/server/demo/seed";
 import { applyDemoEncounters } from "@/server/demo/encounters-fixture";
 import { applyDemoBuilds } from "@/server/demo/builds-fixture";
 import { seedDemoHighElo } from "@/server/demo/high-elo";
@@ -41,6 +41,15 @@ export function demoFullRoster(mode: DbHandle["mode"], env: Record<string, strin
   return env.UNIIVERSE_DEMO_FULL_ROSTER === "1" && mode === "pglite-memory";
 }
 
+/**
+ * All Champions' one-screen workspace check (UNIIVERSE_DEMO_WIDE_CHAMPION=1, 27 Nov 2026): Demo Top
+ * gets Ambessa with 40 lane opponents, Aatrox in two positions and 30 champions in all
+ * (applyWideChampionFixture), on the in-memory demo only, as the full roster is.
+ */
+export function demoWideChampion(mode: DbHandle["mode"], env: Record<string, string | undefined> = process.env): boolean {
+  return env.UNIIVERSE_DEMO_WIDE_CHAMPION === "1" && mode === "pglite-memory";
+}
+
 async function bootstrap(handle: DbHandle): Promise<void> {
   const db: Db = handle.db;
   const current = await getCurrentPatch(db);
@@ -67,6 +76,8 @@ async function bootstrap(handle: DbHandle): Promise<void> {
     if (handle.mode === "pglite-memory") await seedDemoHighElo(db).catch((err) => console.error("[bootstrap] demo high-elo counts not seeded:", err));
     // Matchup Intel: two pairs met often enough in one lane, and two reviewed notes (synthetic DEMO_ games and demo notes only).
     if (handle.mode !== "postgres") await applyDemoMatchups(db).catch((err) => console.error("[bootstrap] demo matchups not applied:", err));
+    // All Champions' workspace: a champion with dozens of lane opponents and a list of 30 (in-memory demo only: demoWideChampion).
+    if (demoWideChampion(handle.mode)) await applyWideChampionFixture(db).catch((err) => console.error("[bootstrap] wide champion not applied:", err));
     // Production's verification account, as Admin's People page shows it (no password; local only).
     if (handle.mode !== "postgres") await seedDemoVerificationAccount(db);
     // Screenshots and layout checks: real-length names, the local owner as a player (in-memory demo only).

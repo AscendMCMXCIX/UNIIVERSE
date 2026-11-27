@@ -106,11 +106,25 @@ export function opponentSentence(ten: TenMinutes | null, o: { isOwn: boolean; ch
   return `At 10:00 ${who} had more gold than ${o.opponent} in ${ten.ahead} of ${ten.games} ${games} with a timeline (${signed(ten.goldMean)} on average).`;
 }
 
-/** The preview's foot line: what a lane opponent is, and how many of the champion's games name one. */
+/** How many of the champion's games name a lane opponent: "Known in 92 of 95 games.", or null when every game does. */
+export function opponentCoverage(known: number, games: number): string | null {
+  return known < games ? `Known in ${known.toLocaleString("en")} of ${games.toLocaleString("en")} games.` : null;
+}
+
+/** The preview's foot line (flow and the sheet): what a lane opponent is, and how many of the champion's games name one. */
 export function opponentFootLine(o: { isOwn: boolean; known: number; games: number }): string {
   const position = viewerWords(o.isOwn).possessive;
-  const known = o.known < o.games ? ` Known in ${o.known.toLocaleString("en")} of ${o.games.toLocaleString("en")} games.` : "";
-  return `Lane opponent: the enemy Riot placed in ${position} position.${known}`;
+  const known = opponentCoverage(o.known, o.games);
+  return `Lane opponent: the enemy Riot placed in ${position} position.${known ? ` ${known}` : ""}`;
+}
+
+/**
+ * The workspace's ⓘ beside "Lane opponents" (docs/MATCHUPS.md): what a lane opponent is, which the
+ * flow's foot line says, and the small-sample rule, in one tip (23 words). Its coverage ("Known in N
+ * of M games.") stays on screen, in the footer.
+ */
+export function aboutOpponents(isOwn: boolean): string {
+  return `Lane opponent: the enemy Riot placed in ${viewerWords(isOwn).possessive} position. Under ${OPPONENT_MIN_GAMES} games is a small sample: its win rate is greyed and listed last.`;
 }
 
 /** An opponent's games' KDA, from the games that carry kills, deaths and assists (season-stats' rule). */

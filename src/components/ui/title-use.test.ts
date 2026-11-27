@@ -84,6 +84,8 @@ const NAMES: Array<{ file: string; fragment: string; kind: Kind; what: string }>
   { file: "src/components/match-history/team-composition.tsx", fragment: "t.title", kind: "truncation", what: "a player's name and rank, cut short in the slot" },
   { file: "src/components/matches/played-together.tsx", fragment: "{extra}", kind: "truncation", what: "the CS and damage a narrow row leaves out" },
   { file: "src/components/players/all-champions.tsx", fragment: "mastery points", kind: "truncation", what: "the mastery shown short (\"189K\") whole" },
+  { file: "src/components/players/champion-matchups.tsx", fragment: "them.name", kind: "truncation", what: "an opponent's name, cut short in a workspace cell" },
+  { file: "src/components/players/champion-preview.tsx", fragment: "noRoleSentence", kind: "truncation", what: "the games with no recorded position, said short in the workspace (\", 1 with no recorded position\"), the sentence whole" },
   { file: "src/components/players/rank-emblem.tsx", fragment: "rank.leaguePoints", kind: "truncation", what: "the rank, cut short in a row, whole with its LP" },
   { file: "src/components/players/recent-form.tsx", fragment: "Filtered: ${narrowed}", kind: "truncation", what: "the filters line, cut to one line" },
   { file: "src/components/resources/resources-view.tsx", fragment: "e.description", kind: "truncation", what: "a site's description, clamped to two lines" },
