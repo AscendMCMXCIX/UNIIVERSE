@@ -425,7 +425,6 @@ function QueueChoice({ championName, value, master, onChange }: { championName: 
 /** Each champion's section its own name (Compare holds two: one landmark each). */
 const sectionName = (championName: string) => `${championName}'s builds and runes`;
 
-
 /**
  * The builds section of one champion. `views` come from the server (server/champion-builds): every
  * queue's on its own; the role, the queue and the source are the page's (useBuildsChoice), the

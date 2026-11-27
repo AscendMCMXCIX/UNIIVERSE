@@ -9,7 +9,10 @@ import type { BuildQueueKey } from "@/domain/champion-builds";
   not reported"), so the job's answer never names one.
 
   Sealed with AES-256-GCM under a key derived from CRON_SECRET (HMAC-SHA256 of PROBE_LABEL), as
-  "v1.<iv>.<ciphertext>.<tag>" in base64url; the plain text is "Thresh:solo,Leona:solo". The
+  "v1.<iv>.<ciphertext>.<tag>" in hex, the ciphertext in pieces of at most 32 characters joined by
+  "~": the jobs endpoint takes any run of 40 or more letters, digits, "_" and "-" out of an answer
+  (server/jobs/answer-redact.ts), and hex in short pieces is never one, nor anything else it takes
+  out. The plain text is "Thresh:solo,Leona:solo". The
   workflow opens it with scripts/builds-probe.mjs (the same derivation, held equal by
   src/server/jobs/builds-audit.test.ts), masks each name and hands the list to the live check.
 */
@@ -28,5 +31,7 @@ export function sealProbe(text: string, secret: string | undefined): string | nu
   const iv = randomBytes(12);
   const cipher = createCipheriv("aes-256-gcm", key, iv);
   const body = Buffer.concat([cipher.update(text, "utf8"), cipher.final()]);
-  return ["v1", iv.toString("base64url"), body.toString("base64url"), cipher.getAuthTag().toString("base64url")].join(".");
+  const hex = body.toString("hex");
+  const pieces = hex.match(/.{1,32}/g) ?? [];
+  return ["v1", iv.toString("hex"), pieces.join("~"), cipher.getAuthTag().toString("hex")].join(".");
 }

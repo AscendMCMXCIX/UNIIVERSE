@@ -22,11 +22,17 @@ export function unsealProbe(sealed, secret) {
   if (!sealed || !secret) return null;
   const parts = String(sealed).split(".");
   if (parts.length !== 4 || parts[0] !== "v1") return null;
+  // Hex, the ciphertext in pieces joined by "~" (so the jobs endpoint's redaction never takes it for a token).
+  const hex = (s) => (/^[0-9a-f]*$/.test(s) && s.length % 2 === 0 ? Buffer.from(s, "hex") : null);
+  const iv = hex(parts[1]);
+  const body = hex(parts[2].replaceAll("~", ""));
+  const tag = hex(parts[3]);
+  if (!iv || !body || !tag || iv.length !== 12 || tag.length !== 16) return null;
   try {
     const key = createHmac("sha256", secret).update(PROBE_LABEL).digest();
-    const decipher = createDecipheriv("aes-256-gcm", key, Buffer.from(parts[1], "base64url"));
-    decipher.setAuthTag(Buffer.from(parts[3], "base64url"));
-    return Buffer.concat([decipher.update(Buffer.from(parts[2], "base64url")), decipher.final()]).toString("utf8");
+    const decipher = createDecipheriv("aes-256-gcm", key, iv);
+    decipher.setAuthTag(tag);
+    return Buffer.concat([decipher.update(body), decipher.final()]).toString("utf8");
   } catch {
     return null;
   }

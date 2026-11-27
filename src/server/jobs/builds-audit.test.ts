@@ -3,6 +3,7 @@ import "@/server/jobs";
 import { listJobs } from "./registry";
 import { PROBE_LABEL, probeText, sealProbe } from "@/server/champion-builds/probe";
 import { PROBE_LABEL as SCRIPT_LABEL, parseProbe, unsealProbe } from "../../../scripts/builds-probe.mjs";
+import { redactIdentifiers } from "./answer-redact";
 
 /*
   The builds audit's probe (docs/LIVE_VALIDATION.md, "The builds audit"): the app seals the two
@@ -20,7 +21,7 @@ describe("the builds audit's probe", () => {
     ]);
     expect(text).toBe("Thresh:solo,Leona:flex");
     const sealed = sealProbe(text, "a-cron-secret")!;
-    expect(sealed).toMatch(/^v1\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+\.[A-Za-z0-9_-]+$/);
+    expect(sealed).toMatch(/^v1\.[0-9a-f]{24}\.[0-9a-f~]+\.[0-9a-f]{32}$/);
     expect(sealed).not.toMatch(/Thresh|Leona/);
     expect(unsealProbe(sealed, "a-cron-secret")).toBe(text);
     expect(parseProbe(unsealProbe(sealed, "a-cron-secret"))).toEqual([
@@ -29,11 +30,23 @@ describe("the builds audit's probe", () => {
     ]);
     // Another secret, a changed character, or not a probe: nothing.
     expect(unsealProbe(sealed, "another-secret")).toBeNull();
-    expect(unsealProbe(sealed.slice(0, -2) + (sealed.endsWith("A") ? "BB" : "AA"), "a-cron-secret")).toBeNull();
+    expect(unsealProbe(sealed.slice(0, -2) + (sealed.endsWith("a") ? "bb" : "aa"), "a-cron-secret")).toBeNull();
     expect(unsealProbe("v2.a.b.c", "a-cron-secret")).toBeNull();
     expect(unsealProbe(null, "a-cron-secret")).toBeNull();
     // Each seal is new (a fresh IV), the same text opening from both.
     expect(sealProbe(text, "a-cron-secret")).not.toBe(sealed);
+  });
+
+  it("passes through the jobs endpoint's redaction untouched, however long the champions' names", () => {
+    const long = probeText([
+      { champion: "MonkeyKing", queue: "clash" },
+      { champion: "AurelionSol", queue: "draft" },
+    ]);
+    for (let i = 0; i < 50; i++) {
+      const sealed = sealProbe(long, `secret-${i}`)!;
+      expect(redactIdentifiers(JSON.stringify({ probeSealed: sealed }))).toBe(JSON.stringify({ probeSealed: sealed }));
+      expect(unsealProbe(sealed, `secret-${i}`)).toBe(long);
+    }
   });
 
   it("carries only champion ids and queues; seals nothing without a secret or a champion", () => {
