@@ -34,7 +34,9 @@ import {
   page shows for them keeps every rule. The rules are re-derived here from the raw counts, written
   out again rather than by calling the page's choosePart, so a mistake in one shows against the
   other:
-  - R1: each champion-role-queue with MIN_SECTION_GAMES games on its window (the candidates) is shown;
+  - R1: each champion-role-queue with MIN_SECTION_GAMES games on its window in the counts the page
+    holds (the candidates, candidatesOf: the same snapshot as the view, never a newer reading) is
+    shown, with its games;
   - R2: a role's games, its window (the previous patch only where the current has too few) and its
     current games;
   - R3: "few" exactly under MIN_PART_GAMES, every part within the role's games, items and skills
@@ -91,7 +93,12 @@ export function buildCandidates(rows: readonly CandidateCount[], window: PatchWi
     if (!patches) continue;
     out.push({ champion: c.champion, lane: c.lane, role: RIOT_POSITION_TO_ROLE[c.lane]!, queue: c.queue, games: c.current + (patches.length > 1 ? c.previous : 0), window: patches });
   }
-  return out.sort((a, b) => b.games - a.games || (a.champion < b.champion ? -1 : a.champion > b.champion ? 1 : 0) || LANE_ORDER.indexOf(a.lane) - LANE_ORDER.indexOf(b.lane) || BUILD_QUEUE_KEYS.indexOf(a.queue) - BUILD_QUEUE_KEYS.indexOf(b.queue));
+  return out.sort(byGames);
+}
+
+/** The candidates' order: most games first (ties: the champion, the lane, the queue). */
+export function byGames(a: AuditCandidate, b: AuditCandidate): number {
+  return b.games - a.games || (a.champion < b.champion ? -1 : a.champion > b.champion ? 1 : 0) || LANE_ORDER.indexOf(a.lane) - LANE_ORDER.indexOf(b.lane) || BUILD_QUEUE_KEYS.indexOf(a.queue) - BUILD_QUEUE_KEYS.indexOf(b.queue);
 }
 
 /**
@@ -108,18 +115,31 @@ export function auditedChampions(candidates: readonly AuditCandidate[], day: num
 }
 
 /**
- * The two champions the Production check opens (the builds facts): those with the most games in one
- * role of Ranked Solo/Duo, the page's default; where fewer than two have builds there, the others'
- * queues fill in, each with the queue its builds are in. Distinct champions.
+ * One champion's candidates from its own counts (the "games" rows the page's view reads): what the
+ * page must show from the very counts it holds. The audit's R1 compares a view with these, never
+ * with another statement's newer counts (the page's counts are cached for hours while games keep
+ * arriving, so two readings minutes apart differ on a correct page).
+ */
+export function candidatesOf(champion: string, rows: readonly BuildCountRow[], window: PatchWindow): AuditCandidate[] {
+  return buildCandidates(
+    rows.filter((r) => r.dim === "games").map((r) => ({ champion, lane: r.lane, queue: r.queue, patch: r.patch, n: r.n })),
+    window,
+  );
+}
+
+/**
+ * The champions the Production check opens (the builds facts), from the candidates of the champions
+ * the audit audited (their own counts, so the page shows each of them): side by side on ONE queue,
+ * as the page holds one queue for both columns of Compare. Ranked Solo/Duo, the page's default,
+ * where two champions have builds in it; else the queue with the most champions that have builds
+ * (ties in the page's order, Solo/Duo first); in it the champions with the most games in one role.
+ * Distinct champions, at most `max`; one champion where the queue has only one.
  */
 export function probeChampions(candidates: readonly AuditCandidate[], max = 2): Array<{ champion: string; queue: BuildQueueKey }> {
-  const out: Array<{ champion: string; queue: BuildQueueKey }> = [];
-  const ordered = [...candidates.filter((c) => c.queue === "solo"), ...candidates.filter((c) => c.queue !== "solo")];
-  for (const c of ordered) {
-    if (out.length >= max) break;
-    if (!out.some((o) => o.champion === c.champion)) out.push({ champion: c.champion, queue: c.queue });
-  }
-  return out;
+  const championsIn = (q: BuildQueueKey) => [...new Set(candidates.filter((c) => c.queue === q).map((c) => c.champion))];
+  const counts = BUILD_QUEUE_KEYS.map((q) => ({ q, champions: championsIn(q) }));
+  const chosen = counts[0]!.champions.length >= Math.min(2, max) ? counts[0]! : counts.reduce((best, c) => (c.champions.length > best.champions.length ? c : best), counts[0]!);
+  return chosen.champions.slice(0, max).map((champion) => ({ champion, queue: chosen.q }));
 }
 
 const LANE_OF: Record<Role, BuildLane> = Object.fromEntries(Object.entries(RIOT_POSITION_TO_ROLE).filter(([lane]) => (LANE_ORDER as readonly string[]).includes(lane)).map(([lane, role]) => [role, lane])) as Record<Role, BuildLane>;

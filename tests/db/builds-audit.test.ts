@@ -1,4 +1,5 @@
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { sql } from "drizzle-orm";
 import { testDb } from "./helpers";
 import type { DbHandle } from "@/server/db/create";
 import { patches } from "@/server/db/schema";
@@ -20,8 +21,37 @@ import { parseProbe, unsealProbe } from "../../scripts/builds-probe.mjs";
   candidates statement finds the champion-role-queues with builds (Thresh, Leona and Nasus in Ranked
   Solo/Duo; Thresh's 18 Ranked Flex games too few), in a few KB with no player or match; the
   audit of the views the page draws finds no violation; its answer names no champion and no player,
-  and its sealed probe opens to the two champions with the most Solo/Duo games.
+  and its sealed probe opens to the two champions with the most Solo/Duo games. And with the page's
+  counts held as Next's data cache holds them in production (for hours, while account sync stores
+  games every 15 minutes): a game stored since is no violation, as the page is right about the
+  counts it holds.
 */
+
+// Next's data cache as production has it: the first reading of a champion's counts is served again (the test turns it on).
+const pageCache = vi.hoisted(() => ({ on: false, held: new Map<string, unknown>(), noAbilities: new Set<string>() }));
+// A champion whose abilities are not stored (a new champion on patch day): its page draws no builds.
+vi.mock("@/server/champion-lookup/view", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/champion-lookup/view")>();
+  return {
+    ...real,
+    loadLookupPage: async (...args: Parameters<typeof real.loadLookupPage>) => {
+      const page = await real.loadLookupPage(...args);
+      return page.lookup && pageCache.noAbilities.has(page.lookup.champion.id) ? { ...page, lookup: { ...page.lookup, abilities: null } } : page;
+    },
+  };
+});
+vi.mock("@/server/champion-builds/load", async (importOriginal) => {
+  const real = await importOriginal<typeof import("@/server/champion-builds/load")>();
+  return {
+    ...real,
+    countChampionBuilds: async (...args: Parameters<typeof real.countChampionBuilds>) => {
+      if (!pageCache.on) return real.countChampionBuilds(...args);
+      const key = args[1].championId;
+      if (!pageCache.held.has(key)) pageCache.held.set(key, await real.countChampionBuilds(...args));
+      return pageCache.held.get(key) as Awaited<ReturnType<typeof real.countChampionBuilds>>;
+    },
+  };
+});
 
 let handle: DbHandle;
 
@@ -76,5 +106,53 @@ describe("the builds audit", () => {
       { champion: "Thresh", queue: "solo" },
       { champion: "Leona", queue: "solo" },
     ]);
+  });
+
+  it("holds the page's cached counts to themselves: a game stored after they were cached is counted as newer, never a violation", async () => {
+    const db = handle.db;
+    const run = () => runBuildsAudit({ db, log: () => {} }, { now: new Date("2026-11-27T00:00:00Z"), secret: "a-cron-secret" });
+    // One of Thresh's Ranked Flex games, as Thresh's Ranked Solo/Duo support games are.
+    const found = await db.execute(sql`SELECT match_id FROM match_details WHERE queue_id = 440 AND jsonb_path_query_array(participants, '$[*].championId') ?| ARRAY['Thresh']::text[] AND game_version LIKE '16.22%' ORDER BY match_id LIMIT 1`);
+    const [moved] = ((found as unknown as { rows?: unknown[] }).rows ?? (found as unknown as unknown[])) as Array<{ match_id: string }>;
+    expect(moved).toBeDefined();
+    pageCache.on = true;
+    try {
+      // The page's counts cached (a member opened the page, or the last run warmed them).
+      expect((await run()).ok).toBe(true);
+      // Account sync stores a game since: the fresh candidates have 51 Solo/Duo support games for Thresh, the page's cached counts 50.
+      await db.execute(sql`UPDATE match_details SET queue_id = 420 WHERE match_id = ${moved!.match_id}`);
+      const fresh = buildCandidates(await readBuildCandidates(db, ["16.22", "16.21"]), { current: "16.22", previous: "16.21" });
+      expect(fresh.find((c) => c.champion === "Thresh" && c.role === "SUPPORT" && c.queue === "solo")?.games).toBe(51);
+      const outcome = await run();
+      const s = outcome.summary as Record<string, unknown>;
+      expect(s.violations).toEqual([]);
+      expect(outcome.ok).toBe(true);
+      expect(s.newerGames).toBe(1);
+      // The probe opens what the page's counts show.
+      expect(parseProbe(unsealProbe(s.probeSealed as string, "a-cron-secret"))).toEqual([
+        { champion: "Thresh", queue: "solo" },
+        { champion: "Leona", queue: "solo" },
+      ]);
+    } finally {
+      pageCache.on = false;
+      pageCache.held.clear();
+      await db.execute(sql`UPDATE match_details SET queue_id = 440 WHERE match_id = ${moved!.match_id}`);
+    }
+  });
+
+  it("probes only champions it audited: one skipped (no stored abilities, so no builds on its page) is never opened", async () => {
+    pageCache.noAbilities.add("Leona");
+    try {
+      const outcome = await runBuildsAudit({ db: handle.db, log: () => {} }, { now: new Date("2026-11-27T00:00:00Z"), secret: "a-cron-secret" });
+      const s = outcome.summary as Record<string, unknown>;
+      expect(outcome.ok).toBe(true);
+      expect(s.skipped).toEqual({ noAbilities: 1 });
+      expect(parseProbe(unsealProbe(s.probeSealed as string, "a-cron-secret"))).toEqual([
+        { champion: "Thresh", queue: "solo" },
+        { champion: "Nasus", queue: "solo" },
+      ]);
+    } finally {
+      pageCache.noAbilities.clear();
+    }
   });
 });
