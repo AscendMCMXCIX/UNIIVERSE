@@ -60,7 +60,7 @@
     screen.
   - Team Overview (November 2026: the approved design, before #275), on whatever lineup production
     has: at 1440 the lineup centred in the height under the section tabs (or starting at the top
-    when taller than the window), and the header's 80px logo and "Team Overview" eyebrow with the
+    when taller than the window), and the header's 80px logo and "Team overview" eyebrow with the
     five cards on the stage's floor, hidden from screen readers; on the phone the first lineup card
     above the tab bar; at every width no bench of substitutes under the lineup (a substitute is on
     their starter's card). A fact whose precondition does not hold (no lineup five across, no tab
@@ -754,7 +754,7 @@ async function accountMenuFirstTap(page, kind, trigger) {
  * - desktop (1440 × 900, the sidebar open), five across: the header and the cards are centred in
  *   the height under the section tabs (as much room above the header as under the cards, the frame
  *   reaching the window's foot), or start at the top when they are taller than the window; and the
- *   header shows the logo at 80px and the "Team Overview" eyebrow over the name, with the cards on
+ *   header shows the logo at 80px and the "Team overview" eyebrow over the name, with the cards on
  *   the stage's floor (drawn from just under them, hidden from screen readers);
  * - phone (390 × 844): the first lineup card ends above the tab bar, and the lineup is the carousel
  *   (23 Nov 2026): no pager over it, one card on screen, centred in the page's gutter, and five
@@ -778,7 +778,8 @@ async function teamFacts(page, kind) {
     const track = q("[data-testid=lineup-overview]");
     const floor = q("[data-testid=lineup-stage-floor]");
     const logo = header?.querySelector("img, [data-testid=brand-mark-text]");
-    const eyebrow = header ? [...header.querySelectorAll("p")].find((p) => p.textContent.trim() === "Team Overview") : null;
+    // The eyebrow in sentence case since 27 Nov 2026 (the owner's decision D4).
+    const eyebrow = header ? [...header.querySelectorAll("p")].find((p) => p.textContent.trim() === "Team overview") : null;
     const nav = [...document.querySelectorAll("nav[aria-label=Primary]")].find(shown);
     const at = (el, side) => (el ? Math.round(el.getBoundingClientRect()[side]) : null);
     return {
@@ -838,7 +839,7 @@ async function teamFacts(page, kind) {
     }
     // The team's identity at its approved size, and the stage the cards stand on: the floor lit from
     // just under them (its top in their last 48px), decoration hidden from screen readers.
-    const stage = "1440: the Team header's 80px logo and Team Overview eyebrow, and the five cards on the stage's floor (hidden from screen readers)";
+    const stage = "1440: the Team header's 80px logo and \"Team overview\" eyebrow, and the five cards on the stage's floor (hidden from screen readers)";
     if (!fiveAcross) check("team", stage, "PASS", notFive);
     else {
       const logo = !!f.logo && Math.abs(f.logo.w - 80) <= 1 && Math.abs(f.logo.h - 80) <= 1;
