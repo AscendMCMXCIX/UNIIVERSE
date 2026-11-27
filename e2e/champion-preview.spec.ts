@@ -453,7 +453,10 @@ test("the opponents: one table of every lane opponent, a search, three orders wi
   await expect(page).toHaveURL(new RegExp(`vs=${firstId}`));
   expect(await page.evaluate(() => history.length)).toBe(entries);
   await expect(content.getByTestId("champion-preview-game").first()).toBeVisible();
-  await expect(content.getByTestId("champion-preview-lookup")).toHaveAttribute("href", `/lookup?champion=${champion}&champion2=${firstId}`);
+  // Matchup Intel (since 27 Nov 2026): the two champions in Compare, with the preview's position as the lane.
+  const lane = ({ TOP: "TOP", JUNGLE: "JUNGLE", MID: "MID", ADC: "BOTTOM", SUPPORT: "SUPPORT" } as Record<string, string>)[(await content.getAttribute("data-role"))!]!;
+  await expect(content.getByTestId("champion-preview-lookup")).toHaveAttribute("href", `/lookup?champion=${champion}&champion2=${firstId}&lane=${lane}`);
+  await expect(content.getByTestId("champion-preview-lookup")).toHaveText(/ vs .+ in Matchup Intel$/);
   if (info.project.name === "desktop") {
     // Beside the table: the table stays, and "Clear" (or the row again) puts the opponent back.
     await expect(content.getByTestId("champion-preview-opponent-table")).toBeVisible();

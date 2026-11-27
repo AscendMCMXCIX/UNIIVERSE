@@ -43,8 +43,8 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
   },
   {
     what: "Match records: for each stored game, the record Riot publishes (all ten players' in-game names, PUUIDs, champions, positions, items, runes, per-game figures and results) and its timeline (what each player bought, sold and used up, their skill order and when they reached each level, their gold, experience, CS, level, ability haste and place on the map minute by minute, when they took part in a kill, and the objectives and turret plates each team took), kept once per game",
-    why: "Match details, Matchups, Played Together and Encounters; Champion Intel's build totals per champion",
-    who: "Team members, for games in a profile's history; the build totals, naming no one, to members who may see teammates' statistics",
+    why: "Match details, Matchups, Played Together and Encounters; Champion Intel's build totals per champion; and, for a lane and two champions chosen in Champion Intel, how the two players of that lane compared at 10 minutes (gold, experience, CS, kills between them, first blood, result), totals only",
+    who: "Team members, for games in a profile's history; the build and lane totals, naming no one, to members who may see teammates' statistics",
     kept: "Not deleted automatically: a game stays stored after the profiles that played it are deleted, but is no longer shown. Permanent removal takes the person out of every stored game (below)",
   },
   {
@@ -52,6 +52,12 @@ const STORED: Array<{ what: string; why: string; who: string; kept: string }> = 
     why: "Shown beside a match's players in Match History (in the scoreboard, and on each game's card) as their rank around the time of that game, or marked as read later (Riot's game records have no rank from the time of the game)",
     who: "Team members",
     kept: "Until the next reading replaces it; not deleted automatically. Permanent removal deletes the person's own, and no rank is read for them again",
+  },
+  {
+    what: "Matchup notes administrators write about two champions' kits, with their sources: the reviewing administrator's account is stored with each note",
+    why: "Champion Intel's Matchup Intel, labelled as reviewed notes",
+    who: "The notes: every signed-in account, the reviewer shown as \"an administrator\"; the account stored with each note: administrators",
+    kept: "Until an administrator retires or deletes the note. Permanent removal of the administrator's personal information removes the link to their account; the note, which names no player, stays",
   },
   {
     what: "What you add: roles, champion pools, card designs and your profile picture",
@@ -153,7 +159,7 @@ export default async function PrivacyPage() {
         {name} is a private app for one League of Legends team. Administrators create every account; there is no public sign-up. This notice explains what it stores about members, why, who can see it, how long it stays, and how to reach us about it.
       </p>
       <p className="mt-1 text-xs text-fg-subtle">
-        Updated <time dateTime="2026-11-26">{PRIVACY_UPDATED}</time>
+        Updated <time dateTime="2026-11-27">{PRIVACY_UPDATED}</time>
       </p>
 
       <div className="lg:mt-6 lg:grid lg:grid-cols-[13rem_minmax(0,1fr)] lg:gap-8">

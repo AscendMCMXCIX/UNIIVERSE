@@ -17,8 +17,8 @@
   games in that queue; and that no Riot ID or account id is anywhere in them. The populated builds,
   their thresholds and the queue choice are judged on a champion the team's data has builds for
   (scripts/builds-facts.mjs). Where a step of Compare does not
-  finish, only that step is judged (and fails, named); the steps after it never ran and are not. Then Matchup Intel's old address, which must land here carrying
-  its enemy. Each read also takes every row's range (docs/CHAMPION_INTEL.md, "Ranges"): whether one
+  finish, only that step is judged (and fails, named); the steps after it never ran and are not. Then Matchup Intel's old address, which must land here in
+  Compare with both champions and its lane. Each read also takes every row's range (docs/CHAMPION_INTEL.md, "Ranges"): whether one
   is shown, hidden since Riot changed the ability or none, Riot's numbers behind it and the words
   shown, so the check holds production's ranges to the reviewed rule (never a placeholder, never on
   the passive, the numbers shown Riot's own). Read in the page only: counts, true or false,
@@ -318,7 +318,8 @@ export function championLookupVerdicts({ kind, champion, at, wide, hastedRead, a
   }
   fact("the builds name no player: no Riot ID or account id in them, one champion or two", !at.buildsIdentity && !(dual?.buildsIdentity ?? false), { at: at.buildsIdentity, dual: dual?.buildsIdentity ?? null });
   if (dual !== undefined && dual.buildsLevel !== null) fact("Compare: each champion's builds on one row after R, level in both columns", dual.buildsLevel === true, { level: dual.buildsLevel });
-  fact("Matchup Intel's old address lands on Champion Intel, carrying its enemy (vs)", legacy.url === "/lookup?champion=Mordekaiser" && legacy.champion === "Mordekaiser" && legacy.heading === "Champion Intel", { url: legacy.url, champion: legacy.champion });
+  // Changed on 27 Nov 2026 (Matchup Intel back inside Champion Intel's Compare): both champions and the lane.
+  fact("Matchup Intel's old address lands on Champion Intel's Compare with both champions and its lane (champion, vs, role)", legacy.url === "/lookup?champion=Riven&champion2=Mordekaiser&lane=TOP" && legacy.champion === "Riven" && legacy.secondChampion === "Mordekaiser" && legacy.heading === "Champion Intel", { url: legacy.url, champion: legacy.champion, second: legacy.secondChampion });
   fact("no timer, countdown, ready time or \"verified\" anywhere on the page", !at.timerWords && !hastedRead.timerWords, null);
   return out;
 }

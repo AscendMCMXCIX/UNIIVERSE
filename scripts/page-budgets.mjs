@@ -80,6 +80,9 @@ export const PAGES = {
   "a-privacy": { data: true, path: "/admin/people/privacy", admin: true },
   "a-previews": { path: "/admin/previews", admin: true },
   "a-resources": { data: true, path: "/admin/resources", admin: true },
+  // Release 19 (27 Nov 2026): Matchup Intel's notes in Admin, and Champion Intel's Compare with a lane.
+  "a-matchup-notes": { data: true, path: "/admin/matchup-notes", admin: true },
+  matchup: { path: "/lookup?champion=Ahri&champion2=Zed&lane=MID" },
 };
 
 /** A demo player's id with a full profile (the lineup's first card), from Team Overview. */

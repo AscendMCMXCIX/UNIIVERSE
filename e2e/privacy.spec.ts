@@ -22,7 +22,10 @@ test("is public, linked from sign-in, and lists what is stored, who sees it and 
   await expect(guest).toHaveURL(/\/privacy$/);
   await expect(guest.getByRole("heading", { name: "Privacy", level: 1 })).toBeVisible();
   const stored = guest.getByTestId("privacy-stored").locator(":scope > li");
-  await expect(stored).toHaveCount(13);
+  // 14 since 27 Nov 2026: Matchup Intel's reviewed notes, the reviewing administrator's account stored with each.
+  await expect(stored).toHaveCount(14);
+  await expect(stored.filter({ hasText: "Matchup notes administrators write" })).toContainText('the reviewer shown as "an administrator"');
+  await expect(stored.filter({ hasText: "Match records" })).toContainText("how the two players of that lane compared at 10 minutes");
   await expect(stored.filter({ hasText: "Page speed counts" })).toContainText("Nothing identifies you");
   // Clash Scout's saved scouts were deleted with its tables (migration 0064): nothing about them is stored.
   await expect(stored.filter({ hasText: "Clash" })).toHaveCount(0);

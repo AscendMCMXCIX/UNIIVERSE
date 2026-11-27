@@ -433,7 +433,7 @@ const sectionName = (championName: string) => `${championName}'s builds and rune
 export function ChampionBuilds({ views }: { views: ChampionBuildsViews }) {
   const headingId = `${React.useId()}-builds`;
   const sectionRef = React.useRef<HTMLElement>(null);
-  const { role: asked, setRole, queue, setQueue, source: askedSource, setSource, compare = false } = useBuildsChoice();
+  const { role: asked, setRole, queue, setQueue, source: askedSource, setSource, compare = false, lane = null } = useBuildsChoice();
   const [mode, setMode] = React.useState<Mode>("common");
   // The other queue's offer, once pressed, hands the focus to the queue choice (the offer is gone).
   const focusQueue = React.useRef(false);
@@ -468,7 +468,7 @@ export function ChampionBuilds({ views }: { views: ChampionBuildsViews }) {
   const sectionData = { "data-queue": view.queue, "data-source": source } as const;
 
   if (view.status !== "shown") {
-    const offer = source === "team" ? otherQueueOffer(views.queues, view.queue, asked ?? view.role) : null;
+    const offer = source === "team" ? otherQueueOffer(views.queues, view.queue, asked ?? lane ?? view.role) : null;
     return (
       <section ref={sectionRef} aria-label={sectionName(views.championName)} className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2" data-testid="lookup-builds-view" data-status="few" {...sectionData}>
         <Heading id={headingId}>{queueChoice}</Heading>
@@ -502,7 +502,9 @@ export function ChampionBuilds({ views }: { views: ChampionBuildsViews }) {
     );
   }
 
-  const role = shownRole(view, asked);
+  // With Matchup Intel's lane, the lane's role is the default where the champion has builds in it (20 games or more: the section's own rule).
+  const fallback = shownRole(view, lane);
+  const role = shownRole(view, asked ?? lane);
   const b = view.builds[role]!;
   const offersHighest = hasPerformer(b);
   const shown: Mode = offersHighest ? mode : "common";
@@ -561,7 +563,7 @@ export function ChampionBuilds({ views }: { views: ChampionBuildsViews }) {
       {/* In Compare the heading measures itself for its switches (the section, a subgrid, cannot be a container). */}
       <Heading id={headingId} className={compare ? "@container/builds" : undefined}>
         {view.roles.length > 1 ? (
-          <RoleSegmented label={roleSwitchLabel(view.championName)} roles={view.roles.map((r) => r.role)} value={role} onChange={(r) => r && setRole(r === view.defaultRole ? null : r)} testId="lookup-build-role" className="-my-1" />
+          <RoleSegmented label={roleSwitchLabel(view.championName)} roles={view.roles.map((r) => r.role)} value={role} onChange={(r) => r && setRole(r === fallback ? null : r)} testId="lookup-build-role" className="-my-1" />
         ) : (
           <span className="-my-1 inline-flex min-h-9 items-center gap-1.5 text-xs font-medium text-fg-muted pointer-coarse:min-h-11" data-testid="lookup-build-one-role">
             <RoleIcon role={role} className="h-3.5 w-3.5" decorative />

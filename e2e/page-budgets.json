@@ -253,10 +253,11 @@
    "small": 0
   },
   "privacy@i15-100": {
-   "screens": 9.37,
+   "screens": 9.92,
    "frame": 0,
    "frameScrolled": 0,
-   "small": 0
+   "small": 0,
+   "why": "Release 19 (27 Nov 2026): the privacy notice's Matchup Intel rows (a stored row for the matchup notes, kept with their reviewing administrator's account, and the match records' use for the lane totals at 10 minutes), the owner's request of 26 Nov 2026, item 4; measured 9.72 at i15, plus 2%."
   },
   "no-access@i15-100": {
    "screens": 1.02,
@@ -436,6 +437,34 @@
    "frameScrolled": 0.15,
    "small": 0,
    "why": "S9c (20 Nov 2026), new in this release: each entry's link is a 44px target on touch (S9c's 44px targets), 20px more on every row; measured on Release 8's combined tree, 2.80 at i15 and 8.91 at se1 150%."
+  },
+  "matchup@i15-100": {
+   "screens": 3.68,
+   "frame": 0.24,
+   "frameScrolled": 0.24,
+   "small": 0,
+   "why": "Release 19 (27 Nov 2026), new in this release: Matchup Intel (Champion Intel's Compare with a lane: the band's three blocks stacked above both champions' columns on a phone) and Admin's Matchup notes; measured on this release's tree, plus 2%: matchup 3.60 at i15 and 12.95 at se1 150%, a-matchup-notes 4.13 and 11.07 (its queue holds the demo's meetings; height not held, data)."
+  },
+  "a-matchup-notes@i15-100": {
+   "screens": 4.22,
+   "frame": 0.3,
+   "frameScrolled": 0.3,
+   "small": 0,
+   "why": "Release 19 (27 Nov 2026), new in this release: Matchup Intel (Champion Intel's Compare with a lane: the band's three blocks stacked above both champions' columns on a phone) and Admin's Matchup notes; measured on this release's tree, plus 2%: matchup 3.60 at i15 and 12.95 at se1 150%, a-matchup-notes 4.13 and 11.07 (its queue holds the demo's meetings; height not held, data)."
+  },
+  "matchup@se1-150": {
+   "screens": 13.21,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0,
+   "why": "Release 19 (27 Nov 2026), new in this release: Matchup Intel (Champion Intel's Compare with a lane: the band's three blocks stacked above both champions' columns on a phone) and Admin's Matchup notes; measured on this release's tree, plus 2%: matchup 3.60 at i15 and 12.95 at se1 150%, a-matchup-notes 4.13 and 11.07 (its queue holds the demo's meetings; height not held, data)."
+  },
+  "a-matchup-notes@se1-150": {
+   "screens": 11.3,
+   "frame": 0.45,
+   "frameScrolled": 0.15,
+   "small": 0,
+   "why": "Release 19 (27 Nov 2026), new in this release: Matchup Intel (Champion Intel's Compare with a lane: the band's three blocks stacked above both champions' columns on a phone) and Admin's Matchup notes; measured on this release's tree, plus 2%: matchup 3.60 at i15 and 12.95 at se1 150%, a-matchup-notes 4.13 and 11.07 (its queue holds the demo's meetings; height not held, data)."
   }
  }
 }

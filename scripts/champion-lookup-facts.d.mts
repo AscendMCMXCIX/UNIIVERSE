@@ -100,7 +100,8 @@ export function championLookupVerdicts(input: {
   removed?: ChampionLookupRead;
   /** The step of Compare, Swap and ✕ that did not finish; undefined: all finished. */
   stopped?: "compare" | "swap" | "remove";
-  legacy: Pick<ChampionLookupRead, "url" | "champion" | "heading">;
+  /** Matchup Intel's old address, landed: Compare with both champions and the lane (since 27 Nov 2026). */
+  legacy: Pick<ChampionLookupRead, "url" | "champion" | "secondChampion" | "heading">;
   healthPatch?: string | null;
   /** /api/health's highElo.collection ("on" or "off"); undefined or null: not said. */
   healthHighElo?: string | null;

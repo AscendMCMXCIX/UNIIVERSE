@@ -487,9 +487,19 @@ name then focused. No compare is forced, and it is no destination of its own.
   for the other column meanwhile keeps the one still loading ("Loading Lux and Caitlyn…"). A haste
   typed, or a builds role chosen, while the page's own change is on its way stays when it arrives:
   the page tells its own address from one opened elsewhere (a link, Back), which brings its own.
-- **Neutral.** Two references, never a verdict: no colour or word says which value is better, no
-  difference is computed, nothing is "faster" (RIOT_COMPLIANCE.md item 9; the browser spec checks the
-  words).
+- **Neutral.** Two references, never a verdict: no colour or word says which value is better,
+  nothing is "faster" (RIOT_COMPLIANCE.md item 9; the browser spec checks the words). Without a lane
+  no difference is computed; only with a lane chosen does Matchup Intel's band state differences of
+  the same quantity in neutral words ("22 more for Darius", "the same"), never better, worse, faster,
+  favoured or a verdict (27 Nov 2026).
+- **Matchup Intel** (27 Nov 2026, the owner's request of 26 Nov 2026, item 4; [MATCHUP_INTEL.md](MATCHUP_INTEL.md)):
+  the **Lane** control beside Swap (icons, the chosen lane named; "No lane" first, Compare as it
+  was) puts the early-lane band between the title and the board: Reviewed notes, In the team's
+  matches (accounts that may see teammates' statistics) and From Riot's data, each named in words.
+  The first column reads "Playing", the second "Against"; each ability row's rank-1 cell is tinted.
+  A lane is chosen like a champion (the server builds the band; Swap and ✕ wait meanwhile); Swap
+  keeps it and shows the other side of the same games; ✕ drops it; each column's builds open on the
+  lane's role where the champion has builds in it.
 - **Every width.** From a board of 22rem (a 390px phone at 100% text) up both champions sit side by
   side in every row (a phone's columns use the line form, values wrapping between ranks, the
   abilities' names and cooldowns a size smaller; the portrait above the name, the name a size
@@ -712,13 +722,14 @@ The browser tests show it with a cookie over the in-memory demo's synthetic coun
 
 ## Address
 
-`/lookup?champion=<id>&haste=<n>&role=<role>&champion2=<id>&haste2=<n>&role2=<role>&queue=<queue>&source=<source>`
+`/lookup?champion=<id>&haste=<n>&role=<role>&champion2=<id>&haste2=<n>&role2=<role>&lane=<lane>&queue=<queue>&source=<source>`
 (`address.ts`, `intelHref`), so a reload, a bookmark and a shared link open the same champions at the
 same hastes, each builds section on its chosen role (left out for its default; a role is `TOP`,
-`JUNGLE`, `MID`, `ADC` or `SUPPORT` in any case, anything else ignored), and the builds on the page's
-queue (`solo`, the default, left out; `flex`, `draft`, `clash`; anything else reads as Solo/Duo:
-`queueFromAddress`, which Matchup Intel's band reads too) and source (`master` only where the page
-offers it; with it no queue is written, as Master+ is Solo/Duo by definition). A champion may be its Data
+`JUNGLE`, `MID`, `ADC` or `SUPPORT` in any case, anything else ignored), in Compare Matchup Intel's
+lane (`lane=TOP|JUNGLE|MID|BOTTOM|SUPPORT`, only with two champions), and the page's queue (`solo`,
+the default, left out; `flex`, `draft`, `clash`; anything else reads as Solo/Duo: `queueFromAddress`,
+one parameter for the builds and Matchup Intel's lane figures alike) and the builds' source (`master`
+only where the page offers it; with it no queue is written, as Master+ is Solo/Duo by definition). A champion may be its Data
 Dragon id or its name in any case, accents and punctuation ignored ("wukong" opens MonkeyKing); the
 page writes each champion's own id back. One the roster lacks is left out with a line saying so,
 never repeated back. A second champion with no first (or a first the roster lacks) becomes the first,
@@ -729,11 +740,14 @@ history entry, so Back leaves the page in one step. A champion is built on the s
 rewrites the address (`history.replaceState`), with no request. A champion changed drops its column's
 role and keeps the page's queue.
 
-**Old links.** Matchup Intel's address, `/resources/matchups` with any of its parameters, redirects
-here (HTTP 308, `src/proxy.ts`) carrying one champion: the enemy (`vs`) where it names one, else your
-champion, else the bot lane's other enemy, else your duo partner (`legacyMatchupRedirect`).
-`/resources/matchups?champion=Riven&vs=Mordekaiser` lands on `/lookup?champion=Mordekaiser`. All
-Champions' preview links an opened lane opponent here: "Renekton's abilities in Champion Intel →".
+**Old links.** Matchup Intel's old address, `/resources/matchups` with any of its parameters,
+redirects here (HTTP 308, `src/proxy.ts`, `legacyMatchupRedirect`): since 27 Nov 2026 your champion
+(`champion`) and the enemy (`vs`) as the two champions and the old lane (`role`) as the lane, so
+`/resources/matchups?role=top&champion=Riven&vs=Mordekaiser` lands on
+`/lookup?champion=Riven&champion2=Mordekaiser&lane=TOP`; one of the two alone is carried alone (no
+lane); with neither, the bot lane's other enemy, else your duo partner. All Champions' preview links an
+opened lane opponent here: "Riven vs Renekton in Matchup Intel" (both champions, the position as the
+lane).
 
 ## Fit and measurements
 
@@ -749,6 +763,15 @@ holds each; screenshots before and after in the lane's notes, never in the repos
   of the aligned board run a little past the screen, about 800px). One champion at 1440 × 900: the
   last row ends near 600px; at 1366 × 768, near 620px. Two at 1440 × 900: Aurelion Sol and Nunu at 20
   end near 690px, Teemo and Jayce near 840px.
+- **Matchup Intel's band** (27 Nov 2026, Compare with a lane; `e2e/champion-matchup.spec.ts` holds
+  each with 12px to spare, and was checked with every letter 1% wider, as CI's Chromium sets text):
+  at 1440 × 900 with the sidebar open the band ends near 300px (its three blocks side by side) and
+  both champions' five rows near 860px for a typical pair (Ahri and Zed, with the demo's figures and
+  a note: 875px with wider text); Teemo and Jayce's longest rows put R past 900px but P to E end near
+  785px (the documented exception: the band and P–E on screen for every pair, all five rows for the
+  typical ones). At 1366 × 768 the band is on screen (it ends near 300px), at 1920 × 1080 the band
+  and all five rows (near 880px; Teemo and Jayce near 905px). On phones and tablets the blocks stack
+  above the board and the page scrolls; nothing is wider than the screen at 320 to 430px and 200% text.
 - **Names**: the champion's name whole and on one line at 1366, 1440 and 1920, the sidebar open and
   folded, one champion and two ("Nunu & Willump", "Aurelion Sol", "Renata Glasc", "Twisted Fate",
   "Heimerdinger", "Fiddlesticks"); no ability name broken inside a word; on phones of 320, 375, 390
@@ -830,8 +853,11 @@ The app-wide checklist is [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md), where Champi
   available prior to the game" are an approved use; this is a web page with the same static data, the
   same before any game and on a second screen during one. Nothing comes from a game in progress or
   from champion select, nothing names a player, and two champions compared are two references, never
-  a verdict on a matchup: aligned side by side, with no better/worse colouring, no difference
-  computed and no "faster" or winner wording.
+  a verdict on a matchup: aligned side by side, with no better/worse colouring and no "faster" or
+  winner wording. Only with a lane chosen (Matchup Intel, [MATCHUP_INTEL.md](MATCHUP_INTEL.md)) does
+  the band state differences of the same quantity in neutral words, beside totals of the team's
+  completed games from 10 games with their 95% ranges and notes the team's administrators review:
+  one pair at a time, chosen by hand, no ranking, counter list or pick suggestion.
 - **No timers.** Base values per rank and their value at a chosen haste only: no timer, countdown,
   "used" or "ready at", and nothing records when an ability was used (`words.test.ts` and the browser
   spec check the words). No advice, ranking or matchup verdict.
@@ -871,6 +897,10 @@ The app-wide checklist is [RIOT_COMPLIANCE.md](RIOT_COMPLIANCE.md), where Champi
   the rule: 269 reaches, 11 Global; Ahri's Q, E and R);
   `range-review.test.ts` (the version-check's counts); `src/components/admin/static-diff.test.ts`
   (Admin's ranges line).
+- Matchup Intel (Compare with a lane): its own tests, listed in [MATCHUP_INTEL.md](MATCHUP_INTEL.md),
+  "Tests" (`src/domain/matchup/*.test.ts`, `tests/db/lane-matchups.test.ts`,
+  `tests/db/matchup-notes.test.ts`, `tests/db/matchup-queue.test.ts`, `e2e/champion-matchup.spec.ts`,
+  `e2e/admin-matchup-notes.spec.ts`).
 - Database: `tests/db/champion-abilities.test.ts` (the sync, the per-champion reads, the patch marks;
   rules format 5: ranges stored as given, a format-4 record read again, a range change marked and
   hidden, the counts once per version and table, never on an unchanged run, counts only in the log);
@@ -943,6 +973,11 @@ sizes (sections of 20–300 games) only a difference of 10 points or more in a s
 has even an 8% chance. That is the honest outcome: under the old rule the switch appeared in 93% of
 sections where no build was better. The Master+ source (D2), once switched on, is where it becomes
 useful.
+
+**Matchup Intel** (27 Nov 2026, Compare with a lane) adds to what the description must say: its
+proposed sentence and the owner's actions (writing and re-reviewing notes in Admin → Matchup notes,
+the registration paste, the privacy rows) are in [MATCHUP_INTEL.md](MATCHUP_INTEL.md), "For the owner";
+the D1 description (Release 19) carries the sentence into the text above.
 
 **Decisions left to the owner**: whether damage values, scaling and durations should come from a
 source beyond Data Dragon (CommunityDragon's game files hold them; RIOT_COMPLIANCE.md permits that

@@ -6,6 +6,7 @@ import { applyScreenshotFixture, seedDemoAccounts, seedDemoRoster, seedDemoVerif
 import { applyDemoEncounters } from "@/server/demo/encounters-fixture";
 import { applyDemoBuilds } from "@/server/demo/builds-fixture";
 import { seedDemoHighElo } from "@/server/demo/high-elo";
+import { applyDemoMatchups } from "@/server/demo/matchup-fixture";
 import { seedChampionAbilitiesFromFixture } from "@/server/riot/static/abilities";
 
 declare global {
@@ -50,6 +51,8 @@ async function bootstrap(handle: DbHandle): Promise<void> {
     if (handle.mode !== "postgres") await applyDemoBuilds(db).catch((err) => console.error("[bootstrap] demo builds not applied:", err));
     // Champion Intel's Master+ source: synthetic counts made by the sampler's own code, shown only with the browser tests' cookie (in-memory demo only).
     if (handle.mode === "pglite-memory") await seedDemoHighElo(db).catch((err) => console.error("[bootstrap] demo high-elo counts not seeded:", err));
+    // Matchup Intel: two pairs met often enough in one lane, and two reviewed notes (synthetic DEMO_ games and demo notes only).
+    if (handle.mode !== "postgres") await applyDemoMatchups(db).catch((err) => console.error("[bootstrap] demo matchups not applied:", err));
     // Production's verification account, as Admin's People page shows it (no password; local only).
     if (handle.mode !== "postgres") await seedDemoVerificationAccount(db);
     // Screenshots and layout checks: real-length names, the local owner as a player (in-memory demo only).

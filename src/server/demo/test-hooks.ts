@@ -35,3 +35,24 @@ export const OPPONENT_SEARCH_TEST_COOKIE = "uniiverse-test-opponent-search-from"
 export function opponentSearchFromForTest(cookie: string | null | undefined): number | null {
   return demoTestHooksAllowed() && typeof cookie === "string" && /^[1-3]$/.test(cookie) ? Number(cookie) : null;
 }
+
+/*
+  BROWSER TESTS ONLY: Matchup Intel's reviewed notes (docs/MATCHUP_INTEL.md, "Reviewed notes") are
+  fresh, not re-checked or hidden by the patches since their review and by Riot's data, which the
+  in-memory demo cannot age. A test names how many patches ago a note was reviewed ("2": not
+  re-checked; "4": hidden) or that Riot changed the opponent since ("1"), so production's states can
+  be tested on the demo's notes. Read only on the in-memory demo; nothing is stored.
+*/
+
+export const NOTE_AGE_TEST_COOKIE = "uniiverse-test-note-age";
+export const KIT_CHANGED_TEST_COOKIE = "uniiverse-test-kit-changed";
+
+/** The patches since the demo's notes were reviewed, for a browser test's cookie (0–9); null anywhere but the in-memory demo, or for any other value. */
+export function noteAgeForTest(cookie: string | null | undefined): number | null {
+  return demoTestHooksAllowed() && typeof cookie === "string" && /^[0-9]$/.test(cookie) ? Number(cookie) : null;
+}
+
+/** Whether a browser test's cookie says Riot changed the opponent's kit since the review; false anywhere but the in-memory demo. */
+export function kitChangedForTest(cookie: string | null | undefined): boolean {
+  return demoTestHooksAllowed() && cookie === "1";
+}

@@ -29,6 +29,8 @@ export interface BuildsChoice {
   setSource: (source: BuildSource) => void;
   /** The section sits in a column of Compare's board (its subgrid rows), not across one champion's. */
   compare?: boolean;
+  /** Matchup Intel's lane (Compare with a lane chosen): the role shown when none is chosen, where the champion has builds in it. */
+  lane?: Role | null;
 }
 
 const BuildsChoiceContext = React.createContext<BuildsChoice | null>(null);

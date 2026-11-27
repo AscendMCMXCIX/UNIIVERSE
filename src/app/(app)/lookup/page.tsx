@@ -7,10 +7,17 @@ import type { Db } from "@/server/db/types";
 import { loadLookupPage } from "@/server/champion-lookup/view";
 import { loadChampionBuilds, skillRanksOf } from "@/server/champion-builds/load";
 import { behindPatch, type LookupChampion } from "@/domain/champion-lookup/view";
-import { hasteFromAddress, paramOf, queueFromAddress, roleFromAddress, sourceFromAddress } from "@/components/champion-lookup/address";
 import { HIGH_ELO_TEST_COOKIE, highEloShown } from "@/server/champion-builds/high-elo/switch";
+import { loadLaneEvidence } from "@/server/matchup/lane-evidence";
+import { notesForPair } from "@/server/matchup/notes-store";
+import { KIT_CHANGED_TEST_COOKIE, NOTE_AGE_TEST_COOKIE, kitChangedForTest, noteAgeForTest } from "@/server/demo/test-hooks";
+import { earlyKitLines, kitChange } from "@/domain/matchup/early-kit";
+import type { Role } from "@/domain/roles";
+import { hasteFromAddress, laneFromAddress, paramOf, queueFromAddress, roleFromAddress, sourceFromAddress } from "@/components/champion-lookup/address";
 import { ChampionBuilds, ChampionBuildsLoading } from "@/components/champion-lookup/champion-builds";
 import { LookupView } from "@/components/champion-lookup/lookup-view";
+import { MatchupBand } from "@/components/champion-lookup/matchup-band";
+import { MatchupBandLoading } from "@/components/champion-lookup/matchup-band-loading";
 import { cn } from "@/lib/cn";
 
 export const dynamic = "force-dynamic";
@@ -26,16 +33,30 @@ type Search = Record<string, string | string[] | undefined>;
  * teammates' statistics, each champion's builds and runes counted in the team's stored matches
  * (LookupView's `builds`, server/champion-builds: totals only, cached, streamed in after the
  * abilities so they never wait for it; every queue's counts at once, each shown on its own). The
- * champions, hastes, builds roles and the builds' queue come from the address
+ * champions, hastes, builds roles and the page's queue come from the address
  * (?champion=<id or name>&haste=<n>&role=<role>&champion2=<id or name>&haste2=<n>&role2=<role>&queue=<solo|flex|draft|clash>);
- * each champion is checked against the roster. The page reads the session, the cached roster and
- * current patch, the stored abilities of the champions chosen and their build totals: no Riot
- * request, no one player's data.
+ * each champion is checked against the roster. With two champions and a lane (&lane=TOP…), MATCHUP
+ * INTEL's early-lane band (docs/MATCHUP_INTEL.md) is streamed above the board the same way: Riot's
+ * level-1 differences, the team's lane figures at 10:00 for accounts that may see teammates'
+ * statistics, and the reviewed notes; the page's queue chooses whose figures show, the builds' and
+ * the band's alike. The page reads the session, the cached roster and current patch, the stored
+ * abilities of the champions chosen, their build totals and the pair's lane totals and notes: no
+ * Riot request, no one player's data.
  */
 /** One champion's builds, read while the rest of the page is already shown. */
 async function Builds({ db, session, champion, master }: { db: Db; session: Session; champion: LookupChampion; master: boolean }) {
   const views = await loadChampionBuilds(db, session, { championId: champion.champion.id, championName: champion.champion.name, ranks: skillRanksOf(champion.abilities) }, { master });
   return views ? <ChampionBuilds views={views} /> : null;
+}
+
+/** Matchup Intel's band for the two champions in a lane, read while the rest of the page is already shown. */
+async function Matchup({ db, session, a, b, role, test }: { db: Db; session: Session; a: LookupChampion; b: LookupChampion; role: Role; test: { ageDistance: number | null; kitChanged: boolean } }) {
+  const [evidence, notes] = await Promise.all([
+    loadLaneEvidence(db, session, { a: { id: a.champion.id, name: a.champion.name }, b: { id: b.champion.id, name: b.champion.name }, role }),
+    notesForPair(db, { role, championId: a.champion.id, opponentId: b.champion.id }, test),
+  ]);
+  const changes = [kitChange(a), kitChange(b)].filter((c): c is NonNullable<typeof c> => !!c);
+  return <MatchupBand data={{ role, a: { id: a.champion.id, name: a.champion.name }, b: { id: b.champion.id, name: b.champion.name }, patch: a.patch, kit: { lines: earlyKitLines(a, b), changes }, evidence, notes }} />;
 }
 
 export default async function ChampionIntelPage({ searchParams }: { searchParams: Promise<Search> }) {
@@ -58,6 +79,19 @@ export default async function ChampionIntelPage({ searchParams }: { searchParams
       </Suspense>
     ) : undefined;
   const roles: [ReturnType<typeof roleFromAddress>, ReturnType<typeof roleFromAddress>] = [roleFromAddress(page.firstFrom === "champion2" ? sp.role2 : sp.role), second ? roleFromAddress(sp.role2) : null];
+  // Matchup Intel: a lane only with two champions; the queue is the page's (Ranked Solo/Duo by default).
+  const lane = lookup && second ? laneFromAddress(sp.lane) : null;
+  const queue = queueFromAddress(sp.queue);
+  let matchup: React.ReactNode = undefined;
+  if (lookup && second && lane) {
+    const jar = await cookies();
+    const test = { ageDistance: noteAgeForTest(jar.get(NOTE_AGE_TEST_COOKIE)?.value), kitChanged: kitChangedForTest(jar.get(KIT_CHANGED_TEST_COOKIE)?.value) };
+    matchup = (
+      <Suspense fallback={<MatchupBandLoading blocks={hasPermission(session, "view-teammate-stats") ? 3 : 2} />}>
+        <Matchup db={db} session={session} a={lookup} b={second} role={lane} test={test} />
+      </Suspense>
+    );
+  }
   const shown = lookup;
   const source = shown?.version ? `Riot Data Dragon ${shown.version}${shown.patch ? ` · patch ${shown.patch}` : ""}${shown.offline ? " · offline copy" : ""}` : null;
   const behind = shown ? behindPatch(shown.patch, currentPatch) : false;
@@ -73,8 +107,10 @@ export default async function ChampionIntelPage({ searchParams }: { searchParams
         initialHaste={haste}
         initialHaste2={second ? haste2 : 0}
         initialRoles={roles}
-        initialQueue={queueFromAddress(sp.queue)}
+        initialLane={lane}
+        initialQueue={queue}
         initialSource={master ? sourceFromAddress(sp.source) : "team"}
+        matchup={matchup}
         builds={{ first: buildsOf(lookup), second: buildsOf(second) }}
         dropped={page.dropped}
         source={

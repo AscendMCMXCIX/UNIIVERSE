@@ -889,16 +889,18 @@ test("names are never cut or broken: the longest on one line in the header at 13
   expect(await namesWhole(page, '[data-testid="lookup-picker-grid"] button[data-champion] > span:not([aria-hidden]):not(.sr-only)', false)).toEqual([]);
 });
 
-test("Matchup Intel's old links land on Champion Intel, carrying one champion: the enemy where named", async ({ page }, info) => {
+// Changed on 27 Nov 2026 (Matchup Intel back inside Champion Intel's Compare): both champions and the lane are carried.
+test("Matchup Intel's old links land on Champion Intel's Compare, carrying both champions and the lane", async ({ page }, info) => {
   test.skip(!isDesktop(info.project.name), "once");
-  const first = await page.request.get("/resources/matchups?champion=Riven&vs=Mordekaiser", { maxRedirects: 0 });
+  const first = await page.request.get("/resources/matchups?role=top&champion=Riven&vs=Mordekaiser", { maxRedirects: 0 });
   expect(first.status()).toBe(308);
   const to = new URL(first.headers()["location"]!, "http://x");
-  expect(to.pathname + to.search).toBe("/lookup?champion=Mordekaiser");
+  expect(to.pathname + to.search).toBe("/lookup?champion=Riven&champion2=Mordekaiser&lane=TOP");
   for (const [old, want] of [
-    ["/resources/matchups?champion=Riven&vs=Mordekaiser", "/lookup?champion=Mordekaiser"],
+    ["/resources/matchups?role=top&champion=Riven&vs=Mordekaiser", "/lookup?champion=Riven&champion2=Mordekaiser&lane=TOP"],
+    ["/resources/matchups?champion=Riven&vs=Mordekaiser", "/lookup?champion=Riven&champion2=Mordekaiser"],
     ["/resources/matchups?role=top&champion=Riven", "/lookup?champion=Riven"],
-    ["/resources/matchups?role=adc&champion=Jinx&ally=Lulu&vs=Caitlyn&vs2=Lux&ability=Caitlyn.Q", "/lookup?champion=Caitlyn"],
+    ["/resources/matchups?role=adc&champion=Jinx&ally=Lulu&vs=Caitlyn&vs2=Lux&ability=Caitlyn.Q", "/lookup?champion=Jinx&champion2=Caitlyn&lane=BOTTOM"],
     ["/resources/matchups?role=support&ally=Lulu&vs2=Lux", "/lookup?champion=Lux"],
     ["/resources/matchups", "/lookup"],
   ] as const) {
@@ -906,6 +908,9 @@ test("Matchup Intel's old links land on Champion Intel, carrying one champion: t
     await expect(page, old).toHaveURL(new RegExp(`${want.replace(/[?]/g, "\\?")}$`));
     await expect(page.getByRole("heading", { level: 1, name: "Champion Intel" })).toBeVisible();
   }
+  // The lane's band is there for the pair with a lane.
+  await page.goto("/resources/matchups?role=top&champion=Riven&vs=Mordekaiser");
+  await expect(page.getByTestId("matchup-band")).toHaveAttribute("data-lane", "TOP");
 });
 
 test("one screen: the header, the haste and the five abilities, folded, on the first screen at every desktop size, one champion and two, the sidebar open and folded; nothing scrolls inside", async ({ page, context, baseURL }, info) => {

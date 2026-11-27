@@ -306,7 +306,7 @@ test("an administrator keeps the library in Admin Mode; members see each change,
   test.skip(info.project.name !== "desktop", "runs once, on the desktop project");
   await blockFavicons(page);
   await page.goto("/admin/resources");
-  await expect(page.getByTestId("admin-settings-tabs").getByRole("link")).toHaveText(["Branding", "Previews", "Resources"]);
+  await expect(page.getByTestId("admin-settings-tabs").getByRole("link")).toHaveText(["Branding", "Previews", "Resources", "Matchup notes"]);
   const manager = page.getByTestId("resources-manager");
   const managed = (title: string) => manager.getByTestId("managed-resource").filter({ has: page.getByText(title, { exact: true }) });
 

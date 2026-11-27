@@ -18,6 +18,7 @@ import { matchViewConsistency } from "@/server/players/match-consistency";
 import { riotIdFamily } from "@/server/riot/id-family";
 import { publicRiotDataAllowed } from "@/server/public/access";
 import { laneOpponentAudit } from "@/server/accounts/lane-opponents";
+import { matchupCoverage } from "@/server/matchup/coverage";
 
 type Row = Record<string, unknown>;
 function rows(result: unknown): Row[] {
@@ -33,7 +34,7 @@ defineJob({
   key: "data-audit",
   kind: "check",
   cost: "Reads every stored game, a large read from the database: run it when you need its answer.",
-  description: "Read-only check of the data actually stored: linked-account sync, matches per queue, Solo/Duo vs Flex classification, mastery, Matchups timeline coverage, the stored lane opponents against the lane opponent rule (games that disagree, unclear, and with Riot's two positions kept), multikill counts, the figures backfill's coverage (games with the extra figures, unavailable, still to fetch), the ranks shown in match windows (coverage and lookups per day), OP.GG link coverage and why links are missing, whether each stored game's record and timeline agree (gold, CS, kills, objectives), how many members the proposed Recent performance boards would rank, patches. Changes nothing.",
+  description: "Read-only check of the data actually stored: linked-account sync, matches per queue, Solo/Duo vs Flex classification, mastery, Matchups timeline coverage, the stored lane opponents against the lane opponent rule (games that disagree, unclear, and with Riot's two positions kept), multikill counts, the figures backfill's coverage (games with the extra figures, unavailable, still to fetch), the ranks shown in match windows (coverage and lookups per day), OP.GG link coverage and why links are missing, whether each stored game's record and timeline agree (gold, CS, kills, objectives), how many members the proposed Recent performance boards would rank, Matchup Intel's lane pairings and reviewed notes (counts), patches. Changes nothing.",
   defaultIntervalMinutes: null,
   allowConcurrent: true,
   run: async (ctx) => {
@@ -234,6 +235,10 @@ defineJob({
         // Which stored games carry the members' current Riot ids, i.e. were stored under the key
         // family in use (ids are encrypted per Riot application), counts only.
         riotIdFamily: await riotIdFamily(db),
+        // Matchup Intel's coverage (server/matchup/coverage.ts): lane pairings this season and how
+        // many reach the figures' 10 games, by queue, the members' own lanes and every lane of their
+        // games; the reviewed notes by state. Counts only, never a champion's name.
+        matchupCoverage: await matchupCoverage(db),
       },
     };
   },

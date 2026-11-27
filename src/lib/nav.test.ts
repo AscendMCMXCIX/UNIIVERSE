@@ -15,7 +15,7 @@ describe("navigation entries", () => {
   it("Resources is for every signed-in account, and is managed in Admin Mode's Platform Settings", () => {
     expect(NAV_LINKS.find((l) => l.href === "/resources")).toMatchObject({ label: "Resources" });
     expect(NAV_LINKS.find((l) => l.href === "/resources")).not.toHaveProperty("permission");
-    expect(SECTION_HUBS.find((h) => h.key === "admin-settings")!.sections.map((s) => s.href)).toEqual(["/admin/branding", "/admin/previews", "/admin/resources"]);
+    expect(SECTION_HUBS.find((h) => h.key === "admin-settings")!.sections.map((s) => s.href)).toEqual(["/admin/branding", "/admin/previews", "/admin/resources", "/admin/matchup-notes"]);
     expect(ADMIN_LINKS.find((l) => l.href === "/admin/resources")).toMatchObject({ permission: "manage-branding" });
   });
 
@@ -34,7 +34,7 @@ describe("navigation entries", () => {
       ["/admin/data", "Data & Integrations"],
       ["/admin/audit", "Audit Logs"],
     ]);
-    expect(ADMIN_LINKS.map((l) => l.href)).toEqual(["/admin", "/admin/people", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/system", "/admin/data", "/admin/audit"]);
+    expect(ADMIN_LINKS.map((l) => l.href)).toEqual(["/admin", "/admin/people", "/admin/people/access", "/admin/people/privacy", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/matchup-notes", "/admin/system", "/admin/data", "/admin/audit"]);
     expect(ADMIN_LINKS.every((l) => l.href.startsWith("/admin"))).toBe(true);
     expect(ADMIN_LINKS.map((l) => l.href)).not.toContain("/team");
     expect(NAV_LINKS.some((l) => l.href.startsWith("/admin"))).toBe(false);
@@ -168,7 +168,7 @@ describe("the destinations every bar shows", () => {
     expect(list.map((d) => d.icon)).toEqual(ADMIN_ENTRIES.map((e) => e.icon));
     expect(list[3]!.pages).toEqual(["/admin/system", "/admin/data", "/admin/audit"]);
     // An administrator who may manage branding only: System is its Audit Logs.
-    expect(view(destinations(["/admin", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/audit"], true))).toEqual([
+    expect(view(destinations(["/admin", "/admin/branding", "/admin/previews", "/admin/resources", "/admin/matchup-notes", "/admin/audit"], true))).toEqual([
       ["/admin", "/admin", "Dashboard", null],
       ["admin-settings", "/admin/branding", "Platform Settings", "Platform"],
       ["admin-system", "/admin/audit", "System", null],

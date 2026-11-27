@@ -64,6 +64,30 @@ player, kept by the database from the records.
   reads (one champion's counts, cached an hour). The owner's go-ahead thresholds (Vercel and
   Supabase readings) are in its "For the owner".
 
+## 27 Nov 2026: Matchup Intel's lane figures (one statement per pair, cached six hours)
+
+**What it reads.** Matchup Intel (docs/MATCHUP_INTEL.md), Champion Intel's Compare with a lane, counts
+how the two players of one lane compared at 10:00 in the team's stored draft games of that pairing:
+ONE statement per pair, role and season, every draft queue at once (`src/server/matchup/lane-query.ts`),
+the records found through the champions' index (`match_details_champions_idx`, both champions' ids
+among a record's), the two seats' timeline entries read inside the database. Per game only anonymous
+numbers leave it: the first 12 frame times and the two seats' gold, experience and CS over them, kill
+and death times before 10:00, two first-blood flags, the patch, the queue, the result. About 0.6–0.8 KB a
+game: a pair with 50 games about 35 KB uncached, most pairs under 20 games (about 14 KB).
+
+**Cached** six hours in Next's data cache, shared by every instance (`unstable_cache`, tag
+`lane-matchups`, dropped by an erasure), keyed by the unordered pair, so Swap and a queue change read
+nothing. The notes: one indexed read, cached ten minutes (tag `matchup-notes`). Admin's queue: one
+aggregate over `account_matches` (about 15 KB), cached an hour.
+
+**Budget.** Eleven members opening about 20 pairs a day, all cold, would be about 7 MB a day at worst;
+with the cache well under 2 MB, against 120 MB a day. Database CPU: a GIN lookup and JSON over at most a
+few hundred records, estimated 20–150 ms cold. The perf probe's `matchup.lane-evidence` step (Ahri vs
+Zed, Mid) measures it cold and warm (about 40 KB more a probe). Vercel CPU: interpolation and statistics
+for at most a few hundred games take a few ms; the band is a server component. The Production check
+adds one page load and one request a run (about one CPU-second). If it ever weighs: a `db-usage` run
+names the statement `with match_details <hash>`, its sample opening "WITH lane_rec AS MATERIALIZED".
+
 ## 26 Nov 2026: Champion Intel's builds and runes (one counting statement per champion, cached six hours)
 
 **What it reads.** Champion Intel's builds (docs/CHAMPION_INTEL.md, "Builds and runes") count what

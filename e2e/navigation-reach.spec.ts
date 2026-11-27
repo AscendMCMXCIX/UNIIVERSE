@@ -298,7 +298,7 @@ test("wide windows: every tab row starts at its pages' column, on each of their 
     // Bars of main's own, above pages centred in their set's width (SECTION_HUBS).
     { nav: "team-tabs", mode: "player", pages: ["/team", "/players", "/leaderboards", "/matches"], ownBar: true },
     { nav: "admin-users-tabs", mode: "admin", pages: ["/admin/people", "/admin/people/access", "/admin/people/privacy"], ownBar: true },
-    { nav: "admin-settings-tabs", mode: "admin", pages: ["/admin/branding", "/admin/previews", "/admin/resources"], ownBar: true },
+    { nav: "admin-settings-tabs", mode: "admin", pages: ["/admin/branding", "/admin/previews", "/admin/resources", "/admin/matchup-notes"], ownBar: true },
     { nav: "admin-system-tabs", mode: "admin", pages: ["/admin/system", "/admin/data", "/admin/audit"], ownBar: true },
     // Bars inside their pages: a profile's sections, and the views of a section (Leaderboards has none since 19 Nov 2026: one page).
     { nav: "profile-tabs", mode: "player", pages: [profile, `${profile}/champions`, `${profile}/matches`, `${profile}/accounts`] },
