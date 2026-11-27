@@ -11,9 +11,12 @@
   champion on the server), read at 1440 × 900 on the aligned board; Swap (one request), read; and ✕
   on the first column (one request), which leaves Ahri alone again. Each read also takes the
   champion's builds and runes (counted in the team's stored matches, streamed in after the
-  abilities): whether they show, the source line, each part's choice with its win and pick rate or
-  why there is none (the runes with both trees' icons), or the honest line that the patch has too
-  few games; and that no Riot ID or account id is anywhere in them. Where a step of Compare does not
+  abilities): whether they show, the queue they count (Ranked Solo/Duo when the address names none,
+  one queue at a time: D5), the source line, each part's choice with its win and pick rate or why
+  there is none (the runes with both trees' icons), or the honest line that the patch has too few
+  games in that queue; and that no Riot ID or account id is anywhere in them. The populated builds,
+  their thresholds and the queue choice are judged on a champion the team's data has builds for
+  (scripts/builds-facts.mjs). Where a step of Compare does not
   finish, only that step is judged (and fails, named); the steps after it never ran and are not. Then Matchup Intel's old address, which must land here carrying
   its enemy. Read in the page only: counts, true or false,
   px, numbers and the page's own fixed words; no name but champions' and abilities'.
@@ -97,11 +100,17 @@ export function readChampionLookup() {
     }),
   };
 
-  /** The builds section of a column: its state, its source line, the honest line, and each part's row. */
+  /** The builds section of a column: its state, its queue, its source line, the honest line, and each part's row. */
   function readBuilds(column) {
     const view = column?.querySelector('[data-testid="lookup-builds-view"]') ?? null;
+    const queue = view?.querySelector('[data-testid="lookup-build-queue"]') ?? null;
     return {
       buildsStatus: view?.getAttribute("data-status") ?? null,
+      // The queue the section counts (its key), the name its choice shows (the popover's label, or the phone's own select), and whether the address names one.
+      buildsQueue: view?.getAttribute("data-queue") ?? null,
+      buildsSource: view?.getAttribute("data-source") ?? null,
+      buildsQueueShown: queue ? (queue instanceof HTMLSelectElement ? text(queue.selectedOptions[0]) : text(queue.querySelector("[data-select-label]"))) : "",
+      buildsAddressQueue: new URLSearchParams(location.search).has("queue"),
       buildsLine: view?.querySelector('[data-testid="lookup-build-source"]')?.getAttribute("data-line") ?? "",
       buildsFew: text(view?.querySelector('[data-testid="lookup-build-few"]')),
       buildsParts: [...(view?.querySelectorAll('[data-testid="lookup-build-part"]') ?? [])].map((r) => ({
@@ -126,6 +135,13 @@ export function readChampionWindow() {
   const counted = Number(/·\s*(\d+)/.exec(title)?.[1] ?? "NaN");
   return { open: !!win, shown: grid.length, counted, first: grid[0]?.getAttribute("data-champion") ?? null, found: win?.querySelector('[data-testid="lookup-picker-count"]')?.textContent?.trim() ?? "" };
 }
+
+/** The builds' queues as the page names them (src/domain/champion-builds-words.ts QUEUE_LABELS; its unit test holds them equal). */
+export const QUEUE_NAMES = { solo: "Ranked Solo/Duo", flex: "Ranked Flex", draft: "Normal Draft", clash: "Clash" };
+/** The builds' source line (D5: no queue in it, the queue choice beside it): the games, the team's matches, the patch window, all ranks. */
+export const BUILDS_LINE = /^From \d[\d,]* games? in the team's matches · (?:patch (\d+\.\d+)|patches \d+\.\d+–(\d+\.\d+)|patch \d+\.\d+, none yet on (\d+\.\d+)) · all ranks$/;
+/** The builds' honest line in a queue with too few games. */
+export const FEW_LINE = /^Not enough (?:Ranked Solo\/Duo|Ranked Flex|Normal Draft|Clash) games on patch \d+\.\d+ in the team's matches yet$/;
 
 /** Riot's general rule, as the page writes it: base × 100 / (100 + haste), to two decimals. */
 export const hasted = (base, haste) => Math.round(((base * 100) / (100 + haste)) * 100) / 100;
@@ -202,18 +218,23 @@ export function championLookupVerdicts({ kind, champion, at, wide, hastedRead, a
   // the check signs in as a member with the default access, which may see teammates' statistics.
   const game = publicPatch(healthPatch ?? null) ?? /patch (\d+\.\d+)/.exec(at.source)?.[1] ?? null;
   fact("the builds and runes are shown to a member who may see teammates' statistics: the builds, or the line that the patch has too few games yet", at.buildsStatus === "shown" || at.buildsStatus === "few", { status: at.buildsStatus });
+  if (at.buildsStatus === "shown" || at.buildsStatus === "few") {
+    // D5 (26 Nov 2026): Ranked Solo/Duo by default, one queue named, never several.
+    fact("the builds open on Ranked Solo/Duo, and the address names no queue", at.buildsQueue === "solo" && at.buildsQueueShown === QUEUE_NAMES.solo && !at.buildsAddressQueue, { queue: at.buildsQueue, shown: at.buildsQueueShown, inAddress: at.buildsAddressQueue });
+    fact("the builds name one queue's games, never several: the queue choice shows one of the four queues, the one the section counts", Object.hasOwn(QUEUE_NAMES, at.buildsQueue ?? "") && QUEUE_NAMES[at.buildsQueue] === at.buildsQueueShown && at.buildsSource === "team", { queue: at.buildsQueue, shown: at.buildsQueueShown, source: at.buildsSource });
+  }
   if (at.buildsStatus === "shown") {
     // The current patch; with the previous one added, the range; with none yet on the current one, the previous patch alone, said as that.
-    const m = /^From \d[\d,]* games? in the team's matches · (?:patch (\d+\.\d+)|patches \d+\.\d+–(\d+\.\d+)|patch \d+\.\d+, none yet on (\d+\.\d+)) · all ranks · (?:Draft|Ranked|Clash)(?:(?:, | and )(?:Ranked|Clash))*$/.exec(at.buildsLine);
+    const m = BUILDS_LINE.exec(at.buildsLine);
     const newest = m?.[1] ?? m?.[2] ?? m?.[3] ?? null;
-    fact("the builds' source line says the games, the team's matches, the current patch (the previous one added, or counted alone while the current has none, only where it says so), all ranks and the queues", !!m && (game === null || newest === game), { line: at.buildsLine, game });
+    fact("the builds' source line says the games, the team's matches, the current patch (the previous one added, or counted alone while the current has none, only where it says so) and all ranks", !!m && (game === null || newest === game), { line: at.buildsLine, game });
     const ok = (r) => (r.state === "shown" ? (r.part === "full" || (/^\d{1,3}%$/.test(r.win) && /^\d{1,3}%$/.test(r.pick))) && (r.part === "skills" || r.pictures > 0) : r.text.length > 0);
     const parts = at.buildsParts.map((r) => r.part);
     fact("each part of the builds shows its choice as icons with its win rate and pick rate, or says why there is none", at.buildsParts.length >= 7 && at.buildsParts.every(ok) && ["runes", "shards", "spells", "skills", "start", "boots", "core"].every((p) => parts.includes(p)), { parts: at.buildsParts.map((r) => `${r.part}:${r.state}`) });
     const runes = at.buildsParts.find((r) => r.part === "runes");
     if (runes?.state === "shown") fact("the runes draw both trees: the primary's before its keystone, the secondary's before its runes", runes.trees === 2, { trees: runes.trees });
   } else if (at.buildsStatus === "few") {
-    fact("the builds' honest line names the current patch: no build made up from too few games", /^Not enough games on patch \d+\.\d+ in the team's matches yet$/.test(at.buildsFew) && (game === null || at.buildsFew.includes(`patch ${game} `)) && at.buildsParts.length === 0, { line: at.buildsFew, game });
+    fact("the builds' honest line names the queue and the current patch: no build made up from too few games", FEW_LINE.test(at.buildsFew) && at.buildsFew.includes(`Not enough ${QUEUE_NAMES[at.buildsQueue] ?? "?"} games`) && (game === null || at.buildsFew.includes(`patch ${game} `)) && at.buildsParts.length === 0, { line: at.buildsFew, game });
   }
   fact("the builds name no player: no Riot ID or account id in them, one champion or two", !at.buildsIdentity && !(dual?.buildsIdentity ?? false), { at: at.buildsIdentity, dual: dual?.buildsIdentity ?? null });
   if (dual !== undefined && dual.buildsLevel !== null) fact("Compare: each champion's builds on one row after R, level in both columns", dual.buildsLevel === true, { level: dual.buildsLevel });

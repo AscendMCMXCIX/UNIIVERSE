@@ -405,7 +405,7 @@ function QueueChoice({ championName, value, master, onChange }: { championName: 
     ...(master ? [{ value: "master", label: MASTER_OPTION, group: MASTER_GROUP }] : []),
   ];
   return (
-    <span className="-my-1 inline-flex items-center gap-1" data-testid="lookup-build-queue-choice">
+    <span className="-my-1 inline-flex max-w-full min-w-0 items-center gap-1 pr-1 pointer-coarse:pr-3.5" data-testid="lookup-build-queue-choice">
       <Select aria-label={queueSelectLabel(championName)} value={value} options={options} onValueChange={(v) => onChange(v as BuildQueueKey | "master")} className="w-auto" data-testid="lookup-build-queue" />
       <InfoTip label="About queues" text={QUEUE_TIP} testId="lookup-build-queue-tip" />
     </span>
@@ -465,7 +465,8 @@ export function ChampionBuilds({ views }: { views: ChampionBuildsViews }) {
       <section ref={sectionRef} aria-labelledby={headingId} className="flex min-w-0 flex-wrap items-center gap-x-4 gap-y-2" data-testid="lookup-builds-view" data-status="few" {...sectionData}>
         <Heading id={headingId}>{queueChoice}</Heading>
         <p className="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1 text-sm text-fg-muted">
-          <span className="inline-flex items-center gap-1.5">
+          {/* Room for the ⓘ's target past its mark (24px under a mouse, 44px on a touch screen) where the words fill the line. */}
+          <span className="inline-flex items-center gap-1.5 pr-1 pointer-coarse:pr-3.5">
             <span data-testid="lookup-build-few">{fewWords(view.queue, view.currentPatch)}</span>
             <InfoTip label="About builds" text={fewTip(view.games, view.role, view.queue)} testId="lookup-build-few-tip" />
           </span>
@@ -473,7 +474,8 @@ export function ChampionBuilds({ views }: { views: ChampionBuildsViews }) {
             <Button
               variant="outline"
               size="sm"
-              wrap
+              // The offer's words wrap wherever the line is short (a column of Compare, a large text size), the button growing with them.
+              className="h-auto min-h-7 max-w-full whitespace-normal py-1 text-left"
               onClick={() => {
                 focusQueue.current = true;
                 setSource("team");
