@@ -26,7 +26,6 @@ type Kind = "boxed-group" | "accent-ring" | "accent-fill";
 const ALLOWED: Array<{ file: string; kind: Kind; reason: string; optional?: true }> = [
   { file: "src/components/players/customise-card.tsx", kind: "accent-ring", reason: "Card Studio's pictures chosen from a grid, ringed: the style presets drawn on the player's art, the palettes, the frames, the emblems, the skins and the chosen champion's portrait (its choices in words are the shared segments)" },
   { file: "src/components/mobile-nav.tsx", kind: "accent-fill", reason: "the phone's bottom tab bar: navigation, its current tab's pill is the installed app's convention (docs/MOBILE.md)" },
-  { file: "src/components/match-history/multikill-tag.tsx", kind: "accent-fill", reason: "a pentakill's badge, not a control" },
   { file: "src/components/install/install-app.tsx", kind: "accent-fill", reason: "the number of an install step, not a control" },
   { file: "src/components/settings/branding-panel.tsx", kind: "accent-fill", reason: "a sample of the accent in Branding's preview, not a control" },
   { file: "src/components/champions/champion-grid.tsx", kind: "accent-ring", reason: "a champion's portrait chosen from the grid, ringed" },

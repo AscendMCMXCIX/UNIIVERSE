@@ -52,12 +52,10 @@ export default async function AdminSystemPage() {
     <div className="space-y-5">
       {/* Job runs and statuses update when the tab is shown again (never on a timer), and on the administrator's own actions. */}
       <FreshnessWatcher scope={{ kind: "jobs" }} version={version} on="return" />
-      <PageHeader admin sectionNamed eyebrow="Admin Mode" title="System Health" description="Database, background jobs and the evidence behind each status." />
-      <section className="space-y-2">
-        <div>
-          <h2 className="text-base font-semibold">System health</h2>
-          <p className="text-sm text-fg-muted">Checked as the page loaded; Healthy only with evidence.</p>
-        </div>
+      {/* One title (Release 19, the visual review's V7: a section "System health" under the page's "System Health" repeated it); the
+          statuses' own line joins the page's description. */}
+      <PageHeader admin sectionNamed eyebrow="Admin Mode" title="System Health" description="Database, background jobs and the evidence behind each status, checked as the page loaded: Healthy only with evidence." />
+      <section aria-label="Statuses">
         <StatusCards items={status} testId="system-status" />
       </section>
       {vitals ? <FieldPerformancePanel report={vitals} /> : null}

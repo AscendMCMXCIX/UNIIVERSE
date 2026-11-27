@@ -4,6 +4,7 @@ import { listPermissionPresets } from "@/server/repositories/permissions";
 import { ACCESS_GROUPS, CAPABILITIES } from "@/server/auth/permissions";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { PermissionPresetsPanel } from "@/components/admin/permissions-editor";
+import { ACCESS_CELL, ACCESS_CELLS } from "@/components/admin/access-cells";
 
 export const dynamic = "force-dynamic";
 
@@ -19,9 +20,10 @@ export default async function AdminAccessPage() {
       <Panel data-testid="access-groups">
         <PanelHeader title="Additional access groups" subtitle="Given on top of a base level, so a player can take on one responsibility without becoming an Administrator. Groups never include accounts, passwords or permissions." />
         <PanelBody>
-          <ul className="grid gap-2 md:grid-cols-2 xl:grid-cols-[repeat(auto-fill,minmax(min(100%,20rem),1fr))]">
+          {/* Cells on the panel's surface, as the base levels' (no boxes within the panel). */}
+          <ul className={ACCESS_CELLS}>
             {ACCESS_GROUPS.map((g) => (
-              <li key={g.key} className="rounded-md border border-border bg-surface-2 p-3">
+              <li key={g.key} className={ACCESS_CELL}>
                 <h3 className="text-sm font-medium text-fg">{g.label}</h3>
                 <p className="mt-0.5 text-sm text-fg-muted">{g.description}</p>
                 <p className="mt-1.5 text-sm text-fg-subtle">Adds: {g.capabilities.map((c) => LABEL[c] ?? c).join(", ")}</p>

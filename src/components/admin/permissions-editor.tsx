@@ -1,5 +1,7 @@
 "use client";
 
+import { cn } from "@/lib/cn";
+import { ACCESS_CELL, ACCESS_CELLS } from "./access-cells";
 import * as React from "react";
 import { useRouter } from "next/navigation";
 import { Pencil, Plus, Trash2 } from "lucide-react";
@@ -78,11 +80,13 @@ export function PermissionPresetsPanel({
         }
       />
       <PanelBody>
-        <ul className="grid grid-cols-1 gap-2 md:grid-cols-2 xl:grid-cols-[repeat(auto-fill,minmax(min(100%,20rem),1fr))]">
+        {/* Each level a cell on the panel's own surface, hairlines between rows (Release 19, the visual review's V3: bordered cards
+            inside the bordered panel, two insets on a phone). */}
+        <ul className={ACCESS_CELLS}>
           {presets.map((p) => (
             <li
               key={p.id}
-              className="min-w-0 rounded-md border border-border bg-surface-2 p-3 [overflow-wrap:anywhere]"
+              className={cn(ACCESS_CELL, "[overflow-wrap:anywhere]")}
               data-testid="preset-card"
             >
               <div className="flex items-start justify-between gap-2">
