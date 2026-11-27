@@ -51,3 +51,44 @@ export function keepsEscape(target: EventTarget | null): boolean {
 export function modalOpen(): boolean {
   return !!document.querySelector("dialog[open]:modal, [data-popover]");
 }
+
+/*
+  All Champions' one-screen workspace (docs/RESPONSIVE.md, "All Champions' workspace"; globals.css,
+  the `ws` and `ws-host` variants): a desktop window with a fine pointer, from 80rem wide, and at
+  least WS_MIN_HEIGHT_REM of the page's own rem tall. The CSS gate decides the server's HTML and the
+  hydration render; once hydrated, the page refines it with the root's actual size (a larger browser
+  text size or an emulated one), which a media query cannot read: a window where the query matches
+  but the page's own rem is short gets the flow layout (the page scrolls, as it always has).
+*/
+export const WS_QUERY =
+  "(pointer: fine) and (min-width: 80rem) and (max-width: 1535px) and (min-height: 736px), (pointer: fine) and (min-width: 1536px) and (max-width: 1800px) and (min-height: 791px), (pointer: fine) and (min-width: 1801px) and (max-width: 1920px) and (min-height: 816px), (pointer: fine) and (min-width: 1921px) and (max-width: 2560px) and (min-height: 948px), (pointer: fine) and (min-width: 2561px) and (min-height: 1012px)";
+/** The workspace's least height, in the page's own rem (46 × 16 = 736px at a 16px root). */
+export const WS_MIN_HEIGHT_REM = 46;
+
+/** The page's root size in px (the user's text size, the app's width clamp, any emulated text size). */
+export function rootPx(): number {
+  return parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+}
+
+/** Whether the workspace applies now: the CSS gate, and the window at least WS_MIN_HEIGHT_REM of the page's own rem tall. */
+export function workspaceNow(): boolean {
+  return typeof window !== "undefined" && window.matchMedia(WS_QUERY).matches && window.innerHeight >= WS_MIN_HEIGHT_REM * rootPx() - 0.5;
+}
+
+function subscribeWorkspace(onChange: () => void) {
+  const query = window.matchMedia(WS_QUERY);
+  query.addEventListener("change", onChange);
+  // The root and the window's height move with a resize (and a zoom, which fires one).
+  window.addEventListener("resize", onChange);
+  return () => {
+    query.removeEventListener("change", onChange);
+    window.removeEventListener("resize", onChange);
+  };
+}
+
+const unknownYet = () => null;
+
+/** null on the server and while hydrating (the CSS gate decides the first paint); then true or false. */
+export function useWorkspace(): boolean | null {
+  return React.useSyncExternalStore<boolean | null>(subscribeWorkspace, workspaceNow, unknownYet);
+}

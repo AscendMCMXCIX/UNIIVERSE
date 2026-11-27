@@ -324,6 +324,29 @@ p a.text-accent {
   }
 }
 /*
+  All Champions' one-screen workspace (docs/RESPONSIVE.md, "All Champions' workspace"): a desktop
+  window with a fine pointer, from 80rem wide, and at least 46 of the page's own rem tall. The root
+  grows from 1536px wide (html's clamp), so each band of widths asks 46 × its widest root: 46 × 16 =
+  736, 46 × 17.19 = 791 (1800), 46 × 17.73 = 816 (1920), 46 × 20.61 = 948 (2560), 46 × 22 = 1012.
+  WS_QUERY in ui/posture.ts is the same string (posture.test.ts compares them).
+  ws:      the section and its descendants, while the section carries [data-workspace];
+  ws-host: the shell's elements that hold such a section (main, the frame, the profile's column).
+*/
+@custom-variant ws {
+  @media (pointer: fine) and (min-width: 80rem) and (max-width: 1535px) and (min-height: 736px), (pointer: fine) and (min-width: 1536px) and (max-width: 1800px) and (min-height: 791px), (pointer: fine) and (min-width: 1801px) and (max-width: 1920px) and (min-height: 816px), (pointer: fine) and (min-width: 1921px) and (max-width: 2560px) and (min-height: 948px), (pointer: fine) and (min-width: 2561px) and (min-height: 1012px) {
+    &:where([data-workspace], [data-workspace] *) {
+      @slot;
+    }
+  }
+}
+@custom-variant ws-host {
+  @media (pointer: fine) and (min-width: 80rem) and (max-width: 1535px) and (min-height: 736px), (pointer: fine) and (min-width: 1536px) and (max-width: 1800px) and (min-height: 791px), (pointer: fine) and (min-width: 1801px) and (max-width: 1920px) and (min-height: 816px), (pointer: fine) and (min-width: 1921px) and (max-width: 2560px) and (min-height: 948px), (pointer: fine) and (min-width: 2561px) and (min-height: 1012px) {
+    &:has([data-workspace]) {
+      @slot;
+    }
+  }
+}
+/*
   A season record's two-line cell (leaderboards/records.tsx, BOOK_COLS): a cell of 36rem or more, or
   any cell on a Leaderboards page of 59rem or more (the desktop's one-screen board, whose records'
   column is 21–38.5rem). Either container query alone; the narrow cell's layout is the classes

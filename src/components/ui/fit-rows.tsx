@@ -1,6 +1,7 @@
 "use client";
 
 import * as React from "react";
+import { rowBudget } from "./row-budget";
 
 /*
   Fit rows (Release 16, round 3): a list on a one-screen page that shows as many rows as fit above the
@@ -197,4 +198,88 @@ export function FitChampions({ total, heading, cssMore, children }: { total: num
       {children}
     </div>
   );
+}
+
+/**
+ * Rows a paged list's column shows (All Champions' one-screen workspace, docs/RESPONSIVE.md): the
+ * complete rows that fit between its first row and its card's footer, less the guard band
+ * (FIT_GUARD_REM), measured against the window, never the frame's box (the frame grows with its
+ * content wherever that is taller, so its box would be circular: fitLimit's rule). Null while not
+ * active (flow) or not measured yet.
+ *
+ *   limit = innerHeight − #content's bottom padding − the guard − the footer − the card's bottom border
+ *   top   = the first drawn row's top (the list's own where none is drawn)
+ *   rows  = rowBudget(limit − top, the row's height, lastLess, at least 1, at most `cap`)
+ *
+ * It measures in a layout effect (the first interactive paint already shows the right page), on every
+ * resize (a zoom fires one), once the fonts have loaded, and whenever the frame (#content: the
+ * sidebar, the root), the footer or a band above the rows (`observe`: a line that wraps) changes
+ * size. It never observes the rows: a new count changes only what lies below `top`, and the
+ * footer's height does not depend on it, so it settles. The floor is one row: where even that does
+ * not fit (below the workspace's least height), the card is taller than the frame, the frame grows,
+ * and the page scrolls by exactly the deficit, never hiding anything.
+ */
+export function useRowBudget(
+  listRef: React.RefObject<HTMLElement | null>,
+  o: {
+    footRef: React.RefObject<HTMLElement | null>;
+    cardRef: React.RefObject<HTMLElement | null>;
+    /** The list's row (the drawn ones are measured). */
+    rowSelector: string;
+    /** The row's height in rem when none is drawn. */
+    probeRem: number;
+    /** 1 for a divided list whose last row has no border (Tailwind's divide-y). */
+    lastLess?: number;
+    active: boolean;
+    /** The fixed bands above the rows (read when it subscribes): a wrap there moves the first row. */
+    observe?: () => ReadonlyArray<Element | null | undefined>;
+    /** What the rows are (data, champion, position, opponent, search, order): measured again when it changes. */
+    key: unknown;
+    /** A browser test's cap on the measured count (server/demo/test-hooks.ts). */
+    cap?: number | null;
+  },
+): number | null {
+  const [rows, setRows] = React.useState<number | null>(null);
+  const opts = React.useRef(o);
+  React.useLayoutEffect(() => {
+    opts.current = o;
+  });
+  const { active, key, cap } = o;
+  const measure = React.useCallback(() => {
+    const { footRef, cardRef, rowSelector, probeRem, lastLess = 0 } = opts.current;
+    const list = listRef.current;
+    const foot = footRef.current;
+    const card = cardRef.current;
+    if (!opts.current.active || !list || !foot || !card) return setRows(null);
+    const main = document.getElementById("content");
+    const pad = main ? parseFloat(getComputedStyle(main).paddingBottom) || 0 : 0;
+    const limit = window.innerHeight - pad - fitGuardPx() - foot.getBoundingClientRect().height - (parseFloat(getComputedStyle(card).borderBottomWidth) || 0);
+    const drawn = [...list.querySelectorAll<HTMLElement>(rowSelector)].filter((r) => r.getBoundingClientRect().height > 0);
+    const first = drawn[0] ?? list;
+    const top = first.getBoundingClientRect().top + window.scrollY;
+    const root = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+    // The tallest drawn row (they are one height), a divided list's last row counted with its border.
+    const rowPx = drawn.length ? Math.max(...drawn.map((r) => r.getBoundingClientRect().height + (r.nextElementSibling ? 0 : lastLess))) : probeRem * root;
+    const next = rowBudget({ room: limit - top, rowPx, lastLess, min: 1, max: opts.current.cap ?? Infinity });
+    setRows((was) => (was === next ? was : next));
+  }, [listRef]);
+  React.useLayoutEffect(() => {
+    // Inactive (the list not drawn: an opponent's games in its place), the last count is kept for when it comes back.
+    if (!active) return;
+    measure();
+    window.addEventListener("resize", measure);
+    void document.fonts?.ready.then(measure);
+    const observer = typeof ResizeObserver === "function" ? new ResizeObserver(() => measure()) : null;
+    const frame = document.getElementById("content");
+    if (observer) {
+      if (frame) observer.observe(frame);
+      if (opts.current.footRef.current) observer.observe(opts.current.footRef.current);
+      for (const band of opts.current.observe?.() ?? []) if (band) observer.observe(band);
+    }
+    return () => {
+      window.removeEventListener("resize", measure);
+      observer?.disconnect();
+    };
+  }, [active, key, cap, measure]);
+  return active ? rows : null;
 }

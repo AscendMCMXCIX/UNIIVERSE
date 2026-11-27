@@ -1,6 +1,6 @@
 import { redirect } from "next/navigation";
 import { cookies } from "next/headers";
-import { CHAMPIONS_FIRST_TEST_COOKIE, OPPONENT_SEARCH_TEST_COOKIE, championsFirstForTest, opponentSearchFromForTest } from "@/server/demo/test-hooks";
+import { CHAMPIONS_FIRST_TEST_COOKIE, CHAMPIONS_PER_PAGE_TEST_COOKIE, OPPONENT_SEARCH_TEST_COOKIE, OPPONENTS_PER_COLUMN_TEST_COOKIE, championsFirstForTest, championsPerPageForTest, opponentSearchFromForTest, opponentsPerColumnForTest } from "@/server/demo/test-hooks";
 import type { Db } from "@/server/db/types";
 import type { Session } from "@/server/auth/permissions";
 import { hasPermission } from "@/server/auth/permissions";
@@ -32,6 +32,8 @@ async function ProfileChampionsTabBody({ db, header, session, basePath, search }
   const jar = await cookies();
   const firstRows = championsFirstForTest(jar.get(CHAMPIONS_FIRST_TEST_COOKIE)?.value) ?? undefined;
   const searchFrom = opponentSearchFromForTest(jar.get(OPPONENT_SEARCH_TEST_COOKIE)?.value) ?? undefined;
+  // The workspace's measured pages, capped for a browser test on the demo (never raised).
+  const pageCaps = { champions: championsPerPageForTest(jar.get(CHAMPIONS_PER_PAGE_TEST_COOKIE)?.value), opponents: opponentsPerColumnForTest(jar.get(OPPONENTS_PER_COLUMN_TEST_COOKIE)?.value) };
   const [overview, championsById, sync] = await Promise.all([
     getPlayerOverview(db, player, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, accountId: search.account ?? null, riotConfigured: !!process.env.RIOT_API_KEY }),
     championMap(db),
@@ -55,5 +57,5 @@ async function ProfileChampionsTabBody({ db, header, session, basePath, search }
   const m = overview.summary.multikills;
   const perf = overview.summary.performance;
   const status = dataStatus({ accounts: overview.accounts.map((a) => a.sync), checkedAt: sync.checkedAt, attemptedAt: sync.attemptedAt, newestGameAt: sync.newestGameAt, season: overview.completeness, multikills: m, details: { games: perf.games, detailed: perf.detailedGames, unavailable: perf.unavailableGames } });
-  return <AllChampions data={overview} basePath={`${basePath}/champions`} championsById={championsById} playerId={player.id} isOwn={self} initialPreview={initialPreview} initialPairing={initialPairing} status={status} refresh={refreshFor(session, player.id, sync, m.games - m.counted - m.unavailable > 0)} firstRows={firstRows} opponentSearchFrom={searchFrom} />;
+  return <AllChampions data={overview} basePath={`${basePath}/champions`} championsById={championsById} playerId={player.id} isOwn={self} initialPreview={initialPreview} initialPairing={initialPairing} status={status} refresh={refreshFor(session, player.id, sync, m.games - m.counted - m.unavailable > 0)} firstRows={firstRows} opponentSearchFrom={searchFrom} pageCaps={pageCaps} />;
 }
