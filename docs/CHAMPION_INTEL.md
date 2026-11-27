@@ -612,14 +612,18 @@ holds each; screenshots before and after in the lane's notes, never in the repos
   phone (one column under the other at 375px and less, and at large text sizes); the base statistics
   and each part of the builds level too; on a phone the page scrolls, as every phone page does.
 - **Centred** in the room beside the sidebar, open or folded, within 2px.
-- **With the builds** (26 Nov 2026, `e2e/champion-builds.spec.ts`): one champion's whole board,
-  builds included, ends within the screen at 1366 × 768, 1440 × 900, 1920 × 1080 and 2560 × 1440,
-  the sidebar open and folded: Thresh's board ends near 715px at 1366 × 768 and 1440 × 900 (the
-  band 205px; Leona's 725px with the role switch), 791px at 1920 × 1080, 918px at 2560 × 1440; a
-  champion with too few games adds one line (45px). At 1280 × 720 with the sidebar open the band
-  ends near 768px, past the screen (folded, 715px), the five rows still on it. In Compare the builds
-  row comes after R, below the first screen at 1440 × 900 (the board near 1,050px), as the brief
-  allows.
+- **With the builds** (26 Nov 2026, measured again 27 Nov 2026 with the queue choice in the heading,
+  `e2e/champion-builds.spec.ts`): one champion's whole board, builds included, ends within the
+  screen at 1366 × 768, 1440 × 900, 1920 × 1080 and 2560 × 1440, the sidebar open and folded, with
+  12px to spare (the test's margin, so text drawn a little wider in CI's browser never flips it):
+  Thresh's board ends near 715px at 1366 × 768 and 1440 × 900 (the band 180px; Leona's 725px at
+  1366 × 768 with the sidebar open, her heading on two lines), 791px at 1920 × 1080, 918px at
+  2560 × 1440. A queue with too few games and its offer is one or two lines (Thresh in Ranked Flex:
+  599px at 1366 × 768). The Master+ source (switched on only in the browser tests), its heading
+  wrapping on two lines at 1366 × 768, ends near 746px. At 1280 × 720 with the sidebar open the
+  board ends near 788px, past the screen (folded, 715px), the five rows still on it. In Compare the
+  builds row comes after R, below the first screen at 1440 × 900 (the board near 1,050px), as the
+  brief allows.
 
 ## Data
 
