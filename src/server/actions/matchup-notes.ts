@@ -10,7 +10,7 @@ import { listChampions } from "@/server/repositories/champions";
 import { NOTE_ID, NoteRefused, confirmNote, deleteDraft, forgetMatchupNotes, getNote, saveNote, setNoteStatus } from "@/server/matchup/notes-store";
 import { forgetMatchupQueue } from "@/server/matchup/queue";
 import type { AuditAction } from "@/domain/audit";
-import { scopeName, type MatchupNote, type NoteInput, type NoteProblem } from "@/domain/matchup/notes";
+import { scopeSentence, type MatchupNote, type NoteInput, type NoteProblem } from "@/domain/matchup/notes";
 import { publicPatchName } from "@/domain/patch";
 import { ROLE_LABELS } from "@/domain/roles";
 
@@ -19,7 +19,7 @@ import { ROLE_LABELS } from "@/domain/roles";
   checks the administrator permission itself first (manage-branding: the content permission that
   Resources uses; OD-M5); the page hiding the controls is not the protection. Each note is validated
   on the server with the editor's own rules (notes-store checkNote), and each change is recorded in
-  Audit Logs with the note's scope in champion names only ("Top: Riven vs Darius") and the patch.
+  Audit Logs with the note's scope in champion names only ("Riven against Darius in Top") and the patch.
 */
 
 export type NoteResult = { ok: true; note: MatchupNote } | { ok: false; error: string; problems: NoteProblem[] };
@@ -27,7 +27,7 @@ export type NoteResult = { ok: true; note: MatchupNote } | { ok: false; error: s
 /** The note's scope in words, for Audit Logs: champion names only. */
 async function nameOf(db: Awaited<ReturnType<typeof getAppDb>>, note: Pick<MatchupNote, "scope" | "role" | "opponentId" | "championId">): Promise<string> {
   const names = new Map((await listChampions(db)).map((c) => [c.id, c.name]));
-  return scopeName(note, { champion: note.championId ? (names.get(note.championId) ?? note.championId) : null, opponent: names.get(note.opponentId) ?? note.opponentId }, ROLE_LABELS[note.role]);
+  return scopeSentence(note, { champion: note.championId ? (names.get(note.championId) ?? note.championId) : null, opponent: names.get(note.opponentId) ?? note.opponentId }, ROLE_LABELS[note.role]);
 }
 
 /** After any change: the band's cached notes, the queue, the counts, and the Admin page. */

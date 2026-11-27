@@ -258,7 +258,12 @@ export function patchesSince(reviewed: string, knownDesc: readonly string[]): st
   return knownDesc.filter((p) => comparePatches(p, reviewed) > 0).sort(comparePatches).map(publicPatchName);
 }
 
-/** The scope's words, champion names given: "Top: Riven vs Darius", "Top: against Darius". */
+/** The scope as a sentence's object, for Audit Logs (sentences, never "key: value"): "Riven against Darius in Top", "any champion against Darius in Top". */
+export function scopeSentence(note: Pick<NoteInput, "scope" | "role">, names: { champion: string | null; opponent: string }, roleLabel: string): string {
+  return note.scope === "pair" && names.champion ? `${names.champion} against ${names.opponent} in ${roleLabel}` : `any champion against ${names.opponent} in ${roleLabel}`;
+}
+
+/** The scope's words as a label (Admin's rows and editor), champion names given: "Top: Riven vs Darius", "Top: against Darius". */
 export function scopeName(note: Pick<NoteInput, "scope" | "role">, names: { champion: string | null; opponent: string }, roleLabel: string): string {
   return note.scope === "pair" && names.champion ? `${roleLabel}: ${names.champion} vs ${names.opponent}` : `${roleLabel}: against ${names.opponent}`;
 }

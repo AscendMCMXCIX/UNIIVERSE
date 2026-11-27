@@ -93,8 +93,8 @@ test("a published note is re-reviewed (what changed, Riot's patch notes, Confirm
   await expect(page.getByTestId("matchup-band").getByTestId("matchup-note")).toHaveCount(1);
   // Audit Logs: champion names only.
   await page.goto("/admin/audit");
-  await expect(page.locator("main")).toContainText("retired the matchup note for Top: Garen vs Darius");
-  await expect(page.locator("main")).toContainText("confirmed the matchup note for Top: Garen vs Darius");
+  await expect(page.locator("main")).toContainText("retired the matchup note for Garen against Darius in Top");
+  await expect(page.locator("main")).toContainText("confirmed the matchup note for Garen against Darius in Top");
 });
 
 test("a member who is not an administrator cannot open Matchup notes", async ({ page, browser }, info) => {

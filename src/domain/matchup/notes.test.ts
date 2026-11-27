@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { MAX_POINT_WORDS, cleanNoteInput, noteFreshness, noteShown, patchesSince, scopeChampions, scopeName, textProblems, validateNote, type NoteInput } from "./notes";
+import { MAX_POINT_WORDS, cleanNoteInput, noteFreshness, noteShown, patchesSince, scopeChampions, scopeName, scopeSentence, textProblems, validateNote, type NoteInput } from "./notes";
 
 /* Matchup Intel's reviewed notes (docs/MATCHUP_INTEL.md, "Reviewed notes"): what a note may say, and when it shows. */
 
@@ -61,6 +61,10 @@ describe("a note's content", () => {
     expect(scopeChampions(note({ scope: "opponent", championId: null }))).toEqual(["Darius"]);
     expect(scopeName(note(), { champion: "Riven", opponent: "Darius" }, "Top")).toBe("Top: Riven vs Darius");
     expect(scopeName(note({ scope: "opponent" }), { champion: null, opponent: "Darius" }, "Top")).toBe("Top: against Darius");
+    // Audit Logs' sentences carry no "key: value".
+    expect(scopeSentence(note(), { champion: "Riven", opponent: "Darius" }, "Top")).toBe("Riven against Darius in Top");
+    expect(scopeSentence(note({ scope: "opponent" }), { champion: null, opponent: "Darius" }, "Top")).toBe("any champion against Darius in Top");
+    expect(scopeSentence(note(), { champion: "Riven", opponent: "Darius" }, "Top")).not.toMatch(/\w: /);
   });
 
   it("is stored trimmed, a repeated ref once, an opponent note without a champion", () => {
