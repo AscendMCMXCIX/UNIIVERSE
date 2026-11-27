@@ -96,7 +96,7 @@ const BESIDE = { found: true, window: false, within: true, besideList: true, nam
 const pane = (page: Page) => page.locator("aside[data-preview-pane][data-testid=champion-preview]");
 /**
  * All Champions' one-screen workspace (docs/RESPONSIVE.md, "All Champions' workspace": a desktop window
- * with a mouse from 1280px wide and 736px tall, the desktop project's 1440 × 900 among them): its lists
+ * with a mouse from 1280px wide and 41 of its rem tall (656px), the desktop project's 1440 × 900 among them): its lists
  * in pages, an opponent's games in place of the grid. Read once the page knows (hydrated).
  */
 const workspace = async (page: Page) => {
