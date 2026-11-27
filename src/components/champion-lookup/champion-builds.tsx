@@ -492,7 +492,8 @@ export function ChampionBuilds({ views }: { views: ChampionBuildsViews }) {
                 setSource("team");
                 setQueue(offer.queue);
                 const next = views.queues[offer.queue];
-                setRole(next.status === "shown" && offer.role !== next.defaultRole ? offer.role : null);
+                // The role the offer names, kept as a choice only where the queue would not open on it by itself (its default, or the lane's role).
+                setRole(next.status === "shown" && offer.role !== shownRole(next, null, lane) ? offer.role : null);
               }}
               data-testid="lookup-build-other-queue"
               data-queue={offer.queue}
@@ -505,9 +506,10 @@ export function ChampionBuilds({ views }: { views: ChampionBuildsViews }) {
     );
   }
 
-  // With Matchup Intel's lane, the lane's role is the default where the champion has builds in it (20 games or more: the section's own rule).
-  const fallback = shownRole(view, lane);
-  const role = shownRole(view, asked ?? lane);
+  // With Matchup Intel's lane, the lane's role is the default where the champion has builds in it (20 games or more: the section's own rule),
+  // also where the role chosen has none in this queue (chosen in another queue, or a shared link): a role chosen wins only where it has builds.
+  const fallback = shownRole(view, null, lane);
+  const role = shownRole(view, asked, lane);
   const b = view.builds[role]!;
   const offersHighest = hasPerformer(b);
   const shown: Mode = offersHighest ? mode : "common";

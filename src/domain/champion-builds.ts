@@ -731,9 +731,15 @@ export function otherQueueOffer(views: Record<BuildQueueKey, ChampionBuildsView>
   return best;
 }
 
-/** The role a view opens on: the one asked for (the address's `role`) when it has builds, else the most played. */
-export function shownRole(view: Extract<ChampionBuildsView, { status: "shown" }>, asked: Role | null | undefined): Role {
-  return asked && view.builds[asked] ? asked : view.defaultRole;
+/**
+ * The role a view opens on: the one asked for (the address's `role`) when it has builds in this view;
+ * else Matchup Intel's lane (`lane`, Compare with a lane) when it has builds in it; else the most
+ * played. A role chosen in one queue that has no builds in another falls to the lane's role there,
+ * as no role was chosen (the section's default with a lane is the lane's role).
+ */
+export function shownRole(view: Extract<ChampionBuildsView, { status: "shown" }>, asked: Role | null | undefined, lane: Role | null = null): Role {
+  if (asked && view.builds[asked]) return asked;
+  return lane && view.builds[lane] ? lane : view.defaultRole;
 }
 
 /** Whether any part of a role's builds has a highest-win-rate choice of its own (the page then offers the "Highest win rate" view). */
