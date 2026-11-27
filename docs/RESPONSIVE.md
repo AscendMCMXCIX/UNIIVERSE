@@ -700,8 +700,8 @@ not by trimming padding but by its layout. It has two postures (docs/MATCHUPS.md
 
 - **The workspace** (`ws`): a window with a fine pointer, from 80rem wide, at least 41 of the page's
   own rem tall (656px at 16px: the browser window of a 1366 × 768 laptop, about 657px inside it, and of
-  a 1920 × 1080 screen at 125%, about 1536 × 730, keep the workspace with fewer rows; from 27 to 28 Nov
-  2026 the gate was 46rem, 736px, and sent them to the long page, which the owner's request rules out:
+  a 1920 × 1080 screen at 125%, about 1536 × 730, keep the workspace with fewer rows; the design's first gate,
+  46rem or 736px, never deployed, sent them to the long page, which the owner's request rules out:
   "at shorter desktop sizes, reduce visible row counts"). The root grows from 1536px wide (html's
   clamp), so the CSS gate is written per band of widths at 41 × the band's widest root, rounded up to
   the pixel: 656px up to 1536px wide, then every 64px to 1920 (668, 680, 691, 703, 715, 727), 786 to
