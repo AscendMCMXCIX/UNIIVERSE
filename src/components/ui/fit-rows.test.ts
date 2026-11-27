@@ -1,10 +1,10 @@
-import { describe, expect, it } from "vitest";
-import { FIT_GUARD_REM, fitCount } from "./fit-rows";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { FIT_GUARD_REM, fitCount, fitGuardPx, fitLimit, measureFit } from "./fit-rows";
 
 /*
   The fitted list's count (fit-rows.tsx, Release 19): as many rows as end at or above the limit the
   page gives it (the window's bottom less the page's bottom padding and the guard band, or the column
-  beside it where that ends further down), never fewer than the first.
+  beside it where that runs past the window's bottom less the padding), never fewer than the first.
 */
 describe("fitCount", () => {
   // Six rows of 33px under a heading; with every row drawn the list's card ends at 900 (page coordinates).
@@ -23,19 +23,111 @@ describe("fitCount", () => {
     expect(at(0, 5)).toEqual({ count: 1, more: 5, ranks: 6 });
   });
 
-  it("never ends within the guard band: a row that would end 1px under the window less the band is not shown", () => {
-    const window = 950;
-    const guard = FIT_GUARD_REM * 16;
-    expect(guard).toBeGreaterThanOrEqual(12);
-    // The fifth row would end at 867 with a limit of 950 - 31 (the page's padding) - 16 = 903: shown; the sixth at 900: shown.
-    expect(at(window - 31 - guard).count).toBe(6);
-    // A window 50px shorter: 853 leaves room for four rows (834), not five (867).
-    expect(at(window - 50 - 31 - guard).count).toBe(4);
-  });
-
   it("counts a caption with the rows it heads", () => {
     const fit = fitCount({ items, caps: [{ first: 5, h: 20 }], bottomAll: 920, limit: 834, cssCount: 3 });
     // Without rows 5 and 6 and their caption the list ends at 920 - 66 - 20 = 834.
     expect(fit).toEqual({ count: 4, more: 2, ranks: 6 });
+  });
+});
+
+/*
+  The page fitLimit and measureFit read, as minimal stubs (the tests run in Node): the window's height
+  and scroll, #content's bottom padding, the root's font size, and a sibling column's box.
+*/
+type Box = { top?: number; bottom: number; height: number };
+function page({ height = 950, pad = 31, root = 16, scrollY = 0, sibling }: { height?: number; pad?: number; root?: number; scrollY?: number; sibling?: Box | null } = {}) {
+  const content = { id: "content" };
+  const html = { root: true };
+  vi.stubGlobal("window", { innerHeight: height, scrollY });
+  vi.stubGlobal("getComputedStyle", (el: unknown) => (el === html ? { fontSize: `${root}px` } : el === content ? { paddingBottom: `${pad}px` } : {}));
+  vi.stubGlobal("document", {
+    documentElement: html,
+    getElementById: (id: string) => (id === "content" ? content : null),
+    querySelector: (selector: string) => (selector === "[data-testid=overview-pools]" && sibling ? { getBoundingClientRect: () => ({ ...sibling, top: sibling.top ?? sibling.bottom - sibling.height }) } : null),
+  });
+}
+
+/**
+ * A fitted list as measureFit reads it: `rows` rows of `rowH` from `top` (window coordinates), of which
+ * the CSS tiers draw `css`; in the `measure` mode every row is drawn. The list is its own card.
+ */
+function list({ top, rowH, rows, css }: { top: number; rowH: number; rows: number; css: number }) {
+  let mode = "css";
+  const drawn = (i: number) => mode === "measure" || i < css;
+  const rowEls = Array.from({ length: rows }, (_, i) => ({ dataset: { ovRank: String(i + 1) }, getBoundingClientRect: () => ({ height: drawn(i) ? rowH : 0 }) }));
+  return {
+    getAttribute: () => mode,
+    setAttribute: (_: string, value: string) => {
+      mode = value;
+    },
+    querySelectorAll: (selector: string) => (selector === "[data-ov-rank]" ? rowEls : []),
+    closest: () => null,
+    getBoundingClientRect: () => ({ bottom: top + rowEls.filter((_, i) => drawn(i)).length * rowH }),
+  } as unknown as HTMLElement;
+}
+
+const POOLS = "[data-testid=overview-pools]";
+
+describe("fitLimit and measureFit: the guard band and the column beside the list", () => {
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("ends the first screen the guard band above the window's bottom less the page's padding, at the root's size", () => {
+    page();
+    expect(fitGuardPx()).toBe(FIT_GUARD_REM * 16);
+    expect(FIT_GUARD_REM * 16).toBeGreaterThanOrEqual(12);
+    // 950 - 31 - 16.
+    expect(fitLimit()).toBe(903);
+    // The band follows the root size (1rem: about 17.7px at 1920).
+    page({ root: 20 });
+    expect(fitLimit()).toBe(950 - 31 - 20);
+  });
+
+  it("follows the column beside the list only where that column runs past the window less the padding (the page scrolls anyway)", () => {
+    // Past the window: the list may run to that column's bottom.
+    page({ sibling: { bottom: 960, height: 600 } });
+    expect(fitLimit(POOLS)).toBe(960);
+    // Just past the window less the padding (919): the page scrolls for it too.
+    page({ sibling: { bottom: 920, height: 600 } });
+    expect(fitLimit(POOLS)).toBe(920);
+    // In page coordinates: a column drawn 100px up a page scrolled by 100px ends at the same place.
+    page({ scrollY: 100, sibling: { bottom: 860, height: 600 } });
+    expect(fitLimit(POOLS)).toBe(960);
+  });
+
+  it("keeps the guard band where the column beside the list ends inside the window, in the band too (a pool drawn whole an instant before it folds)", () => {
+    // The review's case: a six-row pool drawn whole ended at 914 at 1920 × 950, past the band's line but in the window.
+    page({ sibling: { bottom: 910, height: 600 } });
+    expect(fitLimit(POOLS)).toBe(903);
+    // Exactly at the window less the padding: the page does not scroll.
+    page({ sibling: { bottom: 919, height: 600 } });
+    expect(fitLimit(POOLS)).toBe(903);
+    // Above the band's line, hidden, or not on the page: the first screen.
+    page({ sibling: { bottom: 700, height: 600 } });
+    expect(fitLimit(POOLS)).toBe(903);
+    page({ sibling: { bottom: 960, height: 0 } });
+    expect(fitLimit(POOLS)).toBe(903);
+    page({ sibling: null });
+    expect(fitLimit(POOLS)).toBe(903);
+  });
+
+  it("measures a list against that limit: a row ending on the band's line shows, one ending 1px into the band does not", () => {
+    // Rows of 33px from 705: they end at 738, 771, …, 903 (the sixth), 936 (the seventh). The CSS tiers drew three.
+    page();
+    expect(measureFit(list({ top: 705, rowH: 33, rows: 7, css: 3 }), "data-fit", "css")).toEqual({ count: 6, more: 1, ranks: 7 });
+    // One pixel lower, the sixth ends at 904, inside the band (903 is its line): five.
+    expect(measureFit(list({ top: 706, rowH: 33, rows: 7, css: 3 }), "data-fit", "css")).toEqual({ count: 5, more: 2, ranks: 7 });
+    // The tiers' rows running past the limit come off, down to the first.
+    expect(measureFit(list({ top: 850, rowH: 33, rows: 7, css: 3 }), "data-fit", "css")).toEqual({ count: 1, more: 6, ranks: 7 });
+  });
+
+  it("measures the rail beside a pools' column that ends in the band as beside none, and beside one past the window to its end", () => {
+    // The rail's rows from 711 end at 876 (the fifth), 909 (the sixth, inside the band: its line is 903) and 942 (the seventh).
+    const rail = () => list({ top: 711, rowH: 33, rows: 7, css: 3 });
+    page({ sibling: { bottom: 914, height: 600 } });
+    expect(measureFit(rail(), "data-fit", "css", undefined, POOLS), "the sixth row would end in the band").toEqual({ count: 5, more: 2, ranks: 7 });
+    expect(measureFit(rail(), "data-fit", "css"), "as beside no column").toEqual({ count: 5, more: 2, ranks: 7 });
+    // With a column past the window (large text, the page scrolls anyway), the rail runs to its end: the seventh row too.
+    page({ sibling: { bottom: 945, height: 600 } });
+    expect(measureFit(rail(), "data-fit", "css", undefined, POOLS)).toEqual({ count: 7, more: 0, ranks: 7 });
   });
 });

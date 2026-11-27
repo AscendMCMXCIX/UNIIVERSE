@@ -703,3 +703,48 @@ test("profile Overview at 125% text on a 1920 × 1080 window: the page scrolls o
     expect(f.shown, "the rail lists its champions down to the pools' end").toBeGreaterThanOrEqual(Math.min(3, f.all));
   }
 });
+
+test("profile Overview after one live change of the window's height that folds a six-row pool (1920 × 980 to 950: the bookmarks bar shown): the rail keeps its guard band, as on a fresh load", async ({ page, context, baseURL }, info) => {
+  test.skip(info.project.name !== "desktop", "explicit window sizes");
+  // The review of Release 19: the rail measured in the resize's own frame, with the pool still drawn whole (its fold commits a
+  // moment later), and took the pools' column, which then ended in the guard band but inside the window, for the page scrolling
+  // anyway: it kept a row that ended 12px above the page's padding, under the 1rem band (17.7px at 1920), and nothing measured
+  // it again once the pool folded, the page's frame unchanged. The rail now follows that column only where it runs past the
+  // window less the padding, and measures again when the column changes height (fit-rows.tsx, fitLimit and useFit).
+  await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: baseURL! }]);
+  await page.goto("/players");
+  const href = (await playerEntry(page, "Demo Top").first().getAttribute("href"))!;
+  const rail = () =>
+    page.evaluate(() => {
+      const pad = parseFloat(getComputedStyle(document.getElementById("content")!).paddingBottom);
+      const rows = [...document.querySelectorAll("[data-testid=recent-form-champions] [data-champion]")];
+      const pool = [...document.querySelectorAll("[data-testid=primary-pool] [data-testid=pool-item]")];
+      return {
+        free: innerHeight - pad - document.querySelector("[data-testid=recent-form]")!.getBoundingClientRect().bottom,
+        guard: parseFloat(getComputedStyle(document.documentElement).fontSize),
+        shown: rows.filter((r) => r.getBoundingClientRect().height > 0).length,
+        pool: `${pool.filter((r) => r.getBoundingClientRect().height > 0).length}/${pool.length}`,
+        fitted: document.querySelector("[data-testid=recent-form-champions-fit]")?.getAttribute("data-fit") === "fit",
+      };
+    });
+  for (const wide of [false, true]) {
+    if (wide) await widenText(page);
+    const at = wide ? ", wider text" : "";
+    // A fresh load at 1920 × 950: the six-row pool folds, and the rail's champions keep the band.
+    await page.setViewportSize({ width: 1920, height: 950 });
+    await page.goto(href);
+    await expect.poll(async () => (await rail()).fitted, { message: `fresh at 950${at}: fitted` }).toBe(true);
+    await expect.poll(async () => (await rail()).pool, { message: `fresh at 950${at}: the pool folded` }).toBe("5/6");
+    const fresh = await rail();
+    expect(fresh.free, `fresh at 950${at}: the guard band`).toBeGreaterThanOrEqual(fresh.guard - 1);
+    // At 1920 × 980 the six rows show whole; then one step to 950, as the bookmarks bar or a docked panel takes 30px.
+    await page.setViewportSize({ width: 1920, height: 980 });
+    await page.goto(href);
+    await expect.poll(async () => (await rail()).fitted, { message: `980${at}: fitted` }).toBe(true);
+    await expect.poll(async () => (await rail()).pool, { message: `980${at}: the six rows whole (this case needs them)` }).toBe("6/6");
+    await page.setViewportSize({ width: 1920, height: 950 });
+    await expect.poll(async () => (await rail()).pool, { message: `980 → 950${at}: the pool folded` }).toBe("5/6");
+    await expect.poll(async () => Math.round((await rail()).free), { message: `980 → 950${at}: the rail keeps the guard band` }).toBeGreaterThanOrEqual(Math.floor(fresh.guard - 1));
+    expect((await rail()).shown, `980 → 950${at}: as many champions as a fresh load shows`).toBe(fresh.shown);
+  }
+});
