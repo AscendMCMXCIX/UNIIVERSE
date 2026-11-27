@@ -13,6 +13,7 @@ export const JOB_NAMES: Record<string, { name: string; summary: string }> = {
   egress: { name: "Data sent yesterday", summary: "Compares yesterday's database traffic with the daily budget." },
   "perf-probe": { name: "Speed check", summary: "Times the database and service calls behind the pages." },
   "proficiency-audit": { name: "Champion proficiency check", summary: "Compares champion proficiency under the previous and the current model." },
+  "multikill-audit": { name: "Multikill fairness check", summary: "Compares the multikill score with alternative models on the stored games." },
   "rank-audit": { name: "Rank history check", summary: "Checks this ranked year's rank history against Riot's game counts." },
   "rank-schedule-status": { name: "LP schedule check", summary: "Says whether the five-minute rank schedule is on and running." },
   "riot-check": { name: "Riot key check", summary: "Checks Riot accepts the configured key." },
