@@ -17,7 +17,10 @@ import { LABELLED_CLOSE, WINDOW_CONTROL_TOUCH } from "./window-control";
  * on-screen keyboard (see useKeyboardFit) never leaves a field or the button out of reach; wider
  * screens get a compact centred window. `screen` is a whole screen of its own wherever it is used
  * (the phone's account menu): fixed to the screen's four edges, its header in place under the
- * status bar and only its body scrolling, when it must.
+ * status bar and only its body scrolling, when it must. `workspace` is All Champions' workspace
+ * window (docs/RESPONSIVE.md, "All Champions' workspace"): the docked pane's narrow form, as tall as
+ * the window it opens in less 1rem above and below and up to 56.25rem wide, whose content (the pane's,
+ * in measured pages) fills it and never scrolls.
  *
  * Every size is placed and sized by the screen it is fixed to (its containing block: insets, and
  * percentages of it), not by viewport units (vh, svh, dvh, lvh, vw) or by measuring the viewport
@@ -26,7 +29,7 @@ import { LABELLED_CLOSE, WINDOW_CONTROL_TOUCH } from "./window-control";
  * the on-screen keyboard from the visual viewport. overlay-sizing.test.ts keeps it so. A window's body grows from its content, never from nothing:
  * see BODY_SCROLLS, the reason the account menu was a strip on the owner's iPhone.
  */
-export type ModalSize = "compact" | "standard" | "wide" | "full" | "sheet" | "form" | "screen";
+export type ModalSize = "compact" | "standard" | "wide" | "full" | "sheet" | "form" | "screen" | "workspace";
 
 /**
  * A window's body: as tall as its content, growing into whatever room the window has to spare, and
@@ -79,6 +82,9 @@ const SIZE: Record<ModalSize, string> = {
   // its own, nothing measured), under the status bar and the Dynamic Island (pt-safe), clear of the
   // notch sideways (the dialog's px-safe). Its content keeps a readable width (mobile-nav.tsx).
   screen: "inset-0 h-auto w-auto max-h-none rounded-none border-0 pt-safe",
+  // All Champions' workspace window (1280–1359px with the sidebar open, or a larger root): a fixed height, the box it is
+  // fixed to less 1rem above and below (m-auto centres it), never content-sized; its measured pages fill it.
+  workspace: "h-[calc(100%-2rem)] w-[min(56.25rem,calc(100%-2rem))] max-h-none rounded-card",
 };
 
 /**
@@ -91,6 +97,9 @@ const SIZE: Record<ModalSize, string> = {
 const MOTION: Partial<Record<ModalSize, string>> = {
   sheet: "motion-safe:sheet-in data-[closing=true]:sheet-out sm:motion-safe:modal-in sm:data-[closing=true]:modal-out short:motion-safe:sheet-in short:data-[closing=true]:sheet-out backdrop:transition-opacity backdrop:duration-150 data-[closing=true]:backdrop:opacity-0",
   screen: "motion-safe:not-data-[entered=true]:screen-in data-[closing=true]:screen-out backdrop:transition-opacity backdrop:duration-150 data-[closing=true]:backdrop:opacity-0",
+  // A fade only: its row budgets measure it as it mounts, and modal-in's scale(0.97) would give them a box 3% short that
+  // nothing measures again.
+  workspace: "motion-safe:fade-in data-[closing=true]:modal-out backdrop:transition-opacity backdrop:duration-150 data-[closing=true]:backdrop:opacity-0",
 };
 /**
  * How long a screen's opening motion may take before it is dropped regardless (screen-in runs
@@ -146,7 +155,7 @@ const EXIT_MS = 140;
  */
 const REST_MS = 400;
 /** The opening motions a window's own animationend reports (MOTION, MODAL_MOTION). */
-const OPENING_MOTIONS = new Set(["modal-in", "sheet-in", "screen-in"]);
+const OPENING_MOTIONS = new Set(["modal-in", "sheet-in", "screen-in", "fade-in"]);
 /**
  * When the window counts as open for its content (see AfterOpen): modal-in runs 180 ms on an
  * ease-out curve, which is over 90% of the way by 120 ms; the rest is a barely visible settle.
@@ -416,6 +425,7 @@ export function DetailModal({
   sheetWidth = "standard",
   compactTitle,
   returnFocus,
+  headless = false,
 }: {
   open: boolean;
   onClose: () => void;
@@ -466,6 +476,13 @@ export function DetailModal({
   compactTitle?: React.ReactNode;
   /** Where the focus goes back to when nothing on the page opened the window (a window restored by Back, or opened by a deep link): its row in the list, say. */
   returnFocus?: () => HTMLElement | null;
+  /**
+   * No header at all (neither the title bar nor a custom header, so no close button of its own): the
+   * content holds the element with id={titleId} (focused as the window opens from the keyboard) and its
+   * own labelled Close. The body is a column with no padding and no overflow of its own, for a window
+   * of a fixed height (the workspace window): never one as tall as its content (BODY_SCROLLS).
+   */
+  headless?: boolean;
 }) {
   const generated = React.useId();
   const titleId = titleIdProp ?? `modal-title-${generated}`;
@@ -721,6 +738,8 @@ export function DetailModal({
       // a screen, until it is pressed or the focus moves on; else the close button, ringed for the
       // keyboard.
       if (screen || opensFocusingItself(lastInput())) letGo = focusWindow(d);
+      // A headless window has no close button of its own: its heading, as the pane's takes the focus opened from the keys.
+      else if (headless) d.querySelector<HTMLElement>(`[id="${CSS.escape(titleId)}"]`)?.focus({ preventScroll: true });
       else closeRef.current?.focus({ preventScroll: true });
     }
     if (!open && d.open) {
@@ -760,7 +779,7 @@ export function DetailModal({
         if (back?.isConnected) back.focus({ preventScroll: true });
       });
     };
-  }, [open, settle, screen]);
+  }, [open, settle, screen, headless, titleId]);
 
   React.useEffect(
     () => () => {
@@ -867,13 +886,16 @@ export function DetailModal({
       // Closing ends the opening motion too, so the closing one is the only one left to run.
       data-entered={screen && (entered || closing) ? "true" : undefined}
       className={cn(
-        "max-w-none border border-border-strong bg-bg-elevated p-0 text-fg shadow-2xl shadow-black/50 open:flex open:flex-col",
+        // The workspace window has the pane's surface (its P1 is the pane's own, bg-surface): one or the other, as cn does not merge classes.
+        "max-w-none border p-0 text-fg shadow-2xl shadow-black/50 open:flex open:flex-col",
+        size === "workspace" ? "border-border bg-surface panel-depth" : "border-border-strong bg-bg-elevated",
         // A screen is fixed to the screen's edges (SIZE.screen): no auto margins. The window's own
         // focus (it takes the focus as it opens after a tap or a click, and always for a screen)
         // draws no ring: nothing in it is lit up.
         screen ? "m-0 px-safe outline-none" : "m-auto px-safe outline-none",
-        !innerScroll && !pinned && !docked && !screen && "short:overflow-y-auto short:overscroll-contain",
-        flow ? "overflow-y-auto overscroll-contain" : "overflow-hidden",
+        !innerScroll && !pinned && !docked && !screen && size !== "workspace" && "short:overflow-y-auto short:overscroll-contain",
+        // The workspace window is filled by measured pages: its overflow is visible, so anything that ever did not fit would show, not be cut.
+        size === "workspace" ? "overflow-visible" : flow ? "overflow-y-auto overscroll-contain" : "overflow-hidden",
         MODAL_BACKDROP,
         MOTION[size] ?? MODAL_MOTION,
         size === "sheet" && sheetWidth !== "standard" ? SIZE.sheet.replace("sm:w-[min(30rem,calc(100%-2rem))]", sheetWidth === "picker" ? "sm:w-[min(42rem,calc(100%-2rem))]" : "sm:w-[min(34rem,calc(100%-2rem))]") : SIZE[size],
@@ -926,7 +948,7 @@ export function DetailModal({
               <span aria-hidden className="ml-auto h-px w-[calc(var(--modal-clear-right,4.5rem)-1rem)] shrink-0" />
             </div>
           ) : null}
-          {header ? (
+          {headless ? null : header ? (
             <div ref={headerRef} className={cn("relative shrink-0 border-b border-border", compact && !flow && "max-h-[56px] overflow-hidden", headerClassName)} data-testid={headerTestId} data-modal-handle={whole ? "" : undefined} data-compact={compact || undefined}>
               {header}
               <span
@@ -980,7 +1002,9 @@ export function DetailModal({
             className={cn(
               innerScroll
                 ? "flex min-h-0 flex-auto flex-col overflow-hidden"
-                : [
+                : headless
+                  ? "flex flex-auto flex-col"
+                  : [
                     "px-4 sm:px-6",
                     // The last line keeps clear of the bottom edge, and of the home indicator where
                     // there is one (pb-safe-N: N steps, or the inset where larger; pb-safe alone was

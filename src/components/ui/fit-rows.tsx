@@ -201,6 +201,22 @@ export function FitChampions({ total, heading, cssMore, children }: { total: num
 }
 
 /**
+ * Where a paged list's card ends for its rows (useRowBudget), before the guard band and the footer: the
+ * window's foot less #content's bottom padding and the card's bottom border; or, for a card inside an
+ * open window (All Champions' workspace window), that window's own foot less its bottom border (the
+ * window's height is fixed, a share of the screen, so this is never circular). In the page's
+ * coordinates as the rows' tops are read (the window is fixed: its box plus the scroll).
+ */
+export function rowBudgetEdge(card: HTMLElement): number {
+  const border = parseFloat(getComputedStyle(card).borderBottomWidth) || 0;
+  const box = card.closest("dialog[open]");
+  if (box) return box.getBoundingClientRect().bottom - (parseFloat(getComputedStyle(box).borderBottomWidth) || 0) - border + window.scrollY;
+  const main = document.getElementById("content");
+  const pad = main ? parseFloat(getComputedStyle(main).paddingBottom) || 0 : 0;
+  return window.innerHeight - pad - border;
+}
+
+/**
  * Rows a paged list's column shows (All Champions' one-screen workspace, docs/RESPONSIVE.md): the
  * complete rows that fit between its first row and its card's footer, less the guard band
  * (FIT_GUARD_REM), measured against the window, never the frame's box (the frame grows with its
@@ -210,6 +226,7 @@ export function FitChampions({ total, heading, cssMore, children }: { total: num
  * pages as they were (callers gate it on the workspace themselves).
  *
  *   limit = innerHeight − #content's bottom padding − the guard − the footer − the card's bottom border
+ *           (inside an open window: the window's foot less its border − the guard − the footer: rowBudgetEdge)
  *   top   = the first drawn row's top (the list's own where none is drawn)
  *   rows  = rowBudget(limit − top, the row's height, lastLess, at least 1, at most `cap`)
  *
@@ -259,9 +276,7 @@ export function useRowBudget(
     const foot = footRef.current;
     const card = cardRef.current;
     if (!opts.current.active || !list || !foot || !card) return setRows(null);
-    const main = document.getElementById("content");
-    const pad = main ? parseFloat(getComputedStyle(main).paddingBottom) || 0 : 0;
-    const limit = window.innerHeight - pad - fitGuardPx() - foot.getBoundingClientRect().height - (parseFloat(getComputedStyle(card).borderBottomWidth) || 0);
+    const limit = rowBudgetEdge(card) - fitGuardPx() - foot.getBoundingClientRect().height;
     const drawn = [...list.querySelectorAll<HTMLElement>(rowSelector)].filter((r) => r.getBoundingClientRect().height > 0);
     const first = drawn[0] ?? list;
     const top = first.getBoundingClientRect().top + window.scrollY;

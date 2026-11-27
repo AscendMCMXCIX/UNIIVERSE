@@ -1,4 +1,4 @@
-import { and, asc, eq, inArray, sql } from "drizzle-orm";
+import { and, asc, eq, inArray, isNotNull, ne, sql } from "drizzle-orm";
 import type { Db } from "@/server/db/types";
 import { accountChampionHistory, accountMastery, accountMatches, brandAssets, matchDetails, matchTimelines, type MatchEvents, type MatchFrames, type MatchObjectiveEvent, type MatchParticipantDetail, champions, playerChampionPools, players, rankSnapshots, riotAccounts, users } from "@/server/db/schema";
 import { listPlayers } from "@/server/repositories/team";
@@ -960,7 +960,11 @@ export async function applyFullRosterFixture(db: Db): Promise<{ created: number 
  *  - Aatrox, Top 20 and Mid 8, against 12 and 5 opponents (a position switch resets the pages);
  *  - 22 more champions with 1–4 games each, over all five positions, one game with no recorded
  *    position: 30 rows in all, more than any page shows and than Show all's 20;
- *  - Ambessa's mastery (405,000 points, level 10) and a place in the Top pool ("In pool").
+ *  - Ambessa's mastery (405,000 points, level 10) and a place in the Top pool ("In pool");
+ *  - Demo Sub (Top)'s oldest Sion Top game not against Nasus without its K/D/A (a game with no full
+ *    record), so Sion Top draws every optional line of the workspace for real: the averages' coverage
+ *    ("Averages from the 21 games with a full record, of 22 Top games."), "Kills N*", the partial
+ *    multikills and "29 games in all, 1 with no recorded position" (docs/RESPONSIVE.md, the short form).
  * The default demo and every figure the suite asserts on it are unchanged. Run after the other demo
  * fixtures (which rewrite the members' own DEMO_ games), with match ids from 1000 (clear of the
  * member's own 0–47). Never on a Postgres database or a deployment (bootstrap: demoWideChampion).
@@ -1000,14 +1004,53 @@ export function roundRobin(schedule: ReadonlyArray<readonly [string, number]>): 
 
 export async function applyWideChampionFixture(db: Db): Promise<{ created: number }> {
   if (isProductionDeployment()) return { created: 0 };
-  const [top] = await db.select({ id: players.id }).from(players).where(eq(players.displayName, "Demo Top"));
-  if (!top) return { created: 0 };
-  const puuid = `demo-${top.id}`;
+  const created = await wideDemoTop(db);
+  const cleared = await sionTopWithoutOneRecord(db);
+  if (created || cleared) {
+    invalidateProficiencyCache();
+    await summariseMatches(db);
+  }
+  return { created };
+}
+
+/** A demo member's one account (its puuid is `demo-<player id>`), or null. */
+async function demoAccountOf(db: Db, name: string): Promise<{ playerId: string; accountId: string; puuid: string } | null> {
+  const [player] = await db.select({ id: players.id }).from(players).where(eq(players.displayName, name));
+  if (!player) return null;
+  const puuid = `demo-${player.id}`;
   const [account] = await db.select({ id: riotAccounts.id }).from(riotAccounts).where(eq(riotAccounts.puuid, puuid));
-  if (!account) return { created: 0 };
+  return account ? { playerId: player.id, accountId: account.id, puuid } : null;
+}
+
+/**
+ * Demo Sub (Top)'s oldest Sion Top game whose lane opponent is not Nasus, without its K/D/A: true when
+ * this changed it (idempotent: a game already without one is left as it is). Sion vs Nasus keeps its
+ * 13 games and its words.
+ */
+async function sionTopWithoutOneRecord(db: Db): Promise<boolean> {
+  const sub = await demoAccountOf(db, "Demo Sub (Top)");
+  if (!sub) return false;
+  const [game] = await db
+    .select({ matchId: accountMatches.matchId, kills: accountMatches.kills })
+    .from(accountMatches)
+    .where(and(eq(accountMatches.accountId, sub.accountId), eq(accountMatches.championId, "Sion"), eq(accountMatches.role, "TOP"), isNotNull(accountMatches.enemyChampionId), ne(accountMatches.enemyChampionId, "Nasus")))
+    .orderBy(asc(accountMatches.gameCreation))
+    .limit(1);
+  if (!game || game.kills === null) return false;
+  await db.update(accountMatches).set({ kills: null, deaths: null, assists: null }).where(and(eq(accountMatches.accountId, sub.accountId), eq(accountMatches.matchId, game.matchId)));
+  return true;
+}
+
+/** Demo Top's champions (Ambessa, Aatrox and the 22 played a little): the games it created (none when they are there already). */
+async function wideDemoTop(db: Db): Promise<number> {
+  const demo = await demoAccountOf(db, "Demo Top");
+  if (!demo) return 0;
+  const top = { id: demo.playerId };
+  const puuid = demo.puuid;
+  const account = { id: demo.accountId };
   const firstId = `DEMO_${puuid.slice(5, 13)}_1000`;
   const [done] = await db.select({ id: accountMatches.matchId }).from(accountMatches).where(and(eq(accountMatches.accountId, account.id), eq(accountMatches.matchId, firstId)));
-  if (done) return { created: 0 };
+  if (done) return 0;
   const known = new Set((await db.select({ id: champions.id }).from(champions)).map((c) => c.id));
   const has = (id: string) => known.has(id);
   const schedule = (list: ReadonlyArray<readonly [string, number]>) => roundRobin(list.filter(([id]) => has(id)));
@@ -1034,11 +1077,7 @@ export async function applyWideChampionFixture(db: Db): Promise<{ created: numbe
     next += games;
     created += games;
   }
-  if (created) {
-    invalidateProficiencyCache();
-    await summariseMatches(db);
-  }
-  return { created };
+  return created;
 }
 
 /**

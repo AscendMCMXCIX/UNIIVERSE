@@ -93,6 +93,28 @@ describe("the wide-champion demo", () => {
     expect((await getChampionPreview(wide.db, p.id, scope("Aatrox", "MID"))).opponents).toHaveLength(5);
   });
 
+  it("leaves one of Sion's Top games (Demo Sub (Top)) without its K/D/A, not one against Nasus: the averages' coverage drawn for real; the default demo keeps every record", async () => {
+    const sionTop = async (handle: DbHandle) => {
+      const [row] = await handle.db.select({ id: players.id }).from(players).where(eq(players.displayName, "Demo Sub (Top)"));
+      const sub = (await getPlayer(handle.db, row!.id))!;
+      const sion = (await getPlayerOverview(handle.db, sub, { mode: "all", riotConfigured: true })).topChampions.find((c) => c.championId === "Sion")!;
+      const top = sion.roles.find((r) => r.role === "TOP")!;
+      return { sub, sion, top: top.figures ?? { selected: sion.selected, performance: sion.performance } };
+    };
+    const before = await sionTop(base);
+    expect(before.top.performance.detailedGames).toBe(before.top.selected.games);
+    const after = await sionTop(wide);
+    expect(after.sion.roles).toHaveLength(5);
+    expect(after.sion.selected.games).toBe(29);
+    expect(after.sion.noRole).toBe(1);
+    expect(after.top.selected.games).toBe(22);
+    expect(after.top.performance.detailedGames).toBe(21);
+    // Sion vs Nasus keeps its 13 games, each with its K/D/A.
+    const nasus = await getPairingGames(wide.db, after.sub.id, scope("Sion", "TOP"), "Nasus");
+    expect(nasus.games).toHaveLength(13);
+    expect(nasus.games.every((g) => g.kills !== null)).toBe(true);
+  });
+
   it("is decided by bootstrap for the in-memory demo alone", () => {
     expect(demoWideChampion("pglite-memory", { UNIIVERSE_DEMO_WIDE_CHAMPION: "1" })).toBe(true);
     expect(demoWideChampion("pglite-file", { UNIIVERSE_DEMO_WIDE_CHAMPION: "1" })).toBe(false);

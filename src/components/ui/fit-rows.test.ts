@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { FIT_GUARD_REM, fitCount, fitGuardPx, fitLimit, measureFit } from "./fit-rows";
+import { FIT_GUARD_REM, fitCount, fitGuardPx, fitLimit, measureFit, rowBudgetEdge } from "./fit-rows";
 
 /*
   The fitted list's count (fit-rows.tsx, Release 19): as many rows as end at or above the limit the
@@ -129,5 +129,33 @@ describe("fitLimit and measureFit: the guard band and the column beside the list
     // With a column past the window (large text, the page scrolls anyway), the rail runs to its end: the seventh row too.
     page({ sibling: { bottom: 945, height: 600 } });
     expect(measureFit(rail(), "data-fit", "css", undefined, POOLS)).toEqual({ count: 7, more: 0, ranks: 7 });
+  });
+});
+
+/*
+  A paged list's edge (useRowBudget, All Champions' workspace): the window's foot less #content's
+  bottom padding and the card's border, or, inside an open window (the workspace window), that window's
+  own foot less its border, whatever the page's padding.
+*/
+describe("rowBudgetEdge", () => {
+  afterEach(() => vi.unstubAllGlobals());
+  /** A card, inside an open dialog whose box ends at `dialogBottom` (or on the page where it is null). */
+  function card({ dialogBottom = null, cardBorder = 1, dialogBorder = 1 }: { dialogBottom?: number | null; cardBorder?: number; dialogBorder?: number }) {
+    const dialog = dialogBottom === null ? null : { getBoundingClientRect: () => ({ bottom: dialogBottom }) };
+    const el = { closest: (selector: string) => (selector === "dialog[open]" ? dialog : null) };
+    const content = { id: "content" };
+    vi.stubGlobal("window", { innerHeight: 689, scrollY: 0 });
+    vi.stubGlobal("getComputedStyle", (x: unknown) => (x === content ? { paddingBottom: "12px" } : x === el ? { borderBottomWidth: `${cardBorder}px` } : x === dialog ? { borderBottomWidth: `${dialogBorder}px` } : {}));
+    vi.stubGlobal("document", { getElementById: (id: string) => (id === "content" ? content : null), documentElement: {} });
+    return el as unknown as HTMLElement;
+  }
+
+  it("ends a card on the page at the window's foot less the page's padding and the card's border", () => {
+    expect(rowBudgetEdge(card({}))).toBe(689 - 12 - 1);
+  });
+
+  it("ends a card inside an open window at that window's foot less its border (the page's padding is not the window's)", () => {
+    // The workspace window: 1rem from the window's foot (689 − 16 = 673), its 1px border; the card inside it has none.
+    expect(rowBudgetEdge(card({ dialogBottom: 673, cardBorder: 0 }))).toBe(672);
   });
 });

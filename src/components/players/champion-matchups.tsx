@@ -662,7 +662,8 @@ function WorkspaceMatchups({ isOwn, me, role, vs, champ, data, onVs, onMatch, ti
     <section
       ref={regionRef}
       aria-labelledby={`${titleId}-opponents`}
-      className="@container/opp flex flex-col gap-2.5 ws:-mx-5 ws:mt-3 ws:flex-1 ws:gap-0 ws:border-t ws:border-border/70 ws:px-5 ws:pt-3"
+      // The short form (docs/RESPONSIVE.md): 8px either side of the rule, in grid and detail mode alike (opening an opponent moves nothing above it).
+      className="@container/opp flex flex-col gap-2.5 ws:-mx-5 ws:mt-3 ws:flex-1 ws:gap-0 ws:border-t ws:border-border/70 ws:px-5 ws:pt-3 ws-short:mt-2 ws-short:pt-2"
       data-testid="champion-preview-opponents"
       data-state={state}
     >
@@ -800,6 +801,7 @@ function GameRow({ g, onMatch, place }: { g: PairingGamesData["games"][number]; 
   );
 }
 
+/** The games' column heads (the workspace's short form gives them 4px under their labels: `ws-short:pb-1`). */
 function GamesHead({ className }: { className?: string }) {
   return (
     <div className={cn(GAMES, "border-b border-border/60 px-1 pb-1.5", className)} aria-hidden>
@@ -885,6 +887,11 @@ function PairingDetail({ id, me, them, o, role, isOwn, data, onMatch, onBack, ba
  * KDA and the lane at 10:00 in one paragraph, and its games in two columns, paged by the rows that
  * fit; the region's footer holds the link to Matchup Intel and the games' pager. Not remounted per
  * opponent: ‹ › keeps the focus on itself, and the games start again at their first page.
+ *
+ * The header never wraps (at every workspace height): ‹ n of N › never takes a line of its own; where
+ * the region lacks room, the record wraps between its own unbreakable groups ("13 games ·", "6W 7L ·
+ * 46%", "(small sample)"), so the win rate stays with its record. In the short form its controls take
+ * the mouse's 32px (touch keeps 44: the variant asks a fine pointer), and its parts are 4px apart.
  */
 function WorkspacePairing({ id, me, them, o, role, isOwn, data, onMatch, onBack, steps, paged, perColumnCap, regionRef, cardRef }: { id: string; me: PortraitChampion; them: PortraitChampion; o: OpponentTally; role: Role; isOwn: boolean; data: PreviewData; onMatch: (matchId: string) => void; onBack: () => void; steps: { prev: (() => void) | null; next: (() => void) | null; label: string; prevTestId: string; nextTestId: string; at: number | null; of: number }; paged: boolean; perColumnCap: number | null; regionRef: React.RefObject<HTMLElement | null>; cardRef: React.RefObject<HTMLElement | null> }) {
   const { answer, pairing, sentence, kda } = usePairing(me, them, role, isOwn, data);
@@ -943,24 +950,35 @@ function WorkspacePairing({ id, me, them, o, role, isOwn, data, onMatch, onBack,
   const small = smallSample(o);
   return (
     <>
-      <section id={id} aria-labelledby={`${id}-title`} className="flex flex-col gap-2" data-testid="champion-preview-pairing" data-champion={them.id}>
-        <header ref={headerRef} className="flex flex-wrap items-center gap-x-3 gap-y-1">
-          <button type="button" onClick={onBack} className="-ml-1 inline-flex min-h-9 items-center gap-1 rounded-md px-1 text-sm font-medium text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11" data-testid="champion-preview-opponents-back">
+      <section id={id} aria-labelledby={`${id}-title`} className="flex flex-col gap-2 ws-short:gap-1" data-testid="champion-preview-pairing" data-champion={them.id}>
+        <header ref={headerRef} className="flex items-center gap-x-3">
+          <button type="button" onClick={onBack} className="-ml-1 inline-flex min-h-9 shrink-0 items-center gap-1 whitespace-nowrap rounded-md px-1 text-sm font-medium text-fg-muted hover:text-fg focus-visible:outline-2 focus-visible:outline-accent pointer-coarse:min-h-11 ws-short:min-h-8" data-testid="champion-preview-opponents-back">
             <ChevronLeft className="h-4 w-4" aria-hidden />
             All opponents
           </button>
-          <span className="flex min-w-0 items-center gap-2">
+          <span className="flex shrink-0 items-center gap-2">
             <ChampionPortrait champion={them} size="xs" className="h-7 w-7 shrink-0 rounded" />
             <h4 id={`${id}-title`} tabIndex={-1} aria-describedby={`${id}-record ${id}-paragraph`} className="whitespace-nowrap text-base font-semibold text-fg outline-none focus-visible:outline-2 focus-visible:outline-accent">
               <span className="font-normal text-fg-muted">vs </span>
               {them.name}
             </h4>
           </span>
-          <p id={`${id}-record`} className="whitespace-nowrap text-sm tabular-nums text-fg-muted" data-testid="champion-preview-pairing-record">
-            <span className="font-semibold text-fg">{plural(o.games, "game")}</span> · {record(o.wins, o.games)} · <span className={cn("font-semibold", rateClass(o))}>{percent(rate, 0)}</span>
-            {small ? <span className="text-fg-subtle"> (small sample)</span> : null}
+          {/* Three unbreakable groups: the line breaks between them only ("13 games ·" / "6W 7L · 46%" / "(small sample)"). */}
+          <p id={`${id}-record`} className="min-w-0 flex-[0_1_auto] text-sm tabular-nums text-fg-muted" data-testid="champion-preview-pairing-record">
+            <span className="whitespace-nowrap">
+              <span className="font-semibold text-fg">{plural(o.games, "game")}</span> ·
+            </span>{" "}
+            <span className="whitespace-nowrap">
+              {record(o.wins, o.games)} · <span className={cn("font-semibold", rateClass(o))}>{percent(rate, 0)}</span>
+            </span>
+            {small ? (
+              <>
+                {" "}
+                <span className="whitespace-nowrap text-fg-subtle">(small sample)</span>
+              </>
+            ) : null}
           </p>
-          <div ref={stepsRef} className="ml-auto flex shrink-0 items-center gap-1" data-testid="champion-preview-opponent-steps">
+          <div ref={stepsRef} className="ml-auto flex shrink-0 items-center gap-1 ws-short:[&_button]:h-8 ws-short:[&_button]:w-8" data-testid="champion-preview-opponent-steps">
             <SiblingSteps siblings={{ ...steps, prev: step(steps.prev), next: step(steps.next) }} position={steps.at ? { at: steps.at, of: steps.of } : undefined} />
           </div>
         </header>
@@ -992,7 +1010,7 @@ function WorkspacePairing({ id, me, them, o, role, isOwn, data, onMatch, onBack,
           <div>
             <div ref={headsRef} className={cn("grid gap-x-4", perPage === null ? "grid-cols-1 ws:grid-cols-2" : columns === 2 ? "grid-cols-2" : "grid-cols-1")} aria-hidden>
               {[0, 1].slice(0, secondColumn ? 2 : 1).map((c) => (
-                <GamesHead key={c} />
+                <GamesHead key={c} className="ws-short:pb-1" />
               ))}
             </div>
             <ul

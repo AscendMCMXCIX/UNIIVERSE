@@ -1,7 +1,7 @@
 import { readFileSync } from "node:fs";
 import { join } from "node:path";
-import { describe, expect, it } from "vitest";
-import { WS_MIN_HEIGHT_REM, WS_QUERY } from "./posture";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { WS_MIN_HEIGHT_REM, WS_QUERY, WS_SHORT_QUERY, WS_SHORT_REM, workspaceNow, workspaceShortNow } from "./posture";
 import { WS_TIER_ROWS } from "@/components/players/all-champions";
 
 /*
@@ -13,10 +13,15 @@ import { WS_TIER_ROWS } from "@/components/players/all-champions";
 */
 
 const css = readFileSync(join(process.cwd(), "src", "app", "globals.css"), "utf8");
-const mediaOf = (variant: string) => {
+/** The text of a variant's `index`th @media block (its first by default). */
+const mediaOf = (variant: string, index = 0) => {
   const at = css.indexOf(`@custom-variant ${variant} {`);
   expect(at, variant).toBeGreaterThan(-1);
-  const m = /@media ([^{]+)\{/.exec(css.slice(at));
+  // The variant's own body: up to the next variant.
+  const next = css.indexOf("@custom-variant ", at + 1);
+  const body = css.slice(at, next < 0 ? undefined : next);
+  const m = [...body.matchAll(/@media ([^{]+)\{/g)][index];
+  expect(m, `${variant}'s @media block ${index}`).toBeDefined();
   return m![1]!.trim();
 };
 
@@ -94,5 +99,77 @@ describe("the workspace's first paint (WS_TIER_ROWS)", () => {
     expect(rowsThatFit(1440, 900)).toBe(9);
     expect(rowsThatFit(1648, 900)).toBe(9);
     expect(rowsThatFit(1920, 1080)).toBe(10);
+  });
+});
+
+/*
+  The short form (docs/RESPONSIVE.md, "All Champions' workspace", the short form; globals.css, the
+  `ws-short` and `ws-short-host` variants): the `ws` gate's ten bands, each with an upper height of 46
+  of the band's widest root rounded up to the pixel (less 0.02, so the bound itself is tall), and a
+  second block for the page's own check ([data-ws-short] under the ws gate).
+*/
+describe("the workspace's short form", () => {
+  const root = (w: number) => Math.min(22, Math.max(16, 16 + (w - 1536) * 0.0045));
+  const clause = /\(pointer: fine\) and \(min-width: ([\d.]+)(rem|px)\)(?: and \(max-width: (\d+)px\))? and \(min-height: (\d+)px\)(?: and \(max-height: ([\d.]+)px\))?/g;
+  const parse = (q: string) => [...q.matchAll(clause)].map(([, min, unit, max, height, top]) => ({ min: unit === "rem" ? Number(min) * 16 : Number(min), max: max ? Number(max) : null, height: Number(height), top: top ? Number(top) : null }));
+  /** A media query of these clauses at a window (media queries read rem at 16px, whatever the root). */
+  const matches = (q: string, w: number, h: number) => parse(q).some((b) => w >= b.min && (b.max === null || w <= b.max) && h >= b.height && (b.top === null || h <= b.top));
+
+  it("is one string in the CSS (ws-short, ws-short-host) and in the page's own check (WS_SHORT_QUERY); their second block is the ws gate", () => {
+    expect(mediaOf("ws-short")).toBe(WS_SHORT_QUERY);
+    expect(mediaOf("ws-short-host")).toBe(WS_SHORT_QUERY);
+    expect(mediaOf("ws-short", 1)).toBe(WS_QUERY);
+    expect(mediaOf("ws-short-host", 1)).toBe(WS_QUERY);
+  });
+
+  it("asks the ws gate's bands, each under 46 of its widest root (rounded up to the pixel)", () => {
+    expect(WS_SHORT_REM).toBe(46);
+    const gate = parse(WS_QUERY);
+    const short = parse(WS_SHORT_QUERY);
+    expect(short).toHaveLength(10);
+    for (const [i, b] of short.entries()) {
+      expect({ min: b.min, max: b.max, height: b.height }, `band ${i}`).toEqual({ min: gate[i]!.min, max: gate[i]!.max, height: gate[i]!.height });
+      const widest = b.max ? root(b.max) : 22;
+      expect(b.top, `band to ${b.max ?? "∞"}`).toBe(Math.ceil(WS_SHORT_REM * widest) - 0.02);
+    }
+  });
+
+  it("takes the laptop windows and leaves the owner's four sizes tall", () => {
+    for (const [w, h] of [[1366, 657], [1366, 735], [1536, 730], [1599, 749], [1900, 815], [1280, 689]] as const) expect(matches(WS_SHORT_QUERY, w, h), `${w} × ${h}`).toBe(true);
+    for (const [w, h] of [[1366, 736], [1366, 768], [1440, 900], [1648, 900], [1920, 1080], [1599, 750], [1900, 816], [1366, 655]] as const) expect(matches(WS_SHORT_QUERY, w, h), `${w} × ${h}`).toBe(false);
+    // A band includes its upper edge, as the gate's do (a fractional width never falls between two): at that edge the next
+    // band's bound holds too (1600 × 750 is short by the band to 1664; 46 of the page's own rem there is 749.2px).
+    expect(matches(WS_SHORT_QUERY, 1600, 750)).toBe(true);
+  });
+
+  /** A window for posture.ts's checks: its size, the root's size, and media queries read as a browser reads them. */
+  function windowAt(w: number, h: number, rootSize = root(w)) {
+    vi.stubGlobal("window", { innerWidth: w, innerHeight: h, matchMedia: (q: string) => ({ matches: matches(q, w, h) }) });
+    vi.stubGlobal("document", { documentElement: {} });
+    vi.stubGlobal("getComputedStyle", () => ({ fontSize: `${rootSize}px` }));
+  }
+  afterEach(() => vi.unstubAllGlobals());
+
+  it("is the CSS bands at the default text size, the page's own rem at a larger one, and never where the workspace does not apply", () => {
+    // At the default root the page's check is the media query (every band's bound is its widest root's).
+    for (let w = 1280; w <= 2600; w += 37)
+      for (let h = 640; h <= 1100; h += 7) {
+        windowAt(w, h);
+        expect(workspaceShortNow(), `${w} × ${h}`).toBe(workspaceNow() && matches(WS_SHORT_QUERY, w, h));
+      }
+    // An 18px root at 1366 × 768 (42.7 of its rem): the workspace applies (768 ≥ 41 × 18), short by the page's own rem.
+    windowAt(1366, 768, 18);
+    expect(matches(WS_SHORT_QUERY, 1366, 768)).toBe(false);
+    expect(workspaceNow()).toBe(true);
+    expect(workspaceShortNow()).toBe(true);
+    // At 1366 × 900 with the same root: tall (50 of its rem).
+    windowAt(1366, 900, 18);
+    expect(workspaceShortNow()).toBe(false);
+    // No workspace, no short form: a window under the gate, or a root too large for it.
+    windowAt(1366, 640);
+    expect(workspaceShortNow()).toBe(false);
+    windowAt(1366, 700, 18);
+    expect(workspaceNow()).toBe(false);
+    expect(workspaceShortNow()).toBe(false);
   });
 });

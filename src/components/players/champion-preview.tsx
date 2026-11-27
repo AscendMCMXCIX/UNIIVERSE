@@ -74,13 +74,18 @@ export interface PreviewProps {
   perColumnCap?: number | null;
 }
 
-/** One figure: its label, the figure, and what it is per (or what it is made of). */
-function Figure({ label, value, sub, testId }: { label: string; value: string; sub: string | null; testId: string }) {
+/**
+ * One figure: its label, the figure, and what it is per (or what it is made of). In the workspace's
+ * short form (`ws-short`, docs/RESPONSIVE.md) the label stands before the figure on one baseline and
+ * the sub under both; the cell keeps its least width (min-w-auto: a track never shrinks under it, so
+ * two cells never draw over each other), and nothing in it is cut.
+ */
+function Figure({ label, value, sub, testId, workspace = false }: { label: string; value: string; sub: string | null; testId: string; workspace?: boolean }) {
   return (
-    <div className="min-w-0" data-testid={testId}>
-      <dt className="label-text truncate">{label}</dt>
-      <dd className="mt-0.5 text-xl font-semibold leading-tight tabular-nums text-fg">{value}</dd>
-      <dd className="truncate text-xs tabular-nums text-fg-muted">{sub ?? " "}</dd>
+    <div className={cn("min-w-0", workspace && "ws-short:grid ws-short:min-w-auto ws-short:grid-cols-[auto_auto] ws-short:items-baseline ws-short:justify-start ws-short:gap-x-1.5")} data-testid={testId}>
+      <dt className={cn("label-text truncate", workspace && "ws-short:overflow-visible")}>{label}</dt>
+      <dd className={cn("mt-0.5 text-xl font-semibold leading-tight tabular-nums text-fg", workspace && "ws-short:mt-0")}>{value}</dd>
+      <dd className={cn("truncate text-xs tabular-nums text-fg-muted", workspace && "ws-short:col-span-full ws-short:mt-0.5 ws-short:overflow-visible")}>{sub ?? " "}</dd>
     </div>
   );
 }
@@ -104,7 +109,7 @@ function KillsLine({ f, workspace = false, after }: { f: RoleFigures; workspace?
   const multi = !m || !m.games ? null : !m.counted ? ["not counted yet"] : kinds!.map((w, i) => (i === kinds!.length - 1 ? `${w}${partial(m.counted, m.games)}` : w));
   const some = (p.totalKills !== null && p.detailedGames < f.selected.games) || (!!m && m.counted > 0 && m.counted < m.games);
   return (
-    <p className="text-sm tabular-nums text-fg-muted" data-testid="champion-preview-kills">
+    <p className={cn("text-sm tabular-nums text-fg-muted", workspace && "ws-short:inline ws-short:[word-spacing:normal]")} data-testid="champion-preview-kills">
       <span className="whitespace-nowrap" data-kills-item="">
         Kills <span className="font-semibold text-fg">{kills}</span>
         {multi ? SEP : null}
@@ -125,21 +130,30 @@ function KillsLine({ f, workspace = false, after }: { f: RoleFigures; workspace?
         : null}
       {some ? <span className="sr-only"> (* from some of the games only: {m ? multikillCoverage(m).label.toLowerCase() : "the rest still loading"})</span> : null}
       {workspace && some ? (
-        // The workspace: the list's legend for these marks, at the line's end (its words and its ⓘ).
-        <span className="hidden whitespace-nowrap text-xs text-fg-muted ws:inline-flex ws:items-center ws:gap-1" data-testid="champion-preview-partial">
-          <span aria-hidden>
-            {" · "}
-            <span className="font-semibold text-warn">*</span> only some games counted so far
+        // The workspace: the list's legend for these marks, at the line's end (its words and its ⓘ). The space before it is
+        // the line's (a flex box drops a leading space: "0 penta*·"), and where the line wraps the legend moves whole.
+        <>
+          {" "}
+          <span className="hidden whitespace-nowrap text-xs text-fg-muted ws:inline-flex ws:items-center ws:gap-1" data-testid="champion-preview-partial">
+            <span aria-hidden>
+              {"· "}
+              <span className="font-semibold text-warn">*</span> only some games counted so far
+            </span>
+            <InfoTip text={MULTIKILL_HELP} label="About multikills" />
           </span>
-          <InfoTip text={MULTIKILL_HELP} label="About multikills" />
-        </span>
+        </>
       ) : null}
       {after}
     </p>
   );
 }
 
-/** The position's record and averages (each over the games that carry it). */
+/**
+ * The position's record and averages (each over the games that carry it). In the workspace's short
+ * form the five cells are one row (each label before its figure, its sub under it: "Win rate 50% · KDA
+ * 3.24 · …"), the same cells, words and sizes, 43px instead of 62 at a 16px root; the stats' list is a
+ * subgrid of the row, so the five share one track list and keep their role (docs/DESIGN_SYSTEM.md).
+ */
 function Figures({ f, role, champion, workspace = false, tail }: { f: RoleFigures; role: Role | null; champion: string; workspace?: boolean; tail?: React.ReactNode }) {
   const r = f.selected;
   const p = f.performance;
@@ -148,29 +162,46 @@ function Figures({ f, role, champion, workspace = false, tail }: { f: RoleFigure
   const tone = WIN_RATE_TONE_CLASS[winRateTone(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)];
   const partial = p.detailedGames < r.games;
   return (
-    <section aria-label={role ? `${champion} as ${ROLE_LABELS[role]}` : `${champion}'s games`} className={cn("flex flex-col gap-3", workspace && "ws:mt-3 ws:gap-2")} data-testid="champion-preview-record">
-      <div className="grid grid-cols-2 items-start gap-x-6 gap-y-3 @min-[34rem]/detail:grid-cols-[auto_repeat(4,minmax(0,1fr))]" data-testid="champion-preview-figures">
-        <div className="col-span-2 flex items-baseline gap-x-3 @min-[34rem]/detail:col-span-1 @min-[34rem]/detail:block">
+    <section aria-label={role ? `${champion} as ${ROLE_LABELS[role]}` : `${champion}'s games`} className={cn("flex flex-col gap-3", workspace && "ws:mt-3 ws:gap-2 ws-short:mt-2 ws-short:gap-1.5")} data-testid="champion-preview-record">
+      <div className={cn("grid grid-cols-2 items-start gap-x-6 gap-y-3 @min-[34rem]/detail:grid-cols-[auto_repeat(4,minmax(0,1fr))]", workspace && "ws-short:grid-cols-[repeat(5,auto)] ws-short:justify-between ws-short:gap-x-3")} data-testid="champion-preview-figures">
+        <div className={cn("col-span-2 flex items-baseline gap-x-3 @min-[34rem]/detail:col-span-1 @min-[34rem]/detail:block", workspace && "ws-short:col-span-1 ws-short:grid ws-short:grid-cols-[auto_auto] ws-short:items-baseline ws-short:justify-start ws-short:gap-x-1.5")}>
           <p className="label-text @max-[34rem]/detail:sr-only">Win rate</p>
-          <p className={cn("text-3xl font-bold leading-none tabular-nums @min-[34rem]/detail:mt-0.5", workspace && "ws:text-2xl", tone)} data-testid="champion-preview-winrate">
+          <p className={cn("text-3xl font-bold leading-none tabular-nums @min-[34rem]/detail:mt-0.5", workspace && "ws:text-2xl ws-short:mt-0", tone)} data-testid="champion-preview-winrate">
             {r.winRate === null ? "—" : percent(r.winRate, 0)}
             <SampleNote note={winRateSampleNote(r.winRate, r.games, WIN_RATE_MIN_GAMES.champion)} />
           </p>
-          <p className={cn("text-sm text-fg-muted @min-[34rem]/detail:mt-1", workspace && "ws:mt-0.5 ws:text-xs")} data-testid="champion-preview-record-line">
-            <span className="font-semibold tabular-nums text-fg">{formatCount(r.games)}</span> game{r.games === 1 ? "" : "s"} · {record(r.wins, r.games)}
+          <p className={cn("text-sm text-fg-muted @min-[34rem]/detail:mt-1", workspace && "ws:mt-0.5 ws:text-xs ws-short:col-span-full")} data-testid="champion-preview-record-line">
+            {workspace ? (
+              // Two unbreakable groups ("22 games ·", "11W 11L"): where the row lacks room the line breaks between them only.
+              <>
+                <span className="whitespace-nowrap">
+                  <span className="font-semibold tabular-nums text-fg">{formatCount(r.games)}</span> game{r.games === 1 ? "" : "s"} ·
+                </span>{" "}
+                <span className="whitespace-nowrap">{record(r.wins, r.games)}</span>
+              </>
+            ) : (
+              <>
+                <span className="font-semibold tabular-nums text-fg">{formatCount(r.games)}</span> game{r.games === 1 ? "" : "s"} · {record(r.wins, r.games)}
+              </>
+            )}
           </p>
         </div>
-        <dl className="col-span-2 grid grid-cols-2 gap-x-6 gap-y-3 @min-[28rem]/detail:grid-cols-4 @min-[34rem]/detail:col-span-4" data-testid="champion-preview-stats">
-          <Figure label="KDA" value={p.perfectKda ? "Perfect" : p.kdaRatio === null ? "—" : p.kdaRatio.toFixed(2)} sub={kda.every((x) => x !== null) ? kda.join(" / ") : null} testId="champion-stat-kda" />
-          <Figure label="CS/min" value={p.csPerMinute === null ? "—" : p.csPerMinute.toFixed(1)} sub={p.csPerGame === null ? null : `${formatCount(Math.round(p.csPerGame))} a game`} testId="champion-stat-cs" />
-          <Figure label="Damage/min" value={p.damagePerMinute === null ? "—" : formatCount(Math.round(p.damagePerMinute))} sub={p.damagePerGame === null ? null : `${formatKilo(Math.round(p.damagePerGame))} a game`} testId="champion-stat-damage" />
-          <Figure label="Vision" value={p.visionPerGame === null ? "—" : p.visionPerGame.toFixed(1)} sub={p.visionPerGame === null ? null : "a game"} testId="champion-stat-vision" />
+        <dl className={cn("col-span-2 grid grid-cols-2 gap-x-6 gap-y-3 @min-[28rem]/detail:grid-cols-4 @min-[34rem]/detail:col-span-4", workspace && "ws-short:col-span-4 ws-short:grid-cols-subgrid ws-short:gap-x-3")} data-testid="champion-preview-stats">
+          <Figure workspace={workspace} label="KDA" value={p.perfectKda ? "Perfect" : p.kdaRatio === null ? "—" : p.kdaRatio.toFixed(2)} sub={kda.every((x) => x !== null) ? kda.join(" / ") : null} testId="champion-stat-kda" />
+          <Figure workspace={workspace} label="CS/min" value={p.csPerMinute === null ? "—" : p.csPerMinute.toFixed(1)} sub={p.csPerGame === null ? null : `${formatCount(Math.round(p.csPerGame))} a game`} testId="champion-stat-cs" />
+          <Figure workspace={workspace} label="Damage/min" value={p.damagePerMinute === null ? "—" : formatCount(Math.round(p.damagePerMinute))} sub={p.damagePerGame === null ? null : `${formatKilo(Math.round(p.damagePerGame))} a game`} testId="champion-stat-damage" />
+          <Figure workspace={workspace} label="Vision" value={p.visionPerGame === null ? "—" : p.visionPerGame.toFixed(1)} sub={p.visionPerGame === null ? null : "a game"} testId="champion-stat-vision" />
         </dl>
       </div>
-      <div className={cn("flex flex-col gap-1", workspace && "ws:flex-row ws:flex-wrap ws:items-baseline ws:gap-x-3 ws:gap-y-0.5")}>
+      {/* P4. In the short form one run of text (a block whose strut is text-xs's: the kills line inline, the coverage an
+          inline block, so it moves whole): where the kills line wraps (larger values, a narrower pane, wider text), the
+          coverage shares its last line where it fits instead of taking a line of its own. The space between them is 12px
+          wide (its word spacing; each line keeps its own) and goes at a line's end. */}
+      <div className={cn("flex flex-col gap-1", workspace && "ws:flex-row ws:flex-wrap ws:items-baseline ws:gap-x-3 ws:gap-y-0.5 ws-short:block ws-short:text-xs ws-short:[word-spacing:0.5rem]")}>
         <KillsLine f={f} workspace={workspace} after={workspace ? tail : null} />
+        {workspace ? " " : null}
         {/* The workspace draws it only where the averages are partial: complete, it repeats the win rate's games, the position and the scope line, and is read out instead. */}
-        <p className={cn("text-xs text-fg-subtle", workspace && !partial && "ws:sr-only")} data-testid="champion-preview-coverage">
+        <p className={cn("text-xs text-fg-subtle", workspace && "ws-short:inline-block ws-short:[word-spacing:normal]", workspace && !partial && "ws:sr-only")} data-testid="champion-preview-coverage">
           {role
             ? partial
               ? `Averages from the ${plural(p.detailedGames, "game")} with a full record, of ${formatCount(r.games)} ${ROLE_LABELS[role]} games.`
@@ -197,7 +228,7 @@ function Positions({ row, role, onRole, champion, workspace = false, after }: { 
   const several = row.roles.length > 1;
   return (
     // The workspace: one position is said in the identity bar (nothing to choose), so this row is for two or more.
-    <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-1", workspace && (several ? "ws:mt-3" : "ws:hidden"))} data-testid="champion-preview-positions">
+    <div className={cn("flex flex-wrap items-center gap-x-3 gap-y-1", workspace && (several ? "ws:mt-3 ws-short:mt-2" : "ws:hidden"))} data-testid="champion-preview-positions">
       <span className={cn("label-text", workspace && "ws:sr-only")} id={`positions-${row.championId}`}>
         Position
       </span>
@@ -206,7 +237,7 @@ function Positions({ row, role, onRole, champion, workspace = false, after }: { 
           const on = role === r.role;
           const small = r.games < WIN_RATE_MIN_GAMES.champion;
           return (
-            <button key={r.role} type="button" role="radio" aria-checked={on} onClick={() => !on && onRole(r.role)} className={segmentClass(on, { size: "md", className: cn("justify-start py-1.5 text-left", workspace && "ws:px-2 ws:after:inset-x-2") })} aria-label={`${ROLE_LABELS[r.role]}: ${roleRecordWords(r)}`} data-testid="champion-preview-role" data-role={r.role} data-games={r.games} data-wins={r.wins}>
+            <button key={r.role} type="button" role="radio" aria-checked={on} onClick={() => !on && onRole(r.role)} className={segmentClass(on, { size: "md", className: cn("justify-start py-1.5 text-left", workspace && "ws:px-2 ws:after:inset-x-2 ws-short:py-1") })} aria-label={`${ROLE_LABELS[r.role]}: ${roleRecordWords(r)}`} data-testid="champion-preview-role" data-role={r.role} data-games={r.games} data-wins={r.wins}>
               <span className="flex flex-col items-start gap-0.5 leading-tight">
                 <span className="inline-flex items-center gap-1.5">
                   <RoleIcon role={r.role} decorative className="h-4 w-4" />
@@ -249,26 +280,28 @@ export function PreviewContent({ playerId, isOwn, row, role, vs, champ, data, on
     : `${row.noRole === 1 ? "Its one game has" : `All ${formatCount(row.noRole)} of its games have`} no recorded position: the figures are ${row.noRole === 1 ? "that game's" : "those games'"}.`;
   const one = row.roles.length === 1 ? row.roles[0]! : null;
   // The workspace's totals: "29 games in all", and ", 1 with no recorded position" where some games record none (the sentence in its title and read out).
-  const totals =
-    ws && many && row.roles.length ? (
-      <span className="whitespace-nowrap text-xs text-fg-muted" data-testid="champion-preview-total">
-        <span className="font-semibold tabular-nums text-fg">{formatCount(row.selected.games)}</span> {row.selected.games === 1 ? "game" : "games"} in all
-        {row.noRole > 0 ? (
-          <span title={noRoleSentence} data-testid="champion-preview-no-role">
-            <span aria-hidden>, {formatCount(row.noRole)} with no recorded position</span>
-            <span className="sr-only">. {noRoleSentence}</span>
-          </span>
-        ) : null}
-      </span>
-    ) : null;
+  // Drawn in two places, one always display: none (so read out once): after the positions (or at P4's end for one position),
+  // and, in the short form, as the identity bar's second line ("-identity": its own test ids, so each locator finds one).
+  const totalsHere = ws && many && row.roles.length > 0;
+  const totals = (suffix: "" | "-identity", className?: string) => (
+    <span className={cn("whitespace-nowrap text-xs text-fg-muted", className)} data-testid={`champion-preview-total${suffix}`}>
+      <span className="font-semibold tabular-nums text-fg">{formatCount(row.selected.games)}</span> {row.selected.games === 1 ? "game" : "games"} in all
+      {row.noRole > 0 ? (
+        <span title={noRoleSentence} data-testid={`champion-preview-no-role${suffix}`}>
+          <span aria-hidden>, {formatCount(row.noRole)} with no recorded position</span>
+          <span className="sr-only">. {noRoleSentence}</span>
+        </span>
+      ) : null}
+    </span>
+  );
   // A champion of one position with games that record none: the totals end P4; one with no position at all keeps its sentence there.
   const tail = ws ? (
-    one && totals ? (
+    one && totalsHere ? (
       <>
-        <span aria-hidden className="text-fg-subtle">
+        <span aria-hidden className="text-fg-subtle ws-short:hidden">
           {" · "}
         </span>
-        {totals}
+        {totals("", "ws-short:hidden")}
       </>
     ) : !row.roles.length && row.noRole > 0 ? (
       <span className="text-xs text-fg-subtle" data-testid="champion-preview-no-role">
@@ -285,9 +318,9 @@ export function PreviewContent({ playerId, isOwn, row, role, vs, champ, data, on
           card's, as the pane no longer clips in the workspace (docs/RESPONSIVE.md, "All Champions' workspace"). */}
       <header className={cn("flex items-start gap-3", pane ? "sticky top-[calc(var(--bar-top)+var(--tabs-top))] z-[2] -mx-5 border-b border-border/70 bg-surface px-5 pb-3 pt-4" : "flex-wrap", ws && "ws:static ws:items-center ws:rounded-t-card ws:pb-2 ws:pt-2")} data-testid="champion-preview-header">
         <ChampionPortrait champion={me} size="md" className={cn("h-12 w-12 shrink-0 rounded-lg ring-1 ring-border-strong/60", ws && "ws:h-9 ws:w-9")} />
-        <div className={cn("min-w-0", pane ? "flex-1" : "grow basis-40", ws && "ws:flex ws:flex-wrap ws:items-baseline ws:gap-x-3 ws:gap-y-0.5")}>
+        <div className={cn("min-w-0", pane ? "flex-1" : "grow basis-40", ws && "ws:flex ws:flex-wrap ws:items-baseline ws:gap-x-3 ws:gap-y-0.5 ws-short:items-center ws-short:gap-y-0")}>
           {pane ? (
-            <h2 id={titleId} tabIndex={-1} className="text-lg font-semibold leading-tight text-fg outline-none focus-visible:outline-2 focus-visible:outline-accent">
+            <h2 id={titleId} tabIndex={-1} className={cn("text-lg font-semibold leading-tight text-fg outline-none focus-visible:outline-2 focus-visible:outline-accent", ws && "ws-short:leading-5")}>
               <span className="sr-only">Champion: </span>
               {me.name}
             </h2>
@@ -302,7 +335,7 @@ export function PreviewContent({ playerId, isOwn, row, role, vs, champ, data, on
               </span>
             ) : null}
             {row.poolRoles.length ? (
-              <span className="whitespace-nowrap rounded-full border border-border-strong px-1.5 text-xs font-medium leading-5 text-fg-muted" data-testid="champion-preview-in-pool">
+              <span className={cn("whitespace-nowrap rounded-full border border-border-strong px-1.5 text-xs font-medium leading-5 text-fg-muted", ws && "ws-short:leading-4")} data-testid="champion-preview-in-pool">
                 In pool<span className="sr-only"> as {row.poolRoles.map((r) => ROLE_LABELS[r]).join(" and ")}</span>
               </span>
             ) : null}
@@ -322,10 +355,12 @@ export function PreviewContent({ playerId, isOwn, row, role, vs, champ, data, on
               </span>
             ) : null}
           </p>
+          {/* The short form: the totals as the identity's second line, beside the 36px portrait (P1 stays 53px, level with the list's toolbar). */}
+          {totalsHere ? totals("-identity", "hidden basis-full leading-4 ws-short:block") : null}
         </div>
         {controls}
       </header>
-      <Positions row={row} role={role} onRole={onRole} champion={me.name} workspace={ws} after={row.roles.length > 1 ? totals : null} />
+      <Positions row={row} role={role} onRole={onRole} champion={me.name} workspace={ws} after={totalsHere && row.roles.length > 1 ? totals("", "ws-short:hidden") : null} />
       {row.noRole > 0 && !ws ? (
         <p className="-mt-2 text-xs text-fg-subtle" data-testid="champion-preview-no-role">
           {noRoleSentence}
