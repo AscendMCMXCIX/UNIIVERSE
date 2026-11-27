@@ -73,23 +73,18 @@ test("Played together lists games with two or more members on one side, with hon
   await showFilters(page);
   await pick(page.getByTestId("together-queue"), "solo");
   await expect(page).toHaveURL(/queue=solo/);
-  // Text on the card, never only behind an (i): whole on a stacked card; in the four columns' narrow
-  // result column a short line on screen that keeps the point, under the queue's own "Ranked
-  // Solo/Duo", the whole sentence in its title and read out. The accessibility tree is what is read
-  // out: the sentence alone, whichever line is on screen (the short line is hidden from it; a
-  // sentence hidden from it, or not drawn at all, fails here).
+  // Behind an ⓘ after the result's lines (S6b's TM2, built in Release 19: a line of text under every such card's result repeated it),
+  // at every width: named by the short words, its sentence its description (read out with it), shown on a press.
   const caveat = page.getByTestId("together-solo-caveat").first();
   await expect(caveat).toBeVisible();
   const full = "Ranked Solo/Duo allows parties of two at most, so not all of them queued together.";
-  await expect(caveat).toHaveAttribute("title", full);
-  await expect(caveat).toMatchAriaSnapshot(`- paragraph: ${full}`);
-  const wide = await page.getByTestId("together-list").evaluate((l) => l.getBoundingClientRect().width / parseFloat(getComputedStyle(document.documentElement).fontSize) >= 58);
-  const shown = await caveat.evaluate((p) => {
-    const drawn = [...p.children].filter((c) => c.getBoundingClientRect().width > 1);
-    return { text: drawn.map((c) => c.textContent!.trim()).join(""), lines: drawn.length === 1 ? drawn[0]!.getClientRects().length : null };
-  });
-  expect(shown.text, "the line on screen").toBe(wide ? "Not all queued together" : full);
-  if (wide) expect(shown.lines, "one line in the 8.5rem result column").toBe(1);
+  await expect(caveat).toHaveAccessibleName("Not all queued together");
+  await expect(caveat).toHaveAccessibleDescription(full);
+  await caveat.click();
+  await expect(page.getByTestId("together-solo-caveat-bubble")).toContainText(full);
+  await page.keyboard.press("Escape");
+  // No line of its own on the card any more.
+  await expect(page.getByTestId("together-list")).not.toContainText("Not all queued together");
   // All five, Clash: none in the demo, so an honest empty state, and Clear filters puts every filter back.
   await showFilters(page);
   await pick(page.getByTestId("together-queue"), "clash");
@@ -208,6 +203,56 @@ test("a Team Matches card opens its game under it, as Match History does; names 
   const name = linked.getByTestId("together-member").first().getByRole("link").first();
   await name.click();
   await expect(page).toHaveURL(/\/players\/[0-9a-f-]+$/);
+});
+
+test("on a touch phone the whole card opens its game, a member's name inside it opens their profile, and the Solo/Duo ⓘ opens its words without opening the game (S6b's TM1, TM2)", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "a touch phone");
+  await page.goto("/matches");
+  const game = page.getByTestId("together-game").first();
+  await expect(game).toBeVisible();
+  // A tap on the card's empty area (its corner, clear of every name and button) opens the game as a whole screen.
+  await game.getByTestId("together-card").tap({ position: { x: 12, y: 8 } });
+  const win = page.getByTestId("match-detail");
+  await expect(win).toBeVisible();
+  await page.goBack();
+  await expect(win).toHaveCount(0);
+  // A tap on a member's name opens their profile, not the game.
+  await game.getByTestId("together-member").first().getByRole("link").first().tap();
+  await expect(page).toHaveURL(/\/players\/[0-9a-f-]+$/);
+  await expect(win).toHaveCount(0);
+  // The Solo/Duo caveat's ⓘ (a game of three or more members in Solo/Duo): its words, and the game stays closed.
+  await page.goto("/matches?queue=solo");
+  const tip = page.getByTestId("together-solo-caveat").first();
+  await expect(tip).toBeVisible();
+  const box = (await tip.boundingBox())!;
+  expect(Math.min(box.width, box.height), "a 44px target").toBeGreaterThanOrEqual(44);
+  await tip.tap();
+  await expect(page.getByTestId("together-solo-caveat-bubble")).toBeVisible();
+  await expect(win).toHaveCount(0);
+  await expect(page).not.toHaveURL(/[?&]match=/);
+});
+
+test("a link away from a game opened under its card, then Back: the game again, then the list, no entry twice", async ({ page }) => {
+  // Release 11's leftover (A15a, the Release 19 reconciliation): a duplicate history entry after a link away and Back. Not reproduced
+  // on today's Team Matches; this holds it.
+  test.skip((page.viewportSize()?.width ?? 1440) < 768, "phones open a game as a whole screen");
+  await page.goto("/team");
+  await page.goto("/matches");
+  const game = page.getByTestId("together-game").first();
+  await openTogether(game);
+  const entries = await page.evaluate(() => history.length);
+  const opened = page.url();
+  await game.getByTestId("match-expanded").locator("a[href^='/players/']:visible").first().click();
+  await expect(page).toHaveURL(/\/players\/[0-9a-f-]+$/);
+  await page.goBack();
+  await expect(game.getByTestId("match-expanded")).toBeVisible();
+  expect(page.url(), "Back: the game again").toBe(opened);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/matches$/);
+  await expect(page.getByTestId("match-expanded")).toHaveCount(0);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/team$/);
+  expect(await page.evaluate(() => history.length), "no entry added on the way back").toBe(entries + 1);
 });
 
 test("Team Matches follows the one history rule: a game opened under its card adds one entry, another game replaces it, and Back closes it", async ({ page }) => {

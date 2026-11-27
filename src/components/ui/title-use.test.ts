@@ -82,7 +82,6 @@ const NAMES: Array<{ file: string; fragment: string; kind: Kind; what: string }>
   { file: "src/components/match-history/rank-short.tsx", fragment: "label.title", kind: "truncation", what: "a short rank (\"G2\") whole" },
   { file: "src/components/match-history/scoreboard.tsx", fragment: "{title}", kind: "truncation", what: "a rank badge whole where it shrinks" },
   { file: "src/components/match-history/team-composition.tsx", fragment: "t.title", kind: "truncation", what: "a player's name and rank, cut short in the slot" },
-  { file: "src/components/matches/played-together.tsx", fragment: "SOLO_CAVEAT", kind: "truncation", what: "the Solo/Duo sentence the narrow column shortens" },
   { file: "src/components/matches/played-together.tsx", fragment: "{extra}", kind: "truncation", what: "the CS and damage a narrow row leaves out" },
   { file: "src/components/players/all-champions.tsx", fragment: "mastery points", kind: "truncation", what: "the mastery shown short (\"189K\") whole" },
   { file: "src/components/players/rank-emblem.tsx", fragment: "rank.leaguePoints", kind: "truncation", what: "the rank, cut short in a row, whole with its LP" },

@@ -786,6 +786,36 @@ test("a game opened from the preview has a history entry of its own: Back closes
   await expect(page).not.toHaveURL(/champion=/);
 });
 
+test("a link away from a game opened from the preview, then Back: each Back undoes one step (the game, the preview, the list), no entry twice", async ({ page }, info) => {
+  // Release 11's leftover (A15a, the Release 19 reconciliation): a duplicate history entry after a link away and Back. Not reproduced
+  // on Release 18's rebuilt preview; this holds it. The desktop's window has the player's link on screen.
+  test.skip(info.project.name !== "desktop", "the game window's links on screen");
+  const profile = await demoMember(page);
+  await page.goto(`${profile}/champions`);
+  const row = page.getByTestId("top-champion").first();
+  await openRow(page, row);
+  const content = page.getByTestId("champion-preview-content");
+  if (!(await content.getByTestId("champion-preview-game").count())) await content.getByTestId("champion-preview-opponent").first().getByRole("button").click();
+  await content.getByTestId("champion-preview-game").first().click();
+  const win = page.locator("dialog[open][data-testid=match-detail]");
+  await expect(win).toBeVisible();
+  const entries = await page.evaluate(() => history.length);
+  const game = page.url();
+  await win.locator("a[href^='/players/']:visible").first().click();
+  await expect(page).not.toHaveURL(/[?&]match=/);
+  expect(await page.evaluate(() => history.length), "the link adds one entry").toBe(entries + 1);
+  await page.goBack();
+  await expect(win).toBeVisible();
+  expect(page.url(), "Back: the game again").toBe(game);
+  await page.goBack();
+  await expect(win).toHaveCount(0);
+  await expect(content).toBeVisible();
+  await page.goBack();
+  await expect(content).toHaveCount(0);
+  await expect(page).toHaveURL(new RegExp(`${profile}/champions$`));
+  expect(await page.evaluate(() => history.length), "no entry added on the way back").toBe(entries + 1);
+});
+
 test("a window 640–767px wide with a mouse (the phone's frame): the preview opens as a window, its ✕ and ‹ › in reach", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "a mouse in a narrow window: the desktop project, resized");
   const profile = await demoMember(page);

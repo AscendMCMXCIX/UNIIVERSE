@@ -16,7 +16,7 @@
 
 Riot's match data (match-v5) gives each participant's PUUID and team, but not who queued together. A game here is therefore **played together**, never a confirmed premade party. The page says so once, behind the (i) beside its summary line, rather than on every card.
 
-In Ranked Solo/Duo a party is two players at most, so a Solo/Duo game with three or more members says that not all of them queued together: a line of text on its card, under the result (whole on a stacked card; "Not all queued together" in the four columns' narrow result column, under the queue's own "Ranked Solo/Duo", with the whole sentence read out and in its title).
+In Ranked Solo/Duo a party is two players at most, so a Solo/Duo game with three or more members says that not all of them queued together: an ⓘ after the card's count of members, named "Not all queued together", whose sentence ("Ranked Solo/Duo allows parties of two at most, so not all of them queued together.") opens on a press and is read out with it (S6b's TM2, built in Release 19 on 27 Nov 2026: until then a line of text under every such card's result repeated it game after game).
 
 ## Filters and summary
 
