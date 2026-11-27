@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { staticDiffLines } from "./static-diff";
+import { rangeReviewLines, staticDiffLines } from "./static-diff";
 
 /* Admin's view of the per-version diff of Riot's static data (server/riot/static/digests.ts): counts and patch names only, in each state. */
 
@@ -29,5 +29,13 @@ describe("Admin's static-data diff", () => {
       { text: "No patch recorded yet.", warn: false },
       { text: "The attempt to record 26.22 failed; it is tried again after a day.", warn: true },
     ]);
+  });
+
+  it("the ability ranges: what is shown, a warning when Riot changed reviewed abilities, and abilities stored before ranges were read", () => {
+    const counts = { version: "16.23.1", shown: 89, global: 7, changedSinceReview: 0, notReviewed: 527, noRangeYet: 0 };
+    expect(rangeReviewLines(counts)).toEqual([{ text: "Ability ranges at 26.23: 89 shown, 7 Global, 527 not reviewed yet.", warn: false }]);
+    expect(rangeReviewLines({ ...counts, changedSinceReview: 3 })[1]).toEqual({ text: "3 ranges are hidden until reviewed again: Riot changed those abilities.", warn: true });
+    expect(rangeReviewLines({ ...counts, changedSinceReview: 1 })[1]!.text).toBe("1 range is hidden until reviewed again: Riot changed that ability.");
+    expect(rangeReviewLines({ ...counts, version: null, notReviewed: 1_204, noRangeYet: 692 }).map((l) => l.text)).toEqual(["Ability ranges: 89 shown, 7 Global, 1,204 not reviewed yet.", "692 abilities were stored before ranges were read; the next game-data update reads them."]);
   });
 });

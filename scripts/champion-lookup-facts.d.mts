@@ -43,6 +43,20 @@ export interface ChampionLookupRead {
   /** Compare: the two builds slots level; null with fewer than two. */
   buildsLevel: boolean | null;
   buildsIdentity: boolean;
+  /** Each row's range in the first column, and in the second ([] without one). */
+  abilityRanges: AbilityRangeRead[];
+  abilityRanges2: AbilityRangeRead[];
+}
+
+/** One row's range as the page shows it: the row's status, the item's kind (null: no item), Riot's numbers behind it, the ability's ranks, the numbers drawn and the words seen. */
+export interface AbilityRangeRead {
+  slot: string;
+  status: string;
+  kind: string | null;
+  values: number[];
+  ranks: number;
+  shown: number[];
+  text: string;
 }
 
 export interface ChampionWindowRead {
@@ -62,6 +76,7 @@ export interface Verdict {
 export function readChampionLookup(): ChampionLookupRead;
 export function readChampionWindow(): ChampionWindowRead;
 export function hasted(base: number, haste: number): number;
+export function rangeProblems(ranges: AbilityRangeRead[] | undefined): { wrong: string[]; shown: number; changed: number; self: number; none: number };
 export function championLookupVerdicts(input: {
   kind: string;
   champion: string;

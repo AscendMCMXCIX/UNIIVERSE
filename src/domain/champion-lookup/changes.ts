@@ -4,9 +4,10 @@ import type { AbilityChange, DdragonAbility, DdragonChampionAbilities } from "./
 /*
   CHAMPION INTEL's patch marks (docs/CHAMPION_INTEL.md, "Changed this patch"): when the version-check
   job reads a champion at a new game version, it compares the new record with the one it holds and
-  keeps, per ability, whether Riot's text (its hash), the base cooldowns or the cost changed, and for
-  the champion whether its base stats did. Only whether, never by how much: the page says "Riot
-  changed this ability's text in 26.23", and the numbers it shows are the new ones Riot gives.
+  keeps, per ability, whether Riot's text (its hash), the base cooldowns, the cost or (rules format
+  5) the range changed, and for the champion whether its base stats did. Only whether, never by how
+  much: the page says "Riot changed this ability's text in 26.23", and the numbers it shows are the
+  new ones Riot gives.
 
   Data Dragon cannot show a change Riot made without changing its data (a hidden number), so no
   mark never means "unchanged in the game", only "unchanged in Riot's data". Pure, so the sync and
@@ -22,7 +23,11 @@ export function abilityChange(before: DdragonAbility | null | undefined, after: 
   const cooldown = Array.isArray(before.cooldown) && Array.isArray(after.cooldown) && !same(before.cooldown, after.cooldown);
   // A record from before rules format 4 has no cost: unknown, so never called a change.
   const cost = Array.isArray(before.cost) && Array.isArray(after.cost) && !same(before.cost, after.cost);
-  return text || cooldown || cost ? { since, text, cooldown, cost } : null;
+  // A record from before rules format 5 has no range: unknown, so never called a change (and not marked at all).
+  const comparable = Array.isArray(before.range) && Array.isArray(after.range);
+  const range = comparable && !same(before.range, after.range);
+  if (!(text || cooldown || cost || range)) return null;
+  return comparable ? { since, text, cooldown, cost, range } : { since, text, cooldown, cost };
 }
 
 /** Whether Riot's base stats differ between two records' facts (false when either has none). */

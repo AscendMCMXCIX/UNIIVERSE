@@ -1,8 +1,24 @@
 import { describe, expect, it } from "vitest";
-import { championLookupVerdicts, hasted, type ChampionLookupRead, type ChampionWindowRead } from "../../../scripts/champion-lookup-facts.mjs";
+import { championLookupVerdicts, hasted, rangeProblems, type AbilityRangeRead, type ChampionLookupRead, type ChampionWindowRead } from "../../../scripts/champion-lookup-facts.mjs";
 
 /* The Production check's Champion Intel facts (scripts/champion-lookup-facts.mjs), on states handed in. */
 
+/** Ahri's rows as the reviewed table shows them at 16.23.1: Q and E Riot's numbers, W cast on herself, R none. */
+const RANGES: AbilityRangeRead[] = [
+  { slot: "P", status: "none", kind: null, values: [], ranks: Number.NaN, shown: [], text: "" },
+  { slot: "Q", status: "shown", kind: "reach", values: [970, 970, 970, 970, 970], ranks: 5, shown: [970], text: "Range 970" },
+  { slot: "W", status: "self", kind: null, values: [], ranks: Number.NaN, shown: [], text: "" },
+  { slot: "E", status: "shown", kind: "reach", values: [975, 975, 975, 975, 975], ranks: 5, shown: [975], text: "Range 975" },
+  { slot: "R", status: "none", kind: null, values: [], ranks: Number.NaN, shown: [], text: "" },
+];
+/** Jinx's: W a reach, R "Global". */
+const JINX_RANGES: AbilityRangeRead[] = [
+  { slot: "P", status: "none", kind: null, values: [], ranks: Number.NaN, shown: [], text: "" },
+  { slot: "Q", status: "none", kind: null, values: [], ranks: Number.NaN, shown: [], text: "" },
+  { slot: "W", status: "shown", kind: "reach", values: [1450, 1450, 1450, 1450, 1450], ranks: 5, shown: [1450], text: "Range 1,450" },
+  { slot: "E", status: "none", kind: null, values: [], ranks: Number.NaN, shown: [], text: "" },
+  { slot: "R", status: "shown", kind: "global", values: [], ranks: 3, shown: [], text: "Global" },
+];
 const AT: ChampionLookupRead = {
   size: "1440x900",
   innerHeight: 900,
@@ -52,10 +68,12 @@ const AT: ChampionLookupRead = {
   ],
   buildsLevel: null,
   buildsIdentity: false,
+  abilityRanges: RANGES,
+  abilityRanges2: [],
 };
 const WIDE: ChampionLookupRead = { ...AT, size: "1920x1080", innerHeight: 1080, scrollHeight: 1080 };
 const HASTED: ChampionLookupRead = { ...AT, haste: 20, qHasted: [5.83, 5.83, 5.83, 5.83, 5.83], qOpen: true, qDescription: 120, url: "/lookup?champion=Ahri&haste=20" };
-const DUAL: ChampionLookupRead = { ...AT, panels: 2, sideBySide: true, rowsLevel: true, slotKeys: "PQWER", lastBottom: 690, url: "/lookup?champion=Ahri&haste=20&champion2=Jinx", secondChampion: "Jinx", buildsLevel: true };
+const DUAL: ChampionLookupRead = { ...AT, panels: 2, sideBySide: true, rowsLevel: true, slotKeys: "PQWER", lastBottom: 690, url: "/lookup?champion=Ahri&haste=20&champion2=Jinx", secondChampion: "Jinx", buildsLevel: true, abilityRanges2: JINX_RANGES };
 const SWAPPED: ChampionLookupRead = { ...DUAL, champion: "Jinx", secondChampion: "Ahri", url: "/lookup?champion=Jinx&champion2=Ahri&haste2=20" };
 const REMOVED: ChampionLookupRead = { ...AT, haste: 20, url: "/lookup?champion=Ahri&haste=20" };
 const ALL: ChampionWindowRead = { open: true, shown: 173, counted: 173, first: "Aatrox", found: "" };
@@ -181,6 +199,42 @@ describe("Champion Intel's Production check facts", () => {
     expect(failed({ healthPatch: "16.24" })).toHaveLength(2);
     expect(failed({ healthPatch: "16.24", at: { ...AT, source: "Riot Data Dragon 16.23.1 · patch 26.23 · the game is on patch 26.24", buildsLine: "From 22 games in the team's matches · patches 26.23–26.24 · all ranks · Ranked" } })).toEqual([]);
     expect(run({ healthPatch: undefined }).some((v) => v.name.includes("/api/health"))).toBe(false);
+  });
+
+  it("hold the ranges to the reviewed rule: Riot's numbers as shown, never on the passive, never a placeholder, only \"Range\" or \"Global\"; in Compare each column's own", () => {
+    const rule = "desktop: Ahri's ranges keep the reviewed rule: none on the passive, only Riot's numbers as \"Range 970\" (never a placeholder, one per rank where they differ) or \"Global\"";
+    const fromTable = "desktop: Ahri's ranges come from the reviewed table: some shown, the rest hidden since a change or not shown";
+    const compare = "desktop: Compare: each column's ranges keep the reviewed rule, its own champion's, with no word comparing them";
+    for (const name of [rule, fromTable, compare]) expect(run().find((v) => v.name === name)?.status, name).toBe("PASS");
+    const withRow = (slot: string, over: Partial<AbilityRangeRead>) => ({ at: { ...AT, abilityRanges: RANGES.map((r) => (r.slot === slot ? { ...r, ...over } : r)) } });
+    // A range on the passive; a placeholder or the engine's number; the wrong count of ranks; numbers drawn that are not Riot's; other words.
+    expect(failed(withRow("P", { status: "shown", kind: "reach", values: [600], ranks: 1, shown: [600], text: "Range 600" }))).toEqual([rule]);
+    expect(failed(withRow("Q", { values: [25000, 25000, 25000, 25000, 25000], shown: [25000], text: "Range 25,000" }))).toEqual([rule]);
+    expect(failed(withRow("Q", { values: [20, 20, 20, 20, 20], shown: [20], text: "Range 20" }))).toEqual([rule]);
+    expect(failed(withRow("Q", { ranks: 3 }))).toEqual([rule]);
+    expect(failed(withRow("Q", { shown: [1000], text: "Range 1,000" }))).toEqual([rule]);
+    expect(failed(withRow("Q", { text: "Range about 970" }))).toEqual([rule]);
+    expect(failed(withRow("Q", { text: "Longer range 970" }))).toEqual([rule]);
+    expect(failed(withRow("R", { status: "shown", kind: "global", text: "Map-wide" }))).toEqual([rule]);
+    // An item where the row says nothing is shown, or a row marked shown with no item.
+    expect(failed(withRow("W", { kind: "reach", values: [700, 700, 700, 700, 700], ranks: 5, shown: [700], text: "Range 700" }))).toEqual([rule]);
+    expect(failed(withRow("Q", { kind: null }))).toEqual([rule]);
+    // Per rank where they differ, each "/" between values.
+    expect(rangeProblems([{ slot: "R", status: "shown", kind: "reach", values: [1300, 1550, 1800], ranks: 3, shown: [1300, 1550, 1800], text: "Range 1,300 / 1,550 / 1,800" }]).wrong).toEqual([]);
+    expect(rangeProblems([{ slot: "R", status: "shown", kind: "reach", values: [1800, 1550, 1300], ranks: 3, shown: [1800, 1550, 1300], text: "Range 1,800 / 1,550 / 1,300" }]).wrong).toHaveLength(1);
+    // Compare: the second column under the same rule.
+    expect(failed({ dual: { ...DUAL, abilityRanges2: JINX_RANGES.map((r) => (r.slot === "R" ? { ...r, text: "Global, longer" } : r)) } })).toEqual([compare]);
+    expect(failed({ dual: { ...DUAL, abilityRanges2: [] } })).toEqual([compare]);
+  });
+
+  it("warn, not fail, where no range is shown: the stored abilities predate rules format 5, or Riot changed every reviewed one", () => {
+    const none = RANGES.map((r) => ({ ...r, status: "none", kind: null, values: [], shown: [], text: "" }));
+    const predates = run({ at: { ...AT, abilityRanges: none } });
+    expect(predates.find((v) => v.name.includes("no range shown for Ahri"))?.status).toBe("WARN");
+    expect(predates.filter((v) => v.status === "FAIL")).toEqual([]);
+    const waiting = run({ at: { ...AT, abilityRanges: none.map((r) => (r.slot === "Q" || r.slot === "E" ? { ...r, status: "changed" } : r)) } });
+    expect(waiting.find((v) => v.name.includes("wait for a review"))?.status).toBe("WARN");
+    expect(waiting.filter((v) => v.status === "FAIL")).toEqual([]);
   });
 
   it("warn, not fail, where the abilities are not stored, the Q has no number on a later patch, or the stored record predates the facts", () => {

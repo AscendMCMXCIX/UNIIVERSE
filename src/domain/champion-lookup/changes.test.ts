@@ -15,6 +15,17 @@ describe("what changed between two records", () => {
     expect(abilityChange(ability(), ability({ cost: [40, 40, 40, 40, 40] }), "16.21.1")).toEqual({ since: "16.21.1", text: false, cooldown: false, cost: true });
   });
 
+  it("says when Riot's range changed (rules format 5), and never calls a record from before ranges a change", () => {
+    const ranged = (range?: number[]) => ability({ range });
+    expect(abilityChange(ranged([970, 970, 970, 970, 970]), ranged([970, 970, 970, 970, 970]), "16.21.1")).toBeNull();
+    expect(abilityChange(ranged([250, 250, 250, 250, 250]), ranged([400, 400, 400, 400, 400]), "16.21.1")).toEqual({ since: "16.21.1", text: false, cooldown: false, cost: false, range: true });
+    // Both with ranges: the mark says the range did not change when something else did.
+    expect(abilityChange(ranged([970, 970, 970, 970, 970]), { ...ranged([970, 970, 970, 970, 970]), textHash: "bbbbbbbbbbbbbbbb" }, "16.21.1")).toEqual({ since: "16.21.1", text: true, cooldown: false, cost: false, range: false });
+    // A record from before rules format 5 has no range: unknown, so not part of the mark at all.
+    expect(abilityChange(ranged(undefined), ranged([400, 400, 400, 400, 400]), "16.21.1")).toBeNull();
+    expect(abilityChange(ranged(undefined), { ...ranged([400, 400, 400, 400, 400]), textHash: "bbbbbbbbbbbbbbbb" }, "16.21.1")).toEqual({ since: "16.21.1", text: true, cooldown: false, cost: false });
+  });
+
   it("calls nothing a change it cannot compare: no earlier record, another slot, a record from before costs or text hashes", () => {
     expect(abilityChange(null, ability(), "16.21.1")).toBeNull();
     expect(abilityChange(ability({ slot: "W" }), ability(), "16.21.1")).toBeNull();

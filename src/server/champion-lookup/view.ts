@@ -4,12 +4,14 @@ import type { ChampionChoice } from "@/domain/champion-lookup/types";
 import { championResolver, lookupChampion, type LookupPage } from "@/domain/champion-lookup/view";
 import { getCurrentPatch, listChampions, type ChampionSummary } from "@/server/repositories/champions";
 import { loadChampionAbilities } from "@/server/riot/static/abilities";
+import { rangeReviewsFor } from "@/server/riot/static/ability-ranges";
 
 /*
   CHAMPION INTEL's page, built on the server (docs/CHAMPION_INTEL.md): the cached roster and current
   patch, and the stored abilities of the one or two champions the address names, checked against
-  the roster first and read in one statement. Nothing else is read: no player, no game, no Riot
-  request.
+  the roster first and read in one statement, each ability's range through the committed review of
+  what Riot's number measures (ability-ranges.reviewed.json, read here: the browser gets only each
+  ability's computed range). Nothing else is read: no player, no game, no Riot request.
 */
 
 /** The roster as the selector offers it. */
@@ -34,6 +36,6 @@ export async function loadLookupPage(db: Db, input: { champion?: string | null; 
   const dropped = found.length < asked.length;
   if (!found.length) return { champions, lookup: null, second: null, dropped, currentPatch, firstFrom: null };
   const loaded = await loadChampionAbilities(db, found.map((c) => c.choice.id));
-  const view = (c: ChampionChoice) => lookupChampion(c, loaded.champions[c.id] ?? null, { offline: loaded.offline.includes(c.id), unreadable: loaded.unreadable.includes(c.id) });
+  const view = (c: ChampionChoice) => lookupChampion(c, loaded.champions[c.id] ?? null, { offline: loaded.offline.includes(c.id), unreadable: loaded.unreadable.includes(c.id), ranges: rangeReviewsFor(c.id) });
   return { champions, lookup: view(found[0]!.choice), second: found[1] ? view(found[1].choice) : null, dropped, currentPatch, firstFrom: found[0]!.key };
 }
