@@ -132,6 +132,10 @@ test("Overview: the multikill totals as figures of their own, from the same game
   const solo = await seasonGames(page);
   await expect(page.getByTestId("multikills")).toHaveAttribute("data-coverage", "complete");
   expect(solo).toBeGreaterThan(0);
+  // Clicked once the page has settled: as it hydrates, the filters swap the server's Game mode select for the app's own (e2e/select.ts,
+  // `data-ready`), 2px wider, and at 1440 × 900 Season performance's scope line goes under its title, so the whole Overview moves
+  // 14px down; a click aimed at the link a moment before landed beside it and the page stayed (as in Release 18).
+  await expect(page.locator("#overview-mode")).toHaveAttribute("data-ready", "true");
   await page.getByTestId("multikills-by-champion").click();
   await expect(page).toHaveURL(/\/champions\?.*mode=solo.*sort=multikills/);
   const rows = page.getByTestId("top-champion");
