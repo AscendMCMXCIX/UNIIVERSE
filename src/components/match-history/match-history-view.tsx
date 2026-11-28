@@ -699,7 +699,8 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
     cap,
   });
   const perPage = marks.paged && budget !== null ? Math.min(LIST_PER_MAX, budget) : null;
-  const readerBusy = useReaderBusy();
+  // Busy while the reader acts, a Back or a Forward on its way included (the address compared but for the keys the list writes itself: its page size, its page and the game open).
+  const readerBusy = useReaderBusy(["per", "page", "match"]);
   React.useEffect(() => {
     if (perPage === null || perPage === data.per || data.total === 0 || pending) return;
     // Settled first (a resize fires many measures): one server render for the size the window comes to rest at; and never

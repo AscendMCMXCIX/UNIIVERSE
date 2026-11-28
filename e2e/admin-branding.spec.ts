@@ -51,6 +51,34 @@ test("one section at a time from the rail, in the address: Back returns to the o
   await expect.poll(() => shown(page)).toEqual(["public"]);
 });
 
+test("the section follows a soft navigation to the page's own address, and a Back that leaves the page writes nothing onto the page it goes to", async ({ page }) => {
+  await openAt(page, "/admin/previews", [1440, 900], "expanded", { admin: true });
+  // Platform Settings' tab: a Next <Link>, so the pages are soft navigations (Next keeps Branding mounted between them).
+  await page.getByTestId("admin-settings-tab-branding").click();
+  await expect(page).toHaveURL(/\/admin\/branding$/);
+  await expect.poll(() => shown(page)).toEqual(["name"]);
+  await link(page, "colours").click();
+  await expect(page).toHaveURL(/\?section=colours$/);
+  expect(await shown(page)).toEqual(["colours"]);
+  // The tab again, from Colours: the page's own path with another query shows the first section (the address decides, not the mount).
+  await page.getByTestId("admin-settings-tab-branding").click();
+  await expect(page).toHaveURL(/\/admin\/branding$/);
+  await expect.poll(() => shown(page)).toEqual(["name"]);
+  await expect(link(page, "name")).toHaveAttribute("aria-current", "page");
+  // Back walks the sections, then leaves the page: nothing is written onto Previews' address.
+  await page.goBack();
+  await expect(page).toHaveURL(/\?section=colours$/);
+  await expect.poll(() => shown(page)).toEqual(["colours"]);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/admin\/branding$/);
+  await expect.poll(() => shown(page)).toEqual(["name"]);
+  await page.goBack();
+  await expect(page).toHaveURL(/\/admin\/previews$/);
+  await expect(page.getByTestId("branding-panel")).toHaveCount(0);
+  await page.waitForTimeout(500);
+  expect(new URL(page.url()).search).toBe("");
+});
+
 test("the form is one: a draft survives a switch, the rail marks unsaved changes and a failing check, and Cancel drops them", async ({ page }) => {
   await openAt(page, "/admin/branding", [1440, 900], "expanded", { admin: true });
   await expect(page.getByTestId("brand-appBackground")).toHaveAttribute("data-ready", "true");

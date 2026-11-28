@@ -332,7 +332,8 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
     cap: data.cap ?? null,
   });
   const perPage = marks.paged && budget !== null ? Math.min(ENCOUNTER_PER_MAX, budget) : null;
-  const readerBusy = useReaderBusy();
+  // Busy while the reader acts, a Back or a Forward on its way included (the address compared but for the keys the list writes itself: its page size and its page).
+  const readerBusy = useReaderBusy(["eper", "epage"]);
   React.useEffect(() => {
     // The flow: a page size from the cookie is forgotten (the server then draws the first 25 and Show more), one from the address dropped.
     if (ws === false && c.per !== null) {

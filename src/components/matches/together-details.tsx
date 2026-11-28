@@ -103,7 +103,8 @@ export function TogetherWorkspace({ paging, total, listKey, className, children 
   const endRef = React.useRef<HTMLDivElement>(null);
   const budget = useRowBudget(listRef, { footRef: endRef, cardRef, probeRem: CARD_PROBE_REM, mode: "cumulative", active: marks.paged && total > 0, observe: () => [cardRef.current], key: [total, listKey], cap: paging.cap });
   const perPage = marks.paged && budget !== null ? Math.min(LIST_PER_MAX, budget) : null;
-  const readerBusy = useReaderBusy();
+  // Busy while the reader acts, a Back or a Forward on its way included (the address compared but for the keys the list writes itself: its page size, its page, the game open and Show more's count).
+  const readerBusy = useReaderBusy(["per", "page", "match", "limit"]);
   const replace = React.useCallback((url: string) => startTransition(() => router.replace(url, { scroll: false })), [router]);
   React.useEffect(() => {
     // The flow: a page size from the cookie is forgotten (the server drew the first 20 and Show more without it), one from the address dropped.

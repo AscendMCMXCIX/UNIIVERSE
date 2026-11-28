@@ -926,10 +926,14 @@ footer with it: such a parent takes `ws-host:space-y-0` (Accounts' page).
 - **`address-section.ts`, `useAddressSection(ids, { initial, param })`:** one choice of a few kept
   in the address, by the sectioned workspace's rules (the first has no parameter, an unknown value
   is the first, each choice the reader makes is an entry, Back and Forward followed, a choice no
-  longer offered falls back to the first and its address is replaced). `choose(id, { replace })`
-  replaces instead of pushing (an old `#hash` naming a section). Used for a list's filter (Admin
-  Resources' `?section=`), a queue's view (Admin Matchup notes' `?view=`) and a page that lays out
-  its own rail (Admin Branding).
+  longer offered falls back to the first and its address is replaced). Like the sectioned
+  workspace it follows the address whatever changes it (`useSearchParams`, `addressTarget`): a soft
+  navigation to the page with another query (Platform Settings' Branding tab on
+  `?section=colours`) shows the choice it names, and a Back that leaves the page is the page's own,
+  nothing written onto the other page's address. `choose(id, { replace })` replaces instead of
+  pushing (an old `#hash` naming a section). Used for a list's filter (Admin Resources'
+  `?section=`), a queue's view (Admin Matchup notes' `?view=`) and a page that lays out its own rail
+  (Admin Branding, with `SectionRail`'s markup and look).
 - **`fit-rows.tsx`, `useRowBudget`:** unchanged by default. `mode: "cumulative"` counts rows of
   several heights by their own heights in order, then more at the tallest drawn row's pitch
   (`row-budget.ts`, `cumulativeRows`; for rows of one height it is `rowBudget`'s count exactly).
@@ -1174,7 +1178,10 @@ Show more, a game under its card.
   cumulative mode (the cards' own heights and the gaps between them: a session's header, a second
   line, a card that grows with its members), written to the address once the window has been at rest
   for 250ms (one server render for the size it comes to rest at; until it arrives, the cards past the
-  budget are left out, so a shrink never overflows). Match History's `per` (the server's minimum is
+  budget are left out, so a shrink never overflows). The write waits while the reader acts
+  (`ui/reader-idle.ts`: a press, a click or a key in the last 1.5s, and a Back or a Forward on its way,
+  while the window's address is no longer the one the page drew), so it never overtakes the reader's
+  navigation and is never written onto another page's address or another view's. Match History's `per` (the server's minimum is
   now 1, its maximum 25), Encounters' `eper` and `epage` (beside a player's games' own `page` and
   `per`: the list's page survives the way back), Team Matches' `per` and `page`. Every server slices a
   list it already holds or counts (Match History's in memory, Encounters' one statement with an
