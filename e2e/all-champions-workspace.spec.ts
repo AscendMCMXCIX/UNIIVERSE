@@ -50,6 +50,7 @@ const SHOTS = "test-results/all-champions-workspace";
 let server: ChildProcess | null = null;
 let top = "";
 let sub = "";
+let adc = "";
 
 test.describe.configure({ mode: "serial" });
 
@@ -81,6 +82,7 @@ test.beforeAll(async ({ browserName }, info) => {
   const id = (name: string) => new RegExp(`data-player-name="${name.replace(/[()]/g, "\\$&")}"[^>]*href="/players/([0-9a-f-]{36})"`).exec(html)?.[1] ?? "";
   top = `/players/${id("Demo Top")}/champions`;
   sub = `/players/${id("Demo Sub (Top)")}/champions`;
+  adc = `/players/${id("Demo ADC")}/champions`;
   expect(top).toMatch(/[0-9a-f-]{36}/);
 });
 
@@ -1617,7 +1619,8 @@ test("the champion opened always shows at the pane's two bounds: a section in th
   // Until 28 Nov 2026 the page compared the section's rounded clientWidth with each bound less half a pixel, while the CSS draws
   // the pane's column from the bound itself (a container query): at 1525px with an 18px root and the sidebar open (a 1165px
   // section, the bound 64.75 × 18 = 1165.5) the click put the champion in the address, the column stayed display: none and no
-  // window opened. Now the page reads the CSS's own answer (useRoomForPane), so the two can never disagree.
+  // window opened. Now the page decides from the section's own fractional width and, once hydrated, the column it opens is
+  // drawn whatever the container queries say (PANE_COLUMN_OPEN), so the two can never disagree.
   const opened = async ([w, h]: [number, number], css: string) => {
     const context = await browser.newContext({ viewport: { width: w, height: h } });
     await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: BASE }]);
@@ -1655,9 +1658,196 @@ test("the champion opened always shows at the pane's two bounds: a section in th
   const cut = "[data-testid=all-champions]{margin-right:0.44px!important}";
   expect(await opened([1356, 760], cut), "1035.56px of 1036: the window").toEqual({ section: 1035.5625, shown: "window" });
   expect(await opened([1356, 760], "")).toEqual({ section: 1036, shown: "pane" });
-  // The flow's bound (47.5rem of the section, a window under 80rem wide): 759.56 of 760, and at it.
+  // The flow's bound (47.5rem of the section, a window under 80rem wide): 759.56 of 760, and at it (Playwright's hidden
+  // scrollbars take no room, so the flow allows for none).
   expect(await opened([1080, 900], cut), "759.56px of 760: the sheet").toEqual({ section: 759.5625, shown: "sheet" });
   expect(await opened([1080, 900], "")).toEqual({ section: 760, shown: "pane" });
+});
+
+test("with classic scrollbars the champion opened settles on one presentation at the pane's two bounds, the same as a fresh load however the window was reached: the page's own scrollbar never decides it", async () => {
+  // Classic scrollbars (Chrome on Windows and Linux; Playwright hides them unless told) take width from the section, and what the
+  // page holds decides whether the page scrolls. Until 28 Nov 2026, in the flow with the sidebar open, a pane that made the page
+  // scroll narrowed the section under 47.5rem, the column went, the sheet left the page short again, the scrollbar went and the
+  // pane came back, about every 140ms, the champion not drawn in most samples (Demo ADC at 1085 × 768, Demo Sub at 1082 × 1024,
+  // Demo Top's Ambessa linked at 1080 × 1790). A first fix kept the scrollbar's gutter and held the sheet once the column went:
+  // the gutter moved the root's size (100vw) and took the page between the workspace and the flow 50 times in 3s at larger text
+  // sizes, shifted the page 10px between tabs, and the hold kept the sheet where a fresh load shows the pane (a taller window, a
+  // sidebar unfolded). Now the page decides from the section's room with its scrollbar given back (paneFits): the flow's pane
+  // needs its 47.5rem with the scrollbar in the section (the pane from 1090px here, where it is 10px), the workspace allows for
+  // none (it never scrolls: the window to 1355, the pane from 1356), and the column follows that one answer.
+  test.setTimeout(300_000);
+  const browser = await chromium.launch({ ...(process.env.PW_CHROMIUM_PATH ? { executablePath: process.env.PW_CHROMIUM_PATH } : {}), ignoreDefaultArgs: ["--hide-scrollbars"] });
+  const look = (page: Page) =>
+    page.evaluate(() => {
+      const drawn = (el: Element | null | undefined) => !!el && el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().height > 0;
+      const dialog = document.querySelector<HTMLDialogElement>("dialog[open][data-testid=champion-preview]");
+      const shown = dialog && drawn(dialog.querySelector("[data-testid=champion-preview-content]")) ? (dialog.dataset.size === "workspace" ? "window" : "sheet") : drawn(document.querySelector("aside[data-preview-pane] [data-testid=champion-preview-content]")) ? "pane" : "nothing";
+      return {
+        shown,
+        section: Math.round(document.querySelector("[data-testid=all-champions]")!.getBoundingClientRect().width * 100) / 100,
+        // An open window's backdrop covers the whole screen.
+        backdrop: dialog ? Math.abs(parseFloat(getComputedStyle(dialog, "::backdrop").width) - innerWidth) <= 1 : true,
+        workspace: document.querySelector("[data-testid=all-champions]")!.hasAttribute("data-workspace"),
+        // The padding a window over the page gives the body in its scrollbar's place (lockPage).
+        padding: document.body.style.paddingRight,
+      };
+    });
+  type Look = Awaited<ReturnType<typeof look>>;
+  /** Two seconds of samples, 100ms apart: one presentation, drawn every time, the section one width under it. */
+  const steady = async (page: Page, label: string) => {
+    await expect.poll(async () => (await look(page)).shown, `${label}: a presentation drawn`).not.toBe("nothing");
+    await page.waitForTimeout(300);
+    const samples: Look[] = [];
+    for (let i = 0; i < 21; i++) {
+      samples.push(await look(page));
+      await page.waitForTimeout(100);
+    }
+    const shown = [...new Set(samples.map((s) => s.shown))];
+    expect(shown, `${label}: one presentation in every sample`).toHaveLength(1);
+    expect(shown[0], `${label}: the champion drawn`).not.toBe("nothing");
+    expect([...new Set(samples.map((s) => s.section))], `${label}: the section one width`).toHaveLength(1);
+    expect(samples.every((s) => s.backdrop), `${label}: the window's backdrop covers the screen`).toBe(true);
+    return { shown: shown[0]!, section: samples[0]!.section, padding: samples[0]!.padding };
+  };
+  const visit = async ([w, h]: [number, number], path: string, o: { css?: string; side?: Side; font?: number } = {}) => {
+    const context = await browser.newContext({ viewport: { width: w, height: h } });
+    await context.addCookies([{ name: "uniiverse_sidebar", value: o.side ?? "expanded", url: BASE }]);
+    const page = await context.newPage();
+    // The browser's own text size (its settings), as a reader sets it: the root's 100%, which html's clamp grows from 1536px.
+    if (o.font) await (await context.newCDPSession(page)).send("Page.setFontSizes", { fontSizes: { standard: o.font, fixed: 13 } });
+    if (o.css)
+      await page.addInitScript((text) => {
+        const add = () => {
+          if (!document.head) return false;
+          const style = document.createElement("style");
+          style.textContent = text;
+          document.head.appendChild(style);
+          return true;
+        };
+        if (!add()) new MutationObserver((_, obs) => add() && obs.disconnect()).observe(document, { childList: true, subtree: true });
+      }, o.css);
+    await page.goto(`${BASE}${path}`, { waitUntil: "load" });
+    await settled(page);
+    return { page, done: () => context.close() };
+  };
+  const settles = async (label: string, size: [number, number], path: string, steps: Array<(page: Page) => Promise<void>>, o: { css?: string; side?: Side } = {}) => {
+    const { page, done } = await visit(size, path, o);
+    for (const step of steps) await step(page);
+    const out = await steady(page, label);
+    await done();
+    return { shown: out.shown, section: out.section };
+  };
+  const firstRow = (page: Page) =>
+    expect(async () => {
+      if (!/champion=/.test(page.url())) await listCard(page).locator("[data-testid=top-champion] [data-open-champion]").first().click({ timeout: 2_000 });
+      await expect(page).toHaveURL(/champion=/, { timeout: 1_000 });
+    }).toPass({ timeout: 15_000 });
+  const champion = (name: string) => (page: Page) =>
+    expect(async () => {
+      if (!new RegExp(`champion=${name}`).test(page.url())) await listCard(page).locator(`[data-champion="${name}"] [data-open-champion]`).click({ timeout: 2_000 });
+      await expect(page).toHaveURL(new RegExp(`champion=${name}`), { timeout: 1_000 });
+    }).toPass({ timeout: 15_000 });
+  const opponent = (name: string) => async (page: Page) => {
+    await page.locator(`[data-opponent-row="${name}"]:visible`).first().click();
+    await expect(page).toHaveURL(new RegExp(`vs=${name}`));
+  };
+  const resize = (w: number, h: number) => (page: Page) => page.setViewportSize({ width: w, height: h });
+  try {
+    // The flow's bound with a 10px scrollbar, sidebar open: the section is the window less 320px with no scrollbar, and the pane
+    // needs 760 with one, so the sheet to 1089 and the pane from 1090, whether the page scrolls (Demo Top's 30 champions) or not
+    // (Demo ADC's 6). The section stays as it was where the sheet opens (the page's scrollbar, or the padding in its place).
+    expect(await settles("Demo ADC 1085x768", [1085, 768], adc, [firstRow])).toEqual({ shown: "sheet", section: 765 });
+    expect(await settles("Demo Sub 1082x1024", [1082, 1024], sub, [firstRow])).toEqual({ shown: "sheet", section: 762 });
+    expect(await settles("Demo Top Ambessa linked 1080x1790", [1080, 1790], `${top}?champion=Ambessa&crole=TOP`, [])).toEqual({ shown: "sheet", section: 760 });
+    expect(await settles("Demo Top 1085x768", [1085, 768], top, [firstRow])).toEqual({ shown: "sheet", section: 755 });
+    expect((await settles("Demo ADC 1090x768", [1090, 768], adc, [firstRow])).shown).toBe("pane");
+    expect(await settles("Demo Top 1090x768", [1090, 768], top, [firstRow])).toEqual({ shown: "pane", section: 760 });
+    // However the window was reached, the presentation a fresh load gives at its size: a taller window after a short one's
+    // sheet (1200 × 470, under 30rem tall), a step back across the bound, the sidebar unfolded beside the pane, then a wider window.
+    {
+      const { page, done } = await visit([1200, 470], adc);
+      await firstRow(page);
+      expect((await steady(page, "Demo ADC 1200x470")).shown).toBe("sheet");
+      await resize(1200, 900)(page);
+      expect((await steady(page, "Demo ADC 1200x470 then 1200x900")).shown, "a taller window: the pane, as a fresh load").toBe("pane");
+      await done();
+    }
+    {
+      const { page, done } = await visit([1095, 900], `${top}?champion=Ambessa&crole=TOP`);
+      expect((await steady(page, "Ambessa 1095x900")).shown).toBe("pane");
+      await resize(1089, 900)(page);
+      expect((await steady(page, "Ambessa 1095 then 1089x900")).shown).toBe("sheet");
+      for (const w of [1090, 1095]) {
+        await resize(w, 900)(page);
+        expect((await steady(page, `Ambessa 1089 then ${w}x900`)).shown, `back to ${w}: the pane, as a fresh load`).toBe("pane");
+      }
+      await done();
+    }
+    {
+      const { page, done } = await visit([1089, 768], adc, { side: "collapsed" });
+      await firstRow(page);
+      expect((await steady(page, "Demo ADC 1089x768 folded")).shown).toBe("pane");
+      await page.keyboard.press("Control+Backslash");
+      expect((await steady(page, "Demo ADC 1089x768, the sidebar unfolded")).shown).toBe("sheet");
+      await resize(1090, 768)(page);
+      expect((await steady(page, "Demo ADC unfolded, then 1090x768")).shown, "1090 with the sidebar open: the pane, as a fresh load").toBe("pane");
+      await done();
+    }
+    // The workspace's bound (64.75rem of the section, 1356px with the sidebar open): no allowance, the window to 1355, the pane
+    // from 1356, and no padding while the window is open (the workspace has no scrollbar to give back).
+    expect(await settles("Ambessa vs Darius 1355x768", [1355, 768], top, [champion("Ambessa"), opponent("Darius")])).toEqual({ shown: "window", section: 1035 });
+    expect(await settles("Ambessa vs Darius 1356x768", [1356, 768], top, [champion("Ambessa"), opponent("Darius")])).toEqual({ shown: "pane", section: 1036 });
+    expect(await settles("Sion vs Nasus 1356x736", [1356, 736], `${sub}?champion=Sion&crole=TOP&vs=Nasus`, [])).toEqual({ shown: "pane", section: 1036 });
+    {
+      const { page, done } = await visit([1356, 768], `${top}?champion=Ambessa&crole=TOP`);
+      expect((await steady(page, "Ambessa 1356x768")).shown).toBe("pane");
+      await resize(1355, 768)(page);
+      expect(await steady(page, "Ambessa 1356 then 1355x768"), "the window, the body not padded for a scrollbar the workspace never has").toEqual({ shown: "window", section: 1035, padding: "" });
+      await resize(1356, 768)(page);
+      expect((await steady(page, "Ambessa 1355 then 1356x768")).shown, "back to 1356: the pane").toBe("pane");
+      await done();
+    }
+    // An 18px root, the section just past the bound (1166 of 1165.5): an opponent's games opening (their first render brought a
+    // scrollbar for a moment), and linked, keep the pane.
+    const big = { css: "html{font-size:18px!important}" };
+    expect(await settles("Sion vs Nasus 1526x900 at 18px", [1526, 900], sub, [champion("Sion"), opponent("Nasus")], big)).toEqual({ shown: "pane", section: 1166 });
+    expect(await settles("Sion vs Nasus linked 1526x900 at 18px", [1526, 900], `${sub}?champion=Sion&crole=TOP&vs=Nasus`, [], big)).toEqual({ shown: "pane", section: 1166 });
+    expect(await settles("Ambessa 1526x800 at 18px", [1526, 800], top, [champion("Ambessa")], big)).toEqual({ shown: "pane", section: 1166 });
+    // A larger browser text size near the workspace's least height (41 of the page's own rem): the posture holds while a champion
+    // and an opponent open (html's clamp grows the root from 1536px wide; a gutter that changed 100vw moved it between the two).
+    for (const [size, font] of [
+      [[1700, 766], 18],
+      [[1920, 889], 20],
+    ] as Array<[[number, number], number]>) {
+      const { page, done } = await visit(size, sub, { font });
+      await page.evaluate(() => {
+        const w = window as unknown as { postureFlips: number };
+        w.postureFlips = 0;
+        new MutationObserver((records) => (w.postureFlips += records.length)).observe(document.querySelector("[data-testid=all-champions]")!, { attributes: true, attributeFilter: ["data-workspace"] });
+      });
+      await champion("Sion")(page);
+      await page.locator("[data-opponent-row]:visible").first().click();
+      await expect(page).toHaveURL(/vs=/);
+      const first = await steady(page, `Sion and an opponent at ${size.join("x")}, ${font}px`);
+      await page.waitForTimeout(1_000);
+      expect(await page.evaluate(() => (window as unknown as { postureFlips: number }).postureFlips), `${size.join("x")} at ${font}px: the posture never changes under the reader`).toBe(0);
+      expect(first.shown).not.toBe("nothing");
+      await done();
+    }
+    // The flow reserves no gutter: a page that does not scroll is as wide as the window, as the profile's other tabs are.
+    {
+      const { page, done } = await visit([1080, 1790], top);
+      const width = () => page.evaluate(() => ({ scrolls: document.documentElement.scrollHeight > innerHeight, taken: innerWidth - document.documentElement.getBoundingClientRect().width, content: document.getElementById("content")!.getBoundingClientRect().width }));
+      const champions = await width();
+      await page.goto(`${BASE}${top.replace(/\/champions$/, "")}`, { waitUntil: "load" });
+      const overview = await width();
+      expect(champions, "All Champions at 1080 × 1790, the list alone: no scrollbar, no gutter").toMatchObject({ scrolls: false, taken: 0 });
+      if (!overview.scrolls) expect(champions.content, "as wide as the Overview's").toBe(overview.content);
+      await done();
+    }
+  } finally {
+    await browser.close();
+  }
 });
 
 test("a click beside the workspace window closes it at once, an opponent's games open included, the focus on the champion's row; Escape still goes back to the grid first, whatever has the focus", async ({ page }) => {
@@ -1738,6 +1928,39 @@ test("the workspace window gives the focus back to the champion it shows: ‹ �
     await page.waitForTimeout(500);
     expect(await active(page), `${what}: nothing takes the focus later`).toBe(target);
   }
+});
+
+test("the window handing over to the pane keeps the focus in the preview: a game's window closed after the resize, and the opponents' page buttons", async ({ page }) => {
+  // A game's window over the workspace window (which steps aside for it), the pane taking the window's place while it is
+  // open, then the game closed: the focus goes into the pane. Until 28 Nov 2026 it went to the row the preview had been
+  // opened from (the game's window took over the preview window's opener, not where its owner puts the focus).
+  for (const how of ["Escape", "Back"] as const) {
+    await open(page, `${top}?champion=Ambessa&crole=TOP&vs=Darius`, [1300, 720], "expanded");
+    await expect(wsBody(page)).toBeVisible();
+    await settled(page);
+    await wsBody(page).getByTestId("champion-preview-game").first().click();
+    await expect(page).toHaveURL(/match=/);
+    await page.setViewportSize({ width: 1400, height: 720 });
+    await expect(pane(page)).toBeVisible();
+    if (how === "Escape") await page.keyboard.press("Escape");
+    else await page.goBack();
+    await expect(page).not.toHaveURL(/match=/);
+    await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest("aside[data-preview-pane]")), `${how}: the focus in the pane`).toBe(true);
+  }
+  // The opponents' page buttons: the window's pager on its second page, its "Page 2" focused (a press moves the focus there);
+  // the pane opens its opponents on their first page, where that control is another or disabled, so the focus goes to the
+  // nearest one in the pane, never the page's body (until 28 Nov 2026).
+  await open(page, `${top}?champion=Ambessa&crole=TOP`, [1300, 720], "expanded");
+  await expect(wsBody(page)).toBeVisible();
+  await settled(page);
+  await wsBody(page).getByTestId("opponents-next").focus();
+  await page.keyboard.press("Enter");
+  await expect.poll(() => page.evaluate(() => document.activeElement?.closest("dialog[data-testid=champion-preview]") !== null && document.activeElement !== document.body)).toBe(true);
+  await page.setViewportSize({ width: 1400, height: 720 });
+  await expect(pane(page)).toBeVisible();
+  await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest("aside[data-preview-pane]")), "the pager's button: the focus in the pane").toBe(true);
+  await page.waitForTimeout(500);
+  expect(await active(page), "nothing leaves it on the page's body later").not.toBe("body");
 });
 
 test("the section's parts are spaced by a gap, not margins: an open match window, the workspace window and the first paint leave the frame its full height", async ({ page }) => {

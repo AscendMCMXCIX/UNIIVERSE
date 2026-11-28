@@ -119,6 +119,40 @@ export function workspaceNow(): boolean {
   return typeof window !== "undefined" && window.matchMedia(WS_QUERY).matches && window.innerHeight >= WS_MIN_HEIGHT_REM * rootPx() - 0.5;
 }
 
+/*
+  The root's size also moves with no resize and no media query's change event: the browser's text size
+  changed while the page is open. Chrome evaluates the queries again (a rem bound such as the gate's
+  80rem flips) but fires no change event, so until 28 Nov 2026 a text size set back from 18 to 16px at
+  1356 × 800 left the page in the flow, where the workspace applies, until the next resize or the next
+  render for another reason (a champion opened), which then changed the posture under the pointer. A
+  probe 1rem wide (out of the page's flow, no height, invisible) tells it: a ResizeObserver on it fires
+  as the root's size moves. One probe for every subscriber, removed with the last.
+*/
+const rootListeners = new Set<() => void>();
+let rootProbe: { el: HTMLElement; observer: ResizeObserver } | null = null;
+export function onRootSize(onChange: () => void): () => void {
+  rootListeners.add(onChange);
+  if (!rootProbe && typeof ResizeObserver === "function" && document.body) {
+    const el = document.createElement("div");
+    el.setAttribute("aria-hidden", "true");
+    el.dataset.rootProbe = "";
+    el.style.cssText = "position:absolute;top:0;left:0;width:1rem;height:0;visibility:hidden;pointer-events:none";
+    document.body.appendChild(el);
+    const observer = new ResizeObserver(() => {
+      for (const listener of [...rootListeners]) listener();
+    });
+    observer.observe(el);
+    rootProbe = { el, observer };
+  }
+  return () => {
+    rootListeners.delete(onChange);
+    if (rootListeners.size || !rootProbe) return;
+    rootProbe.observer.disconnect();
+    rootProbe.el.remove();
+    rootProbe = null;
+  };
+}
+
 function subscribeWorkspace(onChange: () => void) {
   const query = window.matchMedia(WS_QUERY);
   const short = window.matchMedia(WS_SHORT_QUERY);
@@ -128,11 +162,14 @@ function subscribeWorkspace(onChange: () => void) {
   narrow.addEventListener("change", onChange);
   // The root and the window's height move with a resize (and a zoom, which fires one).
   window.addEventListener("resize", onChange);
+  // And the root alone with the browser's text size, which fires neither.
+  const offRoot = onRootSize(onChange);
   return () => {
     query.removeEventListener("change", onChange);
     short.removeEventListener("change", onChange);
     narrow.removeEventListener("change", onChange);
     window.removeEventListener("resize", onChange);
+    offRoot();
   };
 }
 
