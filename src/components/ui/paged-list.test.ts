@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { PagedFooter, listKeyTarget, rangeText, rangeWords, usePagedRows, type PagedRows } from "./paged-list";
-import { cumulativeRows, rowBudget, type DrawnRow } from "./row-budget";
+import { NOTHING_SAID, PagedFooter, keepSaid, listKeyTarget, positionAttributes, rangeText, rangeWords, rowAttributes, usePagedRows, type PagedRows, type Said } from "./paged-list";
+import { cumulativeRows, firstColumnRun, rowBudget, type DrawnRow } from "./row-budget";
 import { WorkspaceCard, WorkspaceSection } from "./workspace";
 
 /*
@@ -54,6 +54,64 @@ describe("cumulativeRows: rows of several heights", () => {
     expect(cumulativeRows({ room: 5000, rows, gap: 8, max: 3 })).toBe(3);
     expect(cumulativeRows({ room: 5000, rows: [] })).toBe(1);
     expect(cumulativeRows({ room: Number.NaN, rows })).toBe(1);
+  });
+});
+
+describe("the cumulative mode on a two-column grid (usePagedGrid, column-major)", () => {
+  it("reads the first column only: the second column's cells come after it in the DOM, their tops from the top again", () => {
+    // 3 cells a column of 40px, two columns side by side (lefts 0 and 400), 130px of room: 3 a column, not 6.
+    const boxes = [0, 40, 80, 0, 40, 80].map((top, i) => ({ left: i < 3 ? 0 : 400, top, bottom: top + 40, height: 40 }));
+    const all = boxes.map((b): DrawnRow => ({ bottom: b.bottom, height: b.height, divided: true }));
+    // Counting on through the second column doubled it (the review's case): every drawn row "ends" within the room.
+    expect(cumulativeRows({ room: 130, rows: all })).toBe(6);
+    const column = all.slice(0, firstColumnRun(boxes));
+    expect(firstColumnRun(boxes)).toBe(3);
+    expect(cumulativeRows({ room: 130, rows: column })).toBe(rowBudget({ room: 130, rowPx: 40 }));
+    expect(cumulativeRows({ room: 130, rows: column })).toBe(3);
+  });
+
+  it("is every row of a one-column list, the first column's run to the pixel, and none of nothing", () => {
+    expect(firstColumnRun([{ left: 12 }, { left: 12.4 }, { left: 11.6 }, { left: 12 }])).toBe(4);
+    expect(firstColumnRun([{ left: 12 }, { left: 12 }, { left: 420 }, { left: 12 }])).toBe(2);
+    expect(firstColumnRun([])).toBe(0);
+  });
+});
+
+describe("what a page turn reads out (the Pager's live region)", () => {
+  it("is said again on the reader's next turn after the list changed its page itself, even with the same words", () => {
+    const words = { one: "player", many: "players" };
+    // Next: page 2 read out.
+    let said: Said = { text: rangeWords(words, 8, 14, 30), page: 2 };
+    expect(keepSaid(said, 2).text).toBe("Players 8 to 14 of 30");
+    // Another order: page 1, drawn by the list, nothing read, and what was said goes.
+    said = keepSaid(said, 1);
+    expect(said).toBe(NOTHING_SAID);
+    expect(said.text).toBe("");
+    // Next again: the same words, now a change of the live region's text (from "", not a string set to itself).
+    const next: Said = { text: rangeWords(words, 8, 14, 30), page: 2 };
+    expect(keepSaid(next, 2).text).toBe("Players 8 to 14 of 30");
+    expect(said.text).not.toBe(keepSaid(next, 2).text);
+  });
+
+  it("is never said again by a resize that comes back to the page said", () => {
+    let said: Said = { text: "Players 8 to 14 of 30", page: 2 };
+    said = keepSaid(said, 3); // a narrower budget: the page holding the first row shown
+    said = keepSaid(said, 2); // and back
+    expect(said.text).toBe("");
+    expect(keepSaid(NOTHING_SAID, 1)).toBe(NOTHING_SAID);
+  });
+});
+
+describe("a row's attributes", () => {
+  it("carry its place on the whole list while paged, on an li, a tr or an option (the default)", () => {
+    expect(rowAttributes("k", 7, 30)).toEqual({ "data-ws-row": "", "data-row-key": "k", "aria-posinset": 8, "aria-setsize": 30 });
+    expect(rowAttributes("k", -1, 30)).toEqual({ "data-ws-row": "", "data-row-key": "k" });
+  });
+
+  it("leave it off a row element that is a link or a button (axe's aria-allowed-attr refuses it there), for its listitem to carry", () => {
+    expect(rowAttributes("k", 7, 30, { position: false })).toEqual({ "data-ws-row": "", "data-row-key": "k" });
+    expect(positionAttributes(7, 30)).toEqual({ "aria-posinset": 8, "aria-setsize": 30 });
+    expect(positionAttributes(-1, 30)).toEqual({});
   });
 });
 

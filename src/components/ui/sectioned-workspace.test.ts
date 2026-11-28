@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { SectionedWorkspace, initialSection, sectionFromSearch, sectionHref, type WorkspaceSectionItem } from "./sectioned-workspace";
+import { SectionedWorkspace, addressTarget, initialSection, sectionFromSearch, sectionHref, type WorkspaceSectionItem } from "./sectioned-workspace";
 import { workspaceMarks } from "./workspace";
 
 /*
@@ -37,6 +37,29 @@ describe("the section in the address", () => {
     expect(initialSection("device", ids)).toBe("device");
     expect(initialSection("nope", ids)).toBe("name");
     expect(initialSection(null, ids)).toBe("name");
+  });
+});
+
+describe("an address change (Back, Forward, a soft navigation)", () => {
+  const at = { pathname: "/settings", rendered: "/settings", ids, current: "links" };
+
+  it("shows the section the address names, the first where it names none (a soft navigation to the page's own address keeps it mounted)", () => {
+    // /settings?section=links, then the account menu's Settings link (a Next <Link> to /settings): the first section, not links.
+    expect(addressTarget({ ...at, search: "" })).toBe("name");
+    expect(addressTarget({ ...at, search: "?section=password" })).toBe("password");
+    expect(addressTarget({ ...at, search: "?view=admin&section=device" })).toBe("device");
+    expect(addressTarget({ ...at, search: "?section=nope" })).toBe("name");
+  });
+
+  it("does nothing where it names the section shown", () => {
+    expect(addressTarget({ ...at, search: "?section=links" })).toBeNull();
+    expect(addressTarget({ ...at, current: "name", search: "" })).toBeNull();
+  });
+
+  it("leaves a Back that leaves the page alone: another page's address is not a section's to decide (no beforeLeave asked, no ?section= pushed onto it)", () => {
+    // /admin/branding?section=colours opened from /admin by a soft navigation, then Back: popstate fires while Branding is still mounted.
+    expect(addressTarget({ pathname: "/admin", rendered: "/admin/branding", search: "", ids: ["name", "colours"], current: "colours" })).toBeNull();
+    expect(addressTarget({ pathname: "/admin/settings", rendered: "/settings", search: "?section=password", ids, current: "name" })).toBeNull();
   });
 });
 

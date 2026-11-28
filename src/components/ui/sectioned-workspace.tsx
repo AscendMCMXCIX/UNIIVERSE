@@ -2,7 +2,7 @@
 
 import * as React from "react";
 import { AlertCircle } from "lucide-react";
-import { usePathname } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { isPlainClick } from "@/lib/back-to-top";
 import { cn } from "@/lib/cn";
 import { formatCount } from "@/lib/format";
@@ -21,7 +21,11 @@ import { WorkspaceMarksProvider, useWorkspaceMarks, type WorkspaceMarks } from "
   a section opens it, a refresh keeps it, and each switch is an entry of its own, as the section tabs'
   are: Back goes to the section before, Forward returns. An unknown or missing value is the first
   section. The rail's entries are plain links (they work before the page's code has run: the server
-  renders `initial`, the page's own ?section=).
+  renders the page's own ?section=, read through useSearchParams, or `initial` where there is none).
+  The section shown follows the address whatever changes it: the rail, Back and Forward, and a soft
+  navigation to the page with another query (the account menu's Settings link on /settings?section=x:
+  Next keeps the page mounted, so the address, not the mount, decides). A Back that leaves the page is
+  the page's own (its unsaved-changes guard), never a section's: nothing here runs for it.
 
   Every section stays mounted (the others hidden in the workspace only), so what is typed in one
   survives a switch to another. A section may ask before it is left (`beforeLeave`: an editor with
@@ -65,6 +69,17 @@ export function initialSection(initial: string | null | undefined, ids: readonly
 
 const here = () => `${window.location.pathname}${window.location.search}${window.location.hash}`;
 
+/**
+ * The section an address change shows (pure: Back, Forward, a soft navigation; for its unit test):
+ * null where the address is another page's (`pathname` is not the one this workspace rendered for:
+ * Back is leaving the page, which is not a section's to decide) or names the section shown already.
+ */
+export function addressTarget(at: { pathname: string; rendered: string; search: string; ids: readonly string[]; param?: string; current: string }): string | null {
+  if (at.pathname !== at.rendered) return null;
+  const to = sectionFromSearch(at.search, at.ids, at.param);
+  return to === at.current ? null : to;
+}
+
 /** Focuses a section's wrapper as an in-page link's jump does: tabindex -1 only until it loses the focus, so a click inside never focuses it. */
 function focusSection(el: HTMLElement | null) {
   if (!el) return;
@@ -92,7 +107,7 @@ export function SectionedWorkspace({
   testId = "sectioned-workspace",
 }: {
   sections: readonly WorkspaceSectionItem[];
-  /** The section the server rendered (the page's own ?section=), so the first paint shows it. */
+  /** The section to show first where the address cannot be read (outside Next's router: a unit test's render); the page's own ?section= otherwise. */
   initial?: string | null;
   /** The query parameter: "section" by default. */
   param?: string;
@@ -114,33 +129,45 @@ export function SectionedWorkspace({
   const own = useWorkspaceMarks();
   const marks = given ?? own;
   const ids = React.useMemo(() => sections.map((s) => s.id), [sections]);
-  const [chosen, setChosen] = React.useState(() => initialSection(initial, ids));
+  // The address as Next holds it (the server's request on the first paint, then every push, Back and soft navigation).
+  const search = useSearchParams();
+  const pathname = usePathname() || "/";
+  const address = search ? sectionFromSearch(search.toString(), ids, param) : null;
+  const [chosen, setChosen] = React.useState(() => address ?? initialSection(initial, ids));
   const current = ids.includes(chosen) ? chosen : (ids[0] ?? "");
-  const latest = React.useRef({ ids, current, sections });
+  const latest = React.useRef({ ids, current, sections, pathname });
   React.useLayoutEffect(() => {
-    latest.current = { ids, current, sections };
+    latest.current = { ids, current, sections, pathname };
   });
   const sectionsRef = React.useRef<HTMLDivElement>(null);
   const focusAfter = React.useRef<string | null>(null);
+  // A section's beforeLeave is deciding a Back or a Forward: the address waits for its answer.
+  const deciding = React.useRef(false);
   const wrapperOf = (id: string) => sectionsRef.current?.querySelector<HTMLElement>(`[data-ws-section="${CSS.escape(id)}"]`) ?? null;
 
-  // The address as the page mounts (a page restored by Back may name a section the server did not render).
+  // The address, followed: as the page mounts (a page restored by Back may name a section the server did not render), and
+  // whenever Next's address changes (a soft navigation to this page with another query keeps it mounted). The window's own
+  // address is read, not the render's, so an address a refused Back has already put back is never shown in passing.
   React.useLayoutEffect(() => {
-    const at = sectionFromSearch(window.location.search, latest.current.ids, param);
-    if (at !== latest.current.current) setChosen(at);
-  }, [param]);
+    if (deciding.current) return;
+    const { ids: now, current: shown, pathname: rendered } = latest.current;
+    const to = addressTarget({ pathname: window.location.pathname, rendered, search: window.location.search, ids: now, param, current: shown });
+    if (to !== null) setChosen(to);
+  }, [address, param]);
 
-  // Back and Forward: the section the address names, asked first of the section being left.
+  // Back and Forward within the page: the section the address names, asked first of the section being left.
   React.useEffect(() => {
     const onPop = () => {
-      const { ids: now, current: from, sections: list } = latest.current;
-      const to = sectionFromSearch(window.location.search, now, param);
-      if (to === from) return;
+      const { ids: now, current: from, sections: list, pathname: rendered } = latest.current;
+      const to = addressTarget({ pathname: window.location.pathname, rendered, search: window.location.search, ids: now, param, current: from });
+      if (to === null) return;
       const guard = list.find((s) => s.id === from)?.beforeLeave;
       if (!guard) return setChosen(to);
+      deciding.current = true;
       void Promise.resolve(guard()).then((ok) => {
+        deciding.current = false;
         if (ok) setChosen(to);
-        // Kept: the address names the section shown again.
+        // Kept: the address names the section shown again (this page's address: Back stayed on it).
         else window.history.pushState(null, "", sectionHref(here(), from, latest.current.ids, param));
       });
     };
@@ -171,8 +198,7 @@ export function SectionedWorkspace({
   };
 
   // A link's own address (before the page's code runs, or opened in a new tab): the page's path with the section; a plain click keeps the rest of the query.
-  const pathname = usePathname();
-  const linkHref = (id: string) => sectionHref(pathname || "/", id, ids, param);
+  const linkHref = (id: string) => sectionHref(pathname, id, ids, param);
 
   return (
     <WorkspaceMarksProvider marks={marks}>

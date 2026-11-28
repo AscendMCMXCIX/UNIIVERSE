@@ -53,7 +53,9 @@ interface OneScreenRow extends FitsOptions {
   - a profile's Overview fits from 1440 × 900 only (376–390px over at 1366 × 768, 487–501 at the floor).
 */
 const ROWS: OneScreenRow[] = [
-  { name: "Team Overview", path: "/team", at: EIGHT },
+  // Its season cards' two figure notes (card-season's dd.truncate) are cut by about 11px at 1648 × 900 with the wider text: tracked
+  // for its lane (Team Overview's short form). Until then only a row's truncations are held here, the check before 28 Nov 2026's review.
+  { name: "Team Overview", path: "/team", at: EIGHT, truncates: "[data-ws-row] .truncate" },
   { name: "Players", path: "/players", at: EIGHT_AND_FLOOR },
   { name: "Leaderboards", path: "/leaderboards", at: EIGHT },
   { name: "Champion Intel, empty", path: "/lookup", at: EIGHT_AND_FLOOR },

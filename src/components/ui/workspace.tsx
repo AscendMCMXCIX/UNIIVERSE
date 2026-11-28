@@ -105,7 +105,8 @@ export function WorkspaceMarksProvider({ marks, children }: { marks: WorkspaceMa
   return <MarksContext.Provider value={marks}>{children}</MarksContext.Provider>;
 }
 
-type Tag = "section" | "div" | "article" | "main";
+/** A section's element: never "main" (every workspace section is inside the shell's <main id="content">: a second main fails axe's landmark-no-duplicate-main and landmark-main-is-top-level). */
+type Tag = "section" | "div" | "article";
 
 /**
  * A workspace page's section: in the workspace the flex remainder of the shell's window-tall column

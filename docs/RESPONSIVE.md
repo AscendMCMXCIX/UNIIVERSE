@@ -748,6 +748,7 @@ What `e2e/workspace.ts` (and, where it already loads a page, the Production chec
 | `data-ws-row` | a row, a cell, a divider | a measured row (`useRowBudget`'s default selector) |
 | `data-row-key` | a row or a cell | its key, for the keys across pages and the focus |
 | `data-ws-region` with `data-per`, `data-page`, `data-pages`, `data-total` | a paged list's region | its pages, while paged |
+| `data-divider` | a paged grid's region | the row its divider slot stands before, where its pages draw one (the tests work out its pages from it) |
 | `data-ws-section` | a sectioned workspace's section | its id (`?section=`) |
 
 ### The frame
@@ -802,7 +803,8 @@ Each is built from the shared modules below.
   `data-ws-short-narrow` where asked for and they apply). `enabled: false` keeps the page in the flow.
 - `<WorkspaceSection as labelledBy | label testId marks? short? shortNarrow? enabled? className ref>`:
   `@container/ws space-y-3 ws:flex ws:flex-1 ws:flex-col ws:gap-3 ws:space-y-0` plus the marks. It
-  gives its marks to what it holds (`useWorkspaceSection()`, `WorkspaceMarksProvider`).
+  gives its marks to what it holds (`useWorkspaceSection()`, `WorkspaceMarksProvider`). `as` is a
+  section, a div or an article, never a `main`: every section is inside the shell's `<main>`.
 - `<WorkspaceCard as bare? testId className ref …attributes>`: the card's surface (unless `bare`) and
   `ws:flex ws:flex-1 ws:flex-col`, `data-ws-card`. A paged list's `regionProps` go on it.
 - `<WorkspaceFoot testId className ref>`: the footer, drawn in the workspace only (`data-ws-foot`).
@@ -821,8 +823,13 @@ It returns:
 - the pages: `perPage`, `paged`, `page`, `pages`, `range`, `offset`, `shown`;
 - the reader's moves: `turn(p)`, `live`, `goToIndex(i)`, `focusKey(key)`, `onListKeyDown`
   (PageUp/PageDown a page, Home/End, ↑/↓ with `arrows`);
-- what to spread: `regionProps`, `listProps`, `rowProps(row)`, `pagerProps`;
+- what to spread: `regionProps`, `listProps`, `rowProps(row)`, `positionProps(row)`, `pagerProps`;
 - the refs: `listRef`, `footRef`, `cardRef`, and `footTestId`.
+
+`rowProps(row)` puts the row's place on the whole list (`aria-posinset`, `aria-setsize`) on the row
+element while paged: an `li`, a `tr` or a `[role=option]`. A row element that is a link or a button
+takes `rowProps(row, { position: false })`, and its listitem takes `positionProps(row)`: axe refuses
+those attributes on a link or a button.
 
 `<PagedFooter footRef pager leading? testId className>` draws `WorkspaceFoot`, then `leading` (a
 legend, a coverage line), then the inline Pager.
@@ -830,7 +837,9 @@ legend, a coverage line), then the inline Pager.
 The page follows `usePagedList`'s rules: a search goes to page 1; new `data` (a filter) to the
 selected row's page or page 1; another order likewise; another selection to its page; another budget
 (a resize) to the selected row's page or the page holding the first row shown. A page change the
-reader makes is read out once, never after a resize.
+reader makes is read out once, never after a resize. A page change the list makes itself (an order,
+a search, a budget) clears what was read, so the reader's next turn is read even where its words are
+the same as before (`keepSaid`).
 
 **`paged-grid.tsx`**
 
@@ -838,7 +847,10 @@ reader makes is read out once, never after a resize.
 same options as `usePagedRows`, plus `regionRef`, `divider` and `open`. It fills one column, or two
 from a content width of the region (`twoColumnsRem`), column-major, a column's cells by
 `useRowBudget`. An optional divider slot is never a page's last slot and comes again at the top of
-the pages after it. The open item is followed (`useFollowed`).
+the pages after it, so a grid with a divider has more pages than `ceil(total / per)`; its region
+says where the divider is (`data-divider`), and the tests count its pages with it (`pageSizes`). The
+open item is followed (`useFollowed`). Its `cellProps(slot)` take `{ position: false }` and
+`positionProps(slot)` as `rowProps` do.
 
 It returns:
 - the layout: `columns`, `perColumn`, `perPage`, `paged`, `page`, `pages`, `slots`, `slotsToDraw`
@@ -859,10 +871,16 @@ sectionsClassName? railClassName? testId?>`.
   `actions` under them, and the current section filling the frame.
 - **Outside it:** every section stacked, with the page's own `index`.
 - **The address:** `?section=<id>`; the first section has none, and an unknown or missing value is
-  the first. Each switch is pushed as a section tab's is, so Back and Forward step through them.
+  the first. Each switch is pushed as a section tab's is, so Back and Forward step through them. The
+  section shown follows the address whatever changes it (read through `useSearchParams`): the rail,
+  Back and Forward, and a soft navigation to the page with another query, which Next makes without
+  mounting the page again (the account menu's Settings link on `/settings?section=password` shows
+  the first section).
 - **Drafts survive a switch:** every section stays mounted.
-- **Leaving:** `beforeLeave` may keep a section, and Back's address is then put back.
-- **Pure helpers:** `sectionFromSearch`, `sectionHref`, `initialSection`.
+- **Leaving:** `beforeLeave` may keep a section when the reader switches or steps Back or Forward
+  within the page, and Back's address is then put back. A Back that leaves the page is the page's
+  own: no section is asked, and nothing is pushed onto the other page's address.
+- **Pure helpers:** `sectionFromSearch`, `sectionHref`, `initialSection`, `addressTarget`.
 
 **Elsewhere**
 
@@ -925,13 +943,19 @@ No query's cost changes: the server already slices an in-memory list.
     `demoPlayerId`.
 - **What `fits` holds:**
   - the page is the window, and nothing is wider than it;
-  - every card ends above `#content`'s padding;
+  - every card ends above `#content`'s padding, and everything it draws lies inside it (an
+    element's box, or a block's own text that does not wrap: All Champions' own rule);
   - a list ends at least 12px above its footer;
   - nothing in `#content` scrolls;
-  - nothing a reader needs (text, a control, a picture) is clipped or drawn off the screen;
-    `checkVisibility()` decides what is drawn, so a closed `<details>`'s content does not count;
+  - nothing a reader needs (text, a control, a picture) is clipped or drawn off the screen, a
+    text's own lines cut by a fixed height or a line clamp included; `checkVisibility()` decides
+    what is drawn, so a closed `<details>`'s content does not count;
+  - no truncation in `#content` cuts its text (`truncates`, every `.truncate` by default);
   - no text under 12px (a small tile's letters, an uppercase label and a chart aside);
-  - every region's pages are whole.
+  - every region's pages are whole: as many as its rows and its divider make (`pageSizes`), and
+    `expectEveryRecord` holds each page to its slots.
+  - `e2e/workspace-helper.spec.ts` holds the checks themselves to what they must catch, on small
+    pages drawn in the test.
 - **`e2e/one-screen.spec.ts`** (desktop project only, the suite's server, CI's wider text) is a table
   of rows. Each row opens once per sidebar state and resizes in place:
 

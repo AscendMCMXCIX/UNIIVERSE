@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { gridKeyTarget, gridShape, usePagedGrid, type PagedGrid } from "./paged-grid";
+import { gridKeyTarget, gridShape, pagesDivider, usePagedGrid, type PagedGrid } from "./paged-grid";
 import { slotPages } from "./row-budget";
 import { WorkspaceSection } from "./workspace";
 
@@ -67,6 +67,21 @@ describe("gridKeyTarget: the keys across cells, columns and pages", () => {
   it("leaves other keys to the browser", () => {
     expect(gridKeyTarget("Enter", at(1, 1))).toBeUndefined();
     expect(gridKeyTarget(" ", at(1, 1))).toBeUndefined();
+  });
+});
+
+describe("pagesDivider: the divider the region publishes (data-divider)", () => {
+  it("is the divider slotPages draws: a row of the list, on pages of two slots or more; else none", () => {
+    expect(pagesDivider(40, 10, 9)).toBe(9);
+    expect(pagesDivider(40, 10, null)).toBeNull();
+    expect(pagesDivider(40, 1, 9)).toBeNull();
+    expect(pagesDivider(5, 4, 5)).toBeNull();
+    expect(pagesDivider(5, 4, -1)).toBeNull();
+    // Where it publishes one, slotPages draws it; where it publishes none, slotPages draws none.
+    for (const [total, per, divider] of [[40, 10, 9], [7, 4, 3], [40, 1, 9], [5, 4, 5], [3, 2, null]] as const) {
+      const drawn = slotPages(Array.from({ length: total }, (_, i) => i), per, divider).some((p) => p.some((x) => x.kind === "divider"));
+      expect(drawn, `${total} rows, ${per} a page, a divider at ${divider}`).toBe(pagesDivider(total, per, divider) !== null);
+    }
   });
 });
 

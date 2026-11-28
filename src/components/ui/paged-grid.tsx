@@ -3,7 +3,7 @@
 import * as React from "react";
 import { cn } from "@/lib/cn";
 import { useRowBudget } from "./fit-rows";
-import { rangeText, rangeWords, useFocusOnceDrawn, type PagedWords, type RegionProps, type RowProps } from "./paged-list";
+import { NOTHING_SAID, keepSaid, positionAttributes, rangeText, rangeWords, rowAttributes, useFocusOnceDrawn, type PagedWords, type PositionProps, type RegionProps, type RowProps, type RowPropsOptions, type Said } from "./paged-list";
 import type { PagerProps } from "./pager";
 import { isTyping, rootPx } from "./posture";
 import { columnRows, slotPageOf, slotPages, useFollowed, usePagedList, type Slot } from "./row-budget";
@@ -55,6 +55,11 @@ export function gridShape(onPage: number, perColumn: number, columns: 1 | 2): { 
   const rowsHere = columnRows(onPage, perColumn, columns);
   const secondColumn = columns === 2 && onPage > rowsHere;
   return { rowsHere, secondColumn, className: cn("relative grid grid-flow-col gap-x-4", columns === 2 ? "grid-cols-2" : "grid-cols-1", secondColumn && HAIRLINE), style: { gridTemplateRows: `repeat(${rowsHere}, auto)` } };
+}
+
+/** The divider slotPages draws (pure): `divider` where it is a row of the list and a page holds two slots or more, else none. Published as data-divider, so a test works out the pages (e2e/workspace.ts). */
+export function pagesDivider(total: number, perPage: number, divider: number | null): number | null {
+  return divider !== null && divider >= 0 && divider < total && Math.floor(perPage) >= 2 ? divider : null;
 }
 
 const firstRowOf = <T,>(slots: ReadonlyArray<Slot<T>> | undefined) => slots?.find((x): x is Extract<Slot<T>, { kind: "row" }> => x.kind === "row")?.index ?? 0;
@@ -147,7 +152,9 @@ export interface PagedGrid<T> {
   focusKey: (key: string) => void;
   regionProps: RegionProps;
   listProps: { "aria-describedby"?: string };
-  cellProps: (slot: Extract<Slot<T>, { kind: "row" }>) => RowProps;
+  /** A cell's attributes (rowProps'): its place while paged unless `{ position: false }` (a cell that is a link or a button: positionProps on its listitem). */
+  cellProps: (slot: Extract<Slot<T>, { kind: "row" }>, o?: RowPropsOptions) => RowProps;
+  positionProps: (slot: Extract<Slot<T>, { kind: "row" }>) => PositionProps;
   dividerProps: { "data-ws-row": ""; "data-ws-divider": "" };
   pagerProps: PagerProps;
   regionRef: React.RefObject<HTMLElement | null>;
@@ -196,11 +203,14 @@ export function usePagedGrid<T>(o: PagedGridOptions<T>): PagedGrid<T> {
   );
   const slots = pages ? (pages[page - 1] ?? []) : null;
   const flowSlots = React.useMemo(() => rows.flatMap((item, i): Slot<T>[] => (divider === i ? [{ kind: "divider" }, { kind: "row", item, index: i }] : [{ kind: "row", item, index: i }])), [rows, divider]);
-  const [live, setLive] = React.useState("");
+  const [said, setSaid] = React.useState<Said>(NOTHING_SAID);
+  // The page changed for another reason than the reader's turn: what was said goes (keepSaid).
+  if (keepSaid(said, page) !== said) setSaid(NOTHING_SAID);
+  const live = keepSaid(said, page).text;
   const turn = (p: number) => {
     if (!pages) return;
     go(p);
-    setLive(rangeWords(words, firstRowOf(pages[p - 1]) + 1, lastRowOf(pages[p - 1]) + 1, total));
+    setSaid({ text: rangeWords(words, firstRowOf(pages[p - 1]) + 1, lastRowOf(pages[p - 1]) + 1, total), page: p });
   };
   const focusKey = useFocusOnceDrawn(listRef, pages !== null);
   const goToIndex = (i: number) => {
@@ -259,9 +269,10 @@ export function usePagedGrid<T>(o: PagedGridOptions<T>): PagedGrid<T> {
     live,
     goToIndex,
     focusKey,
-    regionProps: pages ? { "data-ws-region": o.region ?? "grid", "data-per": perPage ?? undefined, "data-page": page, "data-pages": pageTotal, "data-total": total } : {},
+    regionProps: pages ? { "data-ws-region": o.region ?? "grid", "data-per": perPage ?? undefined, "data-page": page, "data-pages": pageTotal, "data-total": total, "data-divider": pagesDivider(total, perPage ?? 1, divider) ?? undefined } : {},
     listProps: workspace ? { "aria-describedby": rangeId } : {},
-    cellProps: (slot) => (pages ? { "data-ws-row": "", "data-row-key": keyOf(slot.item), "aria-posinset": slot.index + 1, "aria-setsize": total } : { "data-ws-row": "", "data-row-key": keyOf(slot.item) }),
+    cellProps: (slot, opts) => rowAttributes(keyOf(slot.item), pages ? slot.index : -1, total, opts),
+    positionProps: (slot) => (pages ? positionAttributes(slot.index, total) : {}),
     dividerProps: { "data-ws-row": "", "data-ws-divider": "" },
     pagerProps,
     regionRef,

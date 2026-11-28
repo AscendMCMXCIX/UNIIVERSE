@@ -31,6 +31,20 @@ export interface DrawnRow {
 }
 
 /**
+ * How many of the drawn rows, in the list's order, make its first column (pure, for the cumulative
+ * mode): the leading run whose left edge is the first row's, to the pixel. A one-column list is all of
+ * them; a column-major grid of two (usePagedGrid) draws its second column's cells after the first's,
+ * their tops starting again from the top, so counting on through them would count a column twice.
+ */
+export function firstColumnRun(boxes: ReadonlyArray<{ left: number }>): number {
+  if (!boxes.length) return 0;
+  const left = boxes[0]!.left;
+  let n = 1;
+  while (n < boxes.length && Math.abs(boxes[n]!.left - left) <= 1) n++;
+  return n;
+}
+
+/**
  * Complete rows that fit by their own heights (useRowBudget's mode "cumulative", for a list whose rows
  * are not one height: a card with an optional line, a group of fields): the drawn rows in their order,
  * as many as end within `room` (each counted as the page's last: without its divider); where every

@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { cumulativeRows, rowBudget, type DrawnRow } from "./row-budget";
+import { cumulativeRows, firstColumnRun, rowBudget, type DrawnRow } from "./row-budget";
 
 /*
   Fit rows (Release 16, round 3): a list on a one-screen page that shows as many rows as fit above the
@@ -309,8 +309,10 @@ export function useRowBudget(
     const root = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
     // The tallest drawn row (they are one height), a divided list's last row counted with its border.
     const rowPx = drawn.length ? Math.max(...drawn.map((r) => r.getBoundingClientRect().height + (r.nextElementSibling ? 0 : lastLess))) : probeRem * root;
-    // The cumulative mode reads the drawn rows; with none drawn yet, both count at the probe's height.
-    let next = mode === "cumulative" && drawn.length ? cumulativeRows({ room: limit - top, rows: drawnRows(drawn, top), gap: rowGap(list, drawn), lastLess, min: 1, max: opts.current.cap ?? Infinity }) : rowBudget({ room: limit - top, rowPx, lastLess, min: 1, max: opts.current.cap ?? Infinity });
+    // The cumulative mode reads the drawn rows of the first column (a two-column grid's second column starts again from
+    // the top: counted on, it would double the column); with none drawn yet, both count at the probe's height.
+    const column = mode === "cumulative" ? drawn.slice(0, firstColumnRun(drawn.map((r) => r.getBoundingClientRect()))) : drawn;
+    let next = mode === "cumulative" && column.length ? cumulativeRows({ room: limit - top, rows: drawnRows(column, top), gap: rowGap(list, column), lastLess, min: 1, max: opts.current.cap ?? Infinity }) : rowBudget({ room: limit - top, rowPx, lastLess, min: 1, max: opts.current.cap ?? Infinity });
     const was = current.current;
     if (next === was) return;
     const t = taken.current;

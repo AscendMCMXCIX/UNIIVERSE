@@ -27,7 +27,8 @@ import { WorkspaceFoot, useWorkspaceSection } from "./workspace";
 
   The data contract (ui/workspace.tsx): each row carries data-ws-row (the measured row) and
   data-row-key (its key, for the keys and the focus), and aria-posinset/aria-setsize while paged
-  (only a page is in the page); the card carries data-ws-region with data-per, data-page, data-pages
+  (only a page is in the page; on the row element where it is an li, a tr or a [role=option], else on
+  its listitem: RowPropsOptions); the card carries data-ws-region with data-per, data-page, data-pages
   and data-total while paged (regionProps); the list is described by the range (listProps).
 */
 
@@ -72,6 +73,25 @@ export function listKeyTarget(key: string, at: { index: number; page: number; pa
   if (arrows && key === "ArrowDown") return index >= 0 && index < total - 1 ? index + 1 : null;
   if (arrows && key === "ArrowUp") return index > 0 ? index - 1 : null;
   return undefined;
+}
+
+/** What a page change the reader made has read out (the Pager's live region), and the page it was said for. */
+export interface Said {
+  text: string;
+  page: number;
+}
+
+export const NOTHING_SAID: Said = { text: "", page: 0 };
+
+/**
+ * The live words to keep as the list draws `page` (pure, for its unit test): the last ones said while
+ * their page is shown, else none. A page change the list makes itself (an order, a search, a filter, a
+ * budget) clears them, so the reader's next turn is a new text in the live region even where its words
+ * are the ones said before (React would bail out of setting the same string: no mutation, nothing
+ * read), and a resize that comes back to the page said never says it again.
+ */
+export function keepSaid(said: Said, page: number): Said {
+  return said.page === page ? said : NOTHING_SAID;
 }
 
 const FOCUSABLE = "a[href], button:not([disabled]), input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex='-1'])";
@@ -173,13 +193,39 @@ export interface RegionProps {
   "data-page"?: number;
   "data-pages"?: number;
   "data-total"?: number;
+  /** A paged grid's divider slot (usePagedGrid's `divider`, where its pages draw one): the row it stands before. */
+  "data-divider"?: number;
 }
 
-export interface RowProps {
-  "data-ws-row": "";
-  "data-row-key": string;
+export interface PositionProps {
   "aria-posinset"?: number;
   "aria-setsize"?: number;
+}
+
+export interface RowProps extends PositionProps {
+  "data-ws-row": "";
+  "data-row-key": string;
+}
+
+/**
+ * Where a row's place on the whole list goes. aria-posinset and aria-setsize are allowed on a listitem,
+ * a row and an option, not on a link or a button (axe's aria-allowed-attr fails them there, as the
+ * Production check's axe pass would). A row element that is an li, a tr or a [role=option] takes them
+ * with rowProps (the default); a row element that is a link or a button takes `{ position: false }`,
+ * and its listitem takes positionProps(row).
+ */
+export interface RowPropsOptions {
+  position?: boolean;
+}
+
+/** A paged row's place (pure): aria-posinset and aria-setsize while paged (`at` ≥ 0), else nothing. */
+export function positionAttributes(at: number, total: number): PositionProps {
+  return at >= 0 ? { "aria-posinset": at + 1, "aria-setsize": total } : {};
+}
+
+/** A row's attributes (pure, for its unit test): the data contract's, and its place where paged (`at` ≥ 0) unless `position: false`. */
+export function rowAttributes(key: string, at: number, total: number, o: RowPropsOptions = {}): RowProps {
+  return { "data-ws-row": "", "data-row-key": key, ...(o.position === false ? {} : positionAttributes(at, total)) };
 }
 
 export interface PagedRows<T> {
@@ -210,8 +256,10 @@ export interface PagedRows<T> {
   regionProps: RegionProps;
   /** The list's description: the range (aria-describedby), in the workspace. */
   listProps: { "aria-describedby"?: string };
-  /** A row's attributes: data-ws-row, data-row-key, and its place on the whole list while paged. */
-  rowProps: (row: T) => RowProps;
+  /** A row's attributes: data-ws-row, data-row-key, and its place on the whole list while paged (on an li, a tr or a [role=option]; `{ position: false }` on a link or a button, with positionProps on its listitem). */
+  rowProps: (row: T, o?: RowPropsOptions) => RowProps;
+  /** A row's place on the whole list while paged, for the listitem of a row element that is a link or a button. */
+  positionProps: (row: T) => PositionProps;
   /** The inline Pager's props, for PagedFooter. */
   pagerProps: PagerProps;
   /** The refs the measure reads (the caller's where given). */
@@ -262,13 +310,16 @@ export function usePagedRows<T>(o: PagedRowsOptions<T>): PagedRows<T> {
   const offset = range && range.from > 0 ? range.from - 1 : 0;
   const flow = o.flowRows ?? rows;
   const shown = React.useMemo(() => (range ? rows.slice(offset, offset + (perPage ?? 0)) : flow), [range, rows, offset, perPage, flow]);
-  const [live, setLive] = React.useState("");
+  const [said, setSaid] = React.useState<Said>(NOTHING_SAID);
+  // The page changed for another reason than the reader's turn: what was said goes (keepSaid).
+  if (keepSaid(said, page) !== said) setSaid(NOTHING_SAID);
+  const live = keepSaid(said, page).text;
   const turn = React.useCallback(
     (p: number) => {
       if (perPage === null) return;
       go(p);
       const r = pageRange(p, perPage, total);
-      setLive(rangeWords(words, r.from, r.to, total));
+      setSaid({ text: rangeWords(words, r.from, r.to, total), page: p });
     },
     [go, perPage, total, words],
   );
@@ -290,11 +341,11 @@ export function usePagedRows<T>(o: PagedRowsOptions<T>): PagedRows<T> {
   };
   const regionProps: RegionProps = range ? { "data-ws-region": o.region ?? "list", "data-per": perPage ?? undefined, "data-page": page, "data-pages": pages, "data-total": total } : {};
   const rangeId = o.rangeId ?? `${testId}-range`;
-  const rowProps = (row: T): RowProps => {
+  const rowProps = (row: T, o?: RowPropsOptions): RowProps => {
     const key = keyOf(row);
-    const at = index.get(key) ?? -1;
-    return range && at >= 0 ? { "data-ws-row": "", "data-row-key": key, "aria-posinset": at + 1, "aria-setsize": total } : { "data-ws-row": "", "data-row-key": key };
+    return rowAttributes(key, range ? (index.get(key) ?? -1) : -1, total, o);
   };
+  const positionProps = (row: T): PositionProps => (range ? positionAttributes(index.get(keyOf(row)) ?? -1, total) : {});
   const pagerProps: PagerProps = {
     layout: "inline",
     label: o.label ?? `${capital(words.one)} pages`,
@@ -311,7 +362,7 @@ export function usePagedRows<T>(o: PagedRowsOptions<T>): PagedRows<T> {
     prevTestId: `${testId}-prev`,
     nextTestId: `${testId}-next`,
   };
-  return { perPage, paged: range !== null, page, pages, range, offset, shown, turn, live, goToIndex, focusKey, onListKeyDown, regionProps, listProps: workspace ? { "aria-describedby": rangeId } : {}, rowProps, pagerProps, listRef, footRef, cardRef, footTestId: `${testId}-foot` };
+  return { perPage, paged: range !== null, page, pages, range, offset, shown, turn, live, goToIndex, focusKey, onListKeyDown, regionProps, listProps: workspace ? { "aria-describedby": rangeId } : {}, rowProps, positionProps, pagerProps, listRef, footRef, cardRef, footTestId: `${testId}-foot` };
 }
 
 /**

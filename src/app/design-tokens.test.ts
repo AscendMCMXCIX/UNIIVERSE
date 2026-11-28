@@ -184,12 +184,27 @@ export function tokenProblems(source: string, tokens: Map<string, string>, optio
   27 and 28 Nov 2026): a workspace page shows fewer rows on a shorter window, never hidden or smaller
   content, and nothing in it scrolls on its own. So no class of the workspace's variants (ws:,
   ws-short:, ws-host:, ws-short-host:, anywhere in a class's variants) conceals or shrinks: an overflow
-  that hides, clips or scrolls, a max height, a screen-tall height, a line clamp, a truncation, or a
-  text size under text-xs (text-2xs is 12px there already: text-xs says it). A genuine exception goes
-  into WS_CONCEAL_LATER with its reason, as "file: class".
+  that hides, clips or scrolls, a max height, a screen-tall height or one in the viewport's units, a
+  line clamp, a truncation, or a text size under text-xs (text-2xs is 12px there already: text-xs says
+  it), as a named utility, an arbitrary value or an arbitrary property, with or without a modifier. A
+  genuine exception goes into WS_CONCEAL_LATER with its reason, as "file: class".
 */
 const WS_VARIANTS = new Set(["ws", "ws-short", "ws-host", "ws-short-host"]);
-const WS_CONCEALS = [/^overflow-(x-|y-)?(hidden|clip|auto|scroll)$/, /^max-h-/, /^h-(screen|dvh|svh|lvh)$/, /^line-clamp-/, /^truncate$/, /^text-(2xs|3xs|4xs)$/];
+const WS_CONCEALS = [
+  /^overflow-(x-|y-)?(hidden|clip|auto|scroll)$/,
+  /^max-h-/,
+  /^h-(screen|dvh|svh|lvh)$/,
+  // The same as an arbitrary value: a height of the viewport's units (h-[100dvh], h-[calc(100dvh-8rem)], h-[clamp(13rem,29vh,20rem)]).
+  /^h-\[[^\]]*\d(vh|dvh|svh|lvh)\b/,
+  /^line-clamp-/,
+  /^truncate$/,
+  /^text-(2xs|3xs|4xs)(\/\S+)?$/,
+  // The same as arbitrary properties: [overflow:hidden], [overflow-y:auto], [max-height:20rem], [-webkit-line-clamp:2], [line-clamp:2], [text-overflow:ellipsis].
+  /^\[overflow(-x|-y)?:(hidden|clip|auto|scroll)\]$/,
+  /^\[max-height:/,
+  /^\[(-webkit-)?line-clamp:/,
+  /^\[text-overflow:/,
+];
 
 /** A class's variants ("ws:board-below-mid:hidden" → ["ws", "board-below-mid"]): its parts before the last ":" outside brackets. */
 function variantsOf(token: string): string[] {
@@ -216,7 +231,8 @@ export function workspaceProblems(source: string): string[] {
       const token = m[0];
       if (!variantsOf(token).some((v) => WS_VARIANTS.has(v))) continue;
       const u = utilityOf(token);
-      const small = /^text-\[(?:length:)?([\d.]+)(px|rem)\]$/.exec(u);
+      // An arbitrary size, with or without a line height after it (text-[11px]/4).
+      const small = /^text-\[(?:length:)?([\d.]+)(px|rem)\](?:\/\S+)?$/.exec(u);
       if (WS_CONCEALS.some((re) => re.test(u)) || (small && Number(small[1]) / (small[2] === "px" ? 16 : 1) < 0.75)) problems.push(`${i + 1}: ${token}`);
     }
   });
@@ -288,6 +304,9 @@ describe("design tokens", () => {
       `<div className="ws:max-h-96 ws:max-h-[30rem] ws:h-screen ws-host:h-dvh ws:min-h-0 ws:h-full max-h-96" />`,
       `<p className="ws:line-clamp-2 ws-short:truncate ws:text-2xs ws:text-4xs ws:text-[0.7rem] ws:text-[11px] ws:text-xs ws:text-[0.75rem] truncate text-2xs" />`,
       `<li className="ws:board-below-mid:hidden ws:[&>li:nth-child(n+2)]:hidden md:ws:truncate ws:board-at-mid:overflow-auto ws-short-host:pb-3 lg:max-h-40" />`,
+      `<div className="ws:h-[100dvh] ws:h-[calc(100dvh-8rem)] ws-short:h-[clamp(13rem,29vh,20rem)] ws:h-[30rem] ws:min-h-[50vh] h-[100dvh]" />`,
+      `<div className="ws:[overflow:hidden] ws:[overflow-y:auto] ws:[overflow:visible] ws:[max-height:20rem] ws:[-webkit-line-clamp:2] ws-short:[line-clamp:3] ws:[text-overflow:ellipsis] [overflow:hidden]" />`,
+      `<p className="ws:text-[11px]/4 ws:text-[0.7rem]/5 ws:text-2xs/4 ws:text-[0.75rem]/4 ws:text-xs/4 text-[11px]/4" />`,
     ].join("\n");
     expect(workspaceProblems(source)).toEqual([
       "1: ws:overflow-hidden",
@@ -305,6 +324,18 @@ describe("design tokens", () => {
       "3: ws:text-[11px]",
       "4: md:ws:truncate",
       "4: ws:board-at-mid:overflow-auto",
+      "5: ws:h-[100dvh]",
+      "5: ws:h-[calc(100dvh-8rem)]",
+      "5: ws-short:h-[clamp(13rem,29vh,20rem)]",
+      "6: ws:[overflow:hidden]",
+      "6: ws:[overflow-y:auto]",
+      "6: ws:[max-height:20rem]",
+      "6: ws:[-webkit-line-clamp:2]",
+      "6: ws-short:[line-clamp:3]",
+      "6: ws:[text-overflow:ellipsis]",
+      "7: ws:text-[11px]/4",
+      "7: ws:text-[0.7rem]/5",
+      "7: ws:text-2xs/4",
     ]);
   });
 

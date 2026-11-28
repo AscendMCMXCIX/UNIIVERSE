@@ -60,6 +60,17 @@ describe("WorkspaceSection", () => {
   });
 });
 
+describe("the section's and the card's elements", () => {
+  it("are never a main: every workspace section is inside the shell's <main id=\"content\"> (a second main fails axe's landmark rules)", () => {
+    // A type error, not a runtime one: the compiler refuses "main" (pnpm verify's typecheck runs this file).
+    // @ts-expect-error "main" is not one of the section's elements
+    expect(html(h(WorkspaceSection, { as: "main", label: "x" }))).toContain("<main");
+    // @ts-expect-error "main" is not one of the card's elements
+    expect(html(h(WorkspaceCard, { as: "main" }))).toContain("<main");
+    expect(html(h(WorkspaceSection, { as: "article", label: "x" }))).toContain("<article");
+  });
+});
+
 describe("WorkspaceCard and WorkspaceFoot", () => {
   it("a card fills the frame (data-ws-card), its surface unless bare, a paged list's region attributes passed through", () => {
     const out = html(h(WorkspaceCard, { testId: "c", "data-ws-region": "list", "data-per": 7 } as never, "rows"));
