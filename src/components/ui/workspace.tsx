@@ -31,8 +31,8 @@ import { useWorkspace, useWorkspaceShort, useWorkspaceShortNarrow } from "./post
   [data-ws-short] only where it asks for it.
 */
 
-/** The classes of every element between the shell's frame and a workspace section: a flex column the section fills, as wide as the frame. */
-export const WS_COLUMN = "ws-host:flex ws-host:w-full ws-host:flex-1 ws-host:flex-col";
+/** The classes of every element between the shell's frame and a workspace section (ui/workspace-column.ts, which a server component imports). */
+export { WS_COLUMN } from "./workspace-column";
 
 /** A workspace section's own classes: its parts 12px apart (space-y in the flow, a gap in the workspace's flex column). */
 export const WS_SECTION = "@container/ws space-y-3 ws:flex ws:flex-1 ws:flex-col ws:gap-3 ws:space-y-0";

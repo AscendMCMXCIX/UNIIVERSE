@@ -55,6 +55,9 @@ export interface MatchSearch {
   sort?: string;
   q?: string;
   limit?: string;
+  /** Encounters' workspace pages (domain/encounters encounterListChoice): the page and its size. */
+  epage?: string;
+  eper?: string;
   /** Match History's own Refine choices (domain/history-refine readRefine). */
   result?: string;
   patch?: string;
@@ -150,8 +153,18 @@ async function ProfileEncountersBody({ db, header, session, basePath, search }: 
   const seasons = offeredSeasons(seasonNow, bySeason.map((r) => r.season));
   const season = chooseSeason(search.season, seasons, seasonNow);
   const mode = isSeasonMode(search.mode) ? search.mode : "all";
-  const choice = encounterListChoice(search);
-  const page = await loadEncounterPage(db, { accountIds: accountId ? [accountId] : ids, season, mode }, choice);
+  // The workspace's page size: the address's, else the list's cookie (its last row budget, for the first paint; the flow,
+  // which shows the first 25 and Show more, drops it once it knows: EncountersView).
+  const jar = await cookies();
+  const asked = encounterListChoice(search);
+  const kept = asked.per === null && !search.limit ? readListPer(jar.get(LIST_PER_COOKIES.encounters)?.value) : null;
+  const sized = kept ? { ...asked, per: kept } : asked;
+  const scopeOf = { accountIds: accountId ? [accountId] : ids, season, mode };
+  let page = await loadEncounterPage(db, scopeOf, sized);
+  // A page past the list's end (an old address, a list that shrank): its last page.
+  const last = sized.per ? Math.max(1, Math.ceil(page.total / sized.per)) : 1;
+  const choice = sized.per && sized.page > last ? { ...sized, page: last } : sized;
+  if (choice !== sized) page = await loadEncounterPage(db, scopeOf, choice);
   const data: EncountersData = {
     filter: { season, mode, role: null, scope: "all", championId: null, accountId },
     seasons,
@@ -161,6 +174,8 @@ async function ProfileEncountersBody({ db, header, session, basePath, search }: 
     modes: modeCounts(bySeason, { season, mode, account: !!accountId }),
     choice,
     page,
+    perFrom: asked.per !== null ? "address" : kept ? "cookie" : "default",
+    cap: rowsPerPageCap(jar),
   };
   // The games list's status and Refresh: the players met come from the same games.
   return <EncountersView data={data} basePath={`${basePath}/matches`} status={gamesStatus(accounts, sync)} refresh={refreshFor(session, player.id, sync)} />;

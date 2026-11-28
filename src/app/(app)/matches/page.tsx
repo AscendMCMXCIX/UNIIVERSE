@@ -20,6 +20,11 @@ import { PlayedTogetherView, TOGETHER_QUEUES, type TogetherFilters, type Togethe
 import { encountersRedirect } from "@/lib/nav";
 import { teamFreshness } from "@/server/ops/freshness";
 import { FreshnessWatcher } from "@/components/ui/freshness-watcher";
+import { cookies } from "next/headers";
+import { LIST_PER_COOKIES, LIST_PER_MAX, readListPer } from "@/lib/list-per";
+import { rowsPerPageCap } from "@/server/demo/test-hooks";
+import { WS_COLUMN } from "@/components/ui/workspace-column";
+import { togetherEntry } from "@/domain/played-together";
 
 export const dynamic = "force-dynamic";
 
@@ -116,7 +121,14 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
   // "Played with": every chosen member on the same side (?with=a,b; the older ?player=a still works).
   const chosen = [...new Set([...str(sp.with).split(","), str(sp.player)].map((id) => id.trim()).filter((id) => id && data.players[id]))];
   const limit = Math.min(500, Math.max(20, Number(str(sp.limit)) || 20));
-  const filters: TogetherFilters = { season, queue, min, with: chosen, limit, saved };
+  // The one-screen workspace's pages (docs/RESPONSIVE.md, "One-screen desktop pages", Team Matches): `per` games a page, its
+  // row budget, from the address, else the list's cookie (its last budget, for the first paint); the flow, which shows the
+  // first `limit` and Show more, drops it once it knows (TogetherWorkspace).
+  const jar = await cookies();
+  const askedPer = Math.round(Number(str(sp.per)));
+  const keptPer = askedPer >= 1 || str(sp.limit) ? null : readListPer(jar.get(LIST_PER_COOKIES.together)?.value);
+  const per = askedPer >= 1 ? Math.min(LIST_PER_MAX, askedPer) : keptPer;
+  const filters: TogetherFilters = { season, queue, min, with: chosen, limit, saved, per, page: 1 };
 
   // Bookmarks: games played together (any member who sees them) and members' own shared games.
   const markOf = new Map(bookmarks.map((b) => [b.riotMatchId.toUpperCase(), b]));
@@ -151,7 +163,8 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
   const all = filterTogether(pool, { season, queues: TOGETHER_QUEUES[queue]!.queues, minMembers: saved ? 1 : min, playerIds: chosen });
   const summary = chosen.length ? summariseTogether(all, chosen) : null;
   const href = (change: Partial<TogetherFilters>) => {
-    const n = { ...filters, ...change };
+    // Another choice starts again at the list's first page (the workspace's page size kept).
+    const n = { ...filters, page: 1, ...change };
     const q = new URLSearchParams();
     if (n.season !== current) q.set("season", String(n.season));
     if (n.saved) q.set("saved", "1");
@@ -159,6 +172,10 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
     if (n.min !== 2 && !n.saved) q.set("min", String(n.min));
     if (n.with.length) q.set("with", n.with.join(","));
     if (n.limit !== 20) q.set("limit", String(n.limit));
+    if (n.per) {
+      q.set("per", String(n.per));
+      if (n.page > 1) q.set("page", String(n.page));
+    }
     const query = q.toString();
     return query ? `/matches?${query}` : "/matches";
   };
@@ -173,13 +190,19 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
   // Both teams of the games on screen only, one composition per listed side (a game with members
   // on both sides is listed once per side, each marking its own): server/matches/compositions. And
   // each member's performance score and place, each shown game scored once: server/matches/together-scores.
-  const shown = all.slice(0, limit);
+  const pages = per ? Math.max(1, Math.ceil(all.length / per)) : 1;
+  filters.page = per ? Math.min(pages, Math.max(1, Math.round(Number(str(sp.page))) || 1)) : 1;
+  const offset = per ? (filters.page - 1) * per : 0;
+  const shown = per ? all.slice(offset, offset + per) : all.slice(0, limit);
+  // The games either side of the page (the game window's Previous and Next go on across the pages).
+  const neighbour = (g: TogetherListGame | undefined) => (g ? { entry: togetherEntry(g.matchId, g.teamId), matchId: g.matchId, playerId: g.members[0]!.playerId, said: `${g.win === null ? "Game" : g.win ? "Victory" : "Defeat"} on ${champions.find((c) => c.id === g.members[0]!.championId)?.name ?? g.members[0]!.championId}` } : null);
+  const paging = { per, page: filters.page, pages, offset, perFrom: askedPer >= 1 ? ("address" as const) : keptPer ? ("cookie" as const) : ("default" as const), cap: rowsPerPageCap(jar), before: per ? neighbour(all[offset - 1]) : null, after: per ? neighbour(all[offset + per]) : null };
   const [teams, scores] = await Promise.all([togetherCompositions(db, teamId, shown, session.playerId ?? null), togetherScores(db, teamId, shown)]);
   const wins = all.filter((g) => g.win).length;
   const decided = all.filter((g) => g.win !== null).length;
   return (
     // Team's one width (SECTION_HUBS), centred as every page is, so its tabs line up with each of its sections at every window size.
-    <div className="mx-auto max-w-[var(--content-wide)] space-y-4">
+    <div className={`mx-auto max-w-[var(--content-wide)] space-y-4 ${WS_COLUMN}`}>
       <FreshnessWatcher scope={{ kind: "team" }} version={version} />
       <PageHeader
         sectionNamed
@@ -194,7 +217,7 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
           />
         }
       />
-      <PlayedTogetherView data={data} seasons={seasons} currentSeason={current} shown={shown} teams={teams} scores={scores} total={all.length} filters={filters} summary={summary} savedCount={savedCount} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} href={href} elsewhere={elsewhere} />
+      <PlayedTogetherView data={data} seasons={seasons} currentSeason={current} shown={shown} teams={teams} scores={scores} total={all.length} filters={filters} summary={summary} savedCount={savedCount} champions={Object.fromEntries(champions.map((c) => [c.id, { id: c.id, name: c.name, portraitUrl: c.portraitUrl }]))} href={href} elsewhere={elsewhere} paging={paging} />
     </div>
   );
 }
