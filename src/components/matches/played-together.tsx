@@ -17,7 +17,7 @@ import { CardAvatar } from "@/components/players/card-look";
 import { RoleIcon } from "@/components/role-icon";
 import { formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
-import { TogetherCardFrame, TogetherList } from "./together-details";
+import { TogetherCardFrame, TogetherList, TogetherPager, TogetherWorkspace, type TogetherPaging } from "./together-details";
 import { BookmarkButton } from "./bookmark-button";
 import { LinkSelect, MemberPicker } from "./match-filters";
 import { MatchRail, MatchResult, matchCardClass } from "@/components/match-history/match-card";
@@ -53,6 +53,9 @@ export interface TogetherFilters {
   limit: number;
   /** Only the team's bookmarked games (and games members shared). */
   saved: boolean;
+  /** The one-screen workspace's page size (its row budget) and page; null `per` in the flow (the first `limit` and Show more). */
+  per: number | null;
+  page: number;
 }
 
 /** A listed game with its bookmark state (and, for a member's own game, who shared it). */
@@ -75,7 +78,7 @@ const filterSummary = (f: TogetherFilters, names: string[]) =>
  * is the page header's scope line, and the rule of what "played together" proves, with any games
  * left out, is behind its (i).
  */
-export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams = {}, scores = {}, total, filters, champions, href, summary, savedCount, elsewhere = [] }: { data: PlayedTogether; seasons: number[]; currentSeason: number; shown: TogetherListGame[]; /** Both teams of each shown game (by match id), when its full record is stored. */ teams?: Record<string, Composition | null>; /** Each member's performance score and place, by listed entry and member (server/matches/together-scores). */ scores?: Record<string, Record<string, CardPerformance>>; total: number; filters: TogetherFilters; champions: Record<string, PortraitChampion>; href: (change: Partial<TogetherFilters>) => string; summary: TogetherSummary | null; savedCount: number; elsewhere?: Array<{ season: number; games: number }> }) {
+export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams = {}, scores = {}, total, filters, champions, href, summary, savedCount, elsewhere = [], paging = FLOW_PAGING }: { /** The one-screen workspace's pages (together-details.tsx, TogetherWorkspace). */ paging?: TogetherPaging; data: PlayedTogether; seasons: number[]; currentSeason: number; shown: TogetherListGame[]; /** Both teams of each shown game (by match id), when its full record is stored. */ teams?: Record<string, Composition | null>; /** Each member's performance score and place, by listed entry and member (server/matches/together-scores). */ scores?: Record<string, Record<string, CardPerformance>>; total: number; filters: TogetherFilters; champions: Record<string, PortraitChampion>; href: (change: Partial<TogetherFilters>) => string; summary: TogetherSummary | null; savedCount: number; elsewhere?: Array<{ season: number; games: number }> }) {
   const p = (id: string) => data.players[id];
   const champ = (id: string) => champions[id] ?? { id, name: id, portraitUrl: "" };
   const narrowed = (filters.season !== currentSeason ? 1 : 0) + (filters.queue !== "all" ? 1 : 0) + (!filters.saved && filters.min !== 2 ? 1 : 0) + (filters.with.length ? 1 : 0);
@@ -85,7 +88,7 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
     // same margin either side of the room beside the sidebar, open or folded (the owner's review of
     // 25 Nov 2026: at 80rem, left-aligned, the list ended far short of its tabs at 1920 folded, 2560
     // and 3440). docs/STANDARDS.md, Page layout.
-    <div className="space-y-4" data-testid="played-together">
+    <TogetherWorkspace paging={paging} total={total} listKey={href({ per: null })} ids={shown.map((g) => g.matchId)}>
       {/* From md, once the filters have scrolled away: Filters and Bookmarked at the pinned tabs' end (ui/page-toolbar.tsx). */}
       <PageToolbar label="Matches controls" land="[data-testid=together-card]">
         <FiltersControl />
@@ -140,6 +143,8 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
             </FilterField>
           )}
         </FilterBar>
+        {/* The workspace's pager: on this row, before Bookmarked (TogetherPager draws nothing elsewhere). */}
+        <TogetherPager />
         <Link href={href({ saved: !filters.saved, limit: 20 })} replace aria-current={filters.saved ? "page" : undefined} className={chipClass(filters.saved, "max-md:hidden")} data-testid="together-saved">
           <Bookmark className="h-3.5 w-3.5" aria-hidden /> Bookmarked{savedCount ? ` · ${savedCount}` : ""}
         </Link>
@@ -171,20 +176,24 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
           )}
         </EmptyState>
       ) : (
-        <TogetherList total={total} entries={shown.map((g) => ({ entry: togetherEntry(g.matchId, g.teamId), matchId: g.matchId, playerId: g.members[0]!.playerId, said: `${g.win === null ? "Game" : g.win ? "Victory" : "Defeat"} on ${champions[g.members[0]!.championId]?.name ?? g.members[0]!.championId}` }))} championsById={champions} className="@container/tm space-y-2.5">
+        <TogetherList total={total} offset={paging.per ? paging.offset : 0} entries={shown.map((g) => ({ entry: togetherEntry(g.matchId, g.teamId), matchId: g.matchId, playerId: g.members[0]!.playerId, said: `${g.win === null ? "Game" : g.win ? "Victory" : "Defeat"} on ${champions[g.members[0]!.championId]?.name ?? g.members[0]!.championId}` }))} championsById={champions} className="@container/tm space-y-2.5">
           {shown.map((g) => (
             <TogetherCard key={togetherEntry(g.matchId, g.teamId)} g={g} p={p} champions={champions} teams={teams[togetherEntry(g.matchId, g.teamId)] ?? teams[g.matchId] ?? null} scores={scores[togetherEntry(g.matchId, g.teamId)] ?? {}} />
           ))}
         </TogetherList>
       )}
-      {shown.length < total ? (
-        <Link href={href({ limit: filters.limit + 20 })} replace scroll={false} className="block rounded-panel border border-border py-2.5 text-center text-sm text-fg-muted hover:border-border-strong hover:text-fg" data-testid="together-more">
+      {/* The flow's Show more (the workspace pages the list instead). */}
+      {!paging.per && shown.length < total ? (
+        <Link href={href({ limit: filters.limit + 20 })} replace scroll={false} className="block rounded-panel border border-border py-2.5 text-center text-sm text-fg-muted hover:border-border-strong hover:text-fg ws:hidden" data-testid="together-more">
           Show more ({total - shown.length} more)
         </Link>
       ) : null}
-    </div>
+    </TogetherWorkspace>
   );
 }
+
+/** No workspace pages (the flow's, and a caller that draws none). */
+const FLOW_PAGING: TogetherPaging = { per: null, page: 1, pages: 1, offset: 0, perFrom: "address", cap: null, before: null, after: null };
 
 /**
  * How the chosen members do together: their record (with the sample size always visible), average
@@ -201,8 +210,10 @@ function TogetherSummaryPanel({ summary: s, players, champ }: { summary: Togethe
     </div>
   );
   return (
-    <section aria-labelledby="together-summary-title" className="space-y-3 rounded-card border border-accent/40 bg-surface p-3.5" data-testid="together-summary">
-      <h2 id="together-summary-title" className="text-sm font-semibold text-fg">
+    // In the one-screen workspace the panel is one band (about 120px where it was 200–260): the four tiles under the title,
+    // what each member played most and the combinations beside them, so the list keeps its room (docs/PLAYED_TOGETHER.md).
+    <section aria-labelledby="together-summary-title" className="space-y-3 rounded-card border border-accent/40 bg-surface p-3.5 ws:grid ws:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] ws:items-start ws:gap-x-5 ws:gap-y-2 ws:space-y-0" data-testid="together-summary">
+      <h2 id="together-summary-title" className="text-sm font-semibold text-fg ws:col-span-full">
         {names.length === 1 ? `${names[0]} with any teammate` : `${names.slice(0, -1).join(", ")} and ${names.at(-1)} on the same team`}
       </h2>
       <dl className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">

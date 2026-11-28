@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "./test";
 import { createMember } from "./member-account";
-import { cardOf, closeGame, expandedOf, openGame, opensFullScreen } from "./match-history";
+import { cardOf, closeGame, expandedOf, openGame, opensFullScreen, inTheFlow, opensInWindow } from "./match-history";
 import { NARROW_MOUSE_WINDOWS, expectInReach } from "./reach";
 
 /*
@@ -42,6 +42,8 @@ test.beforeEach(async ({ context, baseURL }) => {
 
 test("a game opens under its card and closes from it, one at a time; a link to a game not on the page opens the shared window", async ({ page }) => {
   test.skip(opensFullScreen(page), "phones open every game as a whole screen: e2e/mobile-nav.spec.ts");
+  // Under its card: the flow (a desktop window in the one-screen gate opens every game in the game window: e2e/matches-workspace.spec.ts).
+  await inTheFlow(page);
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/matches`);
@@ -253,8 +255,8 @@ test("a game opened again shows what this page already loaded", async ({ page })
   // The record and the possible groups come from what the page kept. (A rank check that came back
   // incomplete, skipped or failed, is asked again by design: match-detail-cache.tsx.)
   expect(actions.slice(before).filter((a) => a === record || a === timeline || a === groups)).toEqual([]);
-  // Under its card the card keeps the focus; a phone's whole-screen game gives it back on closing.
-  if (opensFullScreen(page)) await closeGame(card);
+  // Under its card the card keeps the focus; a phone's whole-screen game and the workspace's game window give it back on closing.
+  if (await opensInWindow(page)) await closeGame(card);
   await expect(card.getByTestId("match-row")).toBeFocused();
 });
 

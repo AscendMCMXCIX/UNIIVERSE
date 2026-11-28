@@ -1,5 +1,7 @@
 /** Types for scripts/post-game-facts.mjs (the live check is plain JavaScript run by node). */
 export interface PostGameRead {
+  /** Under its card (the flow), or in the one-screen workspace's game window. */
+  where?: "card" | "window";
   open: boolean;
   result?: string;
   itemSlots?: number;
@@ -34,6 +36,7 @@ export interface InspectionRead {
   back?: boolean;
 }
 export interface FitRead {
+  where?: "card" | "window";
   open: boolean;
   size?: string;
   height?: number;

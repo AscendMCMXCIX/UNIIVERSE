@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "./test";
 import { widenText } from "./wide-text";
-import { closeGame, opensFullScreen, openGame, pastGameHeader, showGamePage } from "./match-history";
+import { closeGame, opensFullScreen, openGame, pastGameHeader, showGamePage, inTheFlow } from "./match-history";
 import { NARROW_MOUSE_WINDOWS, expectInReach } from "./reach";
 import { AxeBuilder } from "@axe-core/playwright";
 
@@ -67,9 +67,17 @@ async function insideFaults(breakdown: Locator): Promise<string[]> {
 
 /** The open card and its game against the window: its height from the card's top to the game's end, and the room under what is pinned above the page. */
 const openedFit = (page: Page) =>
-  page.locator("li[data-expanded]").evaluate((li) => {
-    const top = li.querySelector("[data-testid=match-card]")!.getBoundingClientRect().top;
-    const height = Math.round(li.querySelector("[data-testid=match-expanded]")!.getBoundingClientRect().bottom - top);
+  page.locator("li[data-expanded], dialog[open][data-testid=match-detail][data-size=workspace]").first().evaluate((open) => {
+    // In the one-screen workspace (a desktop window in the gate) the game opens in the game window: the window's top to the
+    // view's end, against the window less its room's bottom padding (docs/RESPONSIVE.md, "One-screen desktop pages").
+    if (open.tagName === "DIALOG") {
+      const box = open.getBoundingClientRect();
+      const view = open.querySelector("[data-testid=match-breakdown]")!;
+      const room = view.parentElement!.parentElement!;
+      return { height: Math.round(view.getBoundingClientRect().bottom - box.top), room: Math.floor(Math.min(innerHeight, box.bottom) - box.top - (parseFloat(getComputedStyle(room).paddingBottom) || 0)) };
+    }
+    const top = open.querySelector("[data-testid=match-card]")!.getBoundingClientRect().top;
+    const height = Math.round(open.querySelector("[data-testid=match-expanded]")!.getBoundingClientRect().bottom - top);
     const pinned = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
     return { height, room: Math.floor(innerHeight - pinned) };
   });
@@ -180,6 +188,8 @@ test("the other figures are ordered by role: a support's utility first, a jungle
 
 test("the footer's Previous, Next and Close exist only where the game is taller than the screen, and then show only once the card's have gone up", async ({ page }) => {
   test.skip(opensFullScreen(page), "phones open the game as a window, with one bar of steps");
+  // Under its card: the flow (a desktop window in the one-screen gate opens its games in the game window).
+  await inTheFlow(page);
   await openHistory(page, "TOP");
   await openGame(page.getByTestId("match-card").nth(1));
   const header = page.locator("li[data-expanded] [data-game-step][data-where=header]");
@@ -313,6 +323,8 @@ test("a game with a timeline reads its lane at 10:00 and 15:00, says nothing mis
 
 test("Previous and Next keep the open game's header in place; Escape closes and Back closes after three Nexts", async ({ page }) => {
   test.skip(opensFullScreen(page), "phones open the window (mobile-nav covers it)");
+  // Under its card: the flow (in the one-screen gate the game window steps and closes: e2e/matches-workspace.spec.ts).
+  await inTheFlow(page);
   await openHistory(page, "TOP");
   const cards = page.getByTestId("match-card");
   await settled(await openGame(cards.nth(1)));
@@ -748,7 +760,10 @@ test("desktop with motion on: a game opened from a card in the upper half of the
   test.skip(info.project.name !== "desktop", "the desktop's one-screen post-game view");
   test.setTimeout(180_000);
   await page.emulateMedia({ reducedMotion: "no-preference" });
-  for (const size of [{ width: 1280, height: 720 }, { width: 1440, height: 900 }, { width: 1920, height: 1080 }, { width: 2560, height: 1440 }]) {
+  // Desktop windows of the flow (just under the one-screen gate's 80rem: in the gate a game opens in the game window, which
+  // never moves the page: e2e/matches-workspace.spec.ts), from a laptop's height to a monitor's (a taller window's ten cards
+  // leave the page too little scroll to place a card at half its height).
+  for (const size of [{ width: 1279, height: 720 }, { width: 1279, height: 900 }, { width: 1279, height: 1080 }]) {
     await page.setViewportSize(size);
     await openHistory(page, "MID");
     // A card whose top can sit at about half the screen's height (the upper 55% is left where it is

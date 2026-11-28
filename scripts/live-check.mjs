@@ -122,10 +122,13 @@
     broken site icon. No site's own icon is asked for: once any route is installed (the vitals
     route, and the Library's own below), Playwright itself aborts every request for /favicon.ico,
     unreported, so every row shows its stand-in. Counts only.
-  - games (#178): Team Matches opens a game under its card (no window), with ?match= in the address;
-    Match History's post-game view (S6) has no tabs, fits one screen with its card at 1440×900 and 1280×720 with nothing inside it scrolling, keeps
-    the open header in place on Next and closes on Back; a phone's window has Previous and Next, Next
-    replacing the address;
+  - games (#178): on the tablet Team Matches opens a game under its card (no window), with ?match= in the address;
+    Match History's post-game view (S6) has no tabs, and on the tablet keeps the open header in place on Next and
+    closes on Back; a phone's window has Previous and Next, Next replacing the address; on the desktop (1440×900, the
+    one-screen gate, since 28 Nov 2026) both pages are workspace pages that do not scroll, nothing in them scrolling,
+    their pages holding every row, and every game opens in the workspace's game window over the list (the window
+    inside the screen and the game within it, at 1440×900 and 1280×720, nothing inside scrolling; Next replacing the
+    address; a copied link opening it; Back closing it);
     on the tablet and the desktop a game with 4 or more members lists them in two columns;
     a copied link opens it; Back returns to it; the keyboard toggles it; "Close this game" closes it
     and keeps the focus on the card. Match History opens games under their cards; at 1440 the
@@ -191,7 +194,7 @@ import { fitVerdicts, postGameVerdicts, readFit, readInspection, readPostGame, s
 import { championPreviewVerdicts, firstWithGames, readChampionPreview, readChampionRows, targetRow } from "./champion-preview-facts.mjs";
 import { breakdownKeyboardVerdicts, breakdownVerdicts, MULTIKILL_ROLE_LABEL, multikillVerdicts, readBreakdownFocus, readMultikillBoard, readMultikillBreakdown } from "./multikill-facts.mjs";
 import { cardScoreVerdicts, firstScored, readCardScores, readOpenedScore, readTogetherScores, togetherScoreVerdicts } from "./card-score-facts.mjs";
-import { oneScreenInput, oneScreenVerdicts, readOneScreen } from "./one-screen-facts.mjs";
+import { oneScreenInput, oneScreenVerdicts, readOneScreen, workspaceRegionVerdicts } from "./one-screen-facts.mjs";
 import { readPage, readWorkspace, walkSummary, workspaceVerdicts } from "./all-champions-workspace-facts.mjs";
 import { TABLE_FIGURES, readTableFigures, readTypeFacts, tableFigureVerdicts, typeVerdicts } from "./type-facts.mjs";
 import { execFileSync } from "node:child_process";
@@ -2005,6 +2008,79 @@ async function phoneGame(page, kind, name, slug, open) {
 }
 
 /**
+ * A page in the one-screen workspace (docs/RESPONSIVE.md, "One-screen desktop pages"; a desktop window in the gate,
+ * as the check's 1440 × 900 is), read where the check already has it loaded (no page load of its own): the page carries
+ * data-workspace, does not scroll, nothing in its main scrolls, and every paged region's pages hold every row
+ * (pages = ceil(total / per)). Counts and px only.
+ */
+async function workspacePageFacts(page, kind, name) {
+  // The lists first write their row budget (a server render: a fresh context has no page-size cookie), and draw their page
+  // size once the page of that size has arrived: read once every drawn list has (e2e/workspace.ts waits the same way). One
+  // that never does is its own fact below (workspaceRegionVerdicts), not pages worked out from a missing figure.
+  await page
+    .waitForFunction(() => {
+      const drawn = [...document.querySelectorAll("[data-ws-region]")].filter((el) => el.getBoundingClientRect().height > 0);
+      return drawn.length > 0 && drawn.every((el) => el.dataset.per && el.dataset.pages);
+    }, null, { timeout: 15_000 })
+    .catch(() => {});
+  const at = await page.evaluate(() => {
+    const content = document.getElementById("content");
+    const scrollers = content ? [...content.querySelectorAll("*")].filter((el) => {
+      if (el.closest("dialog")) return false;
+      const s = getComputedStyle(el);
+      return (/(auto|scroll)/.test(s.overflowY) && el.scrollHeight > el.clientHeight + 1) || (/(auto|scroll)/.test(s.overflowX) && el.scrollWidth > el.clientWidth + 1);
+    }).length : -1;
+    const regions = [...document.querySelectorAll("[data-ws-region]")].filter((el) => el.getBoundingClientRect().height > 0).map((el) => ({ region: el.dataset.wsRegion ?? "", per: Number(el.dataset.per), page: Number(el.dataset.page), pages: Number(el.dataset.pages), total: Number(el.dataset.total) }));
+    return { workspace: !!document.querySelector("[data-workspace]"), height: document.documentElement.scrollHeight, window: innerHeight, scrollers, regions };
+  });
+  pass("workspace", `${kind}: ${name} is a workspace page that does not scroll (${at.height}px of ${at.window}), nothing in it scrolling`, at.workspace && at.height <= at.window && at.scrollers === 0, at);
+  for (const v of workspaceRegionVerdicts({ kind, name, regions: at.regions })) check("workspace", v.name, v.status, v.detail);
+}
+
+/**
+ * A desktop window in the one-screen gate opens every game of Match History and Team Matches in the workspace's game
+ * window over the list (MatchDetailModal's workspace mode: the match window's width, the workspace's height), not under
+ * its card: in the address, nothing under the card, the window inside the screen and the game within it (readFit, at
+ * the size it is in), a copied link opening it again, Next replacing the address, Back closing it.
+ */
+async function workspaceGame(page, kind, name, slug, open, context) {
+  await workspacePageFacts(page, kind, name);
+  await open();
+  const win = page.locator("dialog[open][data-testid=match-detail]");
+  const shown = await softWait(win.getByTestId("match-breakdown").first(), { timeout: 30_000 });
+  const size = shown ? await win.evaluate((d) => ({ size: d.dataset.size, width: d.dataset.width })) : null;
+  pass("games", `${kind}: ${name} opens a game in the workspace's game window over the list`, shown && size?.size === "workspace" && size?.width === "game", size);
+  pass("games", `${kind}: ${name} opens nothing under the card`, (await page.getByTestId("match-expanded").count()) === 0, await page.getByTestId("match-expanded").count());
+  const address = page.url();
+  pass("games", `${kind}: ${name}: the open game is in the address (?match=)`, /[?&]match=/.test(address), address.replace(base, ""));
+  if (shown) {
+    await page.waitForFunction(() => document.querySelector("dialog[open] [data-testid=match-breakdown]")?.getAttribute("data-timeline") !== "loading", null, { timeout: 20_000 }).catch(() => undefined);
+    for (const v of fitVerdicts({ kind, at: await page.evaluate(readFit) })) check("games", v.name, v.status, v.detail);
+    await shot(page, `${kind}-${slug}-open`);
+    await axe(page, kind, `${slug}-game-open`, "[data-testid=match-detail]");
+    const next = win.getByTestId("match-detail-next");
+    if ((await next.count()) && (await next.isEnabled())) {
+      const before = page.url();
+      const length = await page.evaluate(() => history.length);
+      await next.click();
+      const moved = await page.waitForFunction((b) => location.href !== b, before, { timeout: 10_000 }).then(() => true, () => false);
+      pass("games", `${kind}: ${name}: Next shows the next game in the window, the address replaced (no new entry)`, moved && (await page.evaluate(() => history.length)) === length, { moved, length });
+    }
+  }
+  if (context) {
+    const copy = await context.newPage();
+    await copy.goto(address, { waitUntil: "domcontentloaded" });
+    await settle(copy);
+    const linked = await softWait(copy.locator("dialog[open][data-testid=match-detail] [data-testid=match-breakdown]").first(), { timeout: 15_000 });
+    pass("games", `${kind}: a copied ?match= link opens that game in the game window`, linked);
+    await copy.close();
+  }
+  await page.goBack();
+  const closed = await softWait(win, { state: "detached", timeout: 15_000 });
+  pass("games", `${kind}: Back closes the game and returns to ${name}`, closed && !/[?&]match=/.test(page.url()), page.url().replace(base, ""));
+}
+
+/**
  * The Players roster (the roster board, Nov 2026; docs/MOBILE.md and e2e/players-directory.spec.ts),
  * read from the page as it stands, whatever the real roster holds. Each row is one profile link (the
  * row's own, `data-row-link`; its social icons link elsewhere) and the rows number what the scope line
@@ -2279,6 +2355,9 @@ async function teamMatches(page, log, kind, context) {
   });
   if (!four) pass("games", `${kind}: a Team Matches game with 4 members shows them in two columns`, true, "not applicable: no game with 4 or more members is listed");
   else pass("games", `${kind}: a Team Matches game with 4 members shows them in two columns`, four.columns === 2, four);
+  // A desktop window in the one-screen gate (1440 × 900): the page fits the window, and every game opens in the
+  // workspace's game window over the list (docs/RESPONSIVE.md, "One-screen desktop pages", since 28 Nov 2026).
+  if (kind === "desktop") return workspaceGame(page, kind, "Team Matches", "team-matches", () => game.getByTestId("together-card").click({ position: { x: 24, y: 12 } }), context);
   const toggle = game.getByTestId("together-open");
   await game.getByTestId("together-card").click({ position: { x: 24, y: 12 } });
   await page.waitForFunction(() => document.querySelector("[data-testid=together-open][aria-expanded=true]"), null, { timeout: 10_000 }).catch(() => {});
@@ -2530,15 +2609,24 @@ async function matchHistory(page, log, kind, playerId) {
     await phoneGame(page, kind, "Match History", "match-history", () => card.click({ position: { x: 24, y: 16 } }));
   }
   else {
+    // A desktop window in the one-screen gate (1440 × 900): the page fits the window and the game opens in the workspace's
+    // game window over the list (docs/RESPONSIVE.md, "One-screen desktop pages"); a tablet opens it under its card.
+    const workspace = kind === "desktop";
+    const OPEN = workspace ? "dialog[open][data-testid=match-detail]" : "li[data-expanded]";
+    if (workspace) await workspacePageFacts(page, kind, "Match History");
     await card.click({ position: { x: 24, y: 16 } });
-    const opened = await softWait(page.getByTestId("match-expanded").getByTestId("match-breakdown").first(), { timeout: 30_000 });
-    pass("games", `${kind}: Match History opens a game under its card`, opened);
+    const opened = await softWait((workspace ? page.locator(OPEN) : page.getByTestId("match-expanded")).getByTestId("match-breakdown").first(), { timeout: 30_000 });
+    if (workspace) {
+      const size = opened ? await page.locator(OPEN).evaluate((d) => ({ size: d.dataset.size, width: d.dataset.width })) : null;
+      pass("games", `${kind}: Match History opens a game in the workspace's game window, nothing under its card`, opened && size?.size === "workspace" && size?.width === "game" && (await page.getByTestId("match-expanded").count()) === 0, size);
+    } else pass("games", `${kind}: Match History opens a game under its card`, opened);
     await shot(page, `${kind}-match-history-open`);
-    if (kind !== "tablet") await axe(page, kind, "match-history-game-open");
-    // The post-game view (S6): no tabs; at 1440×900 the card and its game take one screen; Next keeps
-    // the open game's header where it was (±2px) and replaces the address; Back closes the game.
+    if (kind !== "tablet") await axe(page, kind, "match-history-game-open", workspace ? "[data-testid=match-detail]" : undefined);
+    // The post-game view (S6): no tabs; at 1440×900 the game takes one screen (in the workspace's window, or the card and its
+    // game under the pinned bars); Next replaces the address (under a card it keeps the open game's header where it was,
+    // ±2px); Back closes the game.
     if (opened) {
-      const open = page.locator("li[data-expanded]");
+      const open = page.locator(OPEN);
       pass("games", `${kind}: the open game has no tabs`, (await open.locator("[role=tab]").count()) === 0, await open.locator("[role=tab]").count());
       if (kind === "desktop") {
         // Read once settled (the timeline, the ranks and the groups answered, nothing transitioning):
@@ -2546,13 +2634,13 @@ async function matchHistory(page, log, kind, playerId) {
         // reading while those answers re-render the rows can see a frame before their sizes apply,
         // each scoreboard row 6px taller (e2e/match-breakdown.spec.ts).
         await page
-          .waitForFunction(() => {
-            const open = document.querySelector("li[data-expanded] [data-testid=match-expanded]");
+          .waitForFunction((sel) => {
+            const open = document.querySelector(sel);
             const bd = open?.querySelector("[data-testid=match-breakdown]");
             if (!open || !bd || bd.getAttribute("data-timeline") === "loading") return false;
             if (open.querySelector('[data-testid=ranks-note][data-state=checking], [data-testid=possible-groups-note][data-state=loading]')) return false;
             return open.getAnimations({ subtree: true }).length === 0;
-          }, null, { timeout: 20_000 })
+          }, workspace ? OPEN : "li[data-expanded] [data-testid=match-expanded]", { timeout: 20_000 })
           .catch(() => undefined);
         // The card and its open game against the window, and nothing inside it scrolling (the owner's
         // brief of 24 Nov 2026, §2; scripts/post-game-facts.mjs readFit): at 1440 × 900, then at
@@ -2561,7 +2649,7 @@ async function matchHistory(page, log, kind, playerId) {
         for (const v of fitVerdicts({ kind, at: await page.evaluate(readFit) })) check("games", v.name, v.status, v.detail);
         const full = page.viewportSize();
         await page.setViewportSize({ width: 1280, height: 720 });
-        await page.waitForFunction(() => document.querySelector("li[data-expanded] [data-testid=match-expanded]")?.getAnimations({ subtree: true }).length === 0, null, { timeout: 5_000 }).catch(() => undefined);
+        await page.waitForFunction((sel) => document.querySelector(sel)?.getAnimations({ subtree: true }).length === 0, workspace ? OPEN : "li[data-expanded] [data-testid=match-expanded]", { timeout: 5_000 }).catch(() => undefined);
         await page.waitForTimeout(300);
         for (const v of fitVerdicts({ kind, at: await page.evaluate(readFit) })) check("games", v.name, v.status, v.detail);
         await page.setViewportSize(full);
@@ -2569,7 +2657,7 @@ async function matchHistory(page, log, kind, playerId) {
         // The post-game view's content (PLAN §6 rows 5.2–5.8; scripts/post-game-facts.mjs), from the game
         // already open: no interaction of its own, read once its timeline has answered (the lane reads it).
         await guarded("games", `${kind}: the open game's post-game view`, async () => {
-          await page.waitForFunction(() => { const b = document.querySelector("li[data-expanded] [data-testid=match-breakdown]"); return !!b && b.getAttribute("data-timeline") !== "loading"; }, null, { timeout: 30_000 }).catch(() => {});
+          await page.waitForFunction((sel) => { const b = document.querySelector(`${sel} [data-testid=match-breakdown]`); return !!b && b.getAttribute("data-timeline") !== "loading"; }, OPEN, { timeout: 30_000 }).catch(() => {});
           const at = await page.evaluate(readPostGame);
           for (const v of postGameVerdicts({ kind, at })) check("games", v.name, v.status, v.detail);
         });
@@ -2579,7 +2667,7 @@ async function matchHistory(page, log, kind, playerId) {
           const before = await page.evaluate(readInspection);
           const other = open.locator("[data-testid=participant-select]:not([aria-current=true])").nth(4);
           await other.click();
-          await page.waitForFunction((s) => document.querySelector("li[data-expanded] [data-testid=match-breakdown]")?.getAttribute("data-selected") !== String(s), before.selected, { timeout: 5_000 }).catch(() => {});
+          await page.waitForFunction(([sel, s]) => document.querySelector(`${sel} [data-testid=match-breakdown]`)?.getAttribute("data-selected") !== String(s), [OPEN, before.selected], { timeout: 5_000 }).catch(() => {});
           const after = await page.evaluate(readInspection);
           await open.getByTestId("inspect-back").click().catch(() => {});
           await page.waitForTimeout(200);
@@ -2587,8 +2675,18 @@ async function matchHistory(page, log, kind, playerId) {
           for (const v of switchVerdicts({ kind, before, after, back })) check("games", v.name, v.status, v.detail);
         });
       }
+      if (workspace) {
+        const next = open.getByTestId("match-detail-next");
+        if ((await next.count()) && (await next.isEnabled())) {
+          const before = page.url();
+          const length = await page.evaluate(() => history.length);
+          await next.click();
+          const moved = await page.waitForFunction((b) => location.href !== b, before, { timeout: 10_000 }).then(() => true, () => false);
+          pass("games", `${kind}: Next shows the next game in the game window, the address replaced (no new entry)`, moved && (await page.evaluate(() => history.length)) === length, { moved, length });
+        }
+      }
       const next = open.getByTestId("game-header-next");
-      if (await next.isEnabled()) {
+      if (!workspace && (await next.isEnabled())) {
         // Once the opening's own scroll (a card low on the screen is brought up smoothly) has stopped.
         let y0 = (await open.getByTestId("match-card").boundingBox()).y;
         for (let i = 0; i < 20; i++) {
@@ -2605,7 +2703,7 @@ async function matchHistory(page, log, kind, playerId) {
         pass("games", `${kind}: Next keeps the open game's header in place (±2px)`, y1 !== null && Math.abs(y1 - y0) <= 2, { y0: Math.round(y0), y1: y1 === null ? null : Math.round(y1) });
       }
       await page.goBack();
-      const closed = await softWait(page.locator("li[data-expanded]"), { state: "detached", timeout: 10_000 });
+      const closed = await softWait(page.locator(OPEN), { state: "detached", timeout: 10_000 });
       pass("games", `${kind}: Back closes the open game and keeps Match History`, closed && !/[?&]match=/.test(page.url()) && /\/matches/.test(page.url()), page.url().replace(base, ""));
     }
   }

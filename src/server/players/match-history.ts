@@ -30,6 +30,7 @@ import { narrowsGames, patchOptions, readRefine, refineGames, sessionKeys, sessi
 import { historyMembers, memberGameCounts, memberPlacements } from "@/server/players/history-members";
 import { gameAudience, namesMembers, OWN_STATS_ONLY, type StatsFor } from "@/server/players/game-audience";
 import { isoDay } from "@/lib/format";
+import { pageHolding } from "@/lib/list-per";
 
 /*
   The personal match history: the Riot games already stored for a player's linked accounts (the
@@ -47,7 +48,13 @@ export const queueLabel = (q: number | null) => (q !== null && QUEUE_LABELS[q]) 
  * so arriving does not render the page a second time at another size.
  */
 export const PER_PAGE_DEFAULT = 10;
-export const PER_PAGE_MIN = 5;
+/**
+ * One game a page at the least (since 28 Nov 2026): in the one-screen workspace the page size is the
+ * row budget, the complete cards the window has room for, with no floor of ten (docs/RESPONSIVE.md,
+ * "One-screen desktop pages", server-paged lists). The list is sorted in memory and sliced, so a page
+ * of any size costs the same.
+ */
+export const PER_PAGE_MIN = 1;
 export const PER_PAGE_MAX = 25;
 
 export interface MatchHistoryQuery {
@@ -67,6 +74,14 @@ export interface MatchHistoryQuery {
    * Encounters (server/players/encounters loadEncounterDetail), in the same season, game mode and account.
    */
   onlyMatchIds?: ReadonlySet<string>;
+  /**
+   * The game the address opens (`?match=`): with no page asked (`page` undefined), the page holding it where the choices
+   * list it, so a link to a game opens with the list on its page and the game window's Previous, Next and place in the list
+   * with it (docs/RESPONSIVE.md, "One-screen desktop pages", Match History). Given only for the workspace's page sizes (from
+   * the address or the list's cookie: profile-matches-tab.tsx); the flow keeps its first page, where a link to a game on
+   * another page opens the match window.
+   */
+  openMatch?: string | null;
 }
 
 export interface Icon {
@@ -135,6 +150,12 @@ export interface MatchHistoryPage {
   page: number;
   pages: number;
   per: number;
+  /**
+   * The games either side of this page (the previous page's last, the next page's first), so the game
+   * window's Previous and Next go on across the pages (the workspace's game window): their match ids,
+   * null at the list's ends.
+   */
+  neighbours: { before: string | null; after: string | null };
   filter: StatsFilter;
   seasons: number[];
   currentSeason: number;
@@ -339,7 +360,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
   const sorted = [...games].sort((a, b) => b.gameCreation - a.gameCreation || a.matchId.localeCompare(b.matchId));
   const per = Math.min(PER_PAGE_MAX, Math.max(PER_PAGE_MIN, Math.round(q.per ?? PER_PAGE_DEFAULT)));
   const pages = Math.max(1, Math.ceil(sorted.length / per));
-  const page = Math.min(pages, Math.max(1, Math.round(q.page ?? 1)));
+  const page = Math.min(pages, Math.max(1, Math.round(q.page ?? pageHolding(sorted.map((g) => g.matchId), q.openMatch, per) ?? 1)));
   const slice = sorted.slice((page - 1) * per, page * per);
 
   // Champion choices: what was played this season in this mode (any role / account).
@@ -477,6 +498,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
     page,
     pages,
     per,
+    neighbours: { before: sorted[(page - 1) * per - 1]?.matchId ?? null, after: sorted[page * per]?.matchId ?? null },
     filter,
     seasons,
     currentSeason: seasonNow,

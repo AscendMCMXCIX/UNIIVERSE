@@ -1,4 +1,5 @@
 import { expect, test, type Locator, type Page } from "./test";
+import { inTheFlow } from "./match-history";
 import { pick } from "./select";
 
 /*
@@ -122,6 +123,8 @@ test("tablet and desktop: a profile section chosen far down the page starts at i
   test.skip(isPhone(page), "phones carry the sections in the top bar (their own test above)");
   await page.emulateMedia({ reducedMotion: "reduce" });
   const profile = await teammate(page);
+  // A desktop window under the one-screen gate (inTheFlow: 640px tall): Match History scrolls and its row pins in the flow only.
+  await inTheFlow(page);
   const tabs = page.getByTestId("profile-tabs");
   // Where a section starts from md: the profile card scrolled away and the tabs just pinned (at the
   // top bar's foot, or the window's edge beside the sidebar): their place in the page, less the
@@ -366,6 +369,8 @@ test("under a 1600px window Team's sections and their tabs fill the room togethe
 test("tablet and desktop: a profile's sections stay in reach, and All Champions' column headings pin under them, not behind them", async ({ page }) => {
   test.skip(isPhone(page), "phones show the sections in the top bar");
   const profile = await teammate(page);
+  // A desktop window under the one-screen gate (inTheFlow: 640px tall): Match History scrolls and its row pins in the flow only.
+  await inTheFlow(page);
   await page.goto(`${profile}/matches`);
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
   const tabs = page.getByTestId("profile-tabs");
@@ -447,6 +452,8 @@ const landedAt = (page: Page, first: string, tabs: string, under?: string) =>
 test("tablet and desktop: the pinned row offers the page's controls exactly once the page's filter bar has gone up under it, at the row's own height", async ({ page }) => {
   test.skip(isPhone(page), "phones offer Filters in the top bar (mobile-nav.spec.ts)");
   const profile = await teammate(page);
+  // A desktop window under the one-screen gate (inTheFlow: 640px tall): Match History scrolls and its row pins in the flow only.
+  await inTheFlow(page);
   await page.goto(`${profile}/matches`);
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
   const tabs = page.getByTestId("profile-tabs");
@@ -486,6 +493,8 @@ test("tablet and desktop: the pinned row offers the page's controls exactly once
 test("tablet and desktop: a control in the pinned row stays while it has the focus, and goes once the focus moves on", async ({ page }) => {
   test.skip(isPhone(page), "the pinned row is from md");
   const profile = await teammate(page);
+  // A desktop window under the one-screen gate (inTheFlow: 640px tall): Match History scrolls and its row pins in the flow only.
+  await inTheFlow(page);
   await page.goto(`${profile}/matches`);
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
   await scrollTo(page, "end");
@@ -526,6 +535,8 @@ test("tablet and desktop: from the end of Match History the pinned row's Filters
   test.skip(isPhone(page), "phones offer Filters in the top bar (mobile-nav.spec.ts)");
   await page.emulateMedia({ reducedMotion: "reduce" });
   const profile = await teammate(page);
+  // A desktop window under the one-screen gate (inTheFlow: 640px tall): Match History scrolls and its row pins in the flow only.
+  await inTheFlow(page);
   await page.goto(`${profile}/matches`);
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
   const header = page.getByTestId("match-history").getByTestId("section-toolbar");
@@ -584,6 +595,8 @@ test("tablet and desktop: the pinned state follows the row when the browser repo
     };
   });
   const profile = await teammate(page);
+  // A desktop window under the one-screen gate (inTheFlow: 640px tall): Match History scrolls and its row pins in the flow only.
+  await inTheFlow(page);
   await page.goto(`${profile}/matches`);
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
   const tabs = page.getByTestId("profile-tabs");
@@ -615,6 +628,8 @@ test("tablet and desktop: closed with Escape or Done, the sheet hands the focus 
   test.skip(isPhone(page), "phones: mobile-nav.spec.ts");
   await page.emulateMedia({ reducedMotion: "reduce" });
   const profile = await teammate(page);
+  // A desktop window under the one-screen gate (inTheFlow: 640px tall): Match History scrolls and its row pins in the flow only.
+  await inTheFlow(page);
   await page.goto(`${profile}/matches`);
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
   await scrollTo(page, "end");
@@ -645,6 +660,8 @@ test("tablet and desktop: a sheet closed after only a look moves nothing once th
   test.skip(isPhone(page), "the pinned row is from md");
   await page.emulateMedia({ reducedMotion: "reduce" });
   const profile = await teammate(page);
+  // A desktop window under the one-screen gate (inTheFlow: 640px tall): Match History scrolls and its row pins in the flow only.
+  await inTheFlow(page);
   await page.goto(`${profile}/matches`);
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
   await scrollTo(page, "end");
@@ -673,6 +690,8 @@ test("tablet and desktop: closing the sheet after a change brings the list's fir
   test.skip(isPhone(page), "phones: mobile-nav.spec.ts");
   await page.emulateMedia({ reducedMotion: "reduce" });
   const profile = await teammate(page);
+  // A desktop window under the one-screen gate (inTheFlow: 640px tall): Match History scrolls and its row pins in the flow only.
+  await inTheFlow(page);
   await page.goto(`${profile}/matches`);
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
   await scrollTo(page, "end");
@@ -1019,6 +1038,8 @@ test("tablet and desktop: Games → Encounters from the pinned row", async ({ pa
   // A view's copy in the pinned row is a link like the page's own (Match History's Games | Encounters; Leaderboards had the
   // other pair until it became one page): pressed far down the page, it opens that view, marked current in the page's row too.
   const profile = await teammate(page);
+  // A desktop window under the one-screen gate (inTheFlow: 640px tall): Match History scrolls and its row pins in the flow only.
+  await inTheFlow(page);
   await page.goto(`${profile}/matches`);
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
   await scrollTo(page, "end");

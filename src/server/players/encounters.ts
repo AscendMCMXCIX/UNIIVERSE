@@ -123,6 +123,9 @@ export interface EncounterListOptions {
   /** Part of a Riot ID (case-insensitive). */
   q: string;
   limit: number;
+  /** The one-screen workspace's page of `per` players (1-based) in place of the first `limit` (domain/encounters' choice). */
+  page?: number;
+  per?: number | null;
 }
 
 export interface EncounterPage {
@@ -131,7 +134,7 @@ export interface EncounterPage {
   /** Of those, the games whose other players are recorded (the rest cannot show anyone). */
   withPlayers: number;
   list: EncounterSummary[];
-  /** Players matching the list's choices (the list shows the first `limit`). */
+  /** Players matching the list's choices (the list shows the first `limit`, or the workspace's page of `per`). */
   total: number;
   /** Players each relation's list would hold with the same minimum, search and sort (the switches' counts). */
   counts: Record<EncounterRelation, number>;
@@ -180,7 +183,7 @@ export async function loadEncounterPage(db: Db, scope: EncounterScope, o: Encoun
         'withPlayers', (SELECT count(DISTINCT match_id) FROM met),
         'total', (SELECT count(*) FROM players WHERE ${shown}),
         'counts', json_build_array(${counted("against")}, ${counted("alongside")}, ${counted("all")}),
-        'list', (SELECT json_agg(s) FROM (SELECT ${SUMMARY_JSON} AS s FROM players WHERE ${shown} ORDER BY ${order} LIMIT ${o.limit}) page),
+        'list', (SELECT json_agg(s) FROM (SELECT ${SUMMARY_JSON} AS s FROM players WHERE ${shown} ORDER BY ${order} LIMIT ${o.per ?? o.limit} OFFSET ${o.per ? (Math.max(1, o.page ?? 1) - 1) * o.per : 0}) page),
         'insights', json_build_array(
           ${highlight(sql`og >= ${INSIGHT_MIN_GAMES.frequent}`, sql`og DESC`, sql`og`)},
           ${highlight(sql`ag >= ${INSIGHT_MIN_GAMES.frequent}`, sql`ag DESC`, sql`ag`)},

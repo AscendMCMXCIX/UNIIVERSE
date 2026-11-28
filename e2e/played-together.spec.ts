@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "./test";
 import { pick } from "./select";
-import { openTogether } from "./match-history";
+import { inTheFlow, openTogether } from "./match-history";
 import { closeFilterSheet, openFilterBar } from "./filters";
 import { demoSeasonLabel } from "./demo-season";
 
@@ -23,6 +23,9 @@ const CS_AND_DAMAGE = /^(\d+|—) CS( · \d+\.\dk dmg)?$/;
 
 test("Played together lists games with two or more members on one side, with honest labels and filters", async ({ page, request }) => {
   const season = await demoSeasonLabel(request);
+  // Under its card, and every listed game on one page: the flow (a desktop window in the one-screen gate pages the list and
+  // opens every game in the game window: e2e/matches-workspace.spec.ts).
+  await inTheFlow(page);
   // Played together is the whole page: Encounters are in each profile's Match History.
   await page.goto("/matches");
   await expect(page.getByTestId("matches-tabs")).toHaveCount(0);
@@ -101,6 +104,9 @@ test("Played together lists games with two or more members on one side, with hon
 });
 
 test("teammate combinations: choose members in the searchable picker, see only their shared games and how they do together", async ({ page }) => {
+  // Under its card, and every listed game on one page: the flow (a desktop window in the one-screen gate pages the list and
+  // opens every game in the game window: e2e/matches-workspace.spec.ts).
+  await inTheFlow(page);
   await page.goto("/matches");
   // Two members of the first game, chosen from the picker (search, then pick).
   const firstGame = page.getByTestId("together-game").first();
@@ -152,6 +158,9 @@ test("teammate combinations: choose members in the searchable picker, see only t
 
 test("a Team Matches card opens its game under it, as Match History does; names and the bookmark keep their own action", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 1440) < 768, "phones open a game as a whole screen: e2e/mobile-nav.spec.ts");
+  // Under its card, and every listed game on one page: the flow (a desktop window in the one-screen gate pages the list and
+  // opens every game in the game window: e2e/matches-workspace.spec.ts).
+  await inTheFlow(page);
   await page.goto("/matches");
   const game = page.getByTestId("together-game").first();
   await expect(game).toBeVisible();
@@ -238,6 +247,9 @@ test("a link away from a game opened under its card, then Back: the game again, 
   // Release 11's leftover (A15a, the Release 19 reconciliation): a duplicate history entry after a link away and Back. Not reproduced
   // on today's Team Matches; this holds it.
   test.skip((page.viewportSize()?.width ?? 1440) < 768, "phones open a game as a whole screen");
+  // Under its card, and every listed game on one page: the flow (a desktop window in the one-screen gate pages the list and
+  // opens every game in the game window: e2e/matches-workspace.spec.ts).
+  await inTheFlow(page);
   await page.goto("/team");
   await page.goto("/matches");
   const game = page.getByTestId("together-game").first();
@@ -259,6 +271,9 @@ test("a link away from a game opened under its card, then Back: the game again, 
 
 test("Team Matches follows the one history rule: a game opened under its card adds one entry, another game replaces it, and Back closes it", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 1440) < 768, "phones open a game as a whole screen, with its own entry: e2e/mobile-nav.spec.ts");
+  // Under its card, and every listed game on one page: the flow (a desktop window in the one-screen gate pages the list and
+  // opens every game in the game window: e2e/matches-workspace.spec.ts).
+  await inTheFlow(page);
   await page.goto("/team");
   await page.goto("/matches");
   const games = page.getByTestId("together-game");
@@ -283,6 +298,9 @@ test("Team Matches follows the one history rule: a game opened under its card ad
 
 test("Team Matches' open game steps with Next and Previous: the address replaced (no new entry), the first game's Previous disabled, and which game it is said once", async ({ page }) => {
   test.skip(page.viewportSize()?.width !== 1440, "the desktop project: the steps work the same at every width the game opens in place");
+  // Under its card, and every listed game on one page: the flow (a desktop window in the one-screen gate pages the list and
+  // opens every game in the game window: e2e/matches-workspace.spec.ts).
+  await inTheFlow(page);
   await page.goto("/matches");
   const games = page.getByTestId("together-game");
   await expect(games.first()).toBeVisible();
@@ -372,7 +390,8 @@ test("wide windows: the filters and the list take Team's column, centred in the 
       const main = box("main#content");
       const list = box("[data-testid=together-list]");
       const tabs = document.querySelector("[data-testid=team-tabs]")!;
-      const cards = [...document.querySelectorAll("[data-testid=together-card]")].map((c) => c.getBoundingClientRect());
+      // The cards drawn (the one-screen workspace draws a page of them: the rest are on later pages).
+      const cards = [...document.querySelectorAll("[data-testid=together-card]")].map((c) => c.getBoundingClientRect()).filter((c) => c.width > 0);
       return {
         gaps: { left: list.left - main.left, right: main.right - list.right },
         list: { left: list.left, right: list.right },
@@ -382,7 +401,7 @@ test("wide windows: the filters and the list take Team's column, centred in the 
         saved: box("[data-testid=together-saved]").right,
         cards: cards.map((c) => [c.left, c.right]),
         // The members' grids: three to a row from a 60rem column, each row still 19rem, so its CS and damage show.
-        members: [...document.querySelectorAll<HTMLElement>("[data-testid=together-card] [data-testid=together-member]")].map((m) => {
+        members: [...document.querySelectorAll<HTMLElement>("[data-testid=together-card] [data-testid=together-member]")].filter((m) => m.getBoundingClientRect().width > 0).map((m) => {
           const rem = parseFloat(getComputedStyle(document.documentElement).fontSize);
           const grid = m.parentElement!;
           return {
@@ -457,6 +476,8 @@ test("old addresses for Season 2025 or all seasons open the current season", asy
 });
 
 test("each member's row ends with their performance score and place badge, the opened game's own; MVP only on a won game, ACE only on a lost one, each place once", async ({ page }) => {
+  // Every listed game on one page, each opened under its card: the flow (the one-screen gate pages the list).
+  await inTheFlow(page);
   await page.goto("/matches");
   const games = page.getByTestId("together-game");
   await expect(games.first()).toBeVisible();

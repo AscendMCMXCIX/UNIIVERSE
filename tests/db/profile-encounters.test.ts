@@ -251,4 +251,19 @@ describe("a player's Encounters, counted in the database", () => {
     expect(await loadEncounterDetail(handle.db, { ...scope, accountIds: [] }, page.list[0]!.key)).toBeNull();
     expect(await loadMatchMeetings(handle.db, { ...scope, accountIds: [] }, detail!.games[0]!.matchId)).toBeNull();
   });
+
+  it("pages the list for the one-screen workspace: every player once across the pages, in the list's order", async () => {
+    const scope: EncounterScope = { accountIds: [acc.ace!, acc.ace2!], season: 16, mode: "all" };
+    const whole = await loadEncounterPage(handle.db, scope, { relation: "all", min: 1, sort: "games", q: "", limit: 500 });
+    expect(whole.total).toBeGreaterThan(4);
+    const per = 3;
+    const keys: string[] = [];
+    for (let page = 1; page <= Math.ceil(whole.total / per); page++) {
+      const p = await loadEncounterPage(handle.db, scope, { relation: "all", min: 1, sort: "games", q: "", limit: 25, page, per });
+      expect(p.total).toBe(whole.total);
+      expect(p.list.length).toBeLessThanOrEqual(per);
+      keys.push(...p.list.map((s) => s.key));
+    }
+    expect(keys).toEqual(whole.list.map((s) => s.key));
+  });
 });

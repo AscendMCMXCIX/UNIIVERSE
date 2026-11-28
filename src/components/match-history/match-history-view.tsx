@@ -39,6 +39,12 @@ import { useNow } from "@/components/ui/relative-time";
 import { fmtDuration, fmtInt, fmtNum } from "./match-format";
 import { WINDOW_POSTURE_QUERY, keepsEscape, modalOpen, prefersWindow } from "@/components/ui/posture";
 import { Pager } from "@/components/ui/pager";
+import { budgetPage } from "./pager";
+import { useRowBudget } from "@/components/ui/fit-rows";
+import { WS_SECTION, WorkspaceCard, useWorkspaceMarks, wsTierClass } from "@/components/ui/workspace";
+import { rangeWords } from "@/components/ui/paged-list";
+import { useReaderBusy, whenReaderIdle } from "@/components/ui/reader-idle";
+import { LIST_PER_MAX, forgetListPer, rememberListPer, type PagedListName } from "@/lib/list-per";
 import { screenHeight, scrollToStart } from "@/lib/screen";
 
 /**
@@ -51,6 +57,19 @@ import { screenHeight, scrollToStart } from "@/lib/screen";
 const GAP_REM = 0.375;
 const ROW_REM = 6.375 + GAP_REM;
 const PHONE_PER = 10;
+/** A step the game window offers while the page beyond it is on its way (workspaceNav): not a game, so pressed it does nothing. */
+const STEP_PENDING = "pending";
+/** The list's noun, for the words read after a page change. */
+const GAME_WORDS = { one: "game", many: "games" } as const;
+/** The workspace writes its budget to the address once the window has been at rest this long (a resize fires many measures; each new `per` is a server render). */
+const PER_SETTLE_MS = 250;
+/**
+ * The workspace's first paint before the page has measured, where neither the address nor the list's
+ * cookie gave a page size (a first visit: the server draws ten): the cards each window height tier
+ * surely has room for (wsTierClass: one fewer than fit the tier's smallest window under the profile's
+ * band and tabs, the header and the summary line), the rest hidden until the budget is known.
+ */
+const FIRST_PAINT_TIERS = { gate: 2, mid: 3, tall: 4 } as const;
 
 /*
   A card's grid, by the list's own width (@container/mh; see MatchCard):
@@ -124,7 +143,7 @@ function membersIn(teams: Composition | null) {
  * Memoised: opening a match re-renders only the cards it opens and closes, not the whole page. The
  * breakdown opens under its card (MatchBreakdown), one game at a time.
  */
-const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ, onToggle, onPrefetch, nav, expanded, fit = true, checked }: { row: MatchRow; playerId: string; champion: PortraitChampion; champ: (id: string | null) => PortraitChampion; onToggle: (matchId: string) => void; onPrefetch: (matchId: string) => void; /** The open game's way to the previous and next games on the page (null at that end). */ nav: GameNav | null; expanded: boolean; /** Bring the game into view once drawn (an open, not a step from another game). */ fit?: boolean; /** Ranks its breakdown checked with Riot, shown without reloading the page. */ checked?: ReadonlyMap<number, ParticipantRank> }) {
+const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ, onToggle, onPrefetch, nav, expanded, fit = true, checked, place, tierClass }: { row: MatchRow; playerId: string; champion: PortraitChampion; champ: (id: string | null) => PortraitChampion; onToggle: (matchId: string) => void; onPrefetch: (matchId: string) => void; /** The open game's way to the previous and next games on the page (null at that end). */ nav: GameNav | null; expanded: boolean; /** Bring the game into view once drawn (an open, not a step from another game). */ fit?: boolean; /** Ranks its breakdown checked with Riot, shown without reloading the page. */ checked?: ReadonlyMap<number, ParticipantRank>; /** Its place on the whole list while the workspace pages it (1-based; aria-posinset), and the list's length. */ place?: { at: number; of: number }; /** The workspace's first paint: hidden past the window's height tier (wsTierClass) until the page has measured. */ tierClass?: string }) {
   const kp = row.killParticipation === null ? "—" : `${Math.round(row.killParticipation * 100)}%`;
   const tone = matchTone(row.win);
   const account = row.riotId ? row.riotId.split("#")[0] : null;
@@ -208,8 +227,13 @@ const MatchCard = React.memo(function MatchCard({ row, playerId, champion, champ
   return (
     <li
       id={`match-${row.matchId}`}
-      className="scroll-mt-0 lg:scroll-mt-3"
+      className={cn("scroll-mt-0 lg:scroll-mt-3", tierClass)}
       data-testid="match-item"
+      // A measured row of the workspace's list (ui/workspace.tsx's data contract).
+      data-ws-row=""
+      data-row-key={row.matchId}
+      aria-posinset={place?.at}
+      aria-setsize={place?.of}
       data-expanded={expanded || undefined}
       // Escape, with the focus anywhere in the open game, closes it.
       onKeyDown={
@@ -530,10 +554,17 @@ function useWindowPostureWhile(enabled: boolean): boolean {
  * Encounters (encounter-games: the way back, their records, and the side to list) instead of the
  * line about the newest games; the season, game mode and account still apply.
  */
-export function MatchHistoryView({ data, championsById, basePath, playerId, playerName, status, refresh, encounter }: { data: MatchHistoryPage; championsById: Record<string, PortraitChampion>; basePath: string; playerId: string; /** The profile's name, in a player met's records. */ playerName: string; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null; /** One player's games, opened from Encounters (Match History → Encounters). */ encounter?: EncounterGamesFocus }) {
+export function MatchHistoryView({ data, championsById, basePath, playerId, playerName, status, refresh, encounter, perFrom = "address", cap = null }: { data: MatchHistoryPage; championsById: Record<string, PortraitChampion>; basePath: string; playerId: string; /** The profile's name, in a player met's records. */ playerName: string; /** The page's data status (domain/data-status). */ status?: DataStatus | null; /** Offered to the player and to those who manage Riot accounts, where Riot can be asked. */ refresh?: DataRefreshTarget | null; /** One player's games, opened from Encounters (Match History → Encounters). */ encounter?: EncounterGamesFocus; /** Where the page size came from: the address, the list's cookie (the workspace's last budget), or neither (the default: the first paint then shows the window's height tier). */ perFrom?: "address" | "cookie" | "default"; /** A browser test's cap on the workspace's budget (server/demo/test-hooks.ts, rowsPerPageCap). */ cap?: number | null }) {
   const router = useRouter();
   const pathname = usePathname();
   const params = useSearchParams();
+  // The one-screen workspace (docs/RESPONSIVE.md, "One-screen desktop pages", Match History): a desktop
+  // window in the gate shows the complete cards it has room for (the row budget, the address's `per`), the
+  // pager first on the toolbar's row, and every game in the game window over the list. Elsewhere (phones, tablets,
+  // touch, short windows, a larger text size) the flow, as it always was.
+  const marks = useWorkspaceMarks();
+  const ws = marks.ws;
+  const listName: PagedListName = encounter ? "met" : data.refine.sessions ? "sessions" : "games";
   // Interactive once hydrated (data-ready, which browser tests wait for). A link followed before
   // then is a full page load, and the page size chosen on arrival below would overtake it.
   const interactive = React.useSyncExternalStore(noopSubscribe, () => true, () => false);
@@ -554,8 +585,9 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
   // under its card: a breakdown inside a list is a long detour on a narrow screen. Asked only while a
   // game is open, so the list does not render twice on a phone once it has hydrated.
   const phone = useWindowPostureWhile(open !== null);
-  const inline = open && onPage.has(open.id) && !phone ? open.id : null;
-  const windowed = open && (phone || (open.via === "link" && !onPage.has(open.id))) ? open.id : null;
+  // Under its card in the flow (and in the server's HTML, hidden there by the workspace's CSS: MatchExpansion), in the game window in the workspace.
+  const inline = open && onPage.has(open.id) && !phone && ws !== true ? open.id : null;
+  const windowed = open && (phone || ws === true || (open.via === "link" && !onPage.has(open.id))) ? open.id : null;
   // The game this page added to the browser's history when a phone opened it, so closing it is Back.
   const pushed = React.useRef<string | null>(null);
   // A link from the open game to this list's other views (a mark on its scoreboard leads to that
@@ -574,24 +606,33 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
 
   // A new list (a page, a filter) while a game this page opened was open: that history entry becomes
   // the new list's, on purpose, so Back returns to the list as it was before the game opened.
+  // A step of the workspace's game window across a page end is not such a change: the window's entry stays its own, so closing still goes Back.
+  const crossing = React.useRef(false);
   React.useEffect(() => {
+    if (crossing.current) {
+      crossing.current = false;
+      return;
+    }
     pushed.current = null;
   }, [listKey]);
 
-  const latestParams = React.useRef({ params, pathname });
+  const latestParams = React.useRef({ params, pathname, page: data.page, ws });
   React.useLayoutEffect(() => {
-    latestParams.current = { params, pathname };
+    latestParams.current = { params, pathname, page: data.page, ws };
   });
   /**
    * The open game in the address. Under its card it replaces the current entry (Back leaves the
    * page, not the game); on a phone, where the game takes the whole screen, it is a new entry, so
-   * Back (the button, the gesture, Android's key) closes it and returns to the list as it was.
+   * Back (the button, the gesture, Android's key) closes it and returns to the list as it was. A game
+   * closed in the workspace leaves the page the list shows in the address: the server's, where a link
+   * named none (getMatchHistory's openMatch), so a reload or a copy shows the same page.
    */
   const writeMatch = React.useCallback((matchId: string | null, { push = false }: { push?: boolean } = {}) => {
-    const { params, pathname } = latestParams.current;
+    const { params, pathname, page, ws } = latestParams.current;
     const next = new URLSearchParams(params.toString());
     if (matchId) next.set("match", matchId);
     else next.delete("match");
+    if (!matchId && ws === true && (Number(next.get("page")) || 1) !== page) next.set("page", String(page));
     const url = `${pathname}${next.size ? `?${next.toString()}` : ""}`;
     if (push) window.history.pushState(null, "", url);
     else window.history.replaceState(null, "", url);
@@ -599,7 +640,9 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
 
   const go = React.useCallback(
     (patch: Record<string, string | null>, { keepMatch = false }: { keepMatch?: boolean } = {}) => {
-      const next = new URLSearchParams(params.toString());
+      // From the address as it stands (a game just opened is in it before the router's own state has caught up: the
+      // workspace's page size, written a moment after the page arrives, must keep it).
+      const next = new URLSearchParams(window.location.search);
       for (const [k, v] of Object.entries(patch)) {
         if (v === null || v === "") next.delete(k);
         else next.set(k, v);
@@ -610,7 +653,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
       }
       startTransition(() => router.replace(`${pathname}?${next.toString()}`, { scroll: false }));
     },
-    [params, pathname, router],
+    [pathname, router],
   );
 
   // The page size: ten (phones always), or as many whole cards as the room below the list's top
@@ -620,13 +663,16 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
   // every arrival renders once.
   React.useEffect(() => {
     const el = listRef.current;
-    if (!el) return;
+    // The flow's rule; the workspace's page size is its row budget (below). Until the page knows (ws null), neither.
+    if (!el || ws !== false) return;
     const phone = window.innerWidth < 768;
     const room = screenHeight() - el.getBoundingClientRect().top - 56;
     const rem = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
     const card = el.querySelector("[data-testid=match-card]");
     const rowPx = card ? card.getBoundingClientRect().height + GAP_REM * rem : ROW_REM * rem;
     const fits = phone ? PHONE_PER : Math.max(10, Math.min(25, Math.floor(room / rowPx)));
+    // A page size the workspace kept for its first paint (a window that left the workspace) is forgotten: the flow sizes its own.
+    if (perFrom === "cookie") forgetListPer(listName);
     if (fits !== data.per && data.total > 0) {
       const firstIndex = (data.page - 1) * data.per;
       // The game a link opened stays open (it is still on the new page, or opens in the window).
@@ -634,7 +680,49 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
     }
     // Only on arrival and when the list changes size class, not on every render.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [data.per, data.total]);
+  }, [data.per, data.total, ws]);
+
+  // The workspace's page size: the complete cards between the list's first card and the window's foot
+  // (useRowBudget, by the cards' own heights and the gaps between them: a session's header between two
+  // groups counts too), written to the address as `per` (the server slices its sorted list: no floor of
+  // ten, at most 25) and kept in the list's cookie for the next visit's first paint. Until the new page
+  // arrives the cards past the budget are left out, so a shrink never overflows for a moment.
+  const cardRef = React.useRef<HTMLDivElement>(null);
+  const endRef = React.useRef<HTMLDivElement>(null);
+  const budget = useRowBudget(listRef, {
+    footRef: endRef,
+    cardRef,
+    probeRem: ROW_REM,
+    mode: "cumulative",
+    active: marks.paged && data.total > 0,
+    // The header and the line above the cards wrapping (a long scope, the wider text) move the first card: the card's box tells it.
+    observe: () => [cardRef.current],
+    // Measured again for another list (a filter, the sessions), not for another page of it: a page whose sessions draw more
+    // headers grows the frame, which measures it again (fewer cards), and the count never flips back and forth across pages.
+    key: [data.total, listName],
+    cap,
+  });
+  const perPage = marks.paged && budget !== null ? Math.min(LIST_PER_MAX, budget) : null;
+  // Busy while the reader acts, a Back or a Forward on its way included (the address compared but for the keys the list writes itself: its page size, its page and the game open).
+  const readerBusy = useReaderBusy(["per", "page", "match"], data);
+  // A game a link opened that is not on the page shown, where the server has not looked for its page (the address named a
+  // page, or no page size: the flow's default, before the workspace measured): written with no page, the server finds it.
+  const stray = open !== null && !onPage.has(open.id) && (params.has("page") || perFrom === "default");
+  React.useEffect(() => {
+    if (perPage === null || (perPage === data.per && !stray) || data.total === 0 || pending) return;
+    // Settled first (a resize fires many measures): one server render for the size the window comes to rest at; and never
+    // over the reader's own navigation (a view, a filter, a page followed meanwhile: ui/reader-idle.ts).
+    return whenReaderIdle(readerBusy, () => {
+      // The page holding the game open in the window (the address names it), else the first card shown (usePagedList's rule
+      // for another budget): the open game stays on the list's page, so its Previous and Next go on from it. A game open that
+      // is not on the page shown leaves the page out: the server takes the one holding it (getMatchHistory's openMatch).
+      rememberListPer(listName, perPage);
+      const to = budgetPage(data, new URLSearchParams(window.location.search).get("match"), perPage);
+      go({ per: String(perPage), page: to === null ? null : String(to) }, { keepMatch: true });
+    }, PER_SETTLE_MS);
+    // `go` follows the address; the budget and the page decide.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perPage, data.per, data.page, data.total, listName, pending, stray]);
 
   // Ranks a breakdown checked with Riot, by match and place: its card shows them at once. They
   // belong to this page of data; the next one reads them from storage like every other rank.
@@ -744,6 +832,35 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
     const i = matchId ? rowIds.indexOf(matchId) : -1;
     return i < 0 ? null : { prev: rowIds[i - 1] ?? null, next: rowIds[i + 1] ?? null, go: step };
   };
+  /**
+   * The workspace's game window steps through the whole list, not one page of it (a page holds the few
+   * cards the window has room for): at a page's end Previous and Next open the game either side of it
+   * (the server's neighbours), the list turning to that game's page behind the window, the address
+   * replaced as for every step. Where the game stands on the whole list: "Game 5 of 208".
+   */
+  const pageStart = (data.page - 1) * data.per;
+  const stepAcross = React.useCallback(
+    (matchId: string) => {
+      if (rowIds.includes(matchId)) return step(matchId);
+      const toPage = matchId === data.neighbours.after ? data.page + 1 : matchId === data.neighbours.before ? data.page - 1 : null;
+      if (toPage === null) return;
+      setOpen({ id: matchId, via: "step" });
+      if (pushed.current) pushed.current = matchId;
+      crossing.current = true;
+      go({ page: String(toPage), match: matchId }, { keepMatch: true });
+    },
+    [rowIds, step, data.neighbours, data.page, go],
+  );
+  const workspaceNav = (matchId: string): (GameNav & { index: number; total: number }) | null => {
+    const i = rowIds.indexOf(matchId);
+    if (i >= 0) return { prev: rowIds[i - 1] ?? data.neighbours.before, next: rowIds[i + 1] ?? data.neighbours.after, go: stepAcross, index: pageStart + i, total: data.total };
+    // On its way to the next or previous page (the list is still the one before): its place is known, and the step beyond it
+    // stays offered (pressed meanwhile it does nothing; the page's own neighbour takes its place once the page has come), so
+    // the focus stays on the button pressed.
+    const index = matchId === data.neighbours.after ? pageStart + rowIds.length : matchId === data.neighbours.before ? pageStart - 1 : -1;
+    if (index < 0) return null;
+    return { prev: index > 0 ? (matchId === data.neighbours.after ? (rowIds[rowIds.length - 1] ?? null) : STEP_PENDING) : null, next: index < data.total - 1 ? (matchId === data.neighbours.before ? (rowIds[0] ?? null) : STEP_PENDING) : null, go: stepAcross, index, total: data.total };
+  };
   const returnFocus = React.useRef<HTMLElement | null>(null);
   React.useEffect(() => {
     if (windowed) returnFocus.current = document.activeElement as HTMLElement | null;
@@ -755,9 +872,14 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
       window.history.back();
       return;
     }
+    const last = windowed;
     setOpen(null);
     writeMatch(null);
-    requestAnimationFrame(() => returnFocus.current?.focus());
+    // The focus back on the card of the game last seen where it is on this page (the window may have stepped across pages), else on what opened it.
+    requestAnimationFrame(() => {
+      const card = last ? document.getElementById(`match-${last}`)?.querySelector<HTMLElement>("[data-testid=match-row]") : null;
+      (card ?? returnFocus.current)?.focus({ preventScroll: true });
+    });
   };
   // Back and Forward follow the address: the game it names opens (under its card when on the page).
   React.useEffect(() => {
@@ -773,6 +895,20 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
     return () => window.removeEventListener("popstate", onPop);
   }, []);
 
+  // A page turned by the list's keys: its first or last game takes the focus once the page has come.
+  const focusAfter = React.useRef<"first" | "last" | null>(null);
+  const [live, setLive] = React.useState("");
+  const focusDrawn = React.useCallback(() => {
+    const at = focusAfter.current;
+    if (!at) return;
+    focusAfter.current = null;
+    const rows = listRef.current?.querySelectorAll<HTMLElement>("[data-testid=match-row]");
+    (at === "first" ? rows?.[0] : rows?.[rows.length - 1])?.focus({ preventScroll: true });
+  }, []);
+  React.useLayoutEffect(() => {
+    if (!pending) focusDrawn();
+  }, [data, pending, focusDrawn]);
+
   const f = data.filter;
   const narrowed = f.role || f.scope !== "all" || f.accountId || f.mode !== "all" || f.season !== data.currentSeason || narrowsGames(data.refine);
   // What Refine narrows or groups: on a tablet its chips show under the filters (the header's toolbar then takes a row of its own).
@@ -784,15 +920,70 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
   // Grouping keeps the page and an open game: the games and their order stay the same.
   const groupTo = (sessions: boolean) => go({ group: sessions ? "sessions" : null }, { keepMatch: true });
   // The page's games by playing session, when grouped (a session cut by the page break shows its part here).
-  const sessionGroups = data.refine.sessions && data.rows.length ? groupBySession(data.rows, data.sessionOf) : null;
+  // The cards drawn: in the workspace no more than the budget (until the page of that size arrives), else the page's.
+  const shownRows = perPage !== null && data.rows.length > perPage ? data.rows.slice(0, perPage) : data.rows;
+  const sessionGroups = data.refine.sessions && shownRows.length ? groupBySession(shownRows, data.sessionOf) : null;
   const inlineNav = navFor(inline);
-  // A phone's window over the list: Previous and Next step through this page's games.
+  // A phone's window over the list: Previous and Next step through this page's games; the workspace's, through the whole list.
   const windowAt = windowed ? rowIds.indexOf(windowed) : -1;
-  const windowNav = phone && windowAt >= 0 ? { prev: rowIds[windowAt - 1] ?? null, next: rowIds[windowAt + 1] ?? null, go: step, index: windowAt, total: rowIds.length } : null;
-  const card = (r: MatchRow) => <MatchCard key={r.matchId} row={r} playerId={playerId} champion={championsById[r.championId] ?? fallbackChampion(r.championId)} champ={champOrUnknown} onToggle={toggle} onPrefetch={prefetch} nav={inline === r.matchId ? inlineNav : null} expanded={inline === r.matchId} fit={inline === r.matchId && open?.via !== "step"} checked={checkedRanks[r.matchId]} />;
+  const windowNav = windowed && ws === true && !phone ? workspaceNav(windowed) : phone && windowAt >= 0 ? { prev: rowIds[windowAt - 1] ?? null, next: rowIds[windowAt + 1] ?? null, go: step, index: windowAt, total: rowIds.length } : null;
+  // The first paint's tiers (FIRST_PAINT_TIERS): a first visit's ten cards in the workspace, before it has measured.
+  const tiered = perFrom === "default" && perPage === null && ws !== false;
+  const paged = perPage !== null;
+  const indexOf = new Map(shownRows.map((r, i) => [r.matchId, i]));
+  const card = (r: MatchRow) => <MatchCard key={r.matchId} row={r} playerId={playerId} champion={championsById[r.championId] ?? fallbackChampion(r.championId)} champ={champOrUnknown} onToggle={toggle} onPrefetch={prefetch} nav={inline === r.matchId ? inlineNav : null} expanded={inline === r.matchId} fit={inline === r.matchId && open?.via !== "step"} checked={checkedRanks[r.matchId]} place={paged ? { at: pageStart + (indexOf.get(r.matchId) ?? 0) + 1, of: data.total } : undefined} tierClass={tiered ? wsTierClass(indexOf.get(r.matchId) ?? 0, FIRST_PAINT_TIERS) : undefined} />;
+
+  // The workspace's pages: the region's figures once the page of the budget's size is drawn (while a new size is on its way the
+  // region has no `per`, so a test waits: e2e/workspace.ts settled), the range and the words read after a page the reader chose.
+  const settledPer = paged && perPage === data.per;
+  const regionProps = paged ? { "data-ws-region": "games", "data-per": settledPer ? data.per : undefined, "data-page": data.page, "data-pages": data.pages, "data-total": data.total } : {};
+  const turn = (p: number, focus: "first" | "last" | null = null) => {
+    if (p < 1 || p > data.pages) return;
+    focusAfter.current = focus;
+    const from = (p - 1) * data.per + 1;
+    setLive(rangeWords(GAME_WORDS, from, Math.min(data.total, p * data.per), data.total));
+    if (p === data.page) return focusDrawn();
+    go({ page: String(p) });
+  };
+  // The list's keys in the workspace: PageDown the next page's first game, PageUp the previous page's last, Home the first game, End the last.
+  const onListKeyDown = (e: React.KeyboardEvent) => {
+    if (!paged || e.altKey || e.ctrlKey || e.metaKey || e.shiftKey || pending) return;
+    const target = e.key === "PageDown" ? (data.page < data.pages ? ([data.page + 1, "first"] as const) : null) : e.key === "PageUp" ? (data.page > 1 ? ([data.page - 1, "last"] as const) : null) : e.key === "Home" ? ([1, "first"] as const) : e.key === "End" ? ([data.pages, "last"] as const) : undefined;
+    if (target === undefined) return;
+    e.preventDefault();
+    if (target) turn(target[0], target[1]);
+  };
+  const inlinePager =
+    ws === true && data.pages > 1 ? (
+      // On the toolbar's row, before the filters, centred on the row (the controls are 36px, its buttons 32px); or at the scope line's end.
+      <div className={cn("flex min-w-0 self-center", refined ? "shrink-0" : "flex-1")} data-testid="match-pages-lead">
+      <Pager
+        layout="inline"
+        label="Match history pages"
+        page={data.page}
+        pages={data.pages}
+        onPage={(p) => turn(p)}
+        range={
+          <>
+            <span className="sr-only">Games </span>
+            {formatCount(data.page * data.per - data.per + 1)}–{formatCount(Math.min(data.total, data.page * data.per))} of {formatCount(data.total)}
+          </>
+        }
+        widest={`${data.total}–${data.total} of ${data.total}`}
+        rangeId="match-pages-range"
+        prevLabel="Newer games"
+        nextLabel="Older games"
+        disabled={pending}
+        live={live}
+        testId="match-pages"
+        prevTestId="match-prev"
+        nextTestId="match-next"
+      />
+      </div>
+    ) : null;
 
   return (
-    <section className="space-y-3" aria-labelledby="match-history" data-testid="match-history" data-accounts-linked={data.accountsLinked} data-total={data.total} data-ready={interactive ? "true" : undefined}>
+    <section className={WS_SECTION} {...marks.attrs} aria-labelledby="match-history" data-testid="match-history" data-accounts-linked={data.accountsLinked} data-total={data.total} data-ready={interactive ? "true" : undefined}>
       {/* Match History's one header (shared with Encounters): Games | Encounters, the data status,
           and the toolbar: the filters (the scope they set is readable in them), then Refresh; then
           a line about the newest games (or the player met whose games these are), then the games.
@@ -809,6 +1000,9 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
         }
         status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
         statusAfterText
+        // On the toolbar's row (no line of its own); where refinements' chips fill that row, at the scope line's end.
+        toolbarLead={refined ? null : inlinePager}
+        scopeEnd={refined ? inlinePager : null}
         narrowed={!!narrowed || data.refine.sessions}
         refined={refined}
         refresh={status ? <RefreshButton status={status} refresh={refresh ? { ...refresh, onNewGames: data.page > 1 ? { label: "Show the newest", run: () => go({ page: "1" }) } : undefined } : null} compact /> : null}
@@ -842,7 +1036,9 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
 
       <MatchDetailCacheContext.Provider value={cache}>
         <EncounterLinkContext.Provider value={encounterLink}>
-          <div ref={listRef} className={cn("transition-opacity", pending && "opacity-60")}>
+          {/* The list: in the workspace the frame's remainder, its complete cards a page (the region), its foot the window's. */}
+          <WorkspaceCard bare ref={cardRef} testId="match-list" onKeyDown={onListKeyDown} {...regionProps}>
+          <div ref={listRef} className={cn("transition-opacity", pending && "opacity-60")} aria-describedby={paged && data.pages > 1 ? "match-pages-range" : undefined}>
             {data.total === 0 ? (
               <p className="rounded-panel border border-dashed border-border px-4 py-6 text-center text-sm text-fg-muted" data-testid="match-empty">
                 {encounter ? "No recorded game with this player matches these filters." : data.accountsLinked === 0 ? "No Riot account is linked yet: games appear here once one is linked and synced." : narrowed ? "No stored game matches these filters." : data.syncing ? "No games stored for this season yet; the first sync is collecting them and this page fills in by itself." : "No games stored for this season."}
@@ -862,12 +1058,17 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
               </ol>
             ) : (
               <ol className="@container/mh space-y-1.5" aria-label={`Page ${data.page} of ${data.pages}`}>
-                {data.rows.map(card)}
+                {shownRows.map(card)}
               </ol>
             )}
           </div>
+          {/* Where the cards may end (useRowBudget's foot): the window's foot less #content's padding; nothing drawn. */}
+          <div ref={endRef} aria-hidden className="mt-auto" />
+          </WorkspaceCard>
 
-          {data.pages > 1 ? (
+          {/* The flow's pager, under the list (the workspace's is on the scope line). */}
+          {data.pages > 1 && ws !== true ? (
+            <div className="ws:hidden">
             <Pages
               page={data.page}
               pages={data.pages}
@@ -882,9 +1083,10 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
                 if (listRef.current) scrollToStart(listRef.current);
               }}
             />
+            </div>
           ) : null}
 
-          {windowed ? <MatchDetailModal playerId={playerId} matchId={windowed} championsById={championsById} onClose={closeWindow} encounterLinks={phone} nav={windowNav} lp={data.rows.find((r) => r.matchId === windowed)?.lp ?? null} /> : null}
+          {windowed ? <MatchDetailModal playerId={playerId} matchId={windowed} championsById={championsById} onClose={closeWindow} encounterLinks={phone || ws === true} nav={windowNav} lp={data.rows.find((r) => r.matchId === windowed)?.lp ?? null} workspace={ws === true && !phone} /> : null}
         </EncounterLinkContext.Provider>
       </MatchDetailCacheContext.Provider>
     </section>
