@@ -36,7 +36,9 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
    * fixed height (the screen less 1rem above and below), headless: one header line (the result, the
    * champion, the length; the queue, the date and the patch; a ranked game's LP) ending with Previous,
    * where the game stands in the list, Next and Close; the view fills the rest and never scrolls (its
-   * pages where it does not fit: PostGame's fitPages).
+   * pages where it does not fit: PostGame's fitPages). Opened from the keyboard or by a link, its Close
+   * has the focus, ringed, as every window's close button does (DetailModal's `headlessClose`); opened
+   * by a click, the window itself.
    */ workspace?: boolean }) {
   const cache = React.useContext(MatchDetailCacheContext);
   const [loaded, setLoaded] = React.useState<{ matchId: string; result: MatchDetailResult } | null>(null);

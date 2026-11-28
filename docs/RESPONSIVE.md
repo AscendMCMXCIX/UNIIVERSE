@@ -1347,8 +1347,18 @@ Show more, a game under its card.
   server sends each page's neighbours (the previous page's last game, the next page's first), the
   list turns behind the window, the address is replaced, and the focus stays on the button pressed.
   The one history rule holds: opening adds one entry (a step across pages keeps it the window's), so
-  Back and Escape close it, the focus back on the card of the game last seen. The scoreboard's marks
-  for players met lead to their games (Encounters), closing the window.
+  Back and Escape close it, the focus back on the card of the game last seen. Opened from the
+  keyboard or by a link, Close has the focus, ringed, as every window's close button does
+  (`DetailModal`'s `headlessClose`); opened by a click, the window itself. Close is the steps' last
+  control, in the window's top-right corner, and the window's content keeps 12px clear of the steps.
+  The scoreboard's marks for players met lead to their games (Encounters), closing the window.
+- **Names whole on the cards.** A player's name on a card's teams that is wider than its slot (a
+  long Riot name, or one beside an opponent's rank: "Demo Rival 6" at 1366 × 768 with the sidebar
+  open, once the opponents' ranks were read) takes a second line in the workspace instead of an
+  ellipsis, the icon and the rank level with its first line (`team-composition.tsx`, `WS_NAME`,
+  passed into `PlayerLink`'s own truncations). The card grows by that line, and the cumulative
+  budget counts it (fewer cards a page where it no longer fits). The flow keeps its five fixed lines
+  and the ellipsis, the whole name in the slot's hover text.
 - **PostGame's pages by measure** (`fitPages`): the view drawn whole while it fits the window's room,
   two pages where it does not (the window is wide: "Player and build", the player with the build
   panels beside it and the lane under it; "Scoreboard", the scoreboard over its notes), until the room
@@ -1373,7 +1383,8 @@ Show more, a game under its card.
   last game, the keys, the window across pages with Escape and Back, every game of a page at the
   floor, a new page size keeping the open game's page, a link to a game past the first page with a
   kept budget, a first visit's and one copied at another size, Encounters' pages and the way back,
-  Team Matches' pages and window, the flow unchanged).
+  Team Matches' pages and window, the game window's focus as it opens and its corner, a long name
+  whole on a card's second line, the flow unchanged).
   The Production check reads both pages at 1440 × 900 as workspace pages and opens their games in the
   window (docs/LIVE_VALIDATION.md); the tablet keeps the under-the-card facts.
 

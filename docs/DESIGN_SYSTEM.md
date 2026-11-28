@@ -430,7 +430,9 @@ globals.css). Rows inside the sidebar draw it inside their edge (`-outline-offse
 frame cannot clip it. A window opened by a tap or a click takes the focus itself, without a ring,
 so nothing in it is lit up as it opens (Safari ringed the close button, the loudest thing in the
 window); opened from the keyboard, its close button has the focus, ringed, so a keyboard user sees
-where they are (`DetailModal`; `src/components/ui/input-kind.ts`). The window
+where they are (`DetailModal`; `src/components/ui/input-kind.ts`). A headless window (no title bar,
+its close in its content) names that close (`headlessClose`: the game window's "Close this game");
+without one its heading has the focus (All Champions' workspace window, as its docked pane's). The window
 holds that focus only until it is pressed or the focus moves on (`focusWindow`), and a press inside
 any window on nothing focusable leaves nothing focused, so a click on its text leaves the focus as a
 page does and the keys still scroll its body (`letGoWhenPressed`): Chromium and WebKit focus a

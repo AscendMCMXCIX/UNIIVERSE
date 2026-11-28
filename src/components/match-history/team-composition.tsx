@@ -21,7 +21,9 @@ import { RemoteImage } from "@/components/ui/remote-image";
   screen readers) and each side becomes a row of five icons, its rail and tint as wide as the five
   icons (a tint across the empty rest of the column read as an empty bar). Match History's phone
   cards fold them too, to stay compact; Team → Matches keeps them on phones (`keepNames`), since
-  the full line-ups are what its cards are for.
+  the full line-ups are what its cards are for. A name wider than its slot ends in an ellipsis (its
+  whole in the slot's hover text), except in a desktop window's one-screen workspace, where it takes
+  a second line (WS_NAME, below).
   Icons are 16 px, lazily loaded portraits the browser already caches from the rest of the page.
   Names link to the member's profile, or to a non-member's OP.GG profile (see PlayerLink). A player
   whose personal data was erased is a "Removed player": no champion, name or link.
