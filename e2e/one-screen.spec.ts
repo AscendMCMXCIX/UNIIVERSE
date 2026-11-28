@@ -67,6 +67,10 @@ const ROWS: OneScreenRow[] = [
   { name: "Admin Access levels", path: "/admin/people/access", admin: true, at: [...EIGHT, { size: FLOOR, side: "collapsed" }] },
   { name: "Admin Data & Integrations", path: "/admin/data", admin: true, at: EIGHT_AND_FLOOR },
   { name: "Admin Audit Logs", path: "/admin/audit", admin: true, at: EIGHT_AND_FLOOR },
+  // Lane B (28 Nov 2026): Platform Settings' pages.
+  { name: "Admin Previews, a phone", path: "/admin/previews", admin: true, at: EIGHT_AND_FLOOR, workspace: true, cards: "[data-testid=preview-studio]" },
+  { name: "Admin Previews, a desktop", path: "/admin/previews", admin: true, at: EIGHT_AND_FLOOR, workspace: true, cards: "[data-testid=preview-studio]", then: (page) => page.getByTestId("preview-device-desktop").click() },
+  { name: "Admin Previews, a tablet held sideways, the setup", path: "/admin/previews", admin: true, at: EIGHT_AND_FLOOR, workspace: true, cards: "[data-testid=preview-studio]", then: async (page) => { await page.getByTestId("preview-device-tablet").click(); await page.getByTestId("preview-rotate").click(); await page.getByTestId("preview-screen-setup").click(); } },
 ];
 
 test.beforeEach(({ browserName }, info) => {

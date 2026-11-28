@@ -44,6 +44,10 @@ describe("WS_COLUMN", () => {
     expect(WS_COLUMN).toBe("ws-host:flex ws-host:w-full ws-host:flex-1 ws-host:flex-col");
     expect(read("src", "components", "players", "profile-sections.tsx")).toContain(WS_COLUMN);
   });
+
+  it("lives in a module a server component can import (no \"use client\": the admin layout and pages' roots read the string)", () => {
+    expect(read("src", "components", "ui", "workspace-classes.ts")).not.toMatch(/^\s*["']use client["']/m);
+  });
 });
 
 describe("WorkspaceSection", () => {
