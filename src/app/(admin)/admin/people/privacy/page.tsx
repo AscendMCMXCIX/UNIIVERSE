@@ -27,6 +27,8 @@ export const dynamic = "force-dynamic";
 export default async function AdminPrivacyPage() {
   const session = await requirePageAccess("manage-users");
   const records = await listErasureRecords(await getAppDb());
+  // The records are a paged list in the workspace only where there are some (the panel then reaches the frame's foot).
+  const paged = records.length > 0;
   const sections: WorkspaceSectionItem[] = [
     {
       id: "requests",
@@ -71,12 +73,13 @@ export default async function AdminPrivacyPage() {
       title: "Erasure records",
       marker: { count: records.length },
       content: (
-        <Panel className="ws:flex ws:flex-1 ws:flex-col">
+        <Panel className={paged ? "ws:flex ws:flex-1 ws:flex-col" : undefined}>
           <PanelHeader title="Erasure records" subtitle="Each erasure leaves a reference and keyed codes, never a name, Riot ID or account id. They keep the person out of games synced later and stop their Riot accounts being linked again by accident." />
-          {/* In the workspace a flex column: the backups fold first, then the records (paged to the room left, to the foot). */}
-          <PanelBody className="space-y-3 ws:flex ws:flex-1 ws:flex-col ws:gap-3 ws:space-y-0">
+          {/* With records, in the workspace a flex column: the backups fold first, then the records (paged to the room left, to the
+              foot); with none, the panel as tall as its words, as in the flow. */}
+          <PanelBody className={paged ? "space-y-3 ws:flex ws:flex-1 ws:flex-col ws:gap-3 ws:space-y-0" : "space-y-3"}>
             <ErasureRecords records={records} viewerIsOwner={isOwner(session)} />
-            <Fold variant="row" className="border-t border-border pt-2 ws:order-first ws:border-t-0 ws:border-b ws:pb-2 ws:pt-0" title="Backups and the server secret" description="What to do after an erasure, and before restoring a backup." testId="privacy-backups">
+            <Fold variant="row" className={paged ? "border-t border-border pt-2 ws:order-first ws:border-t-0 ws:border-b ws:pb-2 ws:pt-0" : "border-t border-border pt-2"} title="Backups and the server secret" description="What to do after an erasure, and before restoring a backup." testId="privacy-backups">
               <div className="space-y-2 text-sm text-fg-muted [overflow-wrap:anywhere]">
                 <p>The records depend on the server&apos;s session secret: replacing it makes them unusable.</p>
                 <p>

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "./test";
+import { createMember, openDanger, openPerson } from "./member-account";
 import { FLOOR, cfg, expectEveryRecord, fits, openAt, resizeTo, settled, walkPages, withWideText, type Size } from "./workspace";
 
 /*
@@ -50,6 +51,40 @@ test("Personal data: three sections beside a quiet rail, the records' count; Bac
   await expectSection(page, "admin-privacy", "requests", PRIVACY);
   // The fold opened before the switches is still open: every section stays mounted.
   await expect(page.getByTestId("privacy-procedure")).toHaveAttribute("open", "");
+});
+
+test("Personal data: with records, they are paged to the room under the actions, the card to the frame's foot", async ({ page }) => {
+  test.setTimeout(120_000);
+  // An erasure makes a record (an account made for this test, erased from its view).
+  const { username } = await createMember(page, "Record");
+  await page.goto("/admin/people");
+  const view = await openPerson(page, username);
+  await openDanger(view);
+  await view.getByTestId("erase-person").click();
+  const dialog = page.getByRole("dialog", { name: `Erase ${username}'s personal data?` });
+  await expect(dialog.getByTestId("erasure-preview")).toBeVisible();
+  await dialog.getByTestId("erasure-confirm-input").fill(username);
+  await dialog.getByTestId("erasure-understood").check();
+  await dialog.getByTestId("erasure-confirm").click();
+  await page.getByTestId("erasure-done").getByRole("button", { name: "Done" }).click();
+  await withWideText(page);
+  for (const [size, side] of [
+    [FLOOR, "expanded"],
+    [[1920, 1080], "collapsed"],
+  ] as Array<[Size, "expanded" | "collapsed"]>) {
+    await openAt(page, "/admin/people/privacy?section=records", size, side, { admin: true });
+    const at = cfg(size, side);
+    await expect(page.locator("[data-ws-region=list]")).toHaveAttribute("data-total", /^[1-9]\d*$/);
+    await expect(page.getByTestId("erasure-records-pager")).toBeVisible();
+    await expect(page.getByTestId("erasure-record").first()).toBeVisible();
+    await fits(page, `${at}: Personal data, the records`, { workspace: true, pager: "erasure-records-pager" });
+    // The backups' fold opened above the records: fewer rows, never a taller page.
+    await page.getByTestId("privacy-backups").locator("summary").click();
+    await settled(page);
+    await fits(page, `${at}: Personal data, the records with the backups' fold open`, { workspace: true, pager: "erasure-records-pager" });
+    const walk = await walkPages(page, "list", "erasure-records-next", () => page.getByTestId("erasure-record").evaluateAll((rows) => rows.map((r) => (r as HTMLElement).dataset.rowKey!)));
+    expectEveryRecord(walk, walk.meta[0]!.total, `${at}: Personal data's records`);
+  }
 });
 
 test("Accounts: the list is paged to the room under its search row, every account on exactly one page; a search goes to page 1", async ({ page }) => {
