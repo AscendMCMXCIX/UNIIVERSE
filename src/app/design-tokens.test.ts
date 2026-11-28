@@ -179,6 +179,50 @@ export function tokenProblems(source: string, tokens: Map<string, string>, optio
   return problems;
 }
 
+/*
+  The one-screen workspace (docs/RESPONSIVE.md, "One-screen desktop pages"; the owner's requirement of
+  27 and 28 Nov 2026): a workspace page shows fewer rows on a shorter window, never hidden or smaller
+  content, and nothing in it scrolls on its own. So no class of the workspace's variants (ws:,
+  ws-short:, ws-host:, ws-short-host:, anywhere in a class's variants) conceals or shrinks: an overflow
+  that hides, clips or scrolls, a max height, a screen-tall height, a line clamp, a truncation, or a
+  text size under text-xs (text-2xs is 12px there already: text-xs says it). A genuine exception goes
+  into WS_CONCEAL_LATER with its reason, as "file: class".
+*/
+const WS_VARIANTS = new Set(["ws", "ws-short", "ws-host", "ws-short-host"]);
+const WS_CONCEALS = [/^overflow-(x-|y-)?(hidden|clip|auto|scroll)$/, /^max-h-/, /^h-(screen|dvh|svh|lvh)$/, /^line-clamp-/, /^truncate$/, /^text-(2xs|3xs|4xs)$/];
+
+/** A class's variants ("ws:board-below-mid:hidden" → ["ws", "board-below-mid"]): its parts before the last ":" outside brackets. */
+function variantsOf(token: string): string[] {
+  const parts: string[] = [];
+  let depth = 0;
+  let from = 0;
+  for (let i = 0; i < token.length; i++) {
+    const c = token[i];
+    if (c === "[" || c === "(") depth++;
+    else if (c === "]" || c === ")") depth--;
+    else if (c === ":" && depth === 0) {
+      parts.push(token.slice(from, i));
+      from = i + 1;
+    }
+  }
+  return parts;
+}
+
+/** The workspace's classes that conceal or shrink, in one file's source, as "line: class". */
+export function workspaceProblems(source: string): string[] {
+  const problems: string[] = [];
+  source.split("\n").forEach((text, i) => {
+    for (const m of text.matchAll(/[^\s"'`{}]+/g)) {
+      const token = m[0];
+      if (!variantsOf(token).some((v) => WS_VARIANTS.has(v))) continue;
+      const u = utilityOf(token);
+      const small = /^text-\[(?:length:)?([\d.]+)(px|rem)\]$/.exec(u);
+      if (WS_CONCEALS.some((re) => re.test(u)) || (small && Number(small[1]) / (small[2] === "px" ? 16 : 1) < 0.75)) problems.push(`${i + 1}: ${token}`);
+    }
+  });
+  return problems;
+}
+
 function sourceFiles(dir: string): string[] {
   return readdirSync(dir).flatMap((name) => {
     const full = path.join(dir, name);
@@ -225,6 +269,43 @@ describe("design tokens", () => {
       .map((file) => path.relative(ROOT, file).split(path.sep).join("/"))
       .filter((rel) => rel !== "src/app/globals.css" && /(?<![\w-])type-floor-later\b/.test(readFileSync(path.join(ROOT, rel), "utf8")));
     expect(users.sort()).toEqual(Object.keys(FLOOR_LATER).sort());
+  });
+
+  // Empty: no workspace class conceals or shrinks anything (28 Nov 2026).
+  const WS_CONCEAL_LATER: Record<string, string> = {};
+  it("keeps the workspace honest: no ws:, ws-short:, ws-host: or ws-short-host: class hides, clips, scrolls, clamps, truncates or shrinks text under text-xs", () => {
+    const found = sourceFiles(path.join(ROOT, "src")).flatMap((file) => {
+      const rel = path.relative(ROOT, file).split(path.sep).join("/");
+      return workspaceProblems(readFileSync(file, "utf8")).map((p) => `${rel}: ${p.replace(/^\d+: /, "")}`);
+    });
+    expect(found.filter((f) => !(f in WS_CONCEAL_LATER))).toEqual([]);
+    expect(Object.keys(WS_CONCEAL_LATER).filter((k) => !found.includes(k)), "an exception that no longer applies").toEqual([]);
+  });
+
+  it("names each workspace class that conceals or shrinks, and leaves the ones that reveal, the flow's and the stacked variants' others alone", () => {
+    const source = [
+      `<div className="ws:overflow-hidden ws-short:overflow-y-auto ws-host:overflow-x-clip ws:overflow-visible ws-short:overflow-x-visible overflow-hidden" />`,
+      `<div className="ws:max-h-96 ws:max-h-[30rem] ws:h-screen ws-host:h-dvh ws:min-h-0 ws:h-full max-h-96" />`,
+      `<p className="ws:line-clamp-2 ws-short:truncate ws:text-2xs ws:text-4xs ws:text-[0.7rem] ws:text-[11px] ws:text-xs ws:text-[0.75rem] truncate text-2xs" />`,
+      `<li className="ws:board-below-mid:hidden ws:[&>li:nth-child(n+2)]:hidden md:ws:truncate ws:board-at-mid:overflow-auto ws-short-host:pb-3 lg:max-h-40" />`,
+    ].join("\n");
+    expect(workspaceProblems(source)).toEqual([
+      "1: ws:overflow-hidden",
+      "1: ws-short:overflow-y-auto",
+      "1: ws-host:overflow-x-clip",
+      "2: ws:max-h-96",
+      "2: ws:max-h-[30rem]",
+      "2: ws:h-screen",
+      "2: ws-host:h-dvh",
+      "3: ws:line-clamp-2",
+      "3: ws-short:truncate",
+      "3: ws:text-2xs",
+      "3: ws:text-4xs",
+      "3: ws:text-[0.7rem]",
+      "3: ws:text-[11px]",
+      "4: md:ws:truncate",
+      "4: ws:board-at-mid:overflow-auto",
+    ]);
   });
 
   it("keeps the sentence-case label one look: no size, weight, capitals or letter spacing beside label-text", () => {
