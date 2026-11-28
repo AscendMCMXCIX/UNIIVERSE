@@ -200,9 +200,12 @@ export function useModalClose(): () => void {
  * What opened a window that has just closed, for a window opened in the same render: one that
  * replaces another (a game opened from a player's Encounters, and Back to them) finds focus on the
  * page itself, the window before it gone, so it takes that window's opener and focus still goes
- * back there when the last of them closes. Cleared on the next frame.
+ * back there when the last of them closes. It takes the window's `refocus` too, where it had one:
+ * a game opened from All Champions' workspace window, which steps aside for it, gives the focus
+ * back where the preview's owner puts it (the pane that took the window's place on a resize), not
+ * to the row the preview was first opened from (until 28 Nov 2026). Cleared on the next frame.
  */
-let handedOver: HTMLElement | null = null;
+let handedOver: { el: HTMLElement | null; refocus: (() => void) | null } | null = null;
 
 /**
  * Heavy window content waits until the opening motion is over, so the first frames hold only the
@@ -530,6 +533,8 @@ export function DetailModal({
   const descriptionId = description ? `modal-desc-${generated}` : undefined;
   const ref = React.useRef<HTMLDialogElement>(null);
   const opener = React.useRef<HTMLElement | null>(null);
+  /** The refocus of the window this one took over from (handedOver), used where it has none of its own. */
+  const inherited = React.useRef<(() => void) | null>(null);
   const returnFocusRef = React.useRef(returnFocus);
   const refocusRef = React.useRef(refocus);
   React.useLayoutEffect(() => {
@@ -775,7 +780,9 @@ export function DetailModal({
     let letGo: () => void = () => undefined;
     if (open && !d.open) {
       const active = document.activeElement;
-      opener.current = active instanceof HTMLElement && active !== document.body ? active : handedOver;
+      const fromPage = active instanceof HTMLElement && active !== document.body;
+      opener.current = fromPage ? active : (handedOver?.el ?? null);
+      inherited.current = fromPage ? null : (handedOver?.refocus ?? null);
       d.showModal();
       // Where the focus starts (see above): the window itself after a tap or a click, and always for
       // a screen, until it is pressed or the focus moves on; else the close button, ringed for the
@@ -816,10 +823,11 @@ export function DetailModal({
       // Back to what opened the window, whether it was closed or removed from the page (or to the
       // window replacing it, see handedOver), or where its owner puts it (refocus).
       const back = opener.current ?? returnFocusRef.current?.() ?? null;
-      handedOver = back;
-      const own = refocusRef.current;
+      const own = refocusRef.current ?? inherited.current;
+      const handed = { el: back, refocus: own ?? null };
+      handedOver = handed;
       requestAnimationFrame(() => {
-        if (handedOver === back) handedOver = null;
+        if (handedOver === handed) handedOver = null;
         if (own) own();
         else if (back?.isConnected) back.focus({ preventScroll: true });
       });

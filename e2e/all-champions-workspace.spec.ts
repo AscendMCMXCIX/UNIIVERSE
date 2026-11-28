@@ -1930,6 +1930,39 @@ test("the workspace window gives the focus back to the champion it shows: â€¹ â€
   }
 });
 
+test("the window handing over to the pane keeps the focus in the preview: a game's window closed after the resize, and the opponents' page buttons", async ({ page }) => {
+  // A game's window over the workspace window (which steps aside for it), the pane taking the window's place while it is
+  // open, then the game closed: the focus goes into the pane. Until 28 Nov 2026 it went to the row the preview had been
+  // opened from (the game's window took over the preview window's opener, not where its owner puts the focus).
+  for (const how of ["Escape", "Back"] as const) {
+    await open(page, `${top}?champion=Ambessa&crole=TOP&vs=Darius`, [1300, 720], "expanded");
+    await expect(wsBody(page)).toBeVisible();
+    await settled(page);
+    await wsBody(page).getByTestId("champion-preview-game").first().click();
+    await expect(page).toHaveURL(/match=/);
+    await page.setViewportSize({ width: 1400, height: 720 });
+    await expect(pane(page)).toBeVisible();
+    if (how === "Escape") await page.keyboard.press("Escape");
+    else await page.goBack();
+    await expect(page).not.toHaveURL(/match=/);
+    await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest("aside[data-preview-pane]")), `${how}: the focus in the pane`).toBe(true);
+  }
+  // The opponents' page buttons: the window's pager on its second page, its "Page 2" focused (a press moves the focus there);
+  // the pane opens its opponents on their first page, where that control is another or disabled, so the focus goes to the
+  // nearest one in the pane, never the page's body (until 28 Nov 2026).
+  await open(page, `${top}?champion=Ambessa&crole=TOP`, [1300, 720], "expanded");
+  await expect(wsBody(page)).toBeVisible();
+  await settled(page);
+  await wsBody(page).getByTestId("opponents-next").focus();
+  await page.keyboard.press("Enter");
+  await expect.poll(() => page.evaluate(() => document.activeElement?.closest("dialog[data-testid=champion-preview]") !== null && document.activeElement !== document.body)).toBe(true);
+  await page.setViewportSize({ width: 1400, height: 720 });
+  await expect(pane(page)).toBeVisible();
+  await expect.poll(() => page.evaluate(() => !!document.activeElement?.closest("aside[data-preview-pane]")), "the pager's button: the focus in the pane").toBe(true);
+  await page.waitForTimeout(500);
+  expect(await active(page), "nothing leaves it on the page's body later").not.toBe("body");
+});
+
 test("the section's parts are spaced by a gap, not margins: an open match window, the workspace window and the first paint leave the frame its full height", async ({ page }) => {
   const layout = () =>
     page.evaluate(() => {

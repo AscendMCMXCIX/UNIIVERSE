@@ -883,7 +883,12 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
       // Only the focus the window's going left behind (the page's body), or the pane's heading a keyboard's open gives it.
       if (!pane.isConnected || (at && at !== document.body && at !== title)) return;
       const same = mark ? sameControl(pane, mark) : null;
-      if (same) return void same.focus({ preventScroll: true });
+      // Kept only where it took the focus; else the nearest below, never the page's body (until 28 Nov 2026 a pager's button the
+      // pane drew on another page, or disabled there, left the focus on the body).
+      if (same) {
+        same.focus({ preventScroll: true });
+        if (document.activeElement === same) return;
+      }
       if (mark && !settled() && --frames > 0) return void requestAnimationFrame(attempt);
       const inOpponents = !!mark?.el.closest("[data-testid=champion-preview-opponents]");
       focusCounterpart(pane, mark, [inOpponents ? pane.querySelector<HTMLElement>("[data-testid=champion-preview-pairing] h4") : null, inOpponents ? pane.querySelector<HTMLElement>("[data-opponent-row]") : null, title]);
