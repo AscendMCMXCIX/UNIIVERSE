@@ -39,7 +39,7 @@ export function scopeText(filter: Pick<StatsFilter, "season" | "mode" | "account
   return [seasonLabel(filter.season), seasonModeInfo(filter.mode).label, account ? account.riotId : accountsLinked > 1 ? "All accounts" : null].filter(Boolean).join(" · ");
 }
 
-export function MatchHistoryHeader({ view, basePath, filter, description, status, statusAfterText = false, narrowed = false, refined = false, controls, refresh }: {
+export function MatchHistoryHeader({ view, basePath, filter, description, status, statusAfterText = false, toolbarLead, narrowed = false, refined = false, controls, refresh }: {
   view: MatchHistoryViewKey;
   basePath: string;
   filter: Pick<StatsFilter, "season" | "mode" | "accountId">;
@@ -47,6 +47,8 @@ export function MatchHistoryHeader({ view, basePath, filter, description, status
   status?: React.ReactNode;
   /** The status in the scope's text flow (a plain `<p>` scope: the games list's). */
   statusAfterText?: boolean;
+  /** First on the toolbar's row (the workspace's inline pager: SectionHeader's toolbarLead). */
+  toolbarLead?: React.ReactNode;
   /** Some filter is narrowed (a phone shows its chips beside Filters): the filters then fill the toolbar's row from its start. */
   narrowed?: boolean;
   /** Some refinement is active (a tablet shows its chip under the filters): below xl the toolbar then takes a row of its own. */
@@ -76,6 +78,7 @@ export function MatchHistoryHeader({ view, basePath, filter, description, status
       description={description}
       status={status}
       statusAfterText={statusAfterText}
+      toolbarLead={toolbarLead}
       controls={controls}
       refresh={refresh}
       toolbarBesideNav

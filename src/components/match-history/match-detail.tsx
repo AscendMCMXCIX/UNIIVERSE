@@ -7,14 +7,14 @@ import { getMatchDetailAction } from "@/server/actions/match-history";
 import type { MatchDetailResult } from "@/server/players/match-history";
 import type { LpRecord } from "@/domain/lp-attribution";
 import type { PortraitChampion } from "@/components/champion-portrait";
-import { formatDate } from "@/lib/format";
+import { formatCount, formatDate } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { BELOW_CONTROLS_ON_PHONES, CLEAR_OF_CONTROLS } from "@/components/ui/detail-modal";
 import { PreviewWindow } from "@/components/ui/preview-window";
 import { MatchDetailCacheContext } from "./match-detail-cache";
 import { fmtDuration } from "./match-format";
 import { LpChange } from "./match-card";
-import { keepStepFocus, type GameNav } from "./inline-match";
+import { GameSteps, keepStepFocus, type GameNav } from "./inline-match";
 import { PostGame } from "./post-game";
 
 /**
@@ -29,7 +29,15 @@ import { PostGame } from "./post-game";
  * `back` is for a match opened from another window (a champion's matchup): that window gives way to
  * this one, and Back returns to it; Close and Escape close both.
  */
-export function MatchDetailModal({ playerId, matchId, championsById, onClose, back, encounterLinks = false, nav, lp }: { playerId: string; matchId: string; championsById: Record<string, PortraitChampion>; onClose: () => void; back?: { label: string; onBack: () => void }; /** Opened over Match History itself (a phone): the scoreboard's marks lead to its Encounters (see PostGame). */ encounterLinks?: boolean; /** The list's Previous and Next, and where this game sits in it (a phone's window over Match History). */ nav?: (GameNav & { index: number; total: number }) | null; /** A ranked game's LP change, from the list's card. */ lp?: LpRecord | null }) {
+export function MatchDetailModal({ playerId, matchId, championsById, onClose, back, encounterLinks = false, nav, lp, workspace = false }: { playerId: string; matchId: string; championsById: Record<string, PortraitChampion>; onClose: () => void; back?: { label: string; onBack: () => void }; /** Opened over Match History itself (a phone, the workspace): the scoreboard's marks lead to its Encounters (see PostGame). */ encounterLinks?: boolean; /** The list's Previous and Next, and where this game sits in it (a phone's window over Match History, the workspace's game window). */ nav?: (GameNav & { index: number; total: number }) | null; /** A ranked game's LP change, from the list's card. */ lp?: LpRecord | null; /**
+   * The workspace's game window (docs/RESPONSIVE.md, "One-screen desktop pages", Match History): a desktop
+   * window in the one-screen gate opens every game of a list here, over the list, which never moves. The
+   * match window's wide width (76rem: the post-game view keeps its two columns) at the workspace window's
+   * fixed height (the screen less 1rem above and below), headless: one header line (the result, the
+   * champion, the length; the queue, the date and the patch; a ranked game's LP) ending with Previous,
+   * where the game stands in the list, Next and Close; the view fills the rest and never scrolls (its
+   * pages where it does not fit: PostGame's fitPages).
+   */ workspace?: boolean }) {
   const cache = React.useContext(MatchDetailCacheContext);
   const [loaded, setLoaded] = React.useState<{ matchId: string; result: MatchDetailResult } | null>(null);
   // The record starts loading as the window opens, but is shown only once the window has finished
@@ -125,6 +133,70 @@ export function MatchDetailModal({ playerId, matchId, championsById, onClose, ba
       </div>
     </div>
   ) : undefined;
+  if (workspace) {
+    const tone = view ? (view.win ? "bg-gradient-to-r from-blue/15 via-blue/5 to-transparent" : "bg-gradient-to-r from-red/15 via-red/5 to-transparent") : undefined;
+    return (
+      <PreviewWindow open onClose={onClose} size="workspace" workspaceWidth="game" headless title="Match details" titleId="match-detail-title" testId="match-detail" bodyTestId="match-detail-body" bodyClassName="min-h-0" onSettled={() => setSettled(true)}>
+        {/* One line: what the game was, then the steps through the list and Close at its end (wrapping, never cut, at a large text size). */}
+        <div className={cn("flex shrink-0 flex-wrap items-center gap-x-4 gap-y-1 rounded-t-card border-b border-border py-2 pl-5 pr-3", tone)} data-testid="match-detail-header">
+          <div className="flex min-w-0 flex-1 flex-wrap items-baseline gap-x-3 gap-y-0.5">
+            <h2 id="match-detail-title" tabIndex={-1} className="flex min-w-0 flex-wrap items-baseline gap-x-2 text-lg font-semibold leading-6 text-fg outline-none">
+              {view ? (
+                <>
+                  <span className={cn("font-bold", view.win ? "text-blue" : "text-red")} data-testid="match-result">
+                    {view.win ? "Victory" : "Defeat"}
+                  </span>
+                  <span className="min-w-0 [overflow-wrap:anywhere]" data-testid="match-detail-champion">· {champ(view.championId).name}</span>
+                  <span className="shrink-0 text-sm font-normal tabular-nums text-fg-muted" data-testid="match-detail-duration">
+                    {fmtDuration(view.durationS)}
+                  </span>
+                </>
+              ) : (
+                "Match details"
+              )}
+            </h2>
+            {view ? (
+              <p className="text-xs leading-4 tabular-nums text-fg-muted" data-testid="match-detail-meta">
+                {[view.queue, formatDate(new Date(view.playedAt)), view.patch ? `Patch ${publicPatchName(view.patch)}` : null].filter(Boolean).join(" · ")}
+              </p>
+            ) : null}
+            {view && lp ? <LpChange lp={lp} focusable /> : null}
+          </div>
+          <GameSteps
+            nav={nav ?? null}
+            onClose={onClose}
+            where="window"
+            between={
+              nav ? (
+                <span className="whitespace-nowrap px-1 text-xs tabular-nums text-fg-muted" data-testid="match-detail-position">
+                  Game {formatCount(nav.index + 1)} of {formatCount(nav.total)}
+                </span>
+              ) : null
+            }
+          />
+          <span className="sr-only" aria-live="polite">
+            {said}
+          </span>
+        </div>
+        {/* The room the view fills: PostGame measures itself against its parent (fitPages), the fade's box, as tall as the room. */}
+        <div className="min-h-0 flex-1 px-5 pb-4 pt-3">
+          {!result ? (
+            <DetailSkeleton />
+          ) : (
+            <div className="h-full motion-safe:fade-in" key={matchId}>
+              {result.status !== "ok" ? (
+                <p className="rounded-panel border border-dashed border-border p-4 text-sm text-fg-muted" data-testid="match-detail-message">
+                  {result.message}
+                </p>
+              ) : (
+                <PostGame key={view!.matchId} playerId={playerId} view={view!} champ={champ} variant="window" encounterLinks={encounterLinks} fitPages />
+              )}
+            </div>
+          )}
+        </div>
+      </PreviewWindow>
+    );
+  }
   return (
     <PreviewWindow
       open

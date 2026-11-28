@@ -32,7 +32,7 @@ const PHONE_TITLE_ROW = "max-sm:flex max-sm:flex-wrap max-sm:items-center max-sm
 const PHONE_TITLE_PARTS = "max-sm:contents max-sm:[&>:first-child]:order-1 max-sm:[&>:first-child]:flex-auto max-sm:[&>[data-testid=section-scope]]:order-3 max-sm:[&>[data-testid=section-scope]]:basis-full max-sm:[&>[data-testid=section-scope]]:mt-0";
 const PHONE_TITLE_TOOLBAR = "max-sm:order-2 max-sm:ml-auto max-sm:flex-wrap max-sm:justify-end";
 
-export function SectionHeader({ id, title, titleOnPhones = "shown", nav, aside, description, status, statusAfterText = false, controls, refresh, toolbarBesideNav = false, toolbarFills, toolbarBesideScope = false, scopeBesideTitle = false, className, testId }: {
+export function SectionHeader({ id, title, titleOnPhones = "shown", nav, aside, description, status, statusAfterText = false, controls, refresh, toolbarLead, toolbarBesideNav = false, toolbarFills, toolbarBesideScope = false, scopeBesideTitle = false, className, testId }: {
   /** The heading's id, for the section's aria-labelledby. */
   id: string;
   title: React.ReactNode;
@@ -53,6 +53,12 @@ export function SectionHeader({ id, title, titleOnPhones = "shown", nav, aside, 
   controls?: React.ReactNode;
   /** The section's Refresh (RefreshButton), at the end of the toolbar. */
   refresh?: React.ReactNode;
+  /**
+   * First on the toolbar's row, before the filters (a one-screen workspace's inline pager: Match
+   * History's, docs/RESPONSIVE.md, "One-screen desktop pages"), where it costs the page no line of its
+   * own. Without it the toolbar is exactly as before.
+   */
+  toolbarLead?: React.ReactNode;
   /** The toolbar on the views' row whenever it fits there, at every width (see above). */
   toolbarBesideNav?: boolean;
   /**
@@ -114,13 +120,14 @@ export function SectionHeader({ id, title, titleOnPhones = "shown", nav, aside, 
   // Phones with the title on screen beside the toolbar (Season performance): one wrapping row (PHONE_TITLE_ROW).
   const titleBesideToolbar = toolbarBesideScope && (titleOnPhones !== "tab" || !!aside);
   const toolbar =
-    controls || refresh ? (
+    controls || refresh || toolbarLead ? (
       // The toolbar: the filters take the room there is (on phones their folded button fills the
       // row beside Refresh); from xl it sits at the title's right, as wide as what it holds.
       // Beside the views it asks for the width its content needs, at the row's end, and takes the
       // next row when that does not fit (flex-wrap breaks a line before shrinking anything); there
       // its filters shrink to what Refresh leaves, so the chips of a phone's narrowed filters scroll.
       <div className={cn("flex min-w-0 items-start gap-2", toolbarBesideNav ? cn("flex-auto justify-end", toolbarFills === "below-xl" && "basis-full xl:basis-auto") : "xl:justify-end", titleBesideToolbar && PHONE_TITLE_TOOLBAR)} data-testid="section-toolbar">
+        {toolbarLead}
         {controls ? <div className={cn("min-w-0", toolbarBesideNav ? (toolbarFills ? "flex-1" : "flex-initial") : "flex-1 xl:flex-none", titleBesideToolbar && "max-sm:flex-auto")}>{controls}</div> : null}
         {refresh}
       </div>
