@@ -559,7 +559,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
   const params = useSearchParams();
   // The one-screen workspace (docs/RESPONSIVE.md, "One-screen desktop pages", Match History): a desktop
   // window in the gate shows the complete cards it has room for (the row budget, the address's `per`), the
-  // pager on the scope line, and every game in the game window over the list. Elsewhere (phones, tablets,
+  // pager first on the toolbar's row, and every game in the game window over the list. Elsewhere (phones, tablets,
   // touch, short windows, a larger text size) the flow, as it always was.
   const marks = useWorkspaceMarks();
   const ws = marks.ws;
@@ -849,7 +849,6 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
     const index = matchId === data.neighbours.after ? pageStart + rowIds.length : matchId === data.neighbours.before ? pageStart - 1 : -1;
     if (index < 0) return null;
     return { prev: index > 0 ? (matchId === data.neighbours.after ? (rowIds[rowIds.length - 1] ?? null) : STEP_PENDING) : null, next: index < data.total - 1 ? (matchId === data.neighbours.before ? (rowIds[0] ?? null) : STEP_PENDING) : null, go: stepAcross, index, total: data.total };
-    return null;
   };
   const returnFocus = React.useRef<HTMLElement | null>(null);
   React.useEffect(() => {

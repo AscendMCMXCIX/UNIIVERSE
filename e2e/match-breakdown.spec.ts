@@ -761,8 +761,9 @@ test("desktop with motion on: a game opened from a card in the upper half of the
   test.setTimeout(180_000);
   await page.emulateMedia({ reducedMotion: "no-preference" });
   // Desktop windows of the flow (just under the one-screen gate's 80rem: in the gate a game opens in the game window, which
-  // never moves the page: e2e/matches-workspace.spec.ts), from a laptop's height to a tall monitor's.
-  for (const size of [{ width: 1279, height: 720 }, { width: 1279, height: 900 }, { width: 1279, height: 1080 }, { width: 1279, height: 1440 }]) {
+  // never moves the page: e2e/matches-workspace.spec.ts), from a laptop's height to a monitor's (a taller window's ten cards
+  // leave the page too little scroll to place a card at half its height).
+  for (const size of [{ width: 1279, height: 720 }, { width: 1279, height: 900 }, { width: 1279, height: 1080 }]) {
     await page.setViewportSize(size);
     await openHistory(page, "MID");
     // A card whose top can sit at about half the screen's height (the upper 55% is left where it is

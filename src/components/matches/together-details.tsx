@@ -46,6 +46,8 @@ const CARD_PROBE_REM = 7.5;
 const FIRST_PAINT_TIERS = { gate: 1, mid: 2, tall: 3 } as const;
 const GAME_WORDS = { one: "game", many: "games" } as const;
 const noSubscribe = () => () => {};
+/** A step the game window offers while the page beyond it is on its way: no game's entry, so pressed it does nothing. */
+const STEP_PENDING = "pending";
 
 interface TogetherPagingState {
   marks: WorkspaceMarks;
@@ -402,7 +404,10 @@ export function TogetherList({ entries, total, offset = 0, championsById, classN
     : workspace && ws
       ? windowAt >= 0
         ? { prev: entries[windowAt - 1]?.entry ?? ws.paging.before?.entry ?? null, next: entries[windowAt + 1]?.entry ?? ws.paging.after?.entry ?? null, go: step, index: offset + windowAt, total: total ?? entries.length }
-        : { prev: null, next: null, go: step, index: windowed === ws.paging.after ? offset + entries.length : offset - 1, total: total ?? entries.length }
+        : // On its way to the next or previous page: the step beyond it stays offered (pressed meanwhile it does nothing), so the focus stays on the button pressed.
+          windowed === ws.paging.after
+          ? { prev: entries[entries.length - 1]?.entry ?? null, next: offset + entries.length < (total ?? 0) - 1 ? STEP_PENDING : null, go: step, index: offset + entries.length, total: total ?? entries.length }
+          : { prev: offset - 1 > 0 ? STEP_PENDING : null, next: entries[0]?.entry ?? null, go: step, index: offset - 1, total: total ?? entries.length }
       : windowAt >= 0
         ? { ...navFor(windowed.entry)!, index: windowAt, total: entries.length }
         : null;

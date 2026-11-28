@@ -1,3 +1,4 @@
+import { inTheFlow } from "./match-history";
 import { expect, test, type Page } from "./test";
 import { pick } from "./select";
 import { closeFilterSheet, openFilterBar } from "./filters";
@@ -56,6 +57,8 @@ test("a profile opened from a scrolled list starts at its top, and Back returns 
 });
 
 test("Match History's next page starts with its first game under the bars, not at its end", async ({ page }) => {
+  // The flow's scrolling list (a desktop window in the one-screen gate pages the list in place, nothing scrolling).
+  await inTheFlow(page);
   await page.goto(`/players/${await topId(page)}/matches`);
   const history = page.getByTestId("match-history");
   await expect(history).toHaveAttribute("data-ready", "true");
