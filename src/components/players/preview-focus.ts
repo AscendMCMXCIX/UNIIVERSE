@@ -21,8 +21,9 @@ export function markFocus(el: Element): FocusMark {
   return { el, row: el.closest<HTMLElement>("[data-opponent-row]")?.dataset.opponentRow ?? null, id: el.id || null, testId: el.closest<HTMLElement>("[data-testid]")?.dataset.testid ?? null };
 }
 
-const FOCUSABLE = "button, a[href], input, [tabindex]";
-/** The element itself where it takes the focus, else the first control in it. */
+/** What takes the focus: a disabled button or field never does (the pager's arrow at its first or last page). */
+const FOCUSABLE = "button:not(:disabled), a[href], input:not(:disabled), [tabindex]";
+/** The element itself where it takes the focus, else the first control in it that does. */
 const focusable = (el: HTMLElement | null): HTMLElement | null => (el && !el.matches(FOCUSABLE) ? el.querySelector<HTMLElement>(FOCUSABLE) : el);
 const drawn = (el: HTMLElement | null | undefined): el is HTMLElement => !!el && el.getClientRects().length > 0;
 

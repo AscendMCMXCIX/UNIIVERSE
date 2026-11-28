@@ -18,12 +18,12 @@ import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone
 import { SampleNote } from "./sample-note";
 import { ArrowDown, ArrowUp, ArrowUpDown, X } from "lucide-react";
 import { useAddressItem } from "@/components/ui/address-item";
-import { isTyping, keepsEscape, modalOpen, useWindowPosture, useWorkspace, useWorkspaceShort, useWorkspaceShortNarrow } from "@/components/ui/posture";
+import { WS_QUERY, isTyping, keepsEscape, modalOpen, onRootSize, rootPx, useWindowPosture, useWorkspace, useWorkspaceShort, useWorkspaceShortNarrow } from "@/components/ui/posture";
 import { Pager } from "@/components/ui/pager";
 import { useRowBudget } from "@/components/ui/fit-rows";
 import { pageCount, pageOf, pageRange, usePagedList } from "@/components/ui/row-budget";
 import { PreviewWindow, SiblingSteps, type PreviewSiblings } from "@/components/ui/preview-window";
-import type { CloseRequest } from "@/components/ui/detail-modal";
+import { pageLockGap, type CloseRequest } from "@/components/ui/detail-modal";
 import { LABELLED_CLOSE } from "@/components/ui/window-control";
 import { PreviewContent, selectionFor, usePreviewAddress, usePreviewData, type ListScope } from "./champion-preview";
 import { RoleIcons, roleFigures, roleMarkAt } from "./champion-roles";
@@ -99,6 +99,14 @@ const GRID =
   workspace window will leave it and nothing moves when it opens.
 */
 const SHEET_FIRST_PAINT_GRID = "ws:@max-[64.75rem]/section:@min-[44rem]:grid-cols-[minmax(11.75rem,1fr)_minmax(3.25rem,4.5rem)_minmax(4.5rem,6rem)_minmax(3.25rem,4.25rem)_minmax(3.5rem,4.5rem)_minmax(3rem,4.25rem)_minmax(5.25rem,6.5rem)_minmax(4.375rem,5.25rem)] ws:@max-[64.75rem]/section:@min-[44rem]:gap-x-2";
+/**
+ * The list and the open champion's pane side by side (the list's 22.5rem to 24rem, a third of the section at most, and the
+ * pane the rest). The first paint draws it where the CSS's bounds allow (from md in a window taller than 30rem, in a section of
+ * 47.5rem, or 64.75rem in the workspace, as PANE_COLUMN_SHOWN); once hydrated, wherever the page opened the pane. The workspace's
+ * first-paint classes are marked important: the flow's (an arbitrary media variant) come later in the stylesheet.
+ */
+const SPLIT_FIRST_PAINT = "grid items-start gap-4 md:[@media(min-height:30.0625rem)]:@min-[47.5rem]:grid-cols-[minmax(22.5rem,min(32%,24rem))_minmax(0,1fr)] ws:flex-1 ws:grid-cols-1! ws:items-stretch ws:@min-[64.75rem]/section:grid-cols-[minmax(22.5rem,min(32%,24rem))_minmax(0,1fr)]!";
+const SPLIT_OPEN = "grid items-start gap-4 grid-cols-[minmax(22.5rem,min(32%,24rem))_minmax(0,1fr)] ws:flex-1 ws:items-stretch";
 /** A sortable number, or null when the figure is missing (missing rows always sort last). */
 function sortValue(c: ChampionRow, key: SortKey): number | null {
   switch (key) {
@@ -354,38 +362,95 @@ export const PANE_ROOM_REM = 47.5;
  */
 export const WS_PANE_SECTION_REM = 64.75;
 /**
- * Where the CSS draws the pane's column: from md in a window taller than 30rem, in a section of
- * PANE_ROOM_REM or more (the flow), and in the workspace in a section of WS_PANE_SECTION_REM or more
- * (all-champions.test.ts holds the classes to the two numbers). The column and the probe useRoomForPane reads
- * carry the same classes, so the page opens the pane exactly where the CSS draws its column, and the
- * sheet or the workspace window everywhere else.
+ * Where the CSS draws the pane's column in the first paint (the server's HTML and the hydration render,
+ * before the page can measure): from md in a window taller than 30rem, in a section of PANE_ROOM_REM or
+ * more (the flow), and in the workspace in a section of WS_PANE_SECTION_REM or more (all-champions.test.ts
+ * holds the classes to the two numbers). Once hydrated the page decides (paneFits, useRoomForPane) and the
+ * column, drawn only where it opened the pane, carries PANE_COLUMN_OPEN: one decision, which the CSS follows.
  */
 export const PANE_COLUMN_SHOWN = "hidden md:[@media(min-height:30.0625rem)]:@min-[47.5rem]:block ws:hidden! ws:@min-[64.75rem]/section:flex!";
+/** The pane's column once hydrated: drawn wherever the page opened the pane (useRoomForPane decided it). */
+export const PANE_COLUMN_OPEN = "block ws:flex";
+/** The media part of PANE_COLUMN_SHOWN (md, a window taller than 30rem), which the page asks as the CSS did. */
+const PANE_MEDIA = "(min-width: 48rem) and (min-height: 30.0625rem)";
 /**
- * Whether the CSS draws the pane's column now: the probe's display (PANE_COLUMN_SHOWN, beside where
- * the column goes, so the same container answers its queries), read again as the section resizes,
- * the window resizes (a media query, the root's size) or the workspace comes or goes. The CSS's own
- * answer, never a width compared in script: until 28 Nov 2026 the section's rounded clientWidth was
- * compared with the bound less half a pixel, so a section in the half pixel under it (an 18px root at
- * 1525px with the sidebar open, 1165 against 1165.5; a fractional width at a zoom) opened a pane the
- * container query hid, and nothing of the champion opened showed.
+ * Whether the section holds the pane beside the list (pure, for its unit test). `room` is the section's
+ * width with the page's own scrollbar given back, `bar` the width that scrollbar takes where scrollbars are
+ * classic (0 where they overlay the page), `root` the root's size, all in px.
+ *  - The flow scrolls, and what it holds decides whether it does, so the pane needs its 47.5rem with the
+ *    page's scrollbar in the section: room − bar. Until 28 Nov 2026 the CSS decided from the section as it
+ *    was, and with classic scrollbars the two took turns: a pane that made the page scroll narrowed the
+ *    section under its bound, the column went, the sheet left the page short again, the scrollbar went and
+ *    the pane came back, about every 140ms, the champion mostly not drawn (Demo ADC at 1085 × 768 with the
+ *    sidebar open, a 765px section with no scrollbar and 755 with it).
+ *  - The workspace never scrolls, so it allows for no scrollbar: its 64.75rem of the room. A moment's
+ *    scrollbar (a list's first render before it measures, at an 18px root) no longer takes the pane away.
+ * The room, and so the answer, is the same whether or not the page scrolls, or a window over it holds it.
  */
-function useRoomForPane(sectionRef: React.RefObject<HTMLElement | null>, probeRef: React.RefObject<HTMLElement | null>, ws: boolean | null): boolean {
+export function paneFits({ room, bar, root, workspace }: { room: number; bar: number; root: number; workspace: boolean }): boolean {
+  return workspace ? room >= WS_PANE_SECTION_REM * root : room - bar >= PANE_ROOM_REM * root;
+}
+/**
+ * The section's width with the page's own scrollbar given back: its content box, the width the page's
+ * scrollbar takes now (the window's width less the root's box; at most a scrollbar's 24px, as lockPage
+ * believes) and the padding lockPage gives the body in its place while a window holds the page.
+ */
+function sectionRoom(section: HTMLElement): number {
+  const style = getComputedStyle(section);
+  const inner = section.getBoundingClientRect().width - (parseFloat(style.paddingLeft) || 0) - (parseFloat(style.paddingRight) || 0) - (parseFloat(style.borderLeftWidth) || 0) - (parseFloat(style.borderRightWidth) || 0);
+  const gap = window.innerWidth - document.documentElement.getBoundingClientRect().width;
+  return inner + (gap >= 1 ? Math.min(24, gap) : 0) + pageLockGap();
+}
+/**
+ * The width a classic scrollbar takes (as lockPage believes it, at most 24px), whether or not the page scrolls now, from a box
+ * that always has one: overflow-y scroll, out of the page's flow and outside its content, with no height, invisible, its
+ * scrollbar styled as the root's (globals.css: thin). 0 where scrollbars overlay the page (phones, tablets, a Mac's default,
+ * Playwright's hidden scrollbars).
+ */
+function scrollbarProbe(): { width: () => number; remove: () => void } {
+  const el = document.createElement("div");
+  el.setAttribute("aria-hidden", "true");
+  el.dataset.scrollbarProbe = "";
+  el.style.cssText = "position:absolute;top:0;left:0;width:6rem;height:0;overflow-y:scroll;visibility:hidden;pointer-events:none";
+  document.body.appendChild(el);
+  return { width: () => Math.max(0, Math.min(24, el.offsetWidth - el.clientWidth)), remove: () => el.remove() };
+}
+/**
+ * Whether the section holds the pane (paneFits), read again as the section resizes (the sidebar, the
+ * page's scrollbar), the window resizes (a zoom fires one), the root's size moves (the browser's text
+ * size, onRootSize) or the workspace comes or goes. One decision: the page opens the pane where it says
+ * so and the column then carries PANE_COLUMN_OPEN, so the CSS never hides a pane the page opened, and
+ * the same window always gets the same presentation, however it was reached (no hold, nothing
+ * remembered). Until 28 Nov 2026 the column's container query decided and the page read its answer from
+ * a probe, so with classic scrollbars the page's own scrollbar decided (paneFits); before that the page
+ * compared a rounded clientWidth with the bound less half a pixel, which opened panes the container
+ * query hid (an 18px root at 1525px with the sidebar open, 1165 against 1165.5): here every width is
+ * the layout's own, fractional, and the CSS follows the answer.
+ */
+function useRoomForPane(sectionRef: React.RefObject<HTMLElement | null>, ws: boolean | null): boolean {
   const [roomy, setRoomy] = React.useState(true);
   React.useLayoutEffect(() => {
     const section = sectionRef.current;
-    const probe = probeRef.current;
-    if (!section || !probe) return;
-    const check = () => setRoomy(getComputedStyle(probe).display !== "none");
+    if (!section) return;
+    const bar = scrollbarProbe();
+    const check = () =>
+      setRoomy(
+        window.matchMedia(PANE_MEDIA).matches &&
+          // While hydrating (ws null) the CSS's gate says which posture the section is drawn in.
+          paneFits({ room: sectionRoom(section), bar: bar.width(), root: rootPx(), workspace: ws ?? window.matchMedia(WS_QUERY).matches }),
+      );
     check();
     const observer = new ResizeObserver(check);
     observer.observe(section);
     window.addEventListener("resize", check);
+    const offRoot = onRootSize(check);
     return () => {
       observer.disconnect();
       window.removeEventListener("resize", check);
+      offRoot();
+      bar.remove();
     };
-  }, [sectionRef, probeRef, ws]);
+  }, [sectionRef, ws]);
   return roomy;
 }
 
@@ -602,17 +667,6 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   const short = useWorkspaceShort();
   // And under 48 of the page's own rem, the short form of a narrow section (the CSS's container query decides the width).
   const shortNarrow = useWorkspaceShortNarrow();
-  const budget = useRowBudget(listRef, {
-    footRef: listFootRef,
-    cardRef,
-    rowSelector: "[data-testid=top-champion]",
-    probeRem: 3.1875,
-    lastLess: 1,
-    active: paged && rows.length > 0,
-    observe: () => [listToolbarRef.current, listHeadRef.current],
-    key: [rows.length, data.season, data.mode, data.filter.role, data.filter.accountId, sort.key, sort.dir, q],
-    cap: pageCaps?.champions ?? null,
-  });
   const sortBy = (key: SortKey) => setSort((cur) => (cur.key === key ? { key, dir: cur.dir === "asc" ? "desc" : "asc" } : { key, dir: defaultDir(key) }));
   const label = COLUMNS.find((c) => c.key === sort.key)!.label;
   // Some champions' multikills come from only some of their games (or none yet): the list says how to read them.
@@ -648,6 +702,42 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     if (orphan) dropRef.current?.();
   }, [orphan]);
   const sectionRef = React.useRef<HTMLElement>(null);
+  // A row to focus once it is drawn (a key that turned the page).
+  const focusRow = React.useRef<string | null>(null);
+  // A game opened from the preview (an opponent's games): the match window, with the game in the
+  // address (`?match=`) by the one history rule, so it has a history entry of its own: Back closes
+  // the game and leaves the preview as it was, and Back from a page a link in it opened comes back
+  // to the game (docs/MOBILE.md, "Back").
+  const game = useAddressItem("match");
+  const match = game.id;
+  // Where it opens (the owner's request of 25 Nov 2026: no panel over the table): beside the list, in
+  // a pane of its own, the list narrowing to the champions, their positions, games and win rates;
+  // a sheet on a touch phone, in a window under 768px (the phone's frame) or a short one (posture.ts),
+  // and where the section is too narrow for both (an upright tablet, a large text size: PANE_ROOM_REM). The server knows the
+  // address, so a linked preview is beside the list in the first HTML; CSS keeps that pane from the
+  // windows that get the sheet until the page has hydrated and opens it.
+  const hydrated = React.useSyncExternalStore(subscribeNothing, isClient, notClient);
+  const windowed = useWindowPosture();
+  // Whether the section holds the pane beside the list, the page's own scrollbar given back (and, in the flow, allowed for).
+  const roomy = useRoomForPane(sectionRef, ws);
+  const sheet = !!selected && hydrated && (windowed || !roomy);
+  // The workspace's section too narrow for the pane (1280–1355px with the sidebar open, a larger root): the workspace window.
+  // Touch phones, tablets and the flow (windowed, or a section under PANE_ROOM_REM) keep the sheet.
+  const workspaceWindow = sheet && paged && !windowed;
+  const split = !!selected && !sheet;
+  const budget = useRowBudget(listRef, {
+    footRef: listFootRef,
+    cardRef,
+    rowSelector: "[data-testid=top-champion]",
+    probeRem: 3.1875,
+    lastLess: 1,
+    active: paged && rows.length > 0,
+    observe: () => [listToolbarRef.current, listHeadRef.current],
+    // And whether the pane is beside it: the list's width and its footer change (the legend comes into the footer without the pane),
+    // so the count is measured again before that layout is painted, never left a frame past the window (its page's scrollbar for a moment).
+    key: [rows.length, data.season, data.mode, data.filter.role, data.filter.accountId, sort.key, sort.dir, q, split],
+    cap: pageCaps?.champions ?? null,
+  });
   const perPage = paged ? budget : null;
   const selectedIndex = selectedKey ? rows.findIndex((c) => c.championId === selectedKey) : -1;
   // The filters the list shows (a refresh with new games keeps the page; another filter starts again).
@@ -670,29 +760,6 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     go(p);
     setLive(pageWords(p));
   };
-  // A row to focus once it is drawn (a key that turned the page).
-  const focusRow = React.useRef<string | null>(null);
-  // A game opened from the preview (an opponent's games): the match window, with the game in the
-  // address (`?match=`) by the one history rule, so it has a history entry of its own: Back closes
-  // the game and leaves the preview as it was, and Back from a page a link in it opened comes back
-  // to the game (docs/MOBILE.md, "Back").
-  const game = useAddressItem("match");
-  const match = game.id;
-  // Where it opens (the owner's request of 25 Nov 2026: no panel over the table): beside the list, in
-  // a pane of its own, the list narrowing to the champions, their positions, games and win rates;
-  // a sheet on a touch phone, in a window under 768px (the phone's frame) or a short one (posture.ts),
-  // and where the section is too narrow for both (an upright tablet, a large text size: PANE_ROOM_REM). The server knows the
-  // address, so a linked preview is beside the list in the first HTML; CSS keeps that pane from the
-  // windows that get the sheet until the page has hydrated and opens it.
-  const hydrated = React.useSyncExternalStore(subscribeNothing, isClient, notClient);
-  const windowed = useWindowPosture();
-  const paneRoomRef = React.useRef<HTMLSpanElement>(null);
-  const roomy = useRoomForPane(sectionRef, paneRoomRef, ws);
-  const sheet = !!selected && hydrated && (windowed || !roomy);
-  // The workspace's section too narrow for the pane (1280–1355px with the sidebar open, a larger root): the workspace window.
-  // Touch phones, tablets and the flow (windowed, or a section under PANE_ROOM_REM) keep the sheet.
-  const workspaceWindow = sheet && paged && !windowed;
-  const split = !!selected && !sheet;
   const paneRef = React.useRef<HTMLElement>(null);
   const paneColumnRef = React.useRef<HTMLDivElement>(null);
   const paneSpacerRef = React.useRef<HTMLDivElement>(null);
@@ -816,7 +883,12 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
       // Only the focus the window's going left behind (the page's body), or the pane's heading a keyboard's open gives it.
       if (!pane.isConnected || (at && at !== document.body && at !== title)) return;
       const same = mark ? sameControl(pane, mark) : null;
-      if (same) return void same.focus({ preventScroll: true });
+      // Kept only where it took the focus; else the nearest below, never the page's body (until 28 Nov 2026 a pager's button the
+      // pane drew on another page, or disabled there, left the focus on the body).
+      if (same) {
+        same.focus({ preventScroll: true });
+        if (document.activeElement === same) return;
+      }
       if (mark && !settled() && --frames > 0) return void requestAnimationFrame(attempt);
       const inOpponents = !!mark?.el.closest("[data-testid=champion-preview-opponents]");
       focusCounterpart(pane, mark, [inOpponents ? pane.querySelector<HTMLElement>("[data-testid=champion-preview-pairing] h4") : null, inOpponents ? pane.querySelector<HTMLElement>("[data-opponent-row]") : null, title]);
@@ -958,7 +1030,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           const narrowFigure = split || sorted === "champion" || sorted === "games" || sorted === "win" ? null : (summaryPairs(c, sorted).find((pair) => pair.sorted) ?? null);
           return (
             // A row lights up while pointed at or focused (a quiet tint; the whole row opens the champion's window).
-            <li key={c.championId} data-role={c.role ?? ""} aria-setsize={rows.length} aria-posinset={i + 1} className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2 @max-[17rem]:grid-cols-[minmax(0,1fr)] transition-colors duration-150 hover:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:outline has-[[data-open-champion]:focus-visible]:outline-2 has-[[data-open-champion]:focus-visible]:-outline-offset-2 has-[[data-open-champion]:focus-visible]:outline-accent @min-[44rem]:py-1.5 md:group-data-[split]/list:py-1.5 data-[selected=true]:bg-surface-3 data-[selected=true]:hover:bg-surface-3 data-[selected=true]:has-[[data-open-champion]:focus-visible]:bg-surface-3 data-[selected=true]:before:absolute data-[selected=true]:before:inset-y-0 data-[selected=true]:before:left-0 data-[selected=true]:before:w-0.5 data-[selected=true]:before:bg-accent", split ? SHEET_FIRST_PAINT_GRID : GRID, !range && wsTierClass(i))} data-selected={selectedKey === c.championId || undefined} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-roles={c.roles.map((x) => x.role).join(",")} data-no-role={c.noRole || undefined} data-kills={p.totalKills ?? ""} data-mastery={c.mastery?.points ?? ""} data-multikills={c.multikills?.counted ? MULTIKILL_KINDS.map((k) => c.multikills![k.key]).join(",") : ""} data-multikill-coverage={c.multikills ? multikillCoverage(c.multikills).state : ""}>
+            <li key={c.championId} data-role={c.role ?? ""} aria-setsize={rows.length} aria-posinset={i + 1} className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-3 gap-y-1.5 px-3 py-2 @max-[17rem]:grid-cols-[minmax(0,1fr)] transition-colors duration-150 hover:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:bg-surface-2/50 has-[[data-open-champion]:focus-visible]:outline has-[[data-open-champion]:focus-visible]:outline-2 has-[[data-open-champion]:focus-visible]:-outline-offset-2 has-[[data-open-champion]:focus-visible]:outline-accent @min-[44rem]:py-1.5 md:group-data-[split]/list:py-1.5 data-[selected=true]:bg-surface-3 data-[selected=true]:hover:bg-surface-3 data-[selected=true]:has-[[data-open-champion]:focus-visible]:bg-surface-3 data-[selected=true]:before:absolute data-[selected=true]:before:inset-y-0 data-[selected=true]:before:left-0 data-[selected=true]:before:w-0.5 data-[selected=true]:before:bg-accent", split ? (hydrated ? undefined : SHEET_FIRST_PAINT_GRID) : GRID, !range && wsTierClass(i))} data-selected={selectedKey === c.championId || undefined} data-testid="top-champion" data-champion={c.championId} data-games={r.games} data-roles={c.roles.map((x) => x.role).join(",")} data-no-role={c.noRole || undefined} data-kills={p.totalKills ?? ""} data-mastery={c.mastery?.points ?? ""} data-multikills={c.multikills?.counted ? MULTIKILL_KINDS.map((k) => c.multikills![k.key]).join(",") : ""} data-multikill-coverage={c.multikills ? multikillCoverage(c.multikills).state : ""}>
               <span className="flex min-w-0 items-center gap-3">
                 <span className="hidden w-5 shrink-0 text-right text-xs tabular-nums text-fg-subtle @4xl/section:block" aria-hidden>
                   {i + 1}
@@ -1046,7 +1118,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
             </li>
           );
         }),
-    [shown, champ, sorted, total, selectedKey, selRole, split, previewData, range, offset, rows.length],
+    [shown, champ, sorted, total, selectedKey, selRole, split, hydrated, previewData, range, offset, rows.length],
   );
   const contentProps = (c: ChampionRow, role: Role | null) => ({ playerId, isOwn, row: c, role, vs: address.sel?.vs ?? null, champ, data: previewData, onVs: address.setVs, onRole: address.setRole, titleId: "champion-preview-title", onMatch: game.open, searchFrom: opponentSearchFrom, paged, perColumnCap: pageCaps?.opponents ?? null });
   // What the preview shows, read out as it opens or switches (polite: the focus stays where it is).
@@ -1118,9 +1190,8 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           baseline. The pane only where the section holds the opponents' two columns beside the list (WS_PANE_SECTION_REM). The
           workspace's grid and column classes are marked important: the flow's (an arbitrary media variant) come later in the
           stylesheet, and the workspace's must win wherever it applies. */}
-      <div className={cn(split ? "grid items-start gap-4 md:[@media(min-height:30.0625rem)]:@min-[47.5rem]:grid-cols-[minmax(22.5rem,min(32%,24rem))_minmax(0,1fr)] ws:flex-1 ws:grid-cols-1! ws:items-stretch ws:@min-[64.75rem]/section:grid-cols-[minmax(22.5rem,min(32%,24rem))_minmax(0,1fr)]!" : "ws:flex ws:flex-1 ws:flex-col")} data-testid="all-champions-layout" data-split={split || undefined}>
-      {/* Where the CSS would draw the pane's column (useRoomForPane reads its display): out of the flow, no size, nothing to read. */}
-      <span ref={paneRoomRef} aria-hidden className={cn(PANE_COLUMN_SHOWN, "pointer-events-none absolute size-0 overflow-hidden")} data-pane-room="" />
+      {/* Once hydrated the grid is split wherever the page opened the pane (useRoomForPane decided it); the bounds' queries draw the first paint only. */}
+      <div className={cn(split ? (hydrated ? SPLIT_OPEN : SPLIT_FIRST_PAINT) : "ws:flex ws:flex-1 ws:flex-col")} data-testid="all-champions-layout" data-split={split || undefined}>
       <div ref={cardRef} className={cn("group/list relative min-w-0 rounded-card border border-border bg-surface panel-depth", split ? "@container ws:flex ws:flex-col" : "ws:flex ws:flex-1 ws:flex-col")} data-split={split || undefined} data-testid="all-champions-table" data-ws-region={range ? "list" : undefined} data-per={perPage ?? undefined} data-page={range ? page : undefined} data-pages={range ? pages : undefined} data-total={range ? rows.length : undefined}>
         {data.topChampions.length ? (
           // Below 76rem the toolbar has the rows' padding, so the search lines up with the champions.
@@ -1202,7 +1273,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
               </div>
             ) : null}
             {split ? (
-              <div ref={listHeadRef} className="sticky top-[calc(var(--bar-top)+var(--tabs-top))] z-[1] hidden items-center justify-between gap-4 border-b border-border/70 bg-surface px-3 md:flex ws:static ws:@max-[64.75rem]/section:hidden!" role="group" aria-label="Sort the champions" data-testid="all-champions-header">
+              <div ref={listHeadRef} className={cn("sticky top-[calc(var(--bar-top)+var(--tabs-top))] z-[1] hidden items-center justify-between gap-4 border-b border-border/70 bg-surface px-3 md:flex ws:static", !hydrated && "ws:@max-[64.75rem]/section:hidden!")} role="group" aria-label="Sort the champions" data-testid="all-champions-header">
                 <span className="flex min-w-0 items-center gap-3">
                   {heading(COLUMNS[0]!)}
                   {/* Sorted by a figure the narrowed list does not show (KDA, mastery…): said here, once, instead of under every row. */}
@@ -1275,7 +1346,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
         // scrolls (usePanePlacement: pinned under the section tabs while it fits the window; taller, it
         // moves with the page between the tabs and the window's foot). Nothing in it scrolls on its own;
         // its header (portrait, name, ‹ › and Close) stays pinned under the tabs while the pane passes.
-        <div ref={paneColumnRef} className={cn(PANE_COLUMN_SHOWN, "min-w-0 self-stretch [overflow-anchor:none] ws:flex-col")} data-testid="champion-preview-column">
+        <div ref={paneColumnRef} className={cn(hydrated ? PANE_COLUMN_OPEN : PANE_COLUMN_SHOWN, "min-w-0 self-stretch [overflow-anchor:none] ws:flex-col")} data-testid="champion-preview-column">
           <div ref={paneSpacerRef} aria-hidden data-pane-spacer />
           {/* The workspace: in the frame, not pinned, its overflow visible (a flex item that clips gets no least height and would cut silently). */}
           <aside ref={paneRef} className="sticky top-[calc(var(--bar-top)+var(--tabs-top)+0.75rem)] min-w-0 overflow-clip rounded-card border border-border bg-surface panel-depth ws:static ws:flex ws:flex-1 ws:flex-col ws:overflow-visible" aria-labelledby="champion-preview-title" data-preview-pane data-testid="champion-preview">

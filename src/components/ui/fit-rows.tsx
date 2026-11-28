@@ -276,6 +276,9 @@ export function useRowBudget(
     const foot = footRef.current;
     const card = cardRef.current;
     if (!opts.current.active || !list || !foot || !card) return setRows(null);
+    // A list not drawn at all (a column its first paint's CSS hides) has no rows or top to measure: the count it has stands
+    // until it is drawn (its footer then resizes). Measured, it came out as every row fitting from the window's top.
+    if (!list.getClientRects().length) return;
     const limit = rowBudgetEdge(card) - fitGuardPx() - foot.getBoundingClientRect().height;
     const drawn = [...list.querySelectorAll<HTMLElement>(rowSelector)].filter((r) => r.getBoundingClientRect().height > 0);
     const first = drawn[0] ?? list;
