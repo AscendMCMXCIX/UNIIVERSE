@@ -118,9 +118,12 @@ describe("the page a new budget shows (budgetPage)", () => {
     expect(budgetPage({ ...page, page: 2, per: 4, rows: page.rows.slice(0, 4) }, "m3", 5)).toBe(2);
   });
 
-  it("holds the page's first card where no game is open, or the one open is not on the page shown", () => {
+  it("holds the page's first card where no game is open", () => {
     expect(budgetPage(page, null, 3)).toBe(1);
     expect(budgetPage({ ...page, page: 3 }, null, 4)).toBe(6);
-    expect(budgetPage(page, "elsewhere", 3)).toBe(1);
+  });
+
+  it("leaves the page to the server while the game open is not on the page shown (a link to a game on another page)", () => {
+    expect(budgetPage(page, "elsewhere", 3)).toBeNull();
   });
 });

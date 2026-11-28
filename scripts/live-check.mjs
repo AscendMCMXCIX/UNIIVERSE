@@ -194,7 +194,7 @@ import { fitVerdicts, postGameVerdicts, readFit, readInspection, readPostGame, s
 import { championPreviewVerdicts, firstWithGames, readChampionPreview, readChampionRows, targetRow } from "./champion-preview-facts.mjs";
 import { breakdownKeyboardVerdicts, breakdownVerdicts, MULTIKILL_ROLE_LABEL, multikillVerdicts, readBreakdownFocus, readMultikillBoard, readMultikillBreakdown } from "./multikill-facts.mjs";
 import { cardScoreVerdicts, firstScored, readCardScores, readOpenedScore, readTogetherScores, togetherScoreVerdicts } from "./card-score-facts.mjs";
-import { oneScreenInput, oneScreenVerdicts, readOneScreen } from "./one-screen-facts.mjs";
+import { oneScreenInput, oneScreenVerdicts, readOneScreen, workspaceRegionVerdicts } from "./one-screen-facts.mjs";
 import { readPage, readWorkspace, walkSummary, workspaceVerdicts } from "./all-champions-workspace-facts.mjs";
 import { TABLE_FIGURES, readTableFigures, readTypeFacts, tableFigureVerdicts, typeVerdicts } from "./type-facts.mjs";
 import { execFileSync } from "node:child_process";
@@ -2014,6 +2014,15 @@ async function phoneGame(page, kind, name, slug, open) {
  * (pages = ceil(total / per)). Counts and px only.
  */
 async function workspacePageFacts(page, kind, name) {
+  // The lists first write their row budget (a server render: a fresh context has no page-size cookie), and draw their page
+  // size once the page of that size has arrived: read once every drawn list has (e2e/workspace.ts waits the same way). One
+  // that never does is its own fact below (workspaceRegionVerdicts), not pages worked out from a missing figure.
+  await page
+    .waitForFunction(() => {
+      const drawn = [...document.querySelectorAll("[data-ws-region]")].filter((el) => el.getBoundingClientRect().height > 0);
+      return drawn.length > 0 && drawn.every((el) => el.dataset.per && el.dataset.pages);
+    }, null, { timeout: 15_000 })
+    .catch(() => {});
   const at = await page.evaluate(() => {
     const content = document.getElementById("content");
     const scrollers = content ? [...content.querySelectorAll("*")].filter((el) => {
@@ -2021,12 +2030,11 @@ async function workspacePageFacts(page, kind, name) {
       const s = getComputedStyle(el);
       return (/(auto|scroll)/.test(s.overflowY) && el.scrollHeight > el.clientHeight + 1) || (/(auto|scroll)/.test(s.overflowX) && el.scrollWidth > el.clientWidth + 1);
     }).length : -1;
-    const regions = [...document.querySelectorAll("[data-ws-region]")].filter((el) => el.getBoundingClientRect().height > 0).map((el) => ({ per: Number(el.dataset.per), page: Number(el.dataset.page), pages: Number(el.dataset.pages), total: Number(el.dataset.total) }));
+    const regions = [...document.querySelectorAll("[data-ws-region]")].filter((el) => el.getBoundingClientRect().height > 0).map((el) => ({ region: el.dataset.wsRegion ?? "", per: Number(el.dataset.per), page: Number(el.dataset.page), pages: Number(el.dataset.pages), total: Number(el.dataset.total) }));
     return { workspace: !!document.querySelector("[data-workspace]"), height: document.documentElement.scrollHeight, window: innerHeight, scrollers, regions };
   });
   pass("workspace", `${kind}: ${name} is a workspace page that does not scroll (${at.height}px of ${at.window}), nothing in it scrolling`, at.workspace && at.height <= at.window && at.scrollers === 0, at);
-  const whole = at.regions.every((r) => r.per >= 1 && r.page >= 1 && r.page <= r.pages && r.pages === Math.max(1, Math.ceil(r.total / r.per)));
-  pass("workspace", `${kind}: ${name}: the pages hold every row (pages = total / per, rounded up)`, at.regions.length > 0 && whole, at.regions);
+  for (const v of workspaceRegionVerdicts({ kind, name, regions: at.regions })) check("workspace", v.name, v.status, v.detail);
 }
 
 /**

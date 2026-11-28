@@ -200,3 +200,28 @@ export function oneScreenVerdicts({ page, size, read }) {
   }
   return out;
 }
+
+/**
+ * A workspace page's paged lists, as the Production check reads them (scripts/live-check.mjs, workspacePageFacts): each drawn
+ * `[data-ws-region]` with its figures (data-per, data-page, data-pages, data-total; NaN where one is not drawn). A list writes
+ * its row budget to the address once it has measured (a server render), and draws `data-per` only once the page of that size
+ * has arrived: a region without it has not settled, and is a fact of its own (named), not pages worked out from NaN.
+ * Each verdict: its name, PASS, FAIL or WARN, and what was found (the regions' names and figures only).
+ */
+export function workspaceRegionVerdicts({ kind, name, regions }) {
+  const whole = (r) => [r.per, r.page, r.pages, r.total].every(Number.isFinite);
+  const settled = regions.filter(whole);
+  const unsettled = regions.filter((r) => !whole(r)).map((r) => r.region);
+  const out = [
+    {
+      name: `${kind}: ${name}: its paged lists settle at the window's page size (each drawn with its page size)`,
+      status: regions.length > 0 && unsettled.length === 0 ? "PASS" : "FAIL",
+      detail: { regions: regions.length, unsettled },
+    },
+  ];
+  const holds = settled.every((r) => r.per >= 1 && r.page >= 1 && r.page <= r.pages && r.pages === Math.max(1, Math.ceil(r.total / r.per)));
+  const pagesName = `${kind}: ${name}: the pages hold every row (pages = total / per, rounded up)`;
+  if (regions.length > 0 && settled.length === 0) out.push({ name: pagesName, status: "WARN", detail: "not checked: no paged list settled" });
+  else out.push({ name: pagesName, status: regions.length > 0 && holds ? "PASS" : "FAIL", detail: settled });
+  return out;
+}

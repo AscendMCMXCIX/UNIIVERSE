@@ -50,3 +50,30 @@ export function forgetListPer(list: PagedListName) {
   if (typeof document === "undefined") return;
   document.cookie = `${LIST_PER_COOKIES[list]}=; path=/; max-age=0; samesite=lax`;
 }
+
+/**
+ * The page of `per` rows that holds the row `id` on the whole list `ids` (1 on), else null (no id, or not listed): a
+ * link to a row (`?match=`) opens on its page in the one-screen workspace, its Previous and Next with it (docs/RESPONSIVE.md,
+ * "One-screen desktop pages", server-paged lists). The page `asked` stands where it holds the row (a row listed twice,
+ * Team Matches' game with members on both sides, is on the page a step across a page's end asked for); otherwise the page
+ * of the row's first place.
+ */
+export function pageHolding(ids: readonly string[], id: string | null | undefined, per: number, asked: number | null = null): number | null {
+  if (!id || per < 1) return null;
+  if (asked !== null && asked >= 1 && ids.slice((asked - 1) * per, asked * per).includes(id)) return asked;
+  const at = ids.indexOf(id);
+  return at < 0 ? null : Math.floor(at / per) + 1;
+}
+
+/**
+ * The page a new page size (`per`) shows, from the page shown (its first row's place on the whole list, `offset`, and its
+ * rows' ids): the one holding the row open (`open`, where the page shown holds it), else, with no row open, the one holding
+ * the page's first row (usePagedList's rule for another budget). Null while the row open is not on the page shown: its
+ * place on the whole list is the server's to find, so the page is left out of the address and the server takes the one
+ * holding it (pageHolding).
+ */
+export function budgetPageOf(shown: { offset: number; ids: readonly string[] }, open: string | null, per: number): number | null {
+  const at = open ? shown.ids.indexOf(open) : -1;
+  if (open && at < 0) return null;
+  return Math.floor((shown.offset + Math.max(0, at)) / per) + 1;
+}

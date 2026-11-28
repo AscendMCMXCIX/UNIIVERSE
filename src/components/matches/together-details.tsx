@@ -12,7 +12,7 @@ import { useRowBudget } from "@/components/ui/fit-rows";
 import { Pager } from "@/components/ui/pager";
 import { rangeText, rangeWords } from "@/components/ui/paged-list";
 import { useWorkspaceMarks, wsTierClass, type WorkspaceMarks } from "@/components/ui/workspace";
-import { LIST_PER_MAX, forgetListPer, rememberListPer } from "@/lib/list-per";
+import { LIST_PER_MAX, budgetPageOf, forgetListPer, rememberListPer } from "@/lib/list-per";
 import { useReaderBusy, whenReaderIdle } from "@/components/ui/reader-idle";
 
 /** A game either side of the workspace's page (the server's), for the game window's steps across the pages. */
@@ -70,6 +70,22 @@ interface TogetherPagingState {
 }
 const TogetherPagingContext = React.createContext<TogetherPagingState | null>(null);
 
+/** The flow's first page (the server's `limit` where the address gives none): Show more adds to it. */
+const FLOW_LIMIT = 20;
+/** The flow's longest list (the server's cap on `limit`). */
+const FLOW_LIMIT_MAX = 500;
+
+/**
+ * The flow's `limit` that still lists the game open on the workspace's page shown (pure, for its unit test): a link from the
+ * workspace (`?per=6&page=2&match=…`) opened on a phone or a tablet lists the games up to that page's end (`offset + per`), so
+ * the game stays open there; null where the flow's first page already lists it, or no game of the page is open.
+ */
+export function flowLimitFor(paging: { per: number | null; offset: number }, ids: readonly string[], open: string | null): number | null {
+  if (!paging.per || !open || !ids.includes(open)) return null;
+  const reach = paging.offset + paging.per;
+  return reach > FLOW_LIMIT ? Math.min(FLOW_LIMIT_MAX, reach) : null;
+}
+
 /** The address with these changes (the list's own choices kept; a Show more's `limit` and an open game left out unless given). */
 function withParams(change: Record<string, string | null>): string {
   const next = new URLSearchParams(window.location.search);
@@ -92,7 +108,7 @@ function withParams(change: Record<string, string | null>): string {
  * touch, short windows, a larger text size) shows the first 20 and Show more, as it always has: a page size
  * the address or the cookie gave is dropped there.
  */
-export function TogetherWorkspace({ paging, total, listKey, className, children }: { paging: TogetherPaging; total: number; /** What the list is (the filters): measured again when it changes. */ listKey: string; className?: string; children: React.ReactNode }) {
+export function TogetherWorkspace({ paging, total, listKey, ids, className, children }: { paging: TogetherPaging; total: number; /** What the list is (the filters): measured again when it changes. */ listKey: string; /** The match ids of the games shown, in order (a game open on the page keeps its page through a new page size). */ ids: readonly string[]; className?: string; children: React.ReactNode }) {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const marks = useWorkspaceMarks();
@@ -104,22 +120,35 @@ export function TogetherWorkspace({ paging, total, listKey, className, children 
   const budget = useRowBudget(listRef, { footRef: endRef, cardRef, probeRem: CARD_PROBE_REM, mode: "cumulative", active: marks.paged && total > 0, observe: () => [cardRef.current], key: [total, listKey], cap: paging.cap });
   const perPage = marks.paged && budget !== null ? Math.min(LIST_PER_MAX, budget) : null;
   // Busy while the reader acts, a Back or a Forward on its way included (the address compared but for the keys the list writes itself: its page size, its page, the game open and Show more's count).
-  const readerBusy = useReaderBusy(["per", "page", "match", "limit"]);
+  const readerBusy = useReaderBusy(["per", "page", "match", "limit"], paging);
   const replace = React.useCallback((url: string) => startTransition(() => router.replace(url, { scroll: false })), [router]);
+  const idsRef = React.useRef(ids);
+  React.useLayoutEffect(() => {
+    idsRef.current = ids;
+  });
   React.useEffect(() => {
+    // The game open (?match=: a link, or a game opened from its card), read as the write goes.
+    const openGame = () => new URLSearchParams(window.location.search).get("match");
     // The flow: a page size from the cookie is forgotten (the server drew the first 20 and Show more without it), one from the address dropped.
+    // A game open stays open: the flow lists the games up to the page's end (Show more's count), and the address keeps it.
     if (marks.ws === false && paging.per !== null) {
       forgetListPer("together");
-      if (paging.perFrom === "cookie") return startTransition(() => router.refresh());
-      return replace(withParams({ per: null, page: null }));
+      const open = openGame();
+      const limit = flowLimitFor(paging, idsRef.current, open);
+      if (paging.perFrom === "cookie" && limit === null) return startTransition(() => router.refresh());
+      return replace(withParams({ per: null, page: null, limit: limit === null ? null : String(limit), match: open }));
     }
     if (perPage === null || perPage === paging.per || total === 0 || pending) return;
     // Never over the reader's own navigation (a filter, Bookmarked, a page followed meanwhile: ui/reader-idle.ts).
     return whenReaderIdle(readerBusy, () => {
       rememberListPer("together", perPage);
-      replace(withParams({ per: String(perPage), page: String(Math.floor(paging.offset / perPage) + 1) }));
+      // The page holding the game open (its window stays open, its steps go on from it), else the first card shown; a game open
+      // that is not on the page shown leaves the page out, and the server takes the one holding it (app/(app)/matches/page.tsx).
+      const open = openGame();
+      const to = budgetPageOf({ offset: paging.offset, ids: idsRef.current }, open, perPage);
+      replace(withParams({ per: String(perPage), page: to === null ? null : String(to), match: open }));
     }, PER_SETTLE_MS);
-  }, [perPage, paging.per, paging.offset, paging.perFrom, total, marks.ws, replace, router, pending, readerBusy]);
+  }, [perPage, paging, total, marks.ws, replace, router, pending, readerBusy]);
   const goTo = React.useCallback((page: number, match?: string) => replace(withParams({ page: page > 1 ? String(page) : null, ...(match ? { match } : {}) })), [replace]);
   const [live, setLive] = React.useState("");
   const paged = perPage !== null && paging.per !== null;

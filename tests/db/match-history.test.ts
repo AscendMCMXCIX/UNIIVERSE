@@ -238,6 +238,23 @@ describe("personal match history", () => {
     expect((await getMatchHistory(handle.db, playerId, { per: 4, page: 6 })).neighbours.after).toBeNull();
   });
 
+  it("opens a linked game's page where the address names none (the workspace's ?match=), and keeps a page asked for", async () => {
+    const whole = await getMatchHistory(handle.db, playerId, { per: 25 });
+    const seventh = whole.rows[6]!.matchId;
+    // A kept budget of 3 and a link to the 7th game: page 3 (games 7 to 9), the game with its neighbours either side.
+    const linked = await getMatchHistory(handle.db, playerId, { per: 3, openMatch: seventh });
+    expect(linked.page).toBe(3);
+    expect(linked.rows.map((r) => r.matchId)).toContain(seventh);
+    expect(linked.neighbours.before).toBe(whole.rows[5]!.matchId);
+    // A page the address names stands (the flow's rule: a link to a game on another page opens the match window), as
+    // does the first page for a game the choices do not list, or no game.
+    expect((await getMatchHistory(handle.db, playerId, { per: 3, page: 1, openMatch: seventh })).page).toBe(1);
+    expect((await getMatchHistory(handle.db, playerId, { per: 3, openMatch: "OC1_NOT_LISTED" })).page).toBe(1);
+    expect((await getMatchHistory(handle.db, playerId, { per: 3, openMatch: null })).page).toBe(1);
+    // The last game at 10 a page: the third page.
+    expect((await getMatchHistory(handle.db, playerId, { per: 10, openMatch: whole.rows[23]!.matchId })).page).toBe(3);
+  });
+
   it("filters by mode, champion, account and season", async () => {
     const db = handle.db;
     expect((await getMatchHistory(db, playerId, { mode: "flex", per: 25 })).total).toBe(10);

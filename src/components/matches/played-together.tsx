@@ -88,7 +88,7 @@ export function PlayedTogetherView({ data, seasons, currentSeason, shown, teams 
     // same margin either side of the room beside the sidebar, open or folded (the owner's review of
     // 25 Nov 2026: at 80rem, left-aligned, the list ended far short of its tabs at 1920 folded, 2560
     // and 3440). docs/STANDARDS.md, Page layout.
-    <TogetherWorkspace paging={paging} total={total} listKey={href({ per: null })}>
+    <TogetherWorkspace paging={paging} total={total} listKey={href({ per: null })} ids={shown.map((g) => g.matchId)}>
       {/* From md, once the filters have scrolled away: Filters and Bookmarked at the pinned tabs' end (ui/page-toolbar.tsx). */}
       <PageToolbar label="Matches controls" land="[data-testid=together-card]">
         <FiltersControl />

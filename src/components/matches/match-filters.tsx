@@ -10,6 +10,7 @@ import { useInFilterSheet } from "@/components/ui/filter-bar";
 import type { CardLook } from "@/domain/card-style";
 import { cn } from "@/lib/cn";
 import { screenBox } from "@/lib/screen";
+import { noteNavigation } from "@/components/ui/reader-idle";
 
 /*
   The filter controls of Team → Matches (both tabs). Every choice is a link the server prepared,
@@ -31,7 +32,14 @@ export interface LinkOption {
 function useGo() {
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
-  const go = React.useCallback((href: string) => startTransition(() => router.replace(href, { scroll: false })), [router]);
+  // Noted as the reader's navigation: a list's own address write waits for its page (ui/reader-idle.ts).
+  const go = React.useCallback(
+    (href: string) => {
+      noteNavigation();
+      startTransition(() => router.replace(href, { scroll: false }));
+    },
+    [router],
+  );
   return { go, pending };
 }
 

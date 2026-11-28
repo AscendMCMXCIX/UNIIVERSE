@@ -30,6 +30,7 @@ import { narrowsGames, patchOptions, readRefine, refineGames, sessionKeys, sessi
 import { historyMembers, memberGameCounts, memberPlacements } from "@/server/players/history-members";
 import { gameAudience, namesMembers, OWN_STATS_ONLY, type StatsFor } from "@/server/players/game-audience";
 import { isoDay } from "@/lib/format";
+import { pageHolding } from "@/lib/list-per";
 
 /*
   The personal match history: the Riot games already stored for a player's linked accounts (the
@@ -73,6 +74,14 @@ export interface MatchHistoryQuery {
    * Encounters (server/players/encounters loadEncounterDetail), in the same season, game mode and account.
    */
   onlyMatchIds?: ReadonlySet<string>;
+  /**
+   * The game the address opens (`?match=`): with no page asked (`page` undefined), the page holding it where the choices
+   * list it, so a link to a game opens with the list on its page and the game window's Previous, Next and place in the list
+   * with it (docs/RESPONSIVE.md, "One-screen desktop pages", Match History). Given only for the workspace's page sizes (from
+   * the address or the list's cookie: profile-matches-tab.tsx); the flow keeps its first page, where a link to a game on
+   * another page opens the match window.
+   */
+  openMatch?: string | null;
 }
 
 export interface Icon {
@@ -351,7 +360,7 @@ export async function getMatchHistory(db: Db, playerId: string, q: MatchHistoryQ
   const sorted = [...games].sort((a, b) => b.gameCreation - a.gameCreation || a.matchId.localeCompare(b.matchId));
   const per = Math.min(PER_PAGE_MAX, Math.max(PER_PAGE_MIN, Math.round(q.per ?? PER_PAGE_DEFAULT)));
   const pages = Math.max(1, Math.ceil(sorted.length / per));
-  const page = Math.min(pages, Math.max(1, Math.round(q.page ?? 1)));
+  const page = Math.min(pages, Math.max(1, Math.round(q.page ?? pageHolding(sorted.map((g) => g.matchId), q.openMatch, per) ?? 1)));
   const slice = sorted.slice((page - 1) * per, page * per);
 
   // Champion choices: what was played this season in this mode (any role / account).

@@ -21,7 +21,7 @@ import { encountersRedirect } from "@/lib/nav";
 import { teamFreshness } from "@/server/ops/freshness";
 import { FreshnessWatcher } from "@/components/ui/freshness-watcher";
 import { cookies } from "next/headers";
-import { LIST_PER_COOKIES, LIST_PER_MAX, readListPer } from "@/lib/list-per";
+import { LIST_PER_COOKIES, LIST_PER_MAX, pageHolding, readListPer } from "@/lib/list-per";
 import { rowsPerPageCap } from "@/server/demo/test-hooks";
 import { WS_COLUMN } from "@/components/ui/workspace-classes";
 import { togetherEntry } from "@/domain/played-together";
@@ -191,7 +191,12 @@ async function PlayedTogetherPage({ db, teamId, sp, session }: { db: Awaited<Ret
   // on both sides is listed once per side, each marking its own): server/matches/compositions. And
   // each member's performance score and place, each shown game scored once: server/matches/together-scores.
   const pages = per ? Math.max(1, Math.ceil(all.length / per)) : 1;
-  filters.page = per ? Math.min(pages, Math.max(1, Math.round(Number(str(sp.page))) || 1)) : 1;
+  // A link to a game (?match=) opens with the list on its page, the game window's Previous, Next and place in the list with
+  // it: where the address names no page, or a page that does not hold it (a link copied at another page size, a page size
+  // the workspace wrote while the game was open off its page). The flow (no `per`) lists its first `limit`, as it always has.
+  const askedPage = Math.max(1, Math.round(Number(str(sp.page))) || 1);
+  const linkedPage = per ? pageHolding(all.map((g) => g.matchId), str(sp.match) || null, per, str(sp.page) ? askedPage : null) : null;
+  filters.page = per ? Math.min(pages, linkedPage ?? askedPage) : 1;
   const offset = per ? (filters.page - 1) * per : 0;
   const shown = per ? all.slice(offset, offset + per) : all.slice(0, limit);
   // The games either side of the page (the game window's Previous and Next go on across the pages).

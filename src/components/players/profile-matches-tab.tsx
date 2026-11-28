@@ -34,6 +34,16 @@ async function listPer(search: MatchSearch, list: PagedListName): Promise<{ per:
   return kept ? { per: kept, perFrom: "cookie", cap } : { per: undefined, perFrom: "default", cap };
 }
 
+/**
+ * The game a link opens, for the page that holds it (getMatchHistory's openMatch), where the page size is the workspace's:
+ * the address's or the list's cookie (the workspace's last budget). With neither, the server's default (the flow's, and a
+ * first visit's before the workspace has measured) keeps its first page: the flow's rule, a link to a game on another page
+ * opening the match window, stands; the workspace then writes its budget with no page, and the server finds the game's.
+ */
+function workspaceMatch(search: MatchSearch, sized: { perFrom: "address" | "cookie" | "default" }): string | null {
+  return sized.perFrom !== "default" && typeof search.match === "string" && search.match ? search.match : null;
+}
+
 /* The player profile's Match History tab (components/players/profile-sections.tsx has the frame shared by every tab). */
 
 export interface MatchSearch {
@@ -45,6 +55,8 @@ export interface MatchSearch {
   account?: string;
   page?: string;
   per?: string;
+  /** The game open (the match window, or under its card): a link to it opens with the list on its page in the workspace (getMatchHistory's openMatch). */
+  match?: string;
   /** "encounters": the players met in the games, with their own choices (domain/encounters encounterListChoice). */
   view?: string;
   /** In Encounters, one player's games (domain/encounters readEncounterFocus): their key, and a side. */
@@ -89,7 +101,7 @@ async function ProfileMatchesTabBody({ db, header, session, basePath, search }: 
   }
   const sized = await listPer(search, search.group === "sessions" ? "sessions" : "games");
   const [data, championsById, syncStatus, accounts] = await Promise.all([
-    getMatchHistory(db, player.id, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, scope: search.scope ?? null, championId: search.champion ?? null, accountId: search.account ?? null, page: Number(search.page) || 1, per: sized.per, refine: { result: search.result, patch: search.patch, from: search.from, to: search.to, with: search.with, against: search.against, hl: search.hl, group: search.group } }, (r) => (legalRolesFor(player).includes(r) ? poolFor(player, r) : []), (id) => canViewPlayerStats(session, id), { admin: isAdmin(session) }),
+    getMatchHistory(db, player.id, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, scope: search.scope ?? null, championId: search.champion ?? null, accountId: search.account ?? null, page: Number(search.page) || undefined, per: sized.per, openMatch: workspaceMatch(search, sized), refine: { result: search.result, patch: search.patch, from: search.from, to: search.to, with: search.with, against: search.against, hl: search.hl, group: search.group } }, (r) => (legalRolesFor(player).includes(r) ? poolFor(player, r) : []), (id) => canViewPlayerStats(session, id), { admin: isAdmin(session) }),
     championMap(db),
     getMatchSyncStatus(db, player.id),
     listAccountsForPlayer(db, player.id),
@@ -134,7 +146,7 @@ async function ProfileEncounterGamesBody({ db, header, session, basePath, search
   const mode = isSeasonMode(search.mode) ? search.mode : "all";
   const met = await loadEncounterFocus(db, { accountIds: accountId ? [accountId] : ids, season, mode }, focus);
   const sized = await listPer(search, "met");
-  const data = await getMatchHistory(db, player.id, { season, mode, accountId, page: Number(search.page) || 1, per: sized.per, onlyMatchIds: met.matchIds }, (r) => (legalRolesFor(player).includes(r) ? poolFor(player, r) : []), (id) => canViewPlayerStats(session, id), { admin: isAdmin(session) });
+  const data = await getMatchHistory(db, player.id, { season, mode, accountId, page: Number(search.page) || undefined, per: sized.per, onlyMatchIds: met.matchIds, openMatch: workspaceMatch(search, sized) }, (r) => (legalRolesFor(player).includes(r) ? poolFor(player, r) : []), (id) => canViewPlayerStats(session, id), { admin: isAdmin(session) });
   const encounter = { focus, list: encounterListChoice(search), summary: met.summary, renamed: met.renamed, opgg: met.opgg };
   return <MatchHistoryView data={data} championsById={championsById} basePath={`${basePath}/matches`} playerId={player.id} playerName={player.displayName} status={gamesStatus(accounts, syncStatus, data)} refresh={refreshFor(session, player.id, syncStatus)} encounter={encounter} perFrom={sized.perFrom} cap={sized.cap} />;
 }

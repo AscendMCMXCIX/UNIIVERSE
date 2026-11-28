@@ -35,6 +35,17 @@ export function offeredHref(at: { pathname: string; rendered: string; href: stri
 }
 
 /**
+ * `ids` in the order the address reads them (pure: for its unit test): the page's first choice when it arrived (`home`,
+ * the one whose address has no parameter) first while it is offered, then the others as given. A page whose first choice
+ * moves while it is open (Matchup notes: the first view with something to do, worked out again on every refresh) keeps
+ * the address's meaning for as long as it is open: an entry of its history without the parameter still names the choice
+ * it named, so Back lands on that choice and not on the one that is first now.
+ */
+export function addressOrder(home: string | undefined, ids: readonly string[]): readonly string[] {
+  return home !== undefined && ids[0] !== home && ids.includes(home) ? [home, ...ids.filter((id) => id !== home)] : ids;
+}
+
+/**
  * One choice of a few kept in the page's address, as a section is (a list's filter, a queue's view:
  * `?section=`, `?view=`): the first of `ids` has no parameter, an unknown or missing value is the
  * first, and each choice the reader makes is an entry of its own, so Back returns to the one before
@@ -43,11 +54,14 @@ export function offeredHref(at: { pathname: string; rendered: string; href: stri
  * from the window's own address on this page's path only (addressTarget). `initial`: the choice
  * where the address cannot be read (outside Next's router: a unit test's render). `ids` may change
  * (a choice that comes and goes with its rows): a choice no longer offered is the first, and its
- * address is replaced to match.
+ * address is replaced to match. The first is the one first when the page arrived, for as long as it
+ * is offered (addressOrder), whatever order `ids` comes in later.
  */
-export function useAddressSection(ids: readonly string[], { initial = null, param = "section" }: { initial?: string | null; param?: string } = {}): [string, (id: string, o?: { replace?: boolean }) => void] {
+export function useAddressSection(given: readonly string[], { initial = null, param = "section" }: { initial?: string | null; param?: string } = {}): [string, (id: string, o?: { replace?: boolean }) => void] {
   const search = useSearchParams();
   const pathname = usePathname() || "/";
+  const [home] = React.useState(() => given[0]);
+  const ids = addressOrder(home, given);
   const [chosen, setChosen] = React.useState(() => (search ? sectionFromSearch(search.toString(), ids, param) : initialSection(initial, ids)));
   const current = ids.includes(chosen) ? chosen : (ids[0] ?? "");
   const latest = React.useRef({ ids, current, pathname });

@@ -1,8 +1,8 @@
 import { describe, expect, it } from "vitest";
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { offeredHref, useAddressSection } from "./address-section";
-import { addressTarget } from "./sectioned-workspace";
+import { addressOrder, offeredHref, useAddressSection } from "./address-section";
+import { addressTarget, sectionFromSearch, sectionHref } from "./sectioned-workspace";
 
 /*
   A page's choice kept in its address (ui/address-section.ts: Admin Resources' filter, Admin Matchup
@@ -58,5 +58,29 @@ describe("the first paint", () => {
     expect(renderToStaticMarkup(h(Probe, { initial: "league" }))).toBe("<p>league</p>");
     expect(renderToStaticMarkup(h(Probe, { initial: "nope" }))).toBe("<p>all</p>");
     expect(renderToStaticMarkup(h(Probe, {}))).toBe("<p>all</p>");
+  });
+});
+
+describe("the address's first choice stays the one first when the page arrived (addressOrder)", () => {
+  const views = ["review", "unwritten", "drafts", "published", "all"];
+  // Matchup notes: the first view with something to do, worked out again on every refresh.
+  const afterReview = ["unwritten", "review", "drafts", "published", "all"];
+
+  it("keeps the arrival's first while the page's own order moves: an address without ?view= still names it, so Back lands there", () => {
+    const order = addressOrder("review", afterReview);
+    expect(order).toEqual(views);
+    // Re-reviewing the last stale note made Not written yet the first; the entry without ?view= (Needs re-review, the one
+    // shown when Drafts was opened) is still read as Needs re-review, not as Not written yet.
+    expect(sectionFromSearch("", order, "view")).toBe("review");
+    expect(sectionFromSearch("?view=drafts", order, "view")).toBe("drafts");
+    // And Not written yet, now first in the page's own order, is written with its parameter.
+    expect(sectionHref("/admin/matchup-notes", "unwritten", order, "view")).toBe("/admin/matchup-notes?view=unwritten");
+    expect(sectionHref("/admin/matchup-notes?view=drafts", "review", order, "view")).toBe("/admin/matchup-notes");
+  });
+
+  it("is the order given where its first is the arrival's, or the arrival's first is no longer offered", () => {
+    expect(addressOrder("review", views)).toBe(views);
+    expect(addressOrder("removed", ["all", "guides"])).toEqual(["all", "guides"]);
+    expect(addressOrder(undefined, [])).toEqual([]);
   });
 });

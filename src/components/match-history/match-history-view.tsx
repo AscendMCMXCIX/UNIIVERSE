@@ -701,20 +701,25 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
   });
   const perPage = marks.paged && budget !== null ? Math.min(LIST_PER_MAX, budget) : null;
   // Busy while the reader acts, a Back or a Forward on its way included (the address compared but for the keys the list writes itself: its page size, its page and the game open).
-  const readerBusy = useReaderBusy(["per", "page", "match"]);
+  const readerBusy = useReaderBusy(["per", "page", "match"], data);
+  // A game a link opened that is not on the page shown, where the server has not looked for its page (the address named a
+  // page, or no page size: the flow's default, before the workspace measured): written with no page, the server finds it.
+  const stray = open !== null && !onPage.has(open.id) && (params.has("page") || perFrom === "default");
   React.useEffect(() => {
-    if (perPage === null || perPage === data.per || data.total === 0 || pending) return;
+    if (perPage === null || (perPage === data.per && !stray) || data.total === 0 || pending) return;
     // Settled first (a resize fires many measures): one server render for the size the window comes to rest at; and never
     // over the reader's own navigation (a view, a filter, a page followed meanwhile: ui/reader-idle.ts).
     return whenReaderIdle(readerBusy, () => {
       // The page holding the game open in the window (the address names it), else the first card shown (usePagedList's rule
-      // for another budget): the open game stays on the list's page, so its Previous and Next go on from it.
+      // for another budget): the open game stays on the list's page, so its Previous and Next go on from it. A game open that
+      // is not on the page shown leaves the page out: the server takes the one holding it (getMatchHistory's openMatch).
       rememberListPer(listName, perPage);
-      go({ per: String(perPage), page: String(budgetPage(data, new URLSearchParams(window.location.search).get("match"), perPage)) }, { keepMatch: true });
+      const to = budgetPage(data, new URLSearchParams(window.location.search).get("match"), perPage);
+      go({ per: String(perPage), page: to === null ? null : String(to) }, { keepMatch: true });
     }, PER_SETTLE_MS);
     // `go` follows the address; the budget and the page decide.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [perPage, data.per, data.page, data.total, listName, pending]);
+  }, [perPage, data.per, data.page, data.total, listName, pending, stray]);
 
   // Ranks a breakdown checked with Riot, by match and place: its card shows them at once. They
   // belong to this page of data; the next one reads them from storage like every other rank.
