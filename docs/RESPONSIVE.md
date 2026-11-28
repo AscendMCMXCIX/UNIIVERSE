@@ -1185,7 +1185,9 @@ Show more, a game under its card.
   cumulative mode (the cards' own heights and the gaps between them: a session's header, a second
   line, a card that grows with its members), written to the address once the window has been at rest
   for 250ms (one server render for the size it comes to rest at; until it arrives, the cards past the
-  budget are left out, so a shrink never overflows). The write waits while the reader acts
+  budget are left out, so a shrink never overflows). Match History's new page is the one holding the
+  game open in the game window (`budgetPage`), else the one holding the page's first card, so the
+  window's Previous and Next go on from it. The write waits while the reader acts
   (`ui/reader-idle.ts`: a press, a click or a key in the last 1.5s, and a Back or a Forward on its way,
   while the window's address is no longer the one the page drew), so it never overtakes the reader's
   navigation and is never written onto another page's address or another view's. Match History's `per` (the server's minimum is
