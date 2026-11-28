@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "./test";
 import { createMember, openDanger, openPerson } from "./member-account";
-import { FLOOR, cfg, expectEveryRecord, fits, openAt, resizeTo, settled, walkPages, withWideText, type Size } from "./workspace";
+import { FLOOR, cfg, expectEveryRecord, fits, openAt, region, resizeTo, settled, walkBack, walkPages, withWideText, type Size } from "./workspace";
 
 /*
   Users & Permissions on a desktop window (docs/RESPONSIVE.md, "One-screen desktop pages": Personal
@@ -29,6 +29,20 @@ async function expectSection(page: Page, testId: string, id: string, all: readon
 }
 
 const PRIVACY = ["requests", "erase", "records"];
+
+/** The tops of the controls Tab reaches inside `root`, in the markup's order (closed windows aside). */
+const tabTops = (page: Page, root: string) =>
+  page.locator(root).evaluate((el) =>
+    [...el.querySelectorAll<HTMLElement>("a[href], button, summary, input, select, textarea, [tabindex]")]
+      .filter((c) => c.tabIndex >= 0 && c.getClientRects().length > 0 && !c.closest("dialog:not([open])"))
+      .map((c) => Math.round(c.getBoundingClientRect().top)),
+  );
+
+/** Each control drawn no higher than the one before it in the markup (2px for a line's controls of different heights). */
+function expectTopDown(tops: number[], at: string) {
+  expect(tops.length, `${at}: controls found`).toBeGreaterThan(2);
+  for (let i = 1; i < tops.length; i++) expect(tops[i]!, `${at}: ${JSON.stringify(tops)}`).toBeGreaterThanOrEqual(tops[i - 1]! - 2);
+}
 
 test("Personal data: three sections beside a quiet rail, the records' count; Back walks them; both folds open in place and still fit", async ({ page }) => {
   await withWideText(page);
@@ -78,6 +92,9 @@ test("Personal data: with records, they are paged to the room under the actions,
     await expect(page.getByTestId("erasure-records-pager")).toBeVisible();
     await expect(page.getByTestId("erasure-record").first()).toBeVisible();
     await fits(page, `${at}: Personal data, the records`, { workspace: true, pager: "erasure-records-pager" });
+    // Tab and a screen reader follow the screen: the fold, the actions, then the records and their pager, top to bottom in the
+    // markup too (until 28 Nov 2026 the records came first in the markup, drawn last by a CSS order).
+    expectTopDown(await tabTops(page, '[data-ws-section="records"]'), `${at}: the records' controls in the markup in the order drawn`);
     // The backups' fold opened above the records: fewer rows, never a taller page.
     await page.getByTestId("privacy-backups").locator("summary").click();
     await settled(page);
@@ -85,6 +102,22 @@ test("Personal data: with records, they are paged to the room under the actions,
     const walk = await walkPages(page, "list", "erasure-records-next", () => page.getByTestId("erasure-record").evaluateAll((rows) => rows.map((r) => (r as HTMLElement).dataset.rowKey!)));
     expectEveryRecord(walk, walk.meta[0]!.total, `${at}: Personal data's records`);
   }
+  // A record's Release confirmation is drawn inside its row: the list's page keys are not its (until 28 Nov 2026 the list took
+  // PageUp/PageDown/Home/End pressed on its buttons, PageDown turning the page and unmounting the open confirmation with it).
+  await page.getByTestId("erasure-record").filter({ has: page.getByTestId("erasure-release") }).first().getByTestId("erasure-release").click();
+  const confirm = page.getByRole("dialog", { name: /^Release / });
+  await expect(confirm).toBeVisible();
+  await page.evaluate(() => {
+    (window as unknown as { __keys: string[] }).__keys = [];
+    document.addEventListener("keydown", (e) => (window as unknown as { __keys: string[] }).__keys.push(`${e.key}:${e.defaultPrevented}`));
+  });
+  await confirm.getByRole("button", { name: "Cancel" }).focus();
+  for (const key of ["PageDown", "PageUp", "Home", "End"]) await page.keyboard.press(key);
+  expect(await page.evaluate(() => (window as unknown as { __keys: string[] }).__keys), "the confirmation's keys left to it").toEqual(["PageDown:false", "PageUp:false", "Home:false", "End:false"]);
+  await expect(confirm).toBeVisible();
+  await expect(confirm.getByRole("button", { name: "Cancel" })).toBeFocused();
+  await page.keyboard.press("Escape");
+  await expect(confirm).toBeHidden();
 });
 
 test("Accounts: the list is paged to the room under its search row, every account on exactly one page; a search goes to page 1", async ({ page }) => {
@@ -112,6 +145,49 @@ test("Accounts: the list is paged to the room under its search row, every accoun
   }
 });
 
+/** The Accounts list's lines (its people and an empty group's line), as its region counts them at the floor. */
+async function accountLines(page: Page): Promise<number> {
+  await openAt(page, "/admin/people", FLOOR, "expanded", { admin: true });
+  return (await region(page, "list"))!.total;
+}
+
+test("Accounts with more accounts than the demo's: the pages are cut once for the room, Next never repeats or skips a line, Previous comes back to the same pages", async ({ page }) => {
+  test.setTimeout(240_000);
+  // A CI shard's server holds the accounts its earlier specs made: 16 lines on 28 Nov 2026 (run 46125624658), where page 2,
+  // drawing more group headings than page 1, measured fewer lines a page, and the list moved to the page holding its first
+  // line at that size: the walk drew page 1's last two lines again. Made here as other specs make them, up to 16 lines.
+  for (let n = 0; n < 8 && (await accountLines(page)) < 16; n++) await createMember(page, "Pages");
+  await withWideText(page);
+  for (const [size, side] of [
+    [FLOOR, "expanded"],
+    [[1366, 768], "collapsed"],
+  ] as Array<[Size, "expanded" | "collapsed"]>) {
+    await openAt(page, "/admin/people", size, side, { admin: true });
+    const at = cfg(size, side);
+    // Each page fits its room (none taller for its headings), and its lines are read once it has.
+    const read = async () => {
+      const n = (await region(page, "list"))!.page;
+      await fits(page, `${at}: Accounts, page ${n}`, { workspace: true, pager: "people-pager" });
+      return page.locator("[data-testid=people-list] [data-ws-row]").evaluateAll((rows) => rows.map((r) => (r as HTMLElement).dataset.rowKey!));
+    };
+    const walk = await walkPages(page, "list", "people-next", read);
+    expect(walk.meta[0]!.total, `${at}: the lines made`).toBeGreaterThanOrEqual(16);
+    expect(walk.pages.length, `${at}: several pages`).toBeGreaterThan(1);
+    expectEveryRecord(walk, walk.meta[0]!.total, `${at}: Accounts`);
+    const back = await walkBack(page, "list", "people-prev", read);
+    expect(back.pages, `${at}: Previous comes back to the pages Next showed`).toEqual([...walk.pages].reverse());
+    // A resize cuts the pages again, once, and keeps the first line shown before it on the screen.
+    await page.getByTestId("people-next").click();
+    await expect.poll(async () => (await region(page, "list"))?.page).toBe(2);
+    for (const other of [[1366, 900] as Size, size]) {
+      const first = (await read())[0]!;
+      await resizeTo(page, other);
+      await expect(page.locator(`[data-testid=people-list] [data-row-key="${first}"]`), `${at} → ${other.join("x")}: the first line shown is still drawn`).toBeVisible();
+      await fits(page, `${at} → ${other.join("x")}: Accounts`, { workspace: true });
+    }
+  }
+});
+
 test("Accounts: a person opened on another page brings the list to their page once the view closes, and ‹ › walk everyone", async ({ page }) => {
   await openAt(page, "/admin/people", FLOOR, "expanded", { admin: true });
   const region = page.locator("[data-ws-region=list]");
@@ -127,6 +203,29 @@ test("Accounts: a person opened on another page brings the list to their page on
   await expect(page.getByTestId("person-view")).toBeHidden();
   await expect(region).toHaveAttribute("data-page", "2");
   await expect(page.locator(`[data-testid=people-list] [data-person="${key}"]`)).toBeVisible();
+});
+
+test("Accounts: a person view stepped with ‹ › to someone on another page gives the focus back to that person's row as it closes", async ({ page }) => {
+  await openAt(page, "/admin/people", FLOOR, "expanded", { admin: true });
+  const region = page.locator("[data-ws-region=list]");
+  await expect(region).toHaveAttribute("data-pages", /^[2-9]|\d\d$/);
+  await expect(region).toHaveAttribute("data-page", "1");
+  await page.locator("[data-testid=people-list] [data-person]").first().click();
+  const view = page.getByTestId("person-view");
+  await expect(view).toBeVisible();
+  // Step until the person shown is on page 2: the list follows them, and the row that opened the view leaves the page.
+  for (let i = 0; i < 40 && (await region.getAttribute("data-page")) === "1"; i++) {
+    const before = page.url();
+    await view.getByTestId("person-next").click();
+    await expect.poll(() => page.url()).not.toBe(before);
+  }
+  await expect(region).toHaveAttribute("data-page", "2");
+  const key = new URL(page.url()).searchParams.get("person")!;
+  expect(key, "the person shown is in the address").toBeTruthy();
+  await page.keyboard.press("Escape");
+  await expect(view).toBeHidden();
+  // Until 28 Nov 2026 the focus fell to the page's body (the opener, a row on page 1, had been drawn away).
+  await expect(page.locator(`[data-testid=people-list] button[data-person="${key}"]`)).toBeFocused();
 });
 
 test("Accounts and Access levels outside the gate are the stack they always were", async ({ page }) => {

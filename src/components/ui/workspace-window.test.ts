@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { WorkspaceFlowFold, WorkspaceOpenFold, WorkspaceWindow } from "./workspace-window";
+import { WorkspaceFlowFold, WorkspaceOpenFold, WorkspacePlaced, WorkspaceWindow } from "./workspace-window";
 
 /*
   What a fold opens in the flow, in the one-screen workspace (ui/workspace-window.tsx; docs/RESPONSIVE.md,
@@ -42,5 +42,13 @@ describe("the workspace's folds as the server draws them", () => {
     expect(out).toMatch(/<details class="[^"]*ws:border-0 ws:bg-transparent"/);
     expect(out).toMatch(/<summary class="[^"]*ws:hidden"/);
     expect(out).toContain("<p>panels</p>");
+  });
+});
+
+describe("a part the workspace draws in another place (WorkspacePlaced) as the server draws it", () => {
+  it("is in the markup once, at the flow's place, until the page knows it is in the workspace", () => {
+    const at = (where: "flow" | "workspace") => renderToStaticMarkup(h(WorkspacePlaced, { at: where }, h("p", { className: "ws:order-last" }, "Audit Logs")));
+    expect(at("flow")).toBe('<p class="ws:order-last">Audit Logs</p>');
+    expect(at("workspace")).toBe("");
   });
 });

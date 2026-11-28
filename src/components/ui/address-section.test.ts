@@ -28,6 +28,17 @@ describe("the choice an address change shows (addressTarget, as the sectioned wo
     expect(addressTarget({ ...at, pathname: "/admin/branding", search: "?section=colours" })).toBeNull();
     expect(addressTarget({ ...at, search: "?section=league" })).toBeNull();
   });
+
+  it("keeps the choice through an in-page fragment link (the skip link's #content) without the sectioned workspace's hash rule: the hook reads the query alone", () => {
+    // The hook passes no hash (hashSection, hashOutside, followed): the choice is the query's, and a fragment link keeps the
+    // query. /admin/resources?section=league, then Skip to content (?section=league#content): League stays.
+    expect(addressTarget({ ...at, search: "?section=league" })).toBeNull();
+    // The first choice, its address without the parameter, then the skip link: the first stays.
+    expect(addressTarget({ ...at, current: "all", search: "" })).toBeNull();
+    // An old #hash naming a section (Admin Branding's #brand-backdrop) is written into the query on mount by the page itself
+    // (choose(id, { replace: true }); e2e/admin-branding: ?section=background#brand-backdrop), so the query holds it from then on.
+    expect(addressTarget({ pathname: "/admin/branding", rendered: "/admin/branding", ids: ["name", "background"], current: "background", search: "?section=background" })).toBeNull();
+  });
 });
 
 describe("a choice no longer offered (offeredHref)", () => {

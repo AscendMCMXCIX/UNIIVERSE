@@ -27,6 +27,9 @@ import { segmentClass, segmentedGroupClass } from "./segmented";
     details): in the workspace its sections stand on their own (each one in the rail), so it draws them
     without the fold. Until the page knows its posture the fold is drawn, its title row hidden by the
     CSS gate in the workspace.
+
+  And WorkspacePlaced: a part the workspace draws somewhere else than the flow does, in the markup
+  where it is drawn (see below).
 */
 
 export interface WorkspaceView {
@@ -116,4 +119,18 @@ export function WorkspaceFlowFold({ summaryClassName, className, ...props }: Fol
   const ws = useWorkspace();
   if (ws === true) return <>{props.children}</>;
   return <Fold {...props} className={cn(className, "ws:border-0 ws:bg-transparent")} summaryClassName={cn(summaryClassName, "ws:hidden")} />;
+}
+
+/**
+ * A part the workspace draws in another place than the flow, in the markup at the place it is drawn,
+ * so Tab and a screen reader follow the screen (WCAG 1.3.2 and 2.4.3; a CSS order would draw it in
+ * one place and leave it in the other): System Health's Audit Logs line, before Riot compliance in the
+ * flow and under the section shown in the workspace, Riot compliance included. The page draws it at
+ * both places: at "flow" (with the ws: classes that draw it at the workspace's place for the first
+ * paint, ws:order-last) and at "workspace". One of them is on the page at a time: the flow's on the
+ * server, while hydrating and in the flow; the workspace's once the page knows it is there.
+ */
+export function WorkspacePlaced({ at, children }: { at: "flow" | "workspace"; children?: React.ReactNode }) {
+  const ws = useWorkspace();
+  return (at === "workspace") === (ws === true) ? <>{children}</> : null;
 }

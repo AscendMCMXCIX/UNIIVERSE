@@ -75,18 +75,24 @@ export default async function AdminPrivacyPage() {
       content: (
         <Panel className={paged ? "ws:flex ws:flex-1 ws:flex-col" : undefined}>
           <PanelHeader title="Erasure records" subtitle="Each erasure leaves a reference and keyed codes, never a name, Riot ID or account id. They keep the person out of games synced later and stop their Riot accounts being linked again by accident." />
-          {/* With records, in the workspace a flex column: the backups fold first, then the records (paged to the room left, to the
-              foot); with none, the panel as tall as its words, as in the flow. */}
-          <PanelBody className={paged ? "space-y-3 ws:flex ws:flex-1 ws:flex-col ws:gap-3 ws:space-y-0" : "space-y-3"}>
-            <ErasureRecords records={records} viewerIsOwner={isOwner(session)} />
-            <Fold variant="row" className={paged ? "border-t border-border pt-2 ws:order-first ws:border-t-0 ws:border-b ws:pb-2 ws:pt-0" : "border-t border-border pt-2"} title="Backups and the server secret" description="What to do after an erasure, and before restoring a backup." testId="privacy-backups">
-              <div className="space-y-2 text-sm text-fg-muted [overflow-wrap:anywhere]">
-                <p>The records depend on the server&apos;s session secret: replacing it makes them unusable.</p>
-                <p>
-                  Backups made before an erasure still hold the person&apos;s data until they expire ({BACKUP_RETENTION_DAYS} days), and offline copies until whoever holds them deletes them. Export the records after each erasure and keep the file with the offline backups. If a backup is ever restored, import the newest records file and re-apply them before the app is used again.
-                </p>
-              </div>
-            </Fold>
+          {/* With records, in the workspace a flex column: the backups fold first, then the actions, then the records (paged to
+              the room left, to the foot), in the markup in that order once the page knows it is there (ErasureRecords places the
+              fold, its `notes`); with none, the panel as tall as its words, as in the flow. */}
+          <PanelBody className={paged ? "space-y-3 ws:flex ws:flex-1 ws:flex-col" : "space-y-3"}>
+            <ErasureRecords
+              records={records}
+              viewerIsOwner={isOwner(session)}
+              notes={
+                <Fold variant="row" className={paged ? "border-t border-border pt-2 ws:border-t-0 ws:border-b ws:pb-2 ws:pt-0" : "border-t border-border pt-2"} title="Backups and the server secret" description="What to do after an erasure, and before restoring a backup." testId="privacy-backups">
+                  <div className="space-y-2 text-sm text-fg-muted [overflow-wrap:anywhere]">
+                    <p>The records depend on the server&apos;s session secret: replacing it makes them unusable.</p>
+                    <p>
+                      Backups made before an erasure still hold the person&apos;s data until they expire ({BACKUP_RETENTION_DAYS} days), and offline copies until whoever holds them deletes them. Export the records after each erasure and keep the file with the offline backups. If a backup is ever restored, import the newest records file and re-apply them before the app is used again.
+                    </p>
+                  </div>
+                </Fold>
+              }
+            />
           </PanelBody>
         </Panel>
       ),

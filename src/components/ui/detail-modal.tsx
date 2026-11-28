@@ -832,15 +832,19 @@ export function DetailModal({
       presses();
       letGo();
       // Back to what opened the window, whether it was closed or removed from the page (or to the
-      // window replacing it, see handedOver), or where its owner puts it (refocus).
-      const back = opener.current ?? returnFocusRef.current?.() ?? null;
+      // window replacing it, see handedOver), or where its owner puts it (refocus). What opened it
+      // counts only while it is still on the page: a row a paged list has drawn away since (Accounts'
+      // person view stepped to someone on another page, the list following them) gives way to
+      // returnFocus (the row of the one shown), read again on the next frame where it is gone by then.
+      const back = (opener.current?.isConnected ? opener.current : null) ?? returnFocusRef.current?.() ?? null;
       const own = refocusRef.current ?? inherited.current;
       const handed = { el: back, refocus: own ?? null };
       handedOver = handed;
       requestAnimationFrame(() => {
         if (handedOver === handed) handedOver = null;
-        if (own) own();
-        else if (back?.isConnected) back.focus({ preventScroll: true });
+        if (own) return own();
+        const el = back?.isConnected ? back : (returnFocusRef.current?.() ?? null);
+        if (el?.isConnected) el.focus({ preventScroll: true });
       });
     };
   }, [open, settle, screen, headless, titleId]);

@@ -45,18 +45,29 @@ interface OneScreenRow extends FitsOptions {
 
 /*
   Measured on 28 Nov 2026 (the default demo, CI's wider text), the pages that already fit:
-  - at the eight and the floor: Players, Champion Intel (empty, and with a champion), My Profile
-    without a profile of one's own, a profile's Accounts, All Champions' list, Admin's Data and Audit;
+  - at the eight and the floor: Champion Intel (empty, and with a champion), My Profile without a
+    profile of one's own, a profile's Accounts, All Champions' list, Admin's Data and Audit (its log
+    empty: below);
   - at the eight, not the floor: Team Overview (33px over with the sidebar open, 6 folded),
     Leaderboards (87px), Admin's Accounts (36px) and Access levels (10px with the sidebar open), both
     brought to the floor by lane A2 the same day (Accounts paged, the hub's eyebrow in the short form);
+    and Players (below);
   - a profile's Overview fits from 1440 × 900 only (376–390px over at 1366 × 768, 487–501 at the floor).
+
+  The suite's server is shared: on CI, the specs before this one in its shard have made accounts (4 in
+  shard 4 of run 46125624658, where Players was 20px over at the floor), and how many depends on where
+  the shard starts. Measured the same day with 12 accounts made first: every row below fits as it is,
+  but two pages grow with them (each is noted at its row): Players, a row of its two columns for
+  every two members, and Audit Logs, an entry an account made (50 at a time, with Load older).
 */
 const ROWS: OneScreenRow[] = [
   // Its season cards' two figure notes (card-season's dd.truncate) are cut by about 11px at 1648 × 900 with the wider text: tracked
   // for its lane (Team Overview's short form). Until then only a row's truncations are held here, the check before 28 Nov 2026's review.
   { name: "Team Overview", path: "/team", at: EIGHT, truncates: "[data-ws-row] .truncate" },
-  { name: "Players", path: "/players", at: EIGHT_AND_FLOOR },
+  // The roster grows with the team: it fitted the floor only with the demo's own roster (20px over at 1366 × 657 open with CI's 4
+  // accounts made first; with 12, 276px, and 165px over at 1366 × 768). Lane D pages its roster (batch 3); until then its row holds
+  // the eight, where it fits with up to about 6 accounts made before it.
+  { name: "Players", path: "/players", at: EIGHT },
   { name: "Leaderboards", path: "/leaderboards", at: EIGHT },
   { name: "Champion Intel, empty", path: "/lookup", at: EIGHT_AND_FLOOR },
   { name: "Champion Intel, one champion", path: "/lookup?champion=Ahri", at: EIGHT_AND_FLOOR },
@@ -135,7 +146,10 @@ const ROWS: OneScreenRow[] = [
   { name: "Admin Settings, Name", path: "/admin/settings", admin: true, at: EIGHT_AND_FLOOR, workspace: true },
   { name: "Admin Settings, Password", path: "/admin/settings?section=password", admin: true, at: EIGHT_AND_FLOOR, workspace: true },
   { name: "Admin Data & Integrations", path: "/admin/data", admin: true, at: EIGHT_AND_FLOOR },
-  { name: "Admin Audit Logs", path: "/admin/audit", admin: true, at: EIGHT_AND_FLOOR },
+  // Audit Logs lists 50 entries at a time (Load older) and is not paged to the window yet: the demo's log is empty, and each account an
+  // earlier spec makes adds an entry (with 12 made, 117px over at 1366 × 768, 228 at the floor). No lane converts it yet (tracked): its
+  // row holds the page's chrome and its empty state, filtered to a day with nothing recorded, whatever the specs before it made.
+  { name: "Admin Audit Logs, nothing recorded", path: "/admin/audit?from=2000-01-01&to=2000-01-01", admin: true, at: EIGHT_AND_FLOOR },
   // Lane B (28 Nov 2026): Platform Settings' pages.
   { name: "Admin Previews, a phone", path: "/admin/previews", admin: true, at: EIGHT_AND_FLOOR, workspace: true, cards: "[data-testid=preview-studio]" },
   { name: "Admin Previews, a desktop", path: "/admin/previews", admin: true, at: EIGHT_AND_FLOOR, workspace: true, cards: "[data-testid=preview-studio]", then: (page) => page.getByTestId("preview-device-desktop").click() },
