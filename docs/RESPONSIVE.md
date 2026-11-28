@@ -822,7 +822,8 @@ Each is built from the shared modules below.
 It returns:
 - the pages: `perPage`, `paged`, `page`, `pages`, `range`, `offset`, `shown`;
 - the reader's moves: `turn(p)`, `live`, `goToIndex(i)`, `focusKey(key)`, `onListKeyDown`
-  (PageUp/PageDown a page, Home/End, ↑/↓ with `arrows`);
+  (PageUp/PageDown a page, Home/End, ↑/↓ with `arrows`; keys pressed inside a dialog a row holds,
+  a record's Release confirmation, are the dialog's: `inDialogWithin`, in the grid's handler too);
 - what to spread: `regionProps`, `listProps`, `rowProps(row)`, `positionProps(row)`, `pagerProps`;
 - the refs: `listRef`, `footRef`, `cardRef`, and `footTestId`.
 
@@ -882,6 +883,11 @@ sectionsClassName? railClassName? testId?>`.
   own: no section is asked, and nothing is pushed onto the other page's address.
 - **An old deep link's hash** naming an element inside a section (`/settings#password`) opens that
   section, where the query names none; a rail switch drops the hash (the section is in the query).
+  Once shown in the workspace that section is written into the query in place
+  (`/settings?section=password#password`, replaceState through Next's router), so from then on the
+  query holds it. An in-page fragment link that names no section's element (the skip link's
+  `#content`) keeps the section shown: the query is unchanged and the hash names a place, not a
+  section. An empty hash is no such link (Back to `/settings` shows the first section).
 - **Markers:** a section's own (`marker`), and what its fields report from inside it:
   `useSectionMarker({ unsaved, error })`, a no-op outside a sectioned workspace (the same editor on
   another page). Read out with the link (", unsaved changes", ", has an error").
@@ -908,6 +914,17 @@ What a fold opens in the flow, in the workspace, each the flow's own markup outs
   (no CSS can open a fold), its title row kept. System Health's Riot compliance.
 - `WorkspaceFlowFold`: a fold round several sections in the flow; in the workspace its sections
   stand on their own. System Health's Technical details.
+- `<WorkspacePlaced at="flow" | "workspace">`: a part the workspace draws in another place than the
+  flow, in the markup where it is drawn, so Tab and a screen reader follow the screen (a CSS order
+  would draw it in one place and leave it in the other: WCAG 1.3.2 and 2.4.3). The page draws it at
+  both places; the flow's copy is on the page on the server, while hydrating and in the flow (with the
+  `ws:` order class that draws it at the workspace's place for the first paint), the workspace's once
+  the page knows it is there. System Health's Audit Logs line.
+
+**Parts drawn in another order in the workspace** are in the markup in that order once the page
+knows it is there (`useWorkspaceSection()?.paged`, or `WorkspacePlaced`); a `ws:order-*` class only
+draws the first paint, before hydration. Personal data's Erasure records (the backups' fold and the
+buttons above the records there) and System Health's Audit Logs line.
 
 **Using the paged list in a component.** Pass the component's own refs (`listRef`, `footRef`,
 `cardRef`) and destructure the result (`const { shown, regionProps, … } = usePagedRows(…)`): the
@@ -1040,9 +1057,10 @@ sectioned workspace whose rail is the account card.
 - **Fit**, measured with CI's wider text: every section, the owner's and a member's own, at the eight
   configurations and 1366 × 657 (the platform spec's rows; a member's in `e2e/settings-workspace.spec.ts`).
 - **Tests:** `e2e/settings-workspace.spec.ts` (each section, Back and Forward, the keys, a draft
-  across a switch and the markers, `#compliance`, `#password`, the soft navigation, Back leaving the
-  page, Admin Mode's copy, the flow outside the gate, a member's fit). Specs that use a section other
-  than Name on a desktop window open it by its address (`/settings?section=links`); the flow ignores it.
+  across a switch and the markers, `#compliance`, `#password` and the skip link after it, the soft
+  navigation, Back leaving the page, Admin Mode's copy, the flow outside the gate, a member's fit).
+  Specs that use a section other than Name on a desktop window open it by its address
+  (`/settings?section=links`); the flow ignores it.
 
 ### System Health (28 Nov 2026)
 
@@ -1054,7 +1072,8 @@ Warnings), Diagnostics, Environment and Riot compliance (Demo data too on an emp
   Diagnostics' recent errors (up to 8, each whole there, never cut) and recent job runs (up to 15) open
   in windows from a row each. The flow's Technical details fold is not drawn in the workspace: its
   panels are sections of their own. Riot compliance is open, and `#compliance` opens it.
-- **The Audit Logs line** is under every section (`ws:order-last`).
+- **The Audit Logs line** is under every section, after Riot compliance in the markup too where that
+  section is shown (`WorkspacePlaced`; `ws:order-last` draws the first paint only).
 - **The flow** (phones, tablets, short or narrow windows, a larger text size) is the stack it always
   was: Statuses, Page speed with its fold, the Technical details fold round its panels, the Audit Logs
   line, the Riot compliance fold. Until the page knows its posture the folds are drawn (a fold's
@@ -1064,8 +1083,9 @@ Warnings), Diagnostics, Environment and Riot compliance (Demo data too on an emp
   the eight configurations and 1366 × 657. The demo has one job run and no errors: a production-sized
   Diagnostics (5 slowest runs, 8 errors, 15 runs) keeps the section small by its windows, which fit
   15 rows at 1366 × 768 (not measured on production data).
-- **Tests:** `e2e/system-health-workspace.spec.ts` (each section, Back, `#compliance` open, the
-  windows fitting with no inner scroll and growing nothing, the flow outside the gate); the platform
+- **Tests:** `e2e/system-health-workspace.spec.ts` (each section, Back, `#compliance` open and kept
+  through the skip link, the Audit Logs line's place in the markup, the windows fitting with no inner
+  scroll and growing nothing, the flow outside the gate); the platform
   spec's rows (each section, and both windows open).
 
 ### Personal data, Accounts and Access levels (28 Nov 2026)
@@ -1076,19 +1096,27 @@ eyebrow gives its line back (the sidebar and the section tabs above name it).
 - **Personal data** (`/admin/people/privacy`): a sectioned workspace beside a quiet rail (Privacy
   requests, Erase a former member, Erasure records with its count), in the address. Its two folds
   stay: each still fits open. The records are paged to the room under the actions (the backups' fold
-  and the buttons first there, the records' card to the frame's foot); none in the demo.
+  and the buttons first there, the records' card to the frame's foot), in the markup in that order
+  once the page knows it is in the workspace (`ErasureRecords` places the fold, its `notes`); none in
+  the demo. A record's Release confirmation keeps its own keys (the list's PageDown would turn the
+  page under it).
 - **Accounts** (`/admin/people`): its groups are one list paged to the room under the search row
   (`usePagedRows`, cumulative: a page draws its rows in their groups, each group's heading again on
   every page it is on), the inline Pager in its foot; Profiles without an account are a group like
   the others there (no fold). An empty group's "Nobody yet." is a line of the list; the range counts
   people. A person opened from another page keeps the list on that page; a search goes to page 1.
+  A person view stepped with ‹ › to someone on another page brings the list to their page, and its
+  close gives the focus to their row (DetailModal's opener counts only while it is on the page; else
+  `returnFocus`).
   It was 36px over at 1366 × 657 on the default demo, and over everywhere with a real team's
   accounts; it fits at the eight and the floor whatever their number.
 - **Access levels** (`/admin/people/access`): fits by its own layout (10px over at the floor with the
   sidebar open before the eyebrow gave its line back). More than three base levels (the Owner's own)
   add a row of cards; see the tracked list.
-- **Tests:** `e2e/people-workspace.spec.ts` (sections, Back, the folds open, every account
-  on exactly one page, a person's page kept, the flow outside the gate); the platform spec's rows.
+- **Tests:** `e2e/people-workspace.spec.ts` (sections, Back, the folds open, the records' controls
+  in the markup in the order drawn, the Release confirmation's keys, every account on exactly one
+  page, a person's page kept, the focus back on a person stepped to on another page, the flow outside
+  the gate); the platform spec's rows.
 
 ### All Champions' workspace (27 Nov 2026)
 
