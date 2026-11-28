@@ -934,6 +934,13 @@ footer with it: such a parent takes `ws-host:space-y-0` (Accounts' page).
   pushing (an old `#hash` naming a section). Used for a list's filter (Admin Resources'
   `?section=`), a queue's view (Admin Matchup notes' `?view=`) and a page that lays out its own rail
   (Admin Branding, with `SectionRail`'s markup and look).
+- **`detail-modal.tsx`:** a workspace window's width, `workspaceWidth` (`pane`, All Champions'
+  56.25rem, the default; `game`, 76rem: the game window and Matchup notes' editor), with
+  `data-width` on the dialog; a sheet's `sheetWidth="table"` (60rem: `WorkspaceWindow`'s tables).
+- **`reader-idle.ts`, `lib/list-per.ts`, `section-header.tsx`:** a server-paged list's own address
+  write waits for the reader (`useReaderBusy`, `whenReaderIdle`); its cookie keeps the last budget
+  (`readListPer`, `rememberListPer`, `forgetListPer`); `SectionHeader`'s `toolbarLead` and `scopeEnd`
+  slots hold a pager that costs no line. Match History's notes below.
 - **`fit-rows.tsx`, `useRowBudget`:** unchanged by default. `mode: "cumulative"` counts rows of
   several heights by their own heights in order, then more at the tallest drawn row's pitch
   (`row-budget.ts`, `cumulativeRows`; for rows of one height it is `rowBudget`'s count exactly).
