@@ -350,6 +350,26 @@ export async function walkPages<R>(page: Page, name: string, nextTestId: string,
 }
 
 /**
+ * Walks a region's pages back by its Previous button, from the page shown to the first, collecting each
+ * page's rows (`read`) and its region's figures: reversed, a walk forward's pages, where Back comes
+ * back to the pages Next showed.
+ */
+export async function walkBack<R>(page: Page, name: string, prevTestId: string, read: () => Promise<R[]>): Promise<{ pages: R[][]; meta: RegionPage[] }> {
+  const pages: R[][] = [];
+  const meta: RegionPage[] = [];
+  for (let n = 0; n < 60; n++) {
+    await settled(page);
+    const at = (await region(page, name))!;
+    meta.push(at);
+    pages.push(await read());
+    if (at.page <= 1) break;
+    await page.getByTestId(prevTestId).click();
+    await expect.poll(async () => (await region(page, name))?.page).toBe(at.page - 1);
+  }
+  return { pages, meta };
+}
+
+/**
  * Every record once across the pages (the main promise), and each page as full as its slots allow (a
  * walk's result: rows by a key): `per` slots a page, a divider taking one on its page and on every page
  * after it, and a page ending a slot early rather than end on it (pageSizes).
