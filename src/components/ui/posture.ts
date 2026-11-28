@@ -53,28 +53,34 @@ export function modalOpen(): boolean {
 }
 
 /*
-  All Champions' one-screen workspace (docs/RESPONSIVE.md, "All Champions' workspace"; globals.css,
-  the `ws` and `ws-host` variants): a desktop window with a fine pointer, from 80rem wide, and at
-  least WS_MIN_HEIGHT_REM of the page's own rem tall. The CSS gate decides the server's HTML and the
-  hydration render; once hydrated, the page refines it with the root's actual size (a larger browser
-  text size or an emulated one), which a media query cannot read: a window where the query matches
-  but the page's own rem is short gets the flow layout (the page scrolls, as it always has).
+  The platform's one-screen workspace (docs/RESPONSIVE.md, "One-screen desktop pages"; globals.css,
+  the `ws` and `ws-host` variants; All Champions its first page): a desktop window with a fine
+  pointer, from 80rem wide, and at least WS_MIN_HEIGHT_REM of the page's own rem tall. The CSS gate
+  decides the server's HTML and the hydration render; once hydrated, the page refines it with the
+  root's actual size (a larger browser text size or an emulated one), which a media query cannot
+  read: a window where the query matches but the page's own rem is short gets the flow layout (the
+  page scrolls, as it always has). Every page reads it the same way (ui/workspace.tsx,
+  useWorkspaceMarks): the section is marked [data-workspace] while ws !== false, and its lists
+  measure their pages once ws === true.
 */
 export const WS_QUERY =
   "(pointer: fine) and (min-width: 80rem) and (max-width: 1536px) and (min-height: 656px), (pointer: fine) and (min-width: 1536px) and (max-width: 1600px) and (min-height: 668px), (pointer: fine) and (min-width: 1600px) and (max-width: 1664px) and (min-height: 680px), (pointer: fine) and (min-width: 1664px) and (max-width: 1728px) and (min-height: 691px), (pointer: fine) and (min-width: 1728px) and (max-width: 1792px) and (min-height: 703px), (pointer: fine) and (min-width: 1792px) and (max-width: 1856px) and (min-height: 715px), (pointer: fine) and (min-width: 1856px) and (max-width: 1920px) and (min-height: 727px), (pointer: fine) and (min-width: 1920px) and (max-width: 2240px) and (min-height: 786px), (pointer: fine) and (min-width: 2240px) and (max-width: 2560px) and (min-height: 845px), (pointer: fine) and (min-width: 2560px) and (min-height: 902px)";
 /**
  * The workspace's least height, in the page's own rem (41 × 16 = 656px at a 16px root): a 1366 × 768
  * laptop's browser window (about 657px inside it) keeps the workspace with fewer rows (the owner's
- * request: shorter desktop windows show fewer rows). Every state fits from here, a champion of five
- * positions with an opponent's games open included: under WS_SHORT_REM the workspace takes its short
- * form (docs/RESPONSIVE.md, "the short form"). The row budgets' floor (one row a column) stays as the
- * safety net, which no measured state reaches.
+ * request: shorter desktop windows show fewer rows). It is the platform's floor: each workspace page
+ * fits from here (e2e/one-screen.spec.ts holds the pages that do at 1366 × 657). On All Champions
+ * every state fits from here, a champion of five positions with an opponent's games open included:
+ * under WS_SHORT_REM it takes its short form (docs/RESPONSIVE.md, "the short form"). The row budgets'
+ * floor (one row a column) stays as the safety net, which no measured state reaches.
  */
 export const WS_MIN_HEIGHT_REM = 41;
 
 /*
   The workspace's short form (docs/RESPONSIVE.md, "All Champions' workspace", the short form; globals.css,
-  the `ws-short` and `ws-short-host` variants): a workspace window under WS_SHORT_REM of the page's own rem,
+  the `ws-short` and `ws-short-host` variants), opt-in per page (useWorkspaceMarks({ short, shortNarrow })),
+  tuned on All Champions, whose narrow section (WS_SHORT_NARROW_*, WS_NARROW_SECTION_REM) is its own pane's:
+  a workspace window under WS_SHORT_REM of the page's own rem,
   or under WS_SHORT_NARROW_REM where the section is narrow (WS_PANE_SECTION_REM to WS_NARROW_SECTION_REM of
   its rem: the pane beside the list in 1356–1463px with the sidebar open, where the approved tall form's lines
   wrap: the totals under the positions, the kills line, a two-season header). There the totals join the
