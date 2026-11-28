@@ -3,7 +3,7 @@
 import * as React from "react";
 import { cn } from "@/lib/cn";
 import { useRowBudget } from "./fit-rows";
-import { NOTHING_SAID, keepSaid, positionAttributes, rangeText, rangeWords, rowAttributes, useFocusOnceDrawn, type PagedWords, type PositionProps, type RegionProps, type RowProps, type RowPropsOptions, type Said } from "./paged-list";
+import { NOTHING_SAID, inDialogWithin, keepSaid, positionAttributes, rangeText, rangeWords, rowAttributes, useFocusOnceDrawn, type PagedWords, type PositionProps, type RegionProps, type RowProps, type RowPropsOptions, type Said } from "./paged-list";
 import type { PagerProps } from "./pager";
 import { isTyping, rootPx } from "./posture";
 import { columnRows, slotPageOf, slotPages, useFollowed, usePagedList, type Slot } from "./row-budget";
@@ -220,7 +220,7 @@ export function usePagedGrid<T>(o: PagedGridOptions<T>): PagedGrid<T> {
     if (p !== page) turn(p);
   };
   const onGridKeyDown = (e: React.KeyboardEvent) => {
-    if (!pages || !slots || e.altKey || e.ctrlKey || e.metaKey || isTyping(e.target)) return;
+    if (!pages || !slots || e.altKey || e.ctrlKey || e.metaKey || isTyping(e.target) || inDialogWithin(e.target, e.currentTarget)) return;
     const cell = (e.target as Element).closest?.<HTMLElement>("[data-row-key]");
     const i = cell?.dataset.rowKey !== undefined ? (index.get(cell.dataset.rowKey) ?? -1) : -1;
     if (i < 0) return;

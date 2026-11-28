@@ -68,7 +68,26 @@ test("System Health: each section is one rail link away, in the address; Back wa
   await expect(page.getByTestId("system-compliance")).toContainText("Riot API keys stay on the server");
   // The flow's Technical details fold is not drawn in the workspace: its panels are sections of their own.
   await expect(page.getByTestId("system-details")).toHaveCount(0);
+  // The Audit Logs line, drawn under Riot compliance, comes after it in the markup too (Tab and a screen reader follow the
+  // screen), and is in the page once.
+  await expect(page.getByTestId("system-audit-link")).toHaveCount(1);
+  expect(await auditAfterCompliance(page), "the Audit Logs line after Riot compliance in the markup").toBe(true);
+  // The section the hash opened is in the address, and survives the skip link's fragment navigation (#content).
+  await expect(page).toHaveURL(/\/admin\/system\?section=compliance#compliance$/);
+  await page.getByTestId("skip-link").focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/#content$/);
+  await page.waitForTimeout(300);
+  await expectSection(page, "system-workspace", "compliance", SYSTEM);
 });
+
+/** Whether the Audit Logs line comes after Riot compliance's title row in the markup. */
+const auditAfterCompliance = (page: Page) =>
+  page.evaluate(() => {
+    const fold = document.querySelector("[data-testid=system-compliance] summary");
+    const audit = document.querySelector("[data-testid=system-audit-link]");
+    return !!fold && !!audit && !!(fold.compareDocumentPosition(audit) & Node.DOCUMENT_POSITION_FOLLOWING);
+  });
 
 test("System Health: page speed's details and the recent job runs open in a window that fits, one table at a time", async ({ page }) => {
   for (const [size, side] of [
@@ -114,5 +133,9 @@ test("System Health outside the gate is the stack it always was: Technical detai
   await details.locator("summary").first().click();
   await expect(details.getByRole("region", { name: "Recent job runs" })).toBeVisible();
   await expect(page.getByTestId("diagnostics-runs-open")).toBeHidden();
+  // The Audit Logs line before Riot compliance, as always, once.
+  await expect(page.getByTestId("system-audit-link")).toHaveCount(1);
+  await expect(page.getByTestId("system-audit-link")).toBeVisible();
+  expect(await auditAfterCompliance(page), "the Audit Logs line before Riot compliance in the flow").toBe(false);
 });
 

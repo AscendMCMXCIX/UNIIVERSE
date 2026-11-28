@@ -23,7 +23,7 @@ import { vitalsReport } from "@/server/observability/web-vitals";
 import { jobsFreshness } from "@/server/ops/freshness";
 import { FreshnessWatcher } from "@/components/ui/freshness-watcher";
 import { SectionPanels, SectionRail, SectionedWorkspace, type WorkspaceSectionItem } from "@/components/ui/sectioned-workspace";
-import { WorkspaceFlowFold, WorkspaceOpenFold } from "@/components/ui/workspace-window";
+import { WorkspaceFlowFold, WorkspaceOpenFold, WorkspacePlaced } from "@/components/ui/workspace-window";
 import { WS_COLUMN } from "@/components/ui/workspace-classes";
 
 export const dynamic = "force-dynamic";
@@ -149,6 +149,15 @@ export default async function AdminSystemPage() {
     },
   ];
   const inFold = sections.map((x) => x.id).filter((id) => ["build", "diagnostics", "environment", "demo"].includes(id));
+  const auditLine = (className: string) => (
+    <p className={className}>
+      Who changed what is recorded under{" "}
+      <Link href="/admin/audit" className="text-accent underline-offset-2 hover:underline" data-testid="system-audit-link">
+        Audit Logs
+      </Link>
+      .
+    </p>
+  );
   return (
     <div className={cn("space-y-5", WS_COLUMN)}>
       {/* Job runs and statuses update when the tab is shown again (never on a timer), and on the administrator's own actions. */}
@@ -166,14 +175,12 @@ export default async function AdminSystemPage() {
           <WorkspaceFlowFold title="Technical details" description={technical} testId="system-details">
             <SectionPanels only={inFold} className="space-y-4 ws:space-y-0" />
           </WorkspaceFlowFold>
-          <p className="text-sm text-fg-muted ws:order-last ws:mt-4">
-            Who changed what is recorded under{" "}
-            <Link href="/admin/audit" className="text-accent underline-offset-2 hover:underline" data-testid="system-audit-link">
-              Audit Logs
-            </Link>
-            .
-          </p>
+          {/* The Audit Logs line before Riot compliance in the flow, and after it in the markup in the workspace, where it is drawn
+              under the section shown (WorkspacePlaced: Tab and a screen reader follow the screen). Its order class draws it there
+              for the first paint only. */}
+          <WorkspacePlaced at="flow">{auditLine("text-sm text-fg-muted ws:order-last ws:mt-4")}</WorkspacePlaced>
           <SectionPanels only={["compliance"]} />
+          <WorkspacePlaced at="workspace">{auditLine("text-sm text-fg-muted ws:mt-4")}</WorkspacePlaced>
         </div>
       </SectionedWorkspace>
     </div>
