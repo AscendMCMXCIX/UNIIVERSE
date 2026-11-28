@@ -107,6 +107,7 @@ test("the game window: every game opens over the list, fits the window, steps on
   test.setTimeout(120_000);
   const id = await demoPlayerId(page);
   await openAt(page, MH(id), [1366, 768], "expanded");
+  const total = (await region(page, "games"))!.total;
   const before = await page.evaluate(() => document.documentElement.scrollHeight);
   const last = page.getByTestId("match-card").nth(3);
   const lastId = await last.getByTestId("match-row").getAttribute("data-match");
@@ -116,18 +117,18 @@ test("the game window: every game opens over the list, fits the window, steps on
   await expect(page.getByTestId("match-expanded")).toHaveCount(0);
   expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBe(before);
   await expectWindowFits(page, "1366x768");
-  await expect(page.getByTestId("match-detail-position")).toHaveText("Game 4 of 208");
+  await expect(page.getByTestId("match-detail-position")).toHaveText(`Game 4 of ${total}`);
   await expect(page).toHaveURL(new RegExp(`match=${lastId}`));
   const entries = await page.evaluate(() => history.length);
   // Next at the page's end: the next page's first game, the list turning behind the window, the address replaced.
   await page.getByTestId("match-detail-next").click();
   await expect(page).toHaveURL(/page=2/);
-  await expect(page.getByTestId("match-detail-position")).toHaveText("Game 5 of 208");
+  await expect(page.getByTestId("match-detail-position")).toHaveText(`Game 5 of ${total}`);
   await expect(page.getByTestId("match-detail-next")).toBeFocused();
   expect(await page.evaluate(() => history.length)).toBe(entries);
   await page.getByTestId("match-detail-prev").click();
   await expect(page).toHaveURL(/page=1/);
-  await expect(page.getByTestId("match-detail-position")).toHaveText("Game 4 of 208");
+  await expect(page.getByTestId("match-detail-position")).toHaveText(`Game 4 of ${total}`);
   await expect(page).toHaveURL(new RegExp(`match=${lastId}`));
   // Escape closes it: the address without the game, the focus on its card.
   await page.keyboard.press("Escape");
@@ -154,7 +155,10 @@ test("at the floor (1366 × 657) every game of a page fits the game window, whol
   await page.goto(`${MH(id)}?per=10&page=1&match=${await page.getByTestId("match-row").first().getAttribute("data-match")}`);
   await expect(page.locator("dialog[open] [data-testid=match-breakdown]")).toBeVisible();
   for (let i = 0; i < 6; i++) {
-    await page.waitForFunction(() => document.querySelector("dialog[open] [data-testid=match-breakdown]")?.getAttribute("data-timeline") !== "loading", null, { timeout: 15_000 });
+    await page.waitForFunction(() => {
+      const b = document.querySelector("dialog[open] [data-testid=match-breakdown]");
+      return !!b && b.getAttribute("data-timeline") !== "loading";
+    }, null, { timeout: 15_000 });
     await expectWindowFits(page, `game ${i + 1}`);
     const next = page.getByTestId("match-detail-next");
     if (await next.isDisabled()) break;
@@ -214,7 +218,8 @@ test("outside the gate the three lists are the flow, as they were: Show more, th
   const id = await demoPlayerId(page);
   for (const path of [MH(id), `${MH(id)}?view=encounters`, "/matches"]) await flowUnchanged(page, path);
   await openAt(page, MH(id), [1366, 640], "expanded");
-  await expect(page).toHaveURL(/per=10/);
+  // Ten cards a page (the server's default, which the flow keeps on a window like this one), under the stacked pager.
+  await expect(page.getByTestId("match-item")).toHaveCount(10);
   await expect(page.getByTestId("match-pages")).toBeVisible();
   await page.getByTestId("match-card").first().click({ position: { x: 24, y: 16 } });
   await expect(page.getByTestId("match-expanded").getByTestId("match-breakdown")).toBeVisible();

@@ -447,7 +447,7 @@ export function TogetherList({ entries, total, offset = 0, championsById, classN
     <MatchDetailCacheContext.Provider value={cache}>
       <TogetherOpenContext.Provider value={value}>
         {/* The list: in the workspace the frame's remainder, its complete cards a page (the region), its foot the window's. */}
-        <div ref={ws?.cardRef} className="relative min-w-0 ws:flex ws:flex-1 ws:flex-col" data-ws-card="" data-testid="together-region" {...(paged && ws ? { "data-ws-region": "together", "data-per": ws.perPage === ws.paging.per ? ws.paging.per! : undefined, "data-page": ws.paging.page, "data-pages": ws.paging.pages, "data-total": total } : {})}>
+        <div ref={ws?.cardRef} className="relative min-w-0 ws:flex ws:flex-1 ws:flex-col" data-ws-card="" data-testid="together-region" {...(ws && ws.perPage !== null ? { "data-ws-region": "together", "data-per": paged && ws.perPage === ws.paging.per ? ws.paging.per! : undefined, "data-page": ws.paging.page, "data-pages": paged ? ws.paging.pages : undefined, "data-total": total } : {})}>
           <ol ref={ws?.listRef} className={className} data-testid="together-list" aria-describedby={paged && ws && ws.paging.pages > 1 ? "together-pager-range" : undefined}>
             {children}
           </ol>

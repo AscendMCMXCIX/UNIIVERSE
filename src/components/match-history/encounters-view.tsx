@@ -356,7 +356,8 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
   // The rows drawn: no more than the budget while a page of that size is on its way.
   const rows = perPage !== null && page.list.length > perPage ? page.list.slice(0, perPage) : page.list;
   const tiered = data.perFrom === "default" && perPage === null && ws !== false;
-  const regionProps = paged ? { "data-ws-region": "encounters", "data-per": perPage === c.per ? c.per! : undefined, "data-page": c.page, "data-pages": pages, "data-total": page.total } : {};
+  // The region from the first measure on (its `per` and pages only once the page of the budget's size has come: a test waits).
+  const regionProps = perPage !== null ? { "data-ws-region": "encounters", "data-per": paged && perPage === c.per ? c.per! : undefined, "data-page": c.page, "data-pages": paged ? pages : undefined, "data-total": page.total } : {};
   const [live, setLive] = React.useState("");
   const turn = (p: number) => {
     if (!paged || p < 1 || p > pages) return;
