@@ -385,6 +385,14 @@ const PHONE_PAGES: Array<{ key: PhonePage; label: string }> = [
   { key: "build", label: "Build" },
   { key: "board", label: "Scoreboard" },
 ];
+/**
+ * A desktop's game window paged by measure (fitPages: the workspace's floor) is wide: the player and their build share the
+ * first page side by side (the player, the build panels beside it, the lane under the player), the scoreboard the second.
+ */
+const FIT_PAGES: Array<{ key: PhonePage; label: string }> = [
+  { key: "player", label: "Player and build" },
+  { key: "board", label: "Scoreboard" },
+];
 
 /**
  * The grid areas of the view's parts from 40rem (VIEW_GRID's), literal for Tailwind. A view paged by its
@@ -395,6 +403,8 @@ const PHONE_PAGES: Array<{ key: PhonePage; label: string }> = [
 const AREA = { player: "@min-[40rem]/pg:[grid-area:player]", side: "@min-[40rem]/pg:[grid-area:side]", lane: "@min-[40rem]/pg:[grid-area:lane]", board: "@min-[40rem]/pg:[grid-area:board]", notes: "@min-[40rem]/pg:[grid-area:notes]" } as const;
 const FIT_PAGED_GRID = "grid gap-x-5 gap-y-3 @min-[40rem]/pg:grid-cols-2";
 const SPAN_BOTH = "@min-[40rem]/pg:col-span-2";
+/** Paged by measure: the build panels beside the player and the lane under it (two rows of the second column). */
+const SIDE_BESIDE = "@min-[40rem]/pg:row-span-2";
 
 /**
  * Whether a view taller than the room it is given (its parent: the game window's fixed-height body) must
@@ -520,7 +530,9 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
   const position = subject.position ? POSITION_WORDS[laneOf(subject.position) ?? ""] : undefined;
   const support = subject.isPlayer ? view.role === "SUPPORT" : laneOf(subject.position) === "UTILITY";
   /** On a phone's pages, hidden unless its page is shown (kept in the page, so nothing reloads). */
-  const on = (p: PhonePage) => (paged && page !== p ? "hidden" : undefined);
+  // Paged by measure, the build's parts are the first page's (FIT_PAGES).
+  const on = (p: PhonePage) => (paged && page !== (fitPaged && p === "build" ? "player" : p) ? "hidden" : undefined);
+  const pages = fitPaged ? FIT_PAGES : PHONE_PAGES;
   const meta = (
     <span className="flex flex-wrap items-center gap-x-3 gap-y-1 empty:hidden" data-testid="post-game-meta">
       {/* The date and the patch each kept whole: a narrow line (the notes beside the lane) breaks between them. */}
@@ -536,7 +548,7 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
     <div ref={rootRef} className="@container/pg [overflow-anchor:none]" data-testid="match-breakdown" data-variant={variant} data-met={meetings ? (meetings.status === "ok" ? meetings.players.length : 0) : undefined} data-timeline={timeline ? timeline.status : "loading"} data-selected={subject.slot} data-paged={paged || undefined} data-paged-by={fitPaged ? "measure" : undefined} data-page={paged ? page : undefined}>
       {paged ? (
         <div role="radiogroup" aria-label="Show the player, the build or the scoreboard" className={segmentedGroupClass(cn("mb-2.5 flex w-full flex-wrap [&>*]:flex-1", fitPaged && "@min-[40rem]/pg:w-fit"))} data-testid="post-game-pages">
-          {PHONE_PAGES.map((p) => (
+          {pages.map((p) => (
             <button
               key={p.key}
               type="button"
@@ -548,7 +560,7 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
                 const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
                 if (!step) return;
                 e.preventDefault();
-                const next = PHONE_PAGES[(PHONE_PAGES.findIndex((x) => x.key === p.key) + step + PHONE_PAGES.length) % PHONE_PAGES.length]!;
+                const next = pages[(pages.findIndex((x) => x.key === p.key) + step + pages.length) % pages.length]!;
                 setPage(next.key);
                 (e.currentTarget.parentElement?.querySelector(`[data-testid=post-game-page-${next.key}]`) as HTMLElement | null)?.focus();
               }}
@@ -587,7 +599,7 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
           <MoreStats p={subject} support={support} />
         </section>
         {/* The build panels fill their grid area: from 56rem the height the scoreboard and the lane leave beside them. */}
-        <div className={cn("min-w-0 flex-col", !fitPaged && AREA.side, on("build") ?? "flex")} data-testid="post-game-side">
+        <div className={cn("min-w-0 flex-col", fitPaged ? SIDE_BESIDE : AREA.side, on("build") ?? "flex")} data-testid="post-game-side">
           <ParticipantPanels panel={panel} onPanel={setPanel} result={timeline} entry={entry} page={subject.runePage} />
         </div>
         <div className={cn("min-w-0 self-start", !fitPaged && AREA.lane, on("build"))}>

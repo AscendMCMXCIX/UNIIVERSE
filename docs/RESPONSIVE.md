@@ -1009,10 +1009,11 @@ Show more, a game under its card.
   Back and Escape close it, the focus back on the card of the game last seen. The scoreboard's marks
   for players met lead to their games (Encounters), closing the window.
 - **PostGame's pages by measure** (`fitPages`): the view drawn whole while it fits the window's room,
-  its three pages (Player, Build, Scoreboard) where it does not, in a plain two-column grid (the
-  player alone; the build panels beside the lane; the scoreboard over its notes), until the room
-  grows or changes width. The demo's games fit whole from the floor up (527px of a 542px room at
-  1366 × 657, the tallest real games about 25px more); the pages are the floor's safety net.
+  two pages where it does not (the window is wide: "Player and build", the player with the build
+  panels beside it and the lane under it; "Scoreboard", the scoreboard over its notes), until the room
+  grows or changes width (a phone's three pages are unchanged). Measured with the timeline drawn:
+  a demo game is 607px against the floor's 542px room (1366 × 657), so the floor pages it; from
+  1366 × 768 (a 653px room) every game measured is whole.
 - **Before hydration** a game a link names is drawn under its card in the server's HTML and hidden by
   the workspace's CSS (`MatchExpansion`'s `ws:hidden`), so the first paint is the list alone.
 - **Tests.** The platform spec's rows (the games, a game open, sessions, a player's games, Encounters,
