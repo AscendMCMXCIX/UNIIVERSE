@@ -69,8 +69,6 @@ const ROWS: OneScreenRow[] = [
   { name: "Admin Audit Logs", path: "/admin/audit", admin: true, at: EIGHT_AND_FLOOR },
 ];
 
-test.describe.configure({ mode: "serial" });
-
 test.beforeEach(({ browserName }, info) => {
   void browserName;
   test.skip(info.project.name !== "desktop", "a desktop window's one-screen pages (desktop project only)");
