@@ -466,6 +466,7 @@ export function DetailModal({
   returnFocus,
   refocus,
   headless = false,
+  headlessClose,
   workspaceWidth = "pane",
 }: {
   open: boolean;
@@ -536,6 +537,13 @@ export function DetailModal({
    * of a fixed height (the workspace window): never one as tall as its content (BODY_SCROLLS).
    */
   headless?: boolean;
+  /**
+   * With `headless`: the content's own labelled Close (a selector inside the window), which takes the
+   * focus as the window opens from the keyboard or by a link, as every other window's close button
+   * does, ringed (the game window's "Close this game"). Without it the heading has that focus: All
+   * Champions' workspace window, as its docked pane's heading does.
+   */
+  headlessClose?: string;
   /** With size="workspace": the window's width (WORKSPACE_WIDTH), All Champions' pane by default. */
   workspaceWidth?: WorkspaceWidth;
 }) {
@@ -799,8 +807,9 @@ export function DetailModal({
       // a screen, until it is pressed or the focus moves on; else the close button, ringed for the
       // keyboard.
       if (screen || opensFocusingItself(lastInput())) letGo = focusWindow(d);
-      // A headless window has no close button of its own: its heading, as the pane's takes the focus opened from the keys.
-      else if (headless) d.querySelector<HTMLElement>(`[id="${CSS.escape(titleId)}"]`)?.focus({ preventScroll: true });
+      // A headless window has no close button of its own: the content's labelled Close where it names one (the game
+      // window), else its heading, as the pane's takes the focus opened from the keys (All Champions' workspace window).
+      else if (headless) ((headlessClose ? d.querySelector<HTMLElement>(headlessClose) : null) ?? d.querySelector<HTMLElement>(`[id="${CSS.escape(titleId)}"]`))?.focus({ preventScroll: true });
       else closeRef.current?.focus({ preventScroll: true });
     }
     if (!open && d.open) {
@@ -847,7 +856,7 @@ export function DetailModal({
         if (el?.isConnected) el.focus({ preventScroll: true });
       });
     };
-  }, [open, settle, screen, headless, titleId]);
+  }, [open, settle, screen, headless, headlessClose, titleId]);
 
   React.useEffect(
     () => () => {

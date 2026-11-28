@@ -13,14 +13,18 @@ import { cn } from "@/lib/cn";
 
   `preview`: in the dense team previews the links are for pointer and touch (tabIndex -1), so a
   keyboard still moves card by card; the same links are in the match window, in the tab order.
+
+  `wrap`: classes for the name's own text where the link would cut it short with an ellipsis beside
+  its arrow; a team preview passes the one-screen workspace's (team-composition.tsx, WS_NAME), where
+  a long name takes a second line rather than lose its end.
 */
 
-export function PlayerLink({ memberId, opgg, label, preview = false, className, children }: { memberId: string | null; opgg: string | null; label: string; preview?: boolean; className?: string; children: React.ReactNode }) {
+export function PlayerLink({ memberId, opgg, label, preview = false, wrap, className, children }: { memberId: string | null; opgg: string | null; label: string; preview?: boolean; wrap?: string; className?: string; children: React.ReactNode }) {
   const tab = preview ? -1 : undefined;
   const base = "underline-offset-2 hover:underline focus-visible:underline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-accent";
   if (memberId) {
     const profile = (
-      <Link href={`/players/${memberId}`} tabIndex={tab} className={cn(base, preview && opgg && "min-w-0 truncate", className)} title={`${label}: open their profile`} data-testid="player-link" data-link="profile">
+      <Link href={`/players/${memberId}`} tabIndex={tab} className={cn(base, preview && opgg && cn("min-w-0 truncate", wrap), className)} title={`${label}: open their profile`} data-testid="player-link" data-link="profile">
         {children}
       </Link>
     );
@@ -38,7 +42,7 @@ export function PlayerLink({ memberId, opgg, label, preview = false, className, 
   if (opgg)
     return (
       <a href={opgg} target="_blank" rel="noopener noreferrer" tabIndex={tab} className={cn(base, "inline-flex min-w-0 max-w-full items-center gap-0.5 align-bottom", className)} title={`${label} on OP.GG (opens in a new tab)`} data-testid="player-link" data-link="opgg">
-        <span className="min-w-0 truncate">{children}</span>
+        <span className={cn("min-w-0 truncate", wrap)}>{children}</span>
         <ExternalLink className="h-2.5 w-2.5 shrink-0 opacity-50" aria-hidden />
         <span className="sr-only"> (OP.GG, opens in a new tab)</span>
       </a>

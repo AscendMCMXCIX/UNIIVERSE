@@ -217,6 +217,8 @@ const cardGeometry = (els: Element[]) =>
       nextIs: next ? (next.getAttribute("data-testid") ?? next.firstElementChild?.getAttribute("data-testid") ?? next.tagName) : null,
       names: [...card.querySelectorAll('[data-testid="team-slot-name"]')].map((n) => box(n).width),
       teams: shown(teams) ? box(teams!).left : null,
+      // What the teams take past their five 16px lines 1px apart (84px): a name's second line, in the one-screen workspace only.
+      teamsExtra: shown(teams) ? Math.max(0, box(teams!).height - 84) : 0,
       // The last column's left edge: the teams, or the build where it takes their place.
       col: shown(teams) ? box(teams!).left : shown(build) ? box(build!).left : null,
       height: box(card).height,
@@ -251,7 +253,10 @@ test("a wide card's figures end before the next column, the teams keep their nam
       });
       expect(roster.gap, "1366: 8px between the columns").toBe("8px");
       expect(roster.names).toBe(10);
-      expect(roster.cut, "1366: the first card's roster names mostly whole").toBeLessThanOrEqual(3);
+      // In the one-screen workspace (a desktop window from 80rem wide and 41rem tall) no name is cut: a long one takes a
+      // second line (the owner's rule of 28 Nov 2026; up to 3 of these were cut with an ellipsis before).
+      await expect(page.getByTestId("match-history")).toHaveAttribute("data-workspace", "");
+      expect(roster.cut, "1366: the first card's roster names whole").toBe(0);
       await page.goto(`${profile}/matches`, { waitUntil: "networkidle" });
       await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
     }
@@ -270,8 +275,9 @@ test("a wide card's figures end before the next column, the teams keep their nam
       if (c.teams === null) continue;
       expect(c.names, at).toHaveLength(10);
       expect(Math.min(...c.names), `${at}: the teams keep their names`).toBeGreaterThan(24);
-      // About 100px: the teams' five lines set the card's height.
-      expect(c.height, `${at}: a compact card`).toBeLessThanOrEqual(106);
+      // About 100px: the teams' five lines set the card's height; in the workspace a name's second line adds its own height, nothing more.
+      if (size.width < 1280) expect(c.teamsExtra, `${at}: the flow's five lines`).toBe(0);
+      expect(c.height, `${at}: a compact card`).toBeLessThanOrEqual(106 + c.teamsExtra);
     }
     const lefts = cards.map((c) => c.teams).filter((x): x is number => x !== null);
     if (lefts.length) expect(Math.max(...lefts) - Math.min(...lefts), `${size.width}px: the teams start at the same place on every card`).toBeLessThanOrEqual(1);
@@ -324,6 +330,8 @@ test("a wide card's figures end before the next column, the teams keep their nam
         nunu: { cut: nunu.scrollWidth > nunu.clientWidth + 1 || nunu.scrollHeight > nunu.clientHeight + 1, lines: lines(nunu), title: nunu.title },
         heimer: { cut: heimer.scrollWidth > heimer.clientWidth + 1, lines: lines(heimer) },
         height: first.getBoundingClientRect().height,
+        // A team name's second line, in the one-screen workspace only (the teams' five lines are 84px).
+        teamsExtra: Math.max(0, (first.querySelector('[data-testid="match-teams"]')?.getBoundingClientRect().height ?? 0) - 84),
       };
     }, wide);
     const at = `${size.width}px`;
@@ -334,7 +342,8 @@ test("a wide card's figures end before the next column, the teams keep their nam
     expect(edited.nunu.lines, `${at}: "Nunu & Willump" on two lines at most`).toBeLessThanOrEqual(2);
     expect(edited.nunu.title, `${at}: the name is the hover text`).not.toBe("");
     if (wide) expect(edited.heimer, `${at}: "Heimerdinger" whole, on one line`).toEqual({ cut: false, lines: 1 });
-    expect(edited.height, `${at}: two lines of name keep the card compact`).toBeLessThanOrEqual(106);
+    if (size.width < 1280) expect(edited.teamsExtra, `${at}: the flow's five lines`).toBe(0);
+    expect(edited.height, `${at}: two lines of name keep the card compact`).toBeLessThanOrEqual(106 + edited.teamsExtra);
     expect(await overflow(page)).toBeLessThanOrEqual(1);
   }
 });

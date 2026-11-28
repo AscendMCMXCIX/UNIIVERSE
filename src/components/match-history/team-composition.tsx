@@ -58,6 +58,16 @@ const LAYOUT = {
   },
 } as const;
 const RANK_LINE = "ml-auto flex shrink-0 justify-center text-2xs leading-4";
+/*
+  In a desktop window's one-screen workspace (docs/RESPONSIVE.md, "One-screen desktop pages": no data
+  clipped), a name shown in full: where it is wider than its slot (a long Riot name, or one beside an
+  opponent's rank at 1366px with the sidebar open) it takes a second line instead of an ellipsis, the
+  icon and the rank level with its first line, and the card grows, which the list's row budget
+  measures (fewer cards a page). Only where the names are shown (13rem of room or more); the flow
+  keeps its fixed five lines and the ellipsis, the whole name in the slot's hover text.
+*/
+const WS_SLOT = "ws:@min-[13rem]/teams:items-start";
+const WS_NAME = "ws:@min-[13rem]/teams:overflow-visible ws:@min-[13rem]/teams:whitespace-normal ws:@min-[13rem]/teams:[overflow-wrap:anywhere]";
 
 const SIDE = {
   blue: { label: "Blue team", rail: "border-blue/70", dot: "bg-blue" },
@@ -133,9 +143,9 @@ export function TeamComposition({
                 const rank = labels[side][i];
                 if (s.removed)
                   return (
-                    <span key={i} className={cn("flex min-w-0 items-center gap-1 leading-none", L.slot, ranked && L.stacked)} data-testid="team-slot" data-removed>
+                    <span key={i} className={cn("flex min-w-0 items-center gap-1 leading-none", WS_SLOT, L.slot, ranked && L.stacked)} data-testid="team-slot" data-removed>
                       <RemovedIcon />
-                      <span data-testid="team-slot-name" className={cn("truncate text-2xs leading-4 text-fg-subtle", L.name)}>
+                      <span data-testid="team-slot-name" className={cn("truncate text-2xs leading-4 text-fg-subtle", WS_NAME, L.name)}>
                         Removed player
                       </span>
                       {ranked ? <span className={cn(RANK_LINE, L.rank)} /> : null}
@@ -144,10 +154,10 @@ export function TeamComposition({
                 const c = champion(s.championId);
                 const t = slotText(s, c);
                 return (
-                  <span key={i} className={cn("flex min-w-0 items-center gap-1 leading-none", L.slot, ranked && L.stacked)} title={rank ? `${t.title} · ${rank.title}` : t.title} data-testid="team-slot" data-you={s.you || undefined} data-member={s.member ? s.member.id : undefined}>
+                  <span key={i} className={cn("flex min-w-0 items-center gap-1 leading-none", WS_SLOT, L.slot, ranked && L.stacked)} title={rank ? `${t.title} · ${rank.title}` : t.title} data-testid="team-slot" data-you={s.you || undefined} data-member={s.member ? s.member.id : undefined}>
                     <Icon champion={c} you={s.you} member={!!s.member} />
-                    <span data-testid="team-slot-name" className={cn("truncate text-2xs leading-4", L.name, s.you ? "font-semibold text-fg" : s.member ? "font-medium text-accent" : t.known ? "text-fg-muted" : "text-fg-subtle")}>
-                      <PlayerLink memberId={s.member?.id ?? null} opgg={s.opgg} label={t.label} preview>
+                    <span data-testid="team-slot-name" className={cn("truncate text-2xs leading-4", WS_NAME, L.name, s.you ? "font-semibold text-fg" : s.member ? "font-medium text-accent" : t.known ? "text-fg-muted" : "text-fg-subtle")}>
+                      <PlayerLink memberId={s.member?.id ?? null} opgg={s.opgg} label={t.label} preview wrap={WS_NAME}>
                         {t.label}
                       </PlayerLink>
                       <span className="sr-only">

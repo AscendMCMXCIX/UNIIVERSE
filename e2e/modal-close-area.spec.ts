@@ -1,5 +1,5 @@
 import { devices, expect, test, type Browser, type Locator, type Page } from "./test";
-import { openMatchWindow } from "./match-history";
+import { inTheFlow, openMatchWindow } from "./match-history";
 import { CLEARANCE, expectClearCorner, untilStill } from "./modal-corner";
 import { openDanger, openPerson } from "./member-account";
 
@@ -42,7 +42,10 @@ async function topPlayer(page: Page) {
 
 test("the match window: the close button alone in its corner, Escape closes it", async ({ page }) => {
   // A link to a game that is not on the page shown opens it in the window (lists open their games
-  // under their cards).
+  // under their cards): the flow, just under the one-screen gate. In the gate a desktop opens every game
+  // in the headless game window, whose labelled Close ends its header's steps (its own focus, corner and
+  // Escape: e2e/matches-workspace.spec.ts).
+  await inTheFlow(page);
   const win = await openMatchWindow(page);
   await expect(win.getByTestId("match-result")).toBeVisible();
   await expect(win.getByTestId("match-detail-close")).toBeFocused();

@@ -1,5 +1,7 @@
 import { expect, test, type Page } from "./test";
 import { FLOOR, cfg, demoPlayerId, expectEveryRecord, fits, flowUnchanged, openAt, region, resizeTo, settled, walkPages, withWideText, type Side, type Size } from "./workspace";
+import { cardOf } from "./match-history";
+import { CLEARANCE } from "./modal-corner";
 
 /*
   Match History, Encounters and Team Matches in the one-screen workspace (docs/RESPONSIVE.md, "One-screen desktop
@@ -154,6 +156,162 @@ test("the game window: every game opens over the list, fits the window, steps on
   // A link to a game opens it in the window too.
   await page.goto(`${MH(id)}?match=${lastId}`);
   await expect(page.locator("dialog[open][data-size=workspace] [data-testid=match-breakdown]")).toBeVisible();
+});
+
+/**
+ * The game window's corner: its header's steps (Previous, the game's place, Next and Close, GameSteps where="window"), the
+ * nearest content to them, and Close's place: the steps' last control, in the window's top-right corner. Nothing personal:
+ * the nearest is named by its test id or its tag.
+ */
+async function gameCorner(page: Page) {
+  return page.evaluate(() => {
+    const d = document.querySelector<HTMLElement>("dialog[open][data-testid=match-detail]")!;
+    const steps = d.querySelector<HTMLElement>("[data-game-step][data-where=window]")!;
+    const close = steps.querySelector<HTMLElement>("[data-testid=match-detail-close]")!;
+    const k = steps.getBoundingClientRect();
+    const c = close.getBoundingClientRect();
+    const w = d.getBoundingClientRect();
+    const seen = (e: Element) => {
+      const r = e.getBoundingClientRect();
+      return r.width > 0.5 && r.height > 0.5 && getComputedStyle(e).visibility !== "hidden" && !e.closest(".sr-only");
+    };
+    // Whatever can be used or read outside the steps: controls, and every element with text of its own.
+    const content = [...d.querySelectorAll("*")].filter((e) => !steps.contains(e) && !e.contains(steps) && seen(e) && (e.matches("a, button, input, select, textarea, [role=tab]") || [...e.childNodes].some((n) => n.nodeType === Node.TEXT_NODE && n.textContent!.trim())));
+    const gap = (r: DOMRect) => Math.max(0, k.left - r.right, r.left - k.right, k.top - r.bottom, r.top - k.bottom);
+    let nearest = { gap: Infinity, what: "" };
+    for (const e of content) {
+      const g = gap(e.getBoundingClientRect());
+      if (g < nearest.gap) nearest = { gap: g, what: e.getAttribute("data-testid") ?? e.tagName.toLowerCase() };
+    }
+    const buttons = [...steps.querySelectorAll("button")];
+    return { nearest, last: buttons.at(-1) === close && c.right >= k.right - 0.5, fromRight: w.right - c.right, fromTop: c.top - w.top, ringed: document.activeElement === close && close.matches(":focus-visible") };
+  });
+}
+
+/*
+  The game window's focus as it opens, by DetailModal's rule for every window (docs/DESIGN_SYSTEM.md, "Focus"): opened by a
+  link or from the keyboard, its close button has the focus, ringed, so a keyboard user sees where they are; opened by a
+  click, the window itself. Headless, its close button is its header's labelled Close (`headlessClose`), at the end of its
+  steps: the window's own Previous and Next sit beside it, as on a card, and the window's content keeps 12px clear of them.
+*/
+test("the game window: opened by a link or the keyboard its Close has the focus, ringed; by a click the window itself; its steps keep the corner; Escape closes it", async ({ page }) => {
+  test.setTimeout(120_000);
+  const id = await demoPlayerId(page);
+  await openAt(page, MH(id), [1440, 900], "expanded");
+  const second = (await page.getByTestId("match-row").nth(1).getAttribute("data-match"))!;
+  const win = page.locator("dialog[open][data-testid=match-detail]");
+  const close = win.getByTestId("match-detail-close");
+  // A link to a game: the window over the list, its Close focused and ringed.
+  await page.goto(`${MH(id)}?match=${second}`);
+  await expect(win.getByTestId("match-result")).toBeVisible({ timeout: 15_000 });
+  expect(await win.getAttribute("data-size"), "the workspace's game window").toBe("workspace");
+  await expect(close).toBeFocused();
+  const corner = await gameCorner(page);
+  expect(corner.ringed, "Close ringed (:focus-visible)").toBe(true);
+  expect(corner.nearest.gap, `nearest content to the steps: ${corner.nearest.what}`).toBeGreaterThanOrEqual(CLEARANCE - 0.5);
+  expect(corner.last, "Close is the steps' last control").toBe(true);
+  expect(corner.fromRight, "Close in the top-right corner").toBeLessThanOrEqual(16);
+  expect(corner.fromTop, "Close in the top-right corner").toBeLessThanOrEqual(16);
+  // Escape closes it, the focus on its card (nothing on the page opened it), and the address without the game.
+  await page.keyboard.press("Escape");
+  await expect(win).toHaveCount(0);
+  await expect(page).not.toHaveURL(/match=/);
+  await expect(cardOf(page, second).getByTestId("match-row")).toBeFocused();
+  // From the keyboard (Enter on a card): Close has the focus; Escape gives it back to the card.
+  const first = page.getByTestId("match-row").first();
+  await first.focus();
+  await page.keyboard.press("Enter");
+  await expect(win.getByTestId("match-result")).toBeVisible({ timeout: 15_000 });
+  await expect(close).toBeFocused();
+  expect((await gameCorner(page)).ringed, "Close ringed from the keyboard").toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(win).toHaveCount(0);
+  await expect(first).toBeFocused();
+  // By a click: the window itself takes the focus, nothing in it ringed.
+  await page.getByTestId("match-card").nth(2).click({ position: { x: 24, y: 16 } });
+  await expect(win.getByTestId("match-result")).toBeVisible({ timeout: 15_000 });
+  await expect.poll(() => page.evaluate(() => document.activeElement?.getAttribute("data-testid") ?? null)).toBe("match-detail");
+  await page.keyboard.press("Escape");
+  await expect(win).toHaveCount(0);
+});
+
+/*
+  A player's name on a card's teams is data (the owner's rule: nothing clipped in the workspace). In the workspace a name
+  wider than its slot takes a second line, the icon and the opponent's rank level with its first, and the list's row budget
+  counts the taller card; the flow keeps its five fixed lines. On CI the specs before this one have read the opponents'
+  ranks of these games, and the rank at the line's end left a demo name ("Demo Rival 6") about 2px short at 1366 × 768 with
+  the sidebar open (CI run 46140346944): here the ranks are read the same way, and one name is made as long as a Riot name
+  can be (16 characters, none to break at), in the page itself, since no demo player has one.
+*/
+test("a long name on a card's teams shows whole in the workspace, on a second line, and the list still fits; the flow keeps its five lines", async ({ page }) => {
+  test.setTimeout(120_000);
+  await withWideText(page);
+  const id = await demoPlayerId(page);
+  await openAt(page, MH(id), [1366, 768], "expanded");
+  // The first game's opponents' ranks read (its window's scoreboard asks for them), shown on its card once it closes.
+  const matchId = (await page.getByTestId("match-row").first().getAttribute("data-match"))!;
+  await page.getByTestId("match-card").first().click({ position: { x: 24, y: 16 } });
+  const note = page.locator("dialog[open] [data-testid=ranks-note]");
+  await expect(note).toBeAttached({ timeout: 15_000 });
+  await expect(note).not.toHaveAttribute("data-state", "checking", { timeout: 15_000 });
+  await page.keyboard.press("Escape");
+  await expect(page.locator("dialog[open]")).toHaveCount(0);
+  const card = cardOf(page, matchId);
+  await expect(card.getByTestId("slot-rank").first()).toBeVisible();
+  await settled(page);
+  const before = (await card.boundingBox())!.height;
+  // An opponent with a rank: the name a Riot name's longest.
+  const slot = card.locator("[data-testid=team-slot]:not([data-you]):not([data-member]):has([data-testid=slot-rank])").first();
+  const name = slot.getByTestId("team-slot-name");
+  const LONG = "WanderingKnightX";
+  await name.evaluate((el, long) => {
+    const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+    for (let n = walk.nextNode(); n; n = walk.nextNode())
+      if (n.textContent!.trim() && !n.parentElement!.closest(".sr-only")) {
+        n.nodeValue = long;
+        return;
+      }
+  }, LONG);
+  await settled(page);
+  const geometry = () =>
+    name.evaluate((el, long) => {
+      const box = el.getBoundingClientRect();
+      const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+      let text: DOMRect | null = null;
+      for (let n = walk.nextNode(); n && !text; n = walk.nextNode())
+        if (n.textContent === long) {
+          const range = document.createRange();
+          range.selectNodeContents(n);
+          text = range.getBoundingClientRect();
+        }
+      const s = el.closest("[data-testid=team-slot]")!;
+      const icon = s.firstElementChild!.getBoundingClientRect();
+      const rank = s.querySelector("[data-testid=slot-rank]")!.getBoundingClientRect();
+      return { found: !!text, cut: el.scrollWidth > el.clientWidth + 0.5, lines: Math.round(box.height / parseFloat(getComputedStyle(el).lineHeight)), textLeft: text?.left ?? 0, textRight: text?.right ?? 0, left: box.left, right: box.right, top: box.top, iconTop: icon.top, rankTop: rank.top, rankLeft: rank.left, size: parseFloat(getComputedStyle(el).fontSize) };
+    }, LONG);
+  const ws = await geometry();
+  expect(ws.found, "the long name is drawn").toBe(true);
+  expect(ws.cut, "the name whole: no ellipsis").toBe(false);
+  expect(ws.lines, "on a second line").toBeGreaterThanOrEqual(2);
+  expect(ws.textLeft, "its text inside its box").toBeGreaterThanOrEqual(ws.left - 0.5);
+  expect(ws.textRight, "its text inside its box").toBeLessThanOrEqual(ws.right + 0.5);
+  expect(Math.abs(ws.iconTop - ws.top), "the icon level with its first line").toBeLessThanOrEqual(1);
+  expect(Math.abs(ws.rankTop - ws.top), "the rank level with its first line").toBeLessThanOrEqual(2);
+  expect(ws.rankLeft, "the rank after it").toBeGreaterThanOrEqual(ws.right - 0.5);
+  expect(ws.size, "at the 12px floor").toBeGreaterThanOrEqual(12 - 0.01);
+  expect((await card.boundingBox())!.height, "the card grows by its line").toBeGreaterThan(before + 8);
+  // The list still fits, its cards a page counted again for the taller card, every truncated text whole.
+  await fits(page, "1366x768 expanded: a long name on a card", { workspace: true, pager: "match-pages", cards: "[data-testid=match-list]", rows: "[data-testid=match-item]" });
+  // The flow (just under the gate): the card's five fixed lines, the name on one, as it was.
+  await resizeTo(page, [1366, 640]);
+  await expect(page.getByTestId("match-history")).not.toHaveAttribute("data-workspace", /.*/);
+  await expect(name).toContainText(LONG);
+  const flow = await geometry();
+  expect(flow.lines, "the flow: one line").toBe(1);
+  // As tall as the page's other cards with their teams: the teams' five lines set every card's height.
+  const heights = await page.getByTestId("match-card").evaluateAll((els) => els.map((e) => e.getBoundingClientRect().height));
+  expect(heights.length, "the flow's ten cards").toBe(10);
+  expect((await card.boundingBox())!.height, "the flow: the card no taller than the others").toBeLessThanOrEqual(Math.max(...heights.slice(1)) + 0.5);
 });
 
 test("at the floor (1366 × 657) every game of a page fits the game window, whole or in its pages, and nothing scrolls", async ({ page }) => {
