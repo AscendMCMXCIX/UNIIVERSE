@@ -9,28 +9,34 @@ These rules apply to every change: features, bug fixes, UI changes and docs. The
 
 ## 2. Develop and validate locally
 
-Most of the testing happens here, not on GitHub. Run what the change touches:
+Locally, test what the change touches. CI is the full-suite gate (since 28 Nov 2026, at the owner's request): every ready pull request runs every unit, database and browser test, in four shards plus WebKit, in about 20 minutes. So don't repeat the whole browser suite locally. It takes over an hour on a session's machine and duplicates CI.
 
 | Changed | Run |
 |---|---|
 | Always | `pnpm verify` (typecheck, lint, unit tests, about 1 minute) |
-| Database, queries, migrations, server logic | `service postgresql start` if needed, then `TEST_DATABASE_URL=postgres://uniiverse:uniiverse@127.0.0.1:5432/uniiverse pnpm vitest run tests/db` |
-| UI, pages, client components, styles | `pnpm build && pnpm test:e2e`. Targeted specs are fine while iterating; run the full suite once before the PR is ready. |
+| Database, queries, migrations, server logic | `service postgresql start` if needed, then the `tests/db` files for what changed: `TEST_DATABASE_URL=postgres://uniiverse:uniiverse@127.0.0.1:5432/uniiverse pnpm vitest run tests/db/<files>`. Run the whole `tests/db` folder (a few minutes) when a migration or shared server code changed. |
+| UI, pages, client components, styles | `pnpm build`, then the specs that cover what changed: `pnpm exec playwright test e2e/<specs> --trace off`, on the projects (phone, tablet, desktop) the change can affect. Look at the changed pages yourself, as screenshots at the sizes that matter. |
 | Migrations | `pnpm db:generate`, then follow docs/UNIIVERSE_TECHNICAL_HANDOVER.md §A3. A new table, view, function or serial column gets the grants block from docs/DATABASE_PERMISSIONS.md in the same migration: RLS on, nothing for Supabase's Data API roles, `SELECT` for the backup role. Never rely on automatic grants. |
 | Something that can behave differently in Safari (touch, dialogs, forms, the installed app) | CI runs the WebKit job on every ready pull request (since 19 Nov 2026). For a branch without a pull request, the WebKit workflow by hand (Actions → WebKit; docs/RESPONSIVE.md → Safari and iPhones). |
 
-- Fix failures locally. Don't push to "see what CI says".
+- **Which specs:**
+  - the changed page's own spec;
+  - the specs of any shared component you changed (search `e2e/` for its test ids);
+  - any spec CI failed on.
+- **The whole suite locally** only to reproduce a CI failure the targeted run cannot, or when CI cannot run.
+- Fix failures locally. Don't push to "see what CI says": a push to a ready PR should be a batch that passes its targeted checks.
 - Commit as often as you like; commits are free.
 
 ## 3. Push and open the PR
 
 - **Pushes:**
   - Pushing a branch with no PR, or with a draft PR, runs no CI and costs nothing.
-  - Every push to a ready PR runs the full CI (about 20 minutes), and a newer push cancels the running one. So push to a ready PR only when a batch of validated changes is finished, not after each small fix.
+  - Every push to a ready PR runs the full CI (about 20 minutes), and a newer push cancels the running one. So push to a ready PR when a batch of changes passes its targeted checks, not after each small fix.
   - Pushes at the end of a session turn are fine on a branch without a ready PR.
 - **Opening the PR:**
-  - Open it when the work is complete and validated. Alternatively, open it as a draft early and mark it "Ready for review" when done; that runs CI.
-  - Describe what changed and what was validated locally.
+  - Open it early: as a draft while the branch takes shape. Mark it "Ready for review" as soon as the first batch passes its targeted local checks, so CI runs the full suite while the work goes on.
+  - Don't wait idle on CI. Build the next batch in the meantime (another worktree if it touches the same files), and read CI's result when it arrives.
+  - Describe what changed and what was validated locally. List anything found but left for later under "Known, tracked" (§8).
   - Keep unrelated changes out of the PR.
 - **Docs-only changes** (`docs/`, `*.md`) still go through a branch and a PR. CI runs no suite for them: its `CI gate` (the check the "Protect main" ruleset requires) passes in seconds.
 
@@ -70,3 +76,40 @@ Most of the testing happens here, not on GitHub. Run what the change touches:
   - `src/app/page-guards.test.ts`: every member and admin page calls `requirePageAccess` itself; a layout's check does not protect its pages, which render at the same time.
   - `src/app/client-imports.test.ts`: browser code never reaches server-only code, and large libraries (`zod`) load through `import()` except in the modules it lists with their reasons.
 - **When a check fails, fix the code, not the check.** A genuine exception goes into the check's own list, with its reason.
+
+## 8. Review, scope and pace (the owner's instruction of 28 Nov 2026)
+
+The aim is production-ready, polished and well-tested work, delivered at a sustainable pace. Validation and review are scaled to the risk of the change, not repeated for their own sake.
+
+- **Routine UI work:**
+  - covers layout, styles, copy and one page's own behaviour;
+  - needs the implementer's targeted tests (§2), a regression test for each fix, a look at the screenshots, and CI;
+  - gets no separate reviewers or skeptics.
+- **One independent review of the diff** for:
+  - security;
+  - authentication and permissions;
+  - privacy and personal data;
+  - data integrity;
+  - migrations and anything destructive;
+  - significant shared architecture: the app shell, the posture, and shared layout, paging or modal components that many pages use.
+
+  Several reviewers, or adversarial skeptics, only for security, permissions, data integrity and destructive operations.
+- **A fix is verified by its regression test.** Don't send a routine fix back to reviewers. Don't review unchanged code again: a later review reads only the diff since the last one.
+- **What blocks a release:**
+  - a defect the change introduces or makes worse;
+  - a security, privacy or data problem;
+  - an owner requirement that is not met.
+
+  A pre-existing or minor finding outside the change goes under the PR's "Known, tracked" heading and in STATUS.md's tracked list, and into a later batch. Give a finding one fix round. If it is not settled then, ship what is right and track the rest.
+- **Batches:**
+  - Related fixes go in one PR.
+  - A change across the platform builds its shared components first, then applies them to the pages in coordinated batches of several pages per PR, not one long cycle per page.
+- **In parallel:** independent work goes on while CI or another long validation runs.
+- **Restarts:** containers and workers can restart at any time, so save progress as you go.
+  - Commit after each finished step (commits are free), with a message that says what is done and what is next.
+  - The branch is pushed at the end of each turn; this runs no CI without a ready PR.
+  - A lane that runs for long commits as it goes and keeps its notes in the repository's own files or its commit messages. A restarted lane then resumes from git and does not start over. Workflows resume from their journal (`resumeFromRunId`).
+- **Workflows and subagents:**
+  - Use them for work that splits into independent parts: mapping many pages, building separate pages, one review of a large diff.
+  - Keep each lane's scope narrow.
+  - Don't spawn a panel where one agent, or your own check, is enough.
