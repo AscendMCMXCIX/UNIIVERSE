@@ -241,7 +241,8 @@ test("held sideways, a member's own Overview with all three links shown keeps it
   // A real member (the demo's local owner has no profile of their own): their own band adds the
   // You badge and the round Customise chip at its end, and the band keeps the chip's room.
   const member = await memberContext(browser, admin, undefined, { base: "Band", role: "Support" });
-  await member.page.goto("/settings");
+  // Settings' Links section (on a desktop window one section is shown at a time; the flow ignores ?section=).
+  await member.page.goto("/settings?section=links");
   const form = member.page.getByTestId("social-links-form");
   await form.getByLabel("YouTube", { exact: true }).fill("youtube.com/@E2EBandChannel");
   await form.getByLabel("Twitch", { exact: true }).fill("e2e_band_live");

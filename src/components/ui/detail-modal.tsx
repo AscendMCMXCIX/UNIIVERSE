@@ -499,7 +499,7 @@ export function DetailModal({
    * among many or an editor with a table (42rem), filters for a filter sheet (34rem: the five role
    * segments in view, no sideways scroller).
    */
-  sheetWidth?: "standard" | "picker" | "filters";
+  sheetWidth?: "standard" | "picker" | "filters" | "table";
   /**
    * The content scrolls itself (an editor with a fixed preview and toolbar): the body is a
    * fixed-height column that never scrolls, on every screen, short windows and phones included,
@@ -821,15 +821,19 @@ export function DetailModal({
       presses();
       letGo();
       // Back to what opened the window, whether it was closed or removed from the page (or to the
-      // window replacing it, see handedOver), or where its owner puts it (refocus).
-      const back = opener.current ?? returnFocusRef.current?.() ?? null;
+      // window replacing it, see handedOver), or where its owner puts it (refocus). What opened it
+      // counts only while it is still on the page: a row a paged list has drawn away since (Accounts'
+      // person view stepped to someone on another page, the list following them) gives way to
+      // returnFocus (the row of the one shown), read again on the next frame where it is gone by then.
+      const back = (opener.current?.isConnected ? opener.current : null) ?? returnFocusRef.current?.() ?? null;
       const own = refocusRef.current ?? inherited.current;
       const handed = { el: back, refocus: own ?? null };
       handedOver = handed;
       requestAnimationFrame(() => {
         if (handedOver === handed) handedOver = null;
-        if (own) own();
-        else if (back?.isConnected) back.focus({ preventScroll: true });
+        if (own) return own();
+        const el = back?.isConnected ? back : (returnFocusRef.current?.() ?? null);
+        if (el?.isConnected) el.focus({ preventScroll: true });
       });
     };
   }, [open, settle, screen, headless, titleId]);
@@ -957,7 +961,8 @@ export function DetailModal({
         size === "workspace" ? "overflow-visible" : flow ? "overflow-y-auto overscroll-contain" : "overflow-hidden",
         MODAL_BACKDROP,
         MOTION[size] ?? MODAL_MOTION,
-        size === "sheet" && sheetWidth !== "standard" ? SIZE.sheet.replace("sm:w-[min(30rem,calc(100%-2rem))]", sheetWidth === "picker" ? "sm:w-[min(42rem,calc(100%-2rem))]" : "sm:w-[min(34rem,calc(100%-2rem))]") : SIZE[size],
+        // A table's sheet (the one-screen workspace's data windows: System Health's page speed and job runs): 60rem, its columns whole.
+        size === "sheet" && sheetWidth !== "standard" ? SIZE.sheet.replace("sm:w-[min(30rem,calc(100%-2rem))]", sheetWidth === "picker" ? "sm:w-[min(42rem,calc(100%-2rem))]" : sheetWidth === "table" ? "sm:w-[min(60rem,calc(100%-2rem))]" : "sm:w-[min(34rem,calc(100%-2rem))]") : SIZE[size],
         className,
       )}
       data-testid={testId}

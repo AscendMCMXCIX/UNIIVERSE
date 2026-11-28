@@ -14,6 +14,9 @@ import { getBranding } from "@/server/repositories/branding";
 import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/ui/page-header";
 import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
+import { SectionPanels, SectionRail, SectionedWorkspace, type WorkspaceSectionItem } from "@/components/ui/sectioned-workspace";
+import { WS_COLUMN } from "@/components/ui/workspace-classes";
+import { cn } from "@/lib/cn";
 
 const ACTION_ICON = "h-4 w-4 shrink-0 text-fg-subtle";
 
@@ -90,6 +93,15 @@ function AccountActions({ variant, profileLinks, modeSwitch }: { variant: "quiet
  * in a window taller than 480px.
  * The sections follow: Name & username (side by side from xl, each field with its own Save), Social
  * links (members with a player profile), Password, then Riot's notice (#compliance).
+ *
+ * On a desktop window (the one-screen workspace, docs/RESPONSIVE.md, "One-screen desktop pages":
+ * Settings) it is a sectioned workspace: the account card is the rail, its index giving way to the
+ * sections' links (Name, Links, Password, This device; SectionRail), and one section at a time stands
+ * beside it, in the address (?section=), so Back walks them. Every section stays mounted, so a draft
+ * typed in one survives a switch, and the rail marks a section holding one (useSectionMarker in each
+ * editor). Riot's notice is under the section shown, whichever it is, so #compliance always lands on
+ * it; an old deep link to a panel (#password: the shell's nudge) opens its section. Outside the
+ * workspace the page is the stack it always was.
  */
 export async function AccountSettings({ mode }: { mode: "player" | "admin" }) {
   const session = await getSession();
@@ -101,6 +113,55 @@ export async function AccountSettings({ mode }: { mode: "player" | "admin" }) {
   const profileLinks = !!session?.playerId && mode === "player";
   const modeSwitch = isAdmin(session) ? mode : null;
   const sections = [...(user ? [{ id: "name", label: "Name" }] : []), ...(social !== undefined ? [{ id: "links", label: "Links" }] : []), ...(session?.userId ? [{ id: "password", label: "Password" }] : []), { id: "device", label: "This device" }];
+  const panels: WorkspaceSectionItem[] = [
+    ...(user
+      ? [
+          {
+            id: "name",
+            title: "Name",
+            content: (
+              <Panel id="name" className="lg:scroll-mt-6">
+                <PanelHeader title="Name & username" />
+                <PanelBody className="grid gap-4 xl:grid-cols-2 xl:gap-5">
+                  <DisplayNameEditor displayName={displayName} />
+                  <UsernameEditor username={user.username} />
+                </PanelBody>
+              </Panel>
+            ),
+          },
+        ]
+      : []),
+    ...(social !== undefined
+      ? [
+          {
+            id: "links",
+            title: "Links",
+            content: (
+              <Panel id="links" className="lg:scroll-mt-6">
+                <PanelHeader title="Social links" />
+                <PanelBody>
+                  <SocialLinksEditor initial={social} titled={false} />
+                </PanelBody>
+              </Panel>
+            ),
+          },
+        ]
+      : []),
+    ...(session?.userId ? [{ id: "password", title: "Password", content: <ChangePasswordPanel hasPassword={session.hasPassword} className="lg:scroll-mt-6" /> }] : []),
+    {
+      id: "device",
+      title: "This device",
+      // What this browser remembers, each with Clear (nothing here reaches the server).
+      content: (
+        <Panel id="device" className="lg:scroll-mt-6">
+          <PanelHeader title="On this device" />
+          <PanelBody>
+            <OnThisDevice />
+          </PanelBody>
+        </Panel>
+      ),
+    },
+  ];
   return (
     // Two columns only where the page has room for them in rem (36rem: at the usual size from sm, as
     // before), and the account column at most 40% of it: at 175–200% text on a tablet or desktop the
@@ -108,8 +169,9 @@ export async function AccountSettings({ mode }: { mode: "player" | "admin" }) {
     // beside a 16rem sidebar the page is about 12rem at 1024 × 200%. With less, one column, as a phone's.
     // The width and the centring on the outer box: it is the frame's child, centred in the room beside
     // the sidebar as every other page is (app-shell's FRAME).
-    <div className="@container/settings mx-auto max-w-5xl">
-      <div className="grid gap-3 sm:@min-[36rem]/settings:grid-cols-[min(15rem,40%)_minmax(0,1fr)] sm:@min-[36rem]/settings:grid-rows-[auto_1fr] sm:gap-x-5 sm:gap-y-4 md:gap-x-6 md:gap-y-5 lg:@min-[36rem]/settings:grid-cols-[min(16rem,40%)_minmax(0,1fr)]">
+    // In the workspace a flex column of the frame, as wide as it (WS_COLUMN: an @container with mx-auto would shrink to 0px).
+    <div className={cn("@container/settings mx-auto max-w-5xl", WS_COLUMN)}>
+      <SectionedWorkspace sections={panels} label="Settings sections" testId="settings-workspace" short className="grid gap-3 sm:@min-[36rem]/settings:grid-cols-[min(15rem,40%)_minmax(0,1fr)] sm:@min-[36rem]/settings:grid-rows-[auto_1fr] sm:gap-x-5 sm:gap-y-4 md:gap-x-6 md:gap-y-5 lg:@min-[36rem]/settings:grid-cols-[min(16rem,40%)_minmax(0,1fr)]">
       <PageHeader className="sm:@min-[36rem]/settings:col-start-2 sm:@min-[36rem]/settings:row-start-1 lg:@min-[36rem]/settings:col-span-2 lg:@min-[36rem]/settings:col-start-1" title="Settings" guide />
 
       <section aria-label="Your account" className="surface-lead @container grid min-w-0 grid-cols-[auto_minmax(0,1fr)] items-center gap-3 rounded-panel border border-border bg-surface p-3 sm:@min-[36rem]/settings:col-start-1 sm:@min-[36rem]/settings:row-span-2 sm:@min-[36rem]/settings:row-start-1 sm:@min-[36rem]/settings:self-start lg:@min-[36rem]/settings:row-span-1 lg:@min-[36rem]/settings:row-start-2 sm:p-4 md:not-short:@min-[36rem]/settings:sticky md:not-short:@min-[36rem]/settings:top-[calc(var(--bar-top)+1rem)]" data-testid="settings-account">
@@ -132,38 +194,18 @@ export async function AccountSettings({ mode }: { mode: "player" | "admin" }) {
         )}
         {sections.length > 1 ? (
           <div className="col-span-2 md:not-short:border-t md:not-short:border-border md:not-short:pt-3">
-            <SettingsIndex items={sections} />
+            {/* The flow's index (in-page links); in the workspace the sections' switch in its place. */}
+            <div className="ws:hidden">
+              <SettingsIndex items={sections} />
+            </div>
+            <SectionRail />
           </div>
         ) : null}
         <AccountActions variant="rows" profileLinks={profileLinks} modeSwitch={modeSwitch} />
       </section>
 
       <div className="min-w-0 space-y-4 sm:@min-[36rem]/settings:col-start-2 sm:@min-[36rem]/settings:row-start-2 md:space-y-5">
-        {user ? (
-          <Panel id="name" className="lg:scroll-mt-6">
-            <PanelHeader title="Name & username" />
-            <PanelBody className="grid gap-4 xl:grid-cols-2 xl:gap-5">
-              <DisplayNameEditor displayName={displayName} />
-              <UsernameEditor username={user.username} />
-            </PanelBody>
-          </Panel>
-        ) : null}
-        {social !== undefined ? (
-          <Panel id="links" className="lg:scroll-mt-6">
-            <PanelHeader title="Social links" />
-            <PanelBody>
-              <SocialLinksEditor initial={social} titled={false} />
-            </PanelBody>
-          </Panel>
-        ) : null}
-        {session?.userId ? <ChangePasswordPanel hasPassword={session.hasPassword} className="lg:scroll-mt-6" /> : null}
-        {/* What this browser remembers, each with Clear (nothing here reaches the server). */}
-        <Panel id="device" className="lg:scroll-mt-6">
-          <PanelHeader title="On this device" />
-          <PanelBody>
-            <OnThisDevice />
-          </PanelBody>
-        </Panel>
+        <SectionPanels className="space-y-4 md:space-y-5 ws:space-y-0" />
         <p id="compliance" className="text-xs leading-snug text-fg-subtle sm:leading-relaxed lg:scroll-mt-6">
           {riotLegal(branding.productName)}{" "}
           <Link href="/privacy" className="text-accent underline-offset-2 hover:underline" data-testid="settings-privacy-link">
@@ -171,7 +213,7 @@ export async function AccountSettings({ mode }: { mode: "player" | "admin" }) {
           </Link>
         </p>
       </div>
-      </div>
+      </SectionedWorkspace>
     </div>
   );
 }

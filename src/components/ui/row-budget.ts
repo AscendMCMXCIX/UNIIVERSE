@@ -20,6 +20,151 @@ export function rowBudget({ room, rowPx, lastLess = 0, min = 1, max = Infinity }
   return Math.max(min, Math.min(max, fits));
 }
 
+/** A drawn row as useRowBudget's "cumulative" mode reads it: where it ends below the first row's top, and whether it has its divider. */
+export interface DrawnRow {
+  /** Its bottom less the first drawn row's top (px, as laid out: the gaps between rows included). */
+  bottom: number;
+  /** Its height (px, as drawn). */
+  height: number;
+  /** It has a row after it in the list, so it carries its divider (Tailwind's divide-y: `lastLess` px), which it loses as a page's last row. */
+  divided: boolean;
+}
+
+/**
+ * How many of the drawn rows, in the list's order, make its first column (pure, for the cumulative
+ * mode): the leading run whose left edge is the first row's, to the pixel. A one-column list is all of
+ * them; a column-major grid of two (usePagedGrid) draws its second column's cells after the first's,
+ * their tops starting again from the top, so counting on through them would count a column twice.
+ */
+export function firstColumnRun(boxes: ReadonlyArray<{ left: number }>): number {
+  if (!boxes.length) return 0;
+  const left = boxes[0]!.left;
+  let n = 1;
+  while (n < boxes.length && Math.abs(boxes[n]!.left - left) <= 1) n++;
+  return n;
+}
+
+/**
+ * Complete rows that fit by their own heights (useRowBudget's mode "cumulative", for a list whose rows
+ * are not one height: a card with an optional line, a group of fields): the drawn rows in their order,
+ * as many as end within `room` (each counted as the page's last: without its divider); where every
+ * drawn row fits, more at `pitch` each (the tallest drawn row with its divider, and the gap between
+ * rows), as many as still fit. At least `min` (1), at most `max`; no row drawn gives `min`. For rows of
+ * one height it is rowBudget's count exactly (row-budget.test.ts).
+ */
+export function cumulativeRows({ room, rows, gap = 0, lastLess = 0, min = 1, max = Infinity }: { room: number; rows: readonly DrawnRow[]; gap?: number; lastLess?: number; min?: number; max?: number }): number {
+  if (!rows.length || !Number.isFinite(room)) return min;
+  // The same hundredth of a pixel as rowBudget's, for a fractional layout's rounding.
+  const end = (r: DrawnRow) => r.bottom - (r.divided ? lastLess : 0);
+  let n = 0;
+  while (n < rows.length && end(rows[n]!) <= room + 0.01) n++;
+  if (n < rows.length) return Math.max(min, Math.min(max, n));
+  const pitch = Math.max(...rows.map((r) => r.height + (r.divided ? 0 : lastLess))) + Math.max(0, gap);
+  const more = pitch > 0 ? Math.max(0, Math.floor((room - end(rows[n - 1]!) + 0.01) / pitch)) : 0;
+  return Math.max(min, Math.min(max, n + more));
+}
+
+/**
+ * A line of a cumulative list as the measure reads it, every line drawn at once in its groups
+ * (useRowBreaks): its box below the list's top, whether it carries a divider it loses as a page's last
+ * line (Tailwind's divide-y: `lastLess` px), and its group's index in `groups`, where the list draws
+ * groups.
+ */
+export interface LineBox {
+  top: number;
+  bottom: number;
+  divided: boolean;
+  group?: number | null;
+}
+
+/** A group's box below the list's top (the element holding its heading and its lines: data-ws-group). */
+export interface GroupBox {
+  top: number;
+  bottom: number;
+}
+
+/**
+ * The height a page of lines `from`..`to` (0-based, inclusive) is drawn at (pure, for pageStarts):
+ * from its first line's top, less the heading its group draws above it (a page that starts inside a
+ * group draws that heading again, as tall as where the group starts), to its last line's bottom, less
+ * the divider it loses there, plus what its group draws under its lines (a padding) and the list's own
+ * `tail` (its bottom padding and border). Between the two, the lines, the headings of the groups that
+ * start on the page and the gaps are as the whole list draws them.
+ */
+export function pageHeight(lines: readonly LineBox[], groups: readonly GroupBox[], from: number, to: number, lastLess = 0, tail = 0): number {
+  return heightOf(lines, groups, groupSpans(lines, groups.length), from, to, lastLess, tail);
+}
+
+/** Each group's first and last line (indexes into `lines`; -1 where it holds none). */
+function groupSpans(lines: readonly LineBox[], count: number): { first: number[]; last: number[] } {
+  const first = Array.from({ length: count }, () => -1);
+  const last = Array.from({ length: count }, () => -1);
+  lines.forEach((l, i) => {
+    if (l.group == null || l.group < 0 || l.group >= count) return;
+    if (first[l.group] === -1) first[l.group] = i;
+    last[l.group] = i;
+  });
+  return { first, last };
+}
+
+function heightOf(lines: readonly LineBox[], groups: readonly GroupBox[], spans: { first: number[]; last: number[] }, from: number, to: number, lastLess: number, tail: number): number {
+  const top = lines[from]!;
+  const end = lines[to]!;
+  const g = top.group != null ? (groups[top.group] && spans.first[top.group]! >= 0 ? top.group : null) : null;
+  const h = end.group != null ? (groups[end.group] && spans.last[end.group]! >= 0 ? end.group : null) : null;
+  // The heading above the page's first line: its group's, from where the group starts to its first line.
+  const head = g !== null ? lines[spans.first[g]!]!.top - groups[g]!.top : 0;
+  // What its last line's group draws under its lines (a padding).
+  const under = h !== null ? groups[h]!.bottom - lines[spans.last[h]!]!.bottom : 0;
+  return end.bottom - (end.divided ? lastLess : 0) + under + tail - (top.top - head);
+}
+
+/**
+ * Where a cumulative list's pages start (pure; useRowBreaks, usePagedRows' mode "cumulative"): the
+ * lines cut once over the whole list, greedily, by their own heights as a page draws them (pageHeight:
+ * a line, the group headings the page draws, an empty group's line), each page holding as many lines
+ * as end within `room` from the list's top, and at most `max`. A page always holds a line, even one
+ * taller than the room (the frame then grows by the deficit, never hiding it). The pages depend on the
+ * list and the room only, never on the page drawn, so every line is on exactly one page, Next and
+ * Previous walk the same pages, and a resize re-cuts them once. 0-based indexes, the first always 0;
+ * [0] for an empty list (one empty page).
+ */
+export function pageStarts({ lines, groups = [], room, lastLess = 0, tail = 0, max = Infinity }: { lines: readonly LineBox[]; groups?: readonly GroupBox[]; room: number; lastLess?: number; tail?: number; max?: number }): number[] {
+  const starts = [0];
+  const most = Math.max(1, Math.floor(max) || 1);
+  // The same hundredth of a pixel as rowBudget's, for a fractional layout's rounding; a room that is not a number holds a line a page.
+  const spans = groupSpans(lines, groups.length);
+  const fits = (from: number, to: number) => Number.isFinite(room) && heightOf(lines, groups, spans, from, to, lastLess, tail) <= room + 0.01;
+  let from = 0;
+  for (let i = 1; i < lines.length; i++) {
+    if (i - from + 1 > most || !fits(from, i)) {
+      starts.push(i);
+      from = i;
+    }
+  }
+  return starts;
+}
+
+/** The page (1-based) of `starts` holding the line at `index` (0-based): the last page starting at or before it. */
+export function startsPageOf(starts: readonly number[], index: number): number {
+  let page = 1;
+  for (let p = 1; p < starts.length && starts[p]! <= index; p++) page = p + 1;
+  return page;
+}
+
+/** The lines page `page` of `starts` holds, 1-based and inclusive ("8–14 of 30"); 0–0 for an empty list. */
+export function startsRange(starts: readonly number[], page: number, total: number): { from: number; to: number } {
+  if (total <= 0) return { from: 0, to: 0 };
+  const p = Math.min(Math.max(1, Math.floor(page) || 1), Math.max(1, starts.length));
+  return { from: (starts[p - 1] ?? 0) + 1, to: p < starts.length ? starts[p]! : total };
+}
+
+/** The lines each page of `starts` holds, for `total` lines. */
+export function startsSizes(starts: readonly number[], total: number): number[] {
+  if (total <= 0) return [0];
+  return starts.map((s, i) => (i + 1 < starts.length ? starts[i + 1]! : total) - s);
+}
+
 /** Pages for `total` rows at `perPage` a page: at least 1 (an empty list is one page). */
 export function pageCount(total: number, perPage: number): number {
   return Math.max(1, Math.ceil(Math.max(0, total) / Math.max(1, perPage)));
@@ -115,6 +260,11 @@ export interface PagedInputs {
   data: unknown;
   /** Anything else that starts the list again (the opponents' position). */
   reset?: unknown;
+  /**
+   * A cumulative list's pages (where its pages start, joined: usePagedRows' mode "cumulative"), whose
+   * pages are not `perPage` each: another layout is another budget, as another `perPage` is.
+   */
+  layout?: string;
 }
 
 export interface PagedState extends PagedInputs {
@@ -132,8 +282,8 @@ export interface PagedState extends PagedInputs {
  *  - typed in the search: page 1 (the open champion stays open even if its row is hidden);
  *  - another order: the selected item's page, else page 1;
  *  - another item selected (a row, a key, ‹ ›, Back): its page; closing keeps the page;
- *  - another budget (a resize, a zoom, the sidebar, a band wrapping): the selected item's page, else
- *    the page holding the first row shown before;
+ *  - another budget (a resize, a zoom, the sidebar, a band wrapping; a cumulative list's pages cut
+ *    again: `layout`): the selected item's page, else the page holding the first row shown before;
  *  - else the same page, within the pages there are now.
  */
 export function pagedListNext(prev: PagedState, next: PagedInputs, pageOfIndex: (index: number) => number, pages: number): number {
@@ -145,7 +295,7 @@ export function pagedListNext(prev: PagedState, next: PagedInputs, pageOfIndex: 
   if (prev.search !== next.search) return 1;
   if (!Object.is(prev.order, next.order)) return clamp(selectedPage ?? 1);
   if (prev.selected !== next.selected && next.selected !== null && selectedPage !== null) return clamp(selectedPage);
-  if (prev.perPage !== next.perPage) return clamp(selectedPage ?? pageOfIndex(prev.perPage === null ? 0 : prev.first));
+  if (prev.perPage !== next.perPage || prev.layout !== next.layout) return clamp(selectedPage ?? pageOfIndex(prev.perPage === null ? 0 : prev.first));
   return clamp(prev.page);
 }
 
@@ -185,7 +335,7 @@ export function useFollowed(open: string | null, paged: boolean): string | null 
 }
 
 const sameInputs = (a: PagedInputs, b: PagedInputs) =>
-  a.perPage === b.perPage && a.total === b.total && a.selected === b.selected && a.selectedIndex === b.selectedIndex && a.search === b.search && Object.is(a.order, b.order) && Object.is(a.data, b.data) && Object.is(a.reset, b.reset);
+  a.perPage === b.perPage && a.total === b.total && a.selected === b.selected && a.selectedIndex === b.selectedIndex && a.search === b.search && Object.is(a.order, b.order) && Object.is(a.data, b.data) && Object.is(a.reset, b.reset) && a.layout === b.layout;
 
 /**
  * A paged list's page (pagedListNext), kept in the component's state: decided during render from

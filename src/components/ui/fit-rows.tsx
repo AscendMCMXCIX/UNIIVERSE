@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { rowBudget } from "./row-budget";
+import { cumulativeRows, firstColumnRun, pageStarts, rowBudget, type DrawnRow, type GroupBox, type LineBox } from "./row-budget";
 
 /*
   Fit rows (Release 16, round 3): a list on a one-screen page that shows as many rows as fit above the
@@ -216,6 +216,22 @@ export function rowBudgetEdge(card: HTMLElement): number {
   return window.innerHeight - pad - border;
 }
 
+/** The drawn rows as the cumulative mode reads them: each one's bottom below the first's top (page coordinates), its height, its divider. */
+function drawnRows(drawn: readonly HTMLElement[], top: number): DrawnRow[] {
+  return drawn.map((r) => {
+    const box = r.getBoundingClientRect();
+    return { bottom: box.bottom + window.scrollY - top, height: box.height, divided: !!r.nextElementSibling };
+  });
+}
+
+/** The gap between the list's rows: the widest drawn between two rows, else the list's own row gap (a flex or grid gap). */
+function rowGap(list: HTMLElement, drawn: readonly HTMLElement[]): number {
+  let gap = -Infinity;
+  for (let i = 1; i < drawn.length; i++) gap = Math.max(gap, drawn[i]!.getBoundingClientRect().top - drawn[i - 1]!.getBoundingClientRect().bottom);
+  if (gap > -Infinity) return Math.max(0, gap);
+  return parseFloat(getComputedStyle(list).rowGap) || 0;
+}
+
 /**
  * Rows a paged list's column shows (All Champions' one-screen workspace, docs/RESPONSIVE.md): the
  * complete rows that fit between its first row and its card's footer, less the guard band
@@ -243,8 +259,8 @@ export function useRowBudget(
   o: {
     footRef: React.RefObject<HTMLElement | null>;
     cardRef: React.RefObject<HTMLElement | null>;
-    /** The list's row (the drawn ones are measured). */
-    rowSelector: string;
+    /** The list's row (the drawn ones are measured): `[data-ws-row]` by default (ui/workspace.tsx's data contract). */
+    rowSelector?: string;
     /** The row's height in rem when none is drawn. */
     probeRem: number;
     /** 1 for a divided list whose last row has no border (Tailwind's divide-y). */
@@ -256,6 +272,17 @@ export function useRowBudget(
     key: ReadonlyArray<string | number | boolean | null | undefined>;
     /** A browser test's cap on the measured count (server/demo/test-hooks.ts). */
     cap?: number | null;
+    /**
+     * "uniform" (the default, All Champions' lists): rows of one height, counted at the tallest drawn row.
+     * "cumulative": rows of several heights, the drawn rows counted by their own heights in order, then more
+     * at the tallest drawn row's pitch where they all fit (cumulativeRows). The count is the page size of
+     * every page, measured on the page drawn: a page whose rows are taller (more group headings) measures
+     * another count, so a list cut by it client side would repeat or skip rows as it is walked (CI run
+     * 46125624658). Only for a list cut elsewhere and keyed to measure once per list (a server-paged list's
+     * `per`, usePagedGrid's cells); a client list of rows of several heights pages with usePagedRows' mode
+     * "cumulative" (useRowBreaks: its pages cut once over the whole list).
+     */
+    mode?: "uniform" | "cumulative";
   },
 ): number | null {
   const [rows, setRows] = React.useState<number | null>(null);
@@ -271,7 +298,7 @@ export function useRowBudget(
   const current = React.useRef<number | null>(null);
   const taken = React.useRef<number[]>([]);
   const measure = React.useCallback(() => {
-    const { footRef, cardRef, rowSelector, probeRem, lastLess = 0 } = opts.current;
+    const { footRef, cardRef, rowSelector = "[data-ws-row]", probeRem, lastLess = 0, mode = "uniform" } = opts.current;
     const list = listRef.current;
     const foot = footRef.current;
     const card = cardRef.current;
@@ -286,7 +313,10 @@ export function useRowBudget(
     const root = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
     // The tallest drawn row (they are one height), a divided list's last row counted with its border.
     const rowPx = drawn.length ? Math.max(...drawn.map((r) => r.getBoundingClientRect().height + (r.nextElementSibling ? 0 : lastLess))) : probeRem * root;
-    let next = rowBudget({ room: limit - top, rowPx, lastLess, min: 1, max: opts.current.cap ?? Infinity });
+    // The cumulative mode reads the drawn rows of the first column (a two-column grid's second column starts again from
+    // the top: counted on, it would double the column); with none drawn yet, both count at the probe's height.
+    const column = mode === "cumulative" ? drawn.slice(0, firstColumnRun(drawn.map((r) => r.getBoundingClientRect()))) : drawn;
+    let next = mode === "cumulative" && column.length ? cumulativeRows({ room: limit - top, rows: drawnRows(column, top), gap: rowGap(list, column), lastLess, min: 1, max: opts.current.cap ?? Infinity }) : rowBudget({ room: limit - top, rowPx, lastLess, min: 1, max: opts.current.cap ?? Infinity });
     const was = current.current;
     if (next === was) return;
     const t = taken.current;
@@ -319,4 +349,177 @@ export function useRowBudget(
   // The last count measured, also while inactive: a list that gives way to an opponent's games, and comes back, keeps its
   // pages (and the page it was on) rather than starting again from none.
   return rows;
+}
+
+/** The lines of a cumulative list as measured with every line drawn (useRowBreaks), and what they were drawn at. */
+interface MeasuredLines {
+  lines: LineBox[];
+  groups: GroupBox[];
+  /** The list's own bottom padding and border, under a page's last line. */
+  tail: number;
+  /** The list's width and the root's size they were drawn at, and the rows' key: another of any is measured again. */
+  width: number;
+  root: number;
+  key: string;
+}
+
+const rootPx = () => parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
+
+const sameLines = (a: MeasuredLines | null, b: MeasuredLines) => !!a && a.key === b.key && a.width === b.width && a.root === b.root && a.tail === b.tail && JSON.stringify([a.lines, a.groups]) === JSON.stringify([b.lines, b.groups]);
+
+/**
+ * A cumulative list's lines as drawn, every line at once (pure but for the DOM it reads, for
+ * useRowBreaks): each row's box below the list's top, its divider (a row after it in its parent), and
+ * its group (the nearest `groupSelector` inside the list round it), with each group's box. Rows the
+ * list did not draw (it must draw every row while measuring) are counted after the last at the probe's
+ * height. Null where the list is not drawn.
+ */
+export function readLines(list: HTMLElement, o: { rowSelector: string; groupSelector: string; total: number; probeRem: number; key: string }): MeasuredLines | null {
+  if (!list.getClientRects().length) return null;
+  const box = list.getBoundingClientRect();
+  const groupEls = [...list.querySelectorAll<HTMLElement>(o.groupSelector)];
+  const groupOf = new Map(groupEls.map((g, i) => [g, i] as const));
+  const groups: GroupBox[] = groupEls.map((g) => {
+    const r = g.getBoundingClientRect();
+    return { top: r.top - box.top, bottom: r.bottom - box.top };
+  });
+  const rows = [...list.querySelectorAll<HTMLElement>(o.rowSelector)].filter((r) => r.getBoundingClientRect().height > 0);
+  const lines: LineBox[] = rows.map((row) => {
+    const r = row.getBoundingClientRect();
+    const g = row.closest<HTMLElement>(o.groupSelector);
+    return { top: r.top - box.top, bottom: r.bottom - box.top, divided: !!row.nextElementSibling, group: g && g !== list && list.contains(g) ? (groupOf.get(g) ?? null) : null };
+  });
+  const probe = o.probeRem * rootPx();
+  while (lines.length < o.total) {
+    const top = lines.length ? lines[lines.length - 1]!.bottom : 0;
+    lines.push({ top, bottom: top + probe, divided: false, group: null });
+  }
+  const style = getComputedStyle(list);
+  const tail = (parseFloat(style.paddingBottom) || 0) + (parseFloat(style.borderBottomWidth) || 0);
+  return { lines: lines.slice(0, o.total), groups, tail, width: box.width, root: rootPx(), key: o.key };
+}
+
+/**
+ * Where a cumulative list's pages start (usePagedRows' mode "cumulative"; docs/RESPONSIVE.md,
+ * "One-screen desktop pages"): its lines cut once over the whole list (row-budget.ts, pageStarts), by
+ * their own heights as a page draws them, into the room between the list's top and its card's footer
+ * less the guard band (the same edge as useRowBudget's: rowBudgetEdge). Null until measured.
+ *
+ * The lines are measured with every row drawn at once: while `measuring` is true the caller draws every
+ * row (usePagedRows' `shown`), in its groups as a page draws them, for one render that is never painted
+ * (the measure runs in a layout effect, and the page it decides is drawn in the same task). That render
+ * comes when the rows change (`key`), the list's width or the root's size change (a resize, the
+ * sidebar, a zoom) and once the fonts have loaded. A change of height alone (a resize, a band above
+ * wrapping, the footer) reads the room again and cuts the same lines again, drawing nothing more. The
+ * pages depend on the list and the room only, never on the page drawn, so they hold still as the list
+ * is walked.
+ *
+ * A group is the element holding a group's heading and its rows, marked `data-ws-group`
+ * (`groupSelector`): a page that starts inside a group draws its heading again, and the measure counts
+ * it (pageHeight). Rows key by their own key, so a focused row survives the measuring render.
+ */
+export function useRowBreaks(
+  listRef: React.RefObject<HTMLElement | null>,
+  o: {
+    footRef: React.RefObject<HTMLElement | null>;
+    cardRef: React.RefObject<HTMLElement | null>;
+    /** The list's row: `[data-ws-row]` by default. */
+    rowSelector?: string;
+    /** A group's element (its heading and its rows): `[data-ws-group]` by default. */
+    groupSelector?: string;
+    /** A row's height in rem, for a row the list did not draw while measuring. */
+    probeRem: number;
+    /** 1 for a divided list whose last row has no border (Tailwind's divide-y). */
+    lastLess?: number;
+    active: boolean;
+    /** The fixed bands above the rows (read when it subscribes): a wrap there moves the list's top. */
+    observe?: () => ReadonlyArray<Element | null | undefined>;
+    /** What the rows are (their count, the search, the order, the caller's measureKey: primitives): measured again when it changes. */
+    key: ReadonlyArray<string | number | boolean | null | undefined>;
+    /** A browser test's cap on the lines a page (server/demo/test-hooks.ts). */
+    cap?: number | null;
+    /** The rows there are. */
+    total: number;
+  },
+): { starts: number[] | null; measuring: boolean } {
+  const opts = React.useRef(o);
+  React.useLayoutEffect(() => {
+    opts.current = o;
+  });
+  const { active, cap, total, lastLess = 0 } = o;
+  const key = JSON.stringify(o.key);
+  const [lines, setLines] = React.useState<MeasuredLines | null>(null);
+  const [room, setRoom] = React.useState<number | null>(null);
+  const [asked, setAsked] = React.useState(false);
+  const linesRef = React.useRef<MeasuredLines | null>(null);
+  React.useLayoutEffect(() => {
+    linesRef.current = lines;
+  });
+  // Every row drawn for this render: asked for, or never measured, or measured for other rows.
+  const measuring = active && total > 0 && (asked || lines === null || lines.key !== key);
+
+  const readRoom = React.useCallback((): number | null => {
+    const list = listRef.current;
+    const foot = opts.current.footRef.current;
+    const card = opts.current.cardRef.current;
+    if (!list || !foot || !card || !list.getClientRects().length) return null;
+    const limit = rowBudgetEdge(card) - fitGuardPx() - foot.getBoundingClientRect().height;
+    return limit - (list.getBoundingClientRect().top + window.scrollY);
+  }, [listRef]);
+  const keepRoom = React.useCallback((next: number | null) => {
+    if (next !== null) setRoom((was) => (was !== null && Math.abs(was - next) < 0.01 ? was : next));
+  }, []);
+
+  // The measuring render: every row is drawn; read them, then the page is cut and drawn before the browser paints.
+  React.useLayoutEffect(() => {
+    if (!measuring) return;
+    const list = listRef.current;
+    const { rowSelector = "[data-ws-row]", groupSelector = "[data-ws-group]", probeRem } = opts.current;
+    const next = list ? readLines(list, { rowSelector, groupSelector, total, probeRem, key }) : null;
+    if (next) {
+      keepRoom(readRoom());
+      setLines((was) => (sameLines(was, next) ? was : next));
+      // Known at once to the triggers below (their first check runs in this same commit).
+      linesRef.current = next;
+    }
+    // Not drawn (a column its first paint's CSS hides): measured once it is (its frame or footer resizes, asking again).
+    setAsked(false);
+  }, [measuring, asked, lines, key, total, keepRoom, readRoom, listRef]);
+
+  // The triggers: the room read again; the lines drawn again where the list's width or the root's size changed.
+  const check = React.useCallback(() => {
+    if (!opts.current.active) return;
+    const list = listRef.current;
+    if (!list || !list.getClientRects().length) return;
+    keepRoom(readRoom());
+    const m = linesRef.current;
+    if (!m || Math.abs(m.width - list.getBoundingClientRect().width) > 0.5 || m.root !== rootPx()) setAsked(true);
+  }, [listRef, readRoom, keepRoom]);
+
+  React.useLayoutEffect(() => {
+    if (!active) return;
+    check();
+    window.addEventListener("resize", check);
+    // A font that loads late changes how lines wrap: drawn again once they have.
+    if (document.fonts && document.fonts.status !== "loaded")
+      void document.fonts.ready.then(() => {
+        if (opts.current.active) setAsked(true);
+      });
+    const observer = typeof ResizeObserver === "function" ? new ResizeObserver(() => check()) : null;
+    if (observer) {
+      const frame = document.getElementById("content");
+      if (frame) observer.observe(frame);
+      if (opts.current.footRef.current) observer.observe(opts.current.footRef.current);
+      // The list itself for its width (a page turn changes its height only: the width is compared, the room read again).
+      if (listRef.current) observer.observe(listRef.current);
+      for (const band of opts.current.observe?.() ?? []) if (band) observer.observe(band);
+    }
+    return () => {
+      window.removeEventListener("resize", check);
+      observer?.disconnect();
+    };
+  }, [active, key, cap, check, listRef]);
+
+  const starts = React.useMemo(() => (lines && room !== null ? pageStarts({ lines: lines.lines, groups: lines.groups, room, lastLess, tail: lines.tail, max: cap ?? Infinity }) : null), [lines, room, lastLess, cap]);
+  return { starts, measuring };
 }

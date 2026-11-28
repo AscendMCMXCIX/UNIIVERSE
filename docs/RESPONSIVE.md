@@ -68,7 +68,8 @@ A list opened inside a page (a table under a `<details>`, an event list) runs wi
 touch screen: a box that scrolls inside a scrolling page catches the finger, and the page stops
 moving. With a mouse or trackpad (`pointer-fine:`) it may keep a height limit and scroll in its box
 (Match History's timeline tables and Ranked progress's readings do: `pointer-fine:max-h-64 pointer-fine:overflow-y-auto`, and
-their header sticks only there). Windows and dialogs keep their one scrolling body (above).
+their header sticks only there). Windows and dialogs keep their one scrolling body (above), except
+in a desktop's one-screen workspace ("One-screen desktop pages", windows in the workspace).
 
 A picker's list inside a window keeps that rule too. The member and champion pickers (in the
 Filters sheet on phones) open their list in the flow of
@@ -693,7 +694,507 @@ the account screen over the dashboard at 200% on a 320px phone as well.
 - `main` pads for the tab bar (`pb-tabbar`) so content never hides behind it; held sideways, where
   there is none, only for the home indicator.
 
+## One-screen desktop pages (28 Nov 2026)
+
+The owner's requirement (27 Nov 2026 for All Champions, extended to the whole platform on 28 Nov 2026:
+"the one-screen design requirement is intended to apply across the entire platform"): on a desktop
+window, at normal zoom, every page a member or an admin works in is one screen.
+
+- **No document scroll.** The page is the window (`scrollHeight ≤ innerHeight`).
+- **Nothing clipped or hidden.** No `overflow: hidden` to conceal anything, no truncation that cuts a
+  name a reader needs, no text below the 12px floor.
+- **No independent scroll.** No list or panel scrolls on its own.
+- **Height-aware pages of complete rows.** A shorter window shows fewer rows, never smaller text.
+- **Details open in place.** A detail opens in a pane, in place of what it details, or in a window
+  that never grows the page.
+- **Phones, tablets, touch and large text keep the flow.** Their scrolling presentation is unchanged.
+
+It is verified at the owner's eight configurations (1366 × 768, 1440 × 900, 1648 × 900 and 1920 × 1080,
+the sidebar open and folded) and at the gate's floor, 1366 × 657 (41rem tall: a 1366 × 768 laptop's
+browser window).
+
+**Scope.** Every desktop page a member or an admin works in. Exempt, keeping the page's own scroll:
+long-form reading pages (`/privacy`, a Resources library article if any, the public landing's text).
+Outside the gate every page is exactly as it was.
+
+### The gate
+
+The gate is the platform's, first written for All Champions (below), reused as it is: nothing is
+renamed and no media string changes (`posture.test.ts` compares them).
+
+- **Where it applies:** a fine pointer, from 80rem wide, at least 41 of the page's own rem tall.
+- **The CSS:** `@custom-variant ws` and `ws-host` in `globals.css`, banded per 64px of width at 41 ×
+  the band's widest root.
+- **The script:** `WS_QUERY` and `useWorkspace()` in `ui/posture.ts`. Once hydrated it also checks
+  the page's own rem (a larger text size), on a resize, a query's change and a change of the root's
+  size (`onRootSize`).
+- **How a page opts in:** its section carries `data-workspace` while `ws !== false`, so the CSS
+  decides the server's HTML and the hydration render. Its lists measure their pages once
+  `ws === true`. `useWorkspaceMarks()` reads both.
+- **The short form is opt-in.** `ws-short:` and `ws-short-host:` apply to a page only where it writes
+  them and marks its section with `useWorkspaceMarks({ short: true })`. Their narrow blocks read the
+  container named `section`, All Champions' own. A shared section is `@container/ws`, so it never
+  inherits them; reserve the name `section` for All Champions.
+
+### The data contract
+
+What `e2e/workspace.ts` (and, where it already loads a page, the Production check) reads:
+
+| Attribute | On | Meaning |
+|---|---|---|
+| `data-workspace` | the section | the gate may hold (removed once the page knows it does not) |
+| `data-ws-card` | a card | it reaches the frame's foot; its bottom is held above `#content`'s padding |
+| `data-ws-foot` | a card's footer | the range and the pager; the list's rows end at least 12px above it |
+| `data-ws-row` | a row, a cell, a divider | a measured row (`useRowBudget`'s default selector) |
+| `data-row-key` | a row or a cell | its key, for the keys across pages and the focus |
+| `data-ws-region` with `data-per`, `data-page`, `data-pages`, `data-total` | a paged list's region | its pages, while paged |
+| `data-divider` | a paged grid's region | the row its divider slot stands before, where its pages draw one (the tests work out its pages from it) |
+| `data-starts` | a cumulative list's region | where each page starts, 0-based row indexes ("0,7,13"): its pages are cut by the rows' own heights, not `data-per` each (the tests read its pages from it) |
+| `data-ws-group` | a group of a cumulative list (its heading and its rows) | the group the cumulative measure counts a page's heading for, where a page starts inside it |
+| `data-ws-section` | a sectioned workspace's section | its id (`?section=`) |
+
+### The frame
+
+In the workspace the shell's `main`, its frame and every wrapper down to the section are flex
+columns (`ws-host:`). The section is the flex remainder of the window-tall column, and its cards
+stretch to the frame's foot.
+
+- **Every wrapper between the frame and a section carries `WS_COLUMN`** (`ui/workspace.tsx`: `ws-host:flex
+  ws-host:w-full ws-host:flex-1 ws-host:flex-col`, the profile column's own classes).
+- **The two traps.** A wrapper left a block (the admin layout) keeps the section from filling the
+  frame. An `@container` wrapper with `mx-auto` becomes a flex item, shrinks to 0px wide (a container
+  has no content width) and grows the page: measured on `/settings`, 1115 → 3714px.
+- **The section spaces its parts with a gap, not margins** (`ws:gap-3`). A margin would also go to a
+  closed or top-layer dialog's place and shorten the frame.
+- **The floor is one row.** A list never shows fewer than one row a column. Where even that does not
+  fit, the frame grows by exactly the deficit: the safety net, never the design.
+
+The room a section has, sidebar open, at 1366 × 768 / 1440 × 900 / 1648 × 900 / 1920 × 1080
+(`innerHeight` less the section's top and `#content`'s bottom padding):
+
+| Page family | Room |
+|---|---|
+| Team and admin pages, under a tab row | 664 / 796 / 793 / 965px |
+| Settings (no tab row) | 712 / 844 / 842 / 1018px |
+| A profile's tabs (under the profile's tabs) | 576 / 708 / 702 / 845px |
+
+At the floor (1366 × 657) that is about 552px on a team or admin page and about 464px under a
+profile's tabs.
+
+### The four patterns
+
+Each is built from the shared modules below.
+
+- **(a) Paged list plus detail.** The rows by `useRowBudget`, the inline Pager in the card's footer,
+  the detail in a pane beside the list, in place of the list, or in a window. Opening a detail never
+  grows the page. Examples: All Champions; the admin lists; Match History.
+- **(b) Sectioned workspace.** A rail of the page's sections, one section at a time filling the frame.
+  The section is in the address (`?section=`), so Back works. Outside the gate every section stays
+  stacked, as before. Examples: Settings, System Health, Personal data.
+- **(c) Fitted dashboard.** Cards fill the frame, and the lists inside them are paged (or fitted).
+  Examples: Profile Overview, Leaderboards, Team Overview.
+- **(d) Fitted canvas.** A preview drawn to the frame's size: the admin Previews.
+
+### The shared modules (`src/components/ui`)
+
+**`workspace.tsx`**
+
+- `WS_COLUMN`: the classes of every wrapper between the frame and a section.
+- `useWorkspaceMarks({ short?, shortNarrow?, enabled? })` returns `{ ws, workspace, paged, short,
+  shortNarrow, attrs }`. `attrs` is the section's `data-workspace` (and `data-ws-short` and
+  `data-ws-short-narrow` where asked for and they apply). `enabled: false` keeps the page in the flow.
+- `<WorkspaceSection as labelledBy | label testId marks? short? shortNarrow? enabled? className ref>`:
+  `@container/ws space-y-3 ws:flex ws:flex-1 ws:flex-col ws:gap-3 ws:space-y-0` plus the marks. It
+  gives its marks to what it holds (`useWorkspaceSection()`, `WorkspaceMarksProvider`). `as` is a
+  section, a div or an article, never a `main`: every section is inside the shell's `<main>`.
+- `<WorkspaceCard as bare? testId className ref …attributes>`: the card's surface (unless `bare`) and
+  `ws:flex ws:flex-1 ws:flex-col`, `data-ws-card`. A paged list's `regionProps` go on it.
+- `<WorkspaceFoot testId className ref>`: the footer, drawn in the workspace only (`data-ws-foot`).
+- `wsTierClass(i, { gate, mid, tall })`: the first paint's rows by the window's height tiers
+  (`board-*`), before the page can measure. Each page proves its tiers from its own chrome.
+
+**`paged-list.tsx`**
+
+`usePagedRows({ rows, keyOf, words: { one, many }, testId, probeRem, … })` takes, optionally:
+`active` (the section's `paged` by default), `listRef`, `footRef` and `cardRef` (or its own),
+`rowSelector` (`[data-ws-row]`), `lastLess`, `mode` (`"uniform"` | `"cumulative"`), `observe`,
+`measureKey`, `cap`, `selected`, `search`, `order`, `data`, `reset`, `region`, `rangeId`, `label`,
+`arrows` and `flowRows`.
+
+It returns:
+- the pages: `perPage`, `paged`, `page`, `pages`, `range`, `offset`, `shown`, and `starts`,
+  `pageOf(index)` and `measuring` (the cumulative mode's, below);
+- the reader's moves: `turn(p)`, `live`, `goToIndex(i)`, `focusKey(key)`, `onListKeyDown`
+  (PageUp/PageDown a page, Home/End, ↑/↓ with `arrows`; keys pressed inside a dialog a row holds,
+  a record's Release confirmation, are the dialog's: `inDialogWithin`, in the grid's handler too);
+- what to spread: `regionProps`, `listProps`, `rowProps(row)`, `positionProps(row)`, `pagerProps`;
+- the refs: `listRef`, `footRef`, `cardRef`, and `footTestId`.
+
+`rowProps(row)` puts the row's place on the whole list (`aria-posinset`, `aria-setsize`) on the row
+element while paged: an `li`, a `tr` or a `[role=option]`. A row element that is a link or a button
+takes `rowProps(row, { position: false })`, and its listitem takes `positionProps(row)`: axe refuses
+those attributes on a link or a button.
+
+`<PagedFooter footRef pager leading? testId className>` draws `WorkspaceFoot`, then `leading` (a
+legend, a coverage line), then the inline Pager.
+
+**Rows of several heights: `mode: "cumulative"`** (28 Nov 2026; Accounts first). The uniform mode
+(the default, unchanged) pages by one row height: every page holds `perPage` rows. A list whose rows
+are not one height (a card with an optional line, a name on two lines, groups with headings) pages
+with `mode: "cumulative"`, and its pages are cut once over the whole list by the rows' own heights
+(`useRowBreaks`, `fit-rows.tsx`; `pageStarts`, `row-budget.ts`):
+
+- **The cut.** The hook measures every row as drawn, then fills each page greedily: as many rows as
+  end within the room between the list's top and its card's footer, less the guard band, counting a
+  row's own height, the headings the page draws, an empty group's line and the divider a page's last
+  row loses. Page *n* starts right after page *n − 1*'s last row. A page always holds a row, even one
+  taller than the room (the frame then grows by the deficit; nothing is hidden). `cap` limits the
+  rows a page.
+- **The promises.** The pages depend on the list and the room only, never on the page drawn: every
+  row is on exactly one page, Next never repeats or skips a row, Previous comes back to the same
+  page, and the page count and the range ("8–14 of 30") are the cut's. A resize (another room, width
+  or root size) cuts them again once, and the list shows the page holding the first row shown before
+  it, or the selected row's (`usePagedList`'s rules, unchanged, with the cut as its budget: another
+  cut is another budget). A search still goes to page 1, an order or a filter to the selected row's
+  page or page 1. Until 28 Nov 2026 the mode took one count of rows a page, measured on the page
+  drawn: a page drawing more headings measured fewer, and the list moved to the page holding its
+  first row at that count, drawing rows twice (CI run 46125624658, Accounts).
+- **What a consumer passes:** `mode: "cumulative"`, the rows, `probeRem` (a row's height for a row not
+  drawn), `lastLess` for a divided list, and `measureKey` for anything else its rows' heights depend
+  on (columns). Draw the rows from `shown` only, keyed by their own key, with `rowProps(row)`.
+  - **Groups:** put `data-ws-group` (unique per group) on the element that holds a group's heading and
+    its rows, and on every page that holds a group's rows draw its heading again (Accounts'
+    `inGroups`). The measure counts that heading for a page that starts inside the group.
+  - **While it measures** (`measuring` true) `shown` is every row, in its groups as a page draws them,
+    for one render that is never painted: the measure runs in a layout effect and the page it decides
+    is drawn in the same task. That render comes when the rows change (`rows`, `search`, `order`,
+    `measureKey`), the list's width or the root's size change (a resize, the sidebar, a zoom) and once
+    the fonts have loaded. A change of height alone reads the room again and re-cuts the same rows,
+    drawing nothing more. Don't slice `rows` yourself, and keep effects off `shown`.
+- **What it gets:** `starts` (where each page starts, 0-based; null while not paged), `pageOf(index)`
+  (the page holding a row), `range`, `offset`, `shown`, `pages`, and `perPage` as the most rows a page
+  holds: pages differ, so never multiply `perPage` by a page number; use `starts`, `range` and
+  `pageOf`. The keys (`onListKeyDown`: PageDown the next page's first row, PageUp the previous page's
+  last), `goToIndex` and `turn` follow the cut. The region publishes `data-starts`, which the tests
+  read (`regionSizes`).
+- **Not for:** a server-paged list, whose server cuts its pages by `per` (Match History): it keeps
+  `useRowBudget`'s count, keyed to measure once per list, not per page. A grid (`usePagedGrid`) keeps
+  `useRowBudget`'s per-column count. A client list cut by `useRowBudget`'s cumulative count directly
+  (a slice of `per` rows a page) has the defect above: it moves to `usePagedRows`' cumulative mode.
+
+The page follows `usePagedList`'s rules: a search goes to page 1; new `data` (a filter) to the
+selected row's page or page 1; another order likewise; another selection to its page; another budget
+(a resize) to the selected row's page or the page holding the first row shown. A page change the
+reader makes is read out once, never after a resize. A page change the list makes itself (an order,
+a search, a budget) clears what was read, so the reader's next turn is read even where its words are
+the same as before (`keepSaid`).
+
+**`paged-grid.tsx`**
+
+`usePagedGrid({ rows, keyOf, words, testId, twoColumnsRem, probeRem, divider?, open?, … })` has the
+same options as `usePagedRows`, plus `regionRef`, `divider` and `open`. It fills one column, or two
+from a content width of the region (`twoColumnsRem`), column-major, a column's cells by
+`useRowBudget`. An optional divider slot is never a page's last slot and comes again at the top of
+the pages after it, so a grid with a divider has more pages than `ceil(total / per)`; its region
+says where the divider is (`data-divider`), and the tests count its pages with it (`pageSizes`). The
+open item is followed (`useFollowed`). Its `cellProps(slot)` take `{ position: false }` and
+`positionProps(slot)` as `rowProps` do.
+
+It returns:
+- the layout: `columns`, `perColumn`, `perPage`, `paged`, `page`, `pages`, `slots`, `slotsToDraw`
+  (every row with the divider, before it measures), `range`, `rowsHere`, `secondColumn`,
+  `gridClassName`, `gridStyle`;
+- the reader's moves: `onGridKeyDown` (↑/↓ the reading order across pages, ←/→ the other column's
+  same row, PageUp/PageDown, Home/End), `turn`, `live`, `goToIndex`, `focusKey`;
+- what to spread: `regionProps`, `listProps`, `cellProps(slot)`, `dividerProps`, `pagerProps`;
+- the refs.
+
+**`sectioned-workspace.tsx`**
+
+`<SectionedWorkspace sections={[{ id, title, content, marker?: { unsaved?, error?, count? },
+beforeLeave?, className? }]} label initial? param? index? actions? marks? className?
+sectionsClassName? railClassName? testId?>`.
+
+- **In the workspace:** a rail of the sections' links (their markers read out), the page's
+  `actions` under them, and the current section filling the frame.
+- **Outside it:** every section stacked, with the page's own `index`.
+- **The address:** `?section=<id>`; the first section has none, and an unknown or missing value is
+  the first. Each switch is pushed as a section tab's is, so Back and Forward step through them. The
+  section shown follows the address whatever changes it (read through `useSearchParams`): the rail,
+  Back and Forward, and a soft navigation to the page with another query, which Next makes without
+  mounting the page again (the account menu's Settings link on `/settings?section=password` shows
+  the first section).
+- **Drafts survive a switch:** every section stays mounted.
+- **Leaving:** `beforeLeave` may keep a section when the reader switches or steps Back or Forward
+  within the page, and Back's address is then put back. A Back that leaves the page is the page's
+  own: no section is asked, and nothing is pushed onto the other page's address.
+- **An old deep link's hash** naming an element inside a section (`/settings#password`) opens that
+  section, where the query names none; a rail switch drops the hash (the section is in the query).
+  Once shown in the workspace that section is written into the query in place
+  (`/settings?section=password#password`, replaceState through Next's router), so from then on the
+  query holds it. An in-page fragment link that names no section's element (the skip link's
+  `#content`) keeps the section shown: the query is unchanged and the hash names a place, not a
+  section. An empty hash is no such link (Back to `/settings` shows the first section).
+- **Markers:** a section's own (`marker`), and what its fields report from inside it:
+  `useSectionMarker({ unsaved, error })`, a no-op outside a sectioned workspace (the same editor on
+  another page). Read out with the link (", unsaved changes", ", has an error").
+- **The rail's look** is a section's views' (docs/DESIGN_SYSTEM.md §5, the secondary level, as the
+  in-page indexes it stands in for): words, the current one semibold over the 2px accent line, no fill.
+- **The page's own layout** (`children`): a page whose rail is part of a card of its own (Settings'
+  account card) places `<SectionRail />` and `<SectionPanels />` itself, server markup between them;
+  `<SectionPanels only={[…]} />` draws some sections where the flow puts others between them (System
+  Health's fold round four of its sections). `short` opts in to the short form's marks.
+- **Pure helpers:** `sectionFromSearch`, `sectionHref`, `initialSection`, `addressTarget`, `mergedMarker`.
+
+**`workspace-window.tsx`**
+
+What a fold opens in the flow, in the workspace, each the flow's own markup outside it:
+
+- `<WorkspaceWindow flow label description? title windowDescription? views? testId>`: in the workspace
+  a row (`${testId}-open`) that opens a window (`${testId}-window`: DetailModal's sheet, 60rem for a
+  table) holding the details, one view at a time where there are several (`views`, a text-led switch;
+  `children` under every view). A data window fits the screen with no inner scroll. The flow's copy
+  (`flow`) is drawn on the server and until the posture is known, hidden by the CSS gate in the
+  workspace, then leaves the page, so the details are never in it twice. System Health's page speed
+  by device and by page, its recent errors and job runs.
+- `WorkspaceOpenFold`: a fold that is a section's whole content, open in the workspace once known
+  (no CSS can open a fold), its title row kept. System Health's Riot compliance.
+- `WorkspaceFlowFold`: a fold round several sections in the flow; in the workspace its sections
+  stand on their own. System Health's Technical details.
+- `<WorkspacePlaced at="flow" | "workspace">`: a part the workspace draws in another place than the
+  flow, in the markup where it is drawn, so Tab and a screen reader follow the screen (a CSS order
+  would draw it in one place and leave it in the other: WCAG 1.3.2 and 2.4.3). The page draws it at
+  both places; the flow's copy is on the page on the server, while hydrating and in the flow (with the
+  `ws:` order class that draws it at the workspace's place for the first paint), the workspace's once
+  the page knows it is there. System Health's Audit Logs line.
+
+**Parts drawn in another order in the workspace** are in the markup in that order once the page
+knows it is there (`useWorkspaceSection()?.paged`, or `WorkspacePlaced`); a `ws:order-*` class only
+draws the first paint, before hydration. Personal data's Erasure records (the backups' fold and the
+buttons above the records there) and System Health's Audit Logs line.
+
+**Using the paged list in a component.** Pass the component's own refs (`listRef`, `footRef`,
+`cardRef`) and destructure the result (`const { shown, regionProps, … } = usePagedRows(…)`): the
+React compiler's lint refuses refs read from the hook's result object during render.
+
+**A stack margin under a section** (a parent's `space-y-*` and a closed dialog after the section,
+drawn nowhere) leaves the section that much short of the frame's foot, and the list's margin to its
+footer with it: such a parent takes `ws-host:space-y-0` (Accounts' page).
+
+**Elsewhere**
+
+- **`fit-rows.tsx`, `useRowBudget`:** unchanged by default. `mode: "cumulative"` counts rows of
+  several heights by their own heights in order, then more at the tallest drawn row's pitch
+  (`row-budget.ts`, `cumulativeRows`; for rows of one height it is `rowBudget`'s count exactly).
+  That count is measured on the page drawn, so it serves only a list cut elsewhere and measured once
+  per list (a server-paged list's `per`, `usePagedGrid`'s cells); a client list of rows of several
+  heights pages with `usePagedRows`' cumulative mode (`useRowBreaks`, above). `rowSelector` defaults
+  to `[data-ws-row]`.
+- **`fit-rows.tsx`, `useRowBreaks(listRef, { footRef, cardRef, probeRem, active, key, total,
+  rowSelector?, groupSelector?, lastLess?, observe?, cap? })`:** returns `{ starts, measuring }`, the
+  cumulative mode's cut (above); `readLines` reads the rows' and groups' boxes. Pure parts in
+  `row-budget.ts`: `pageStarts`, `pageHeight`, `startsPageOf`, `startsRange`, `startsSizes`.
+- **`server/demo/test-hooks.ts`:** `ROWS_PER_PAGE_TEST_COOKIE` (`uniiverse-test-rows-per-page`, 1–19),
+  read only on the in-memory demo. The page's server component calls `rowsPerPageCap(await cookies())`
+  and passes the result to its lists as `cap`, so CI pages short demo lists.
+- **`src/app/design-tokens.test.ts`:** refuses any `ws:`, `ws-short:`, `ws-host:` or `ws-short-host:`
+  class that conceals or shrinks: an overflow that hides, clips or scrolls, `max-h-*`, `h-screen` and
+  its kin, `line-clamp-*`, `truncate`, or text under `text-xs`. Exceptions go in `WS_CONCEAL_LATER`
+  with their reasons; it is empty.
+
+### How a page adopts them
+
+1. Put `WS_COLUMN` on every wrapper from the frame down to the section. Keep the flow's `space-y-*`.
+2. Make the page's content a `WorkspaceSection` (or a `SectionedWorkspace`), and its fixed bands (a
+   header, a toolbar) the section's first children.
+3. Put each list in a `WorkspaceCard` with `usePagedRows` (or `usePagedGrid`), its rows carrying
+   `rowProps(row)`, and close it with `PagedFooter`. Before the page measures, draw the flow's rows,
+   hidden past `wsTierClass`'s tiers in the workspace.
+4. Open details in place: a pane, the list's region itself, or a window that fits (below).
+5. Pass the test cookie's cap (`rowsPerPageCap`) and add the page's rows to `e2e/one-screen.spec.ts`
+   (its states, where it fits). Its own spec covers paging exposing every record, Back, the keys and
+   the focus. Run the page's phone and tablet specs too: the flow must be unchanged.
+6. Write the page's notes under "The pages" below.
+
+### Windows in the workspace
+
+This replaces, for the workspace only, the rule that "windows and dialogs keep their one scrolling
+body".
+
+- **A window that presents data fits** at the owner's eight configurations with no inner scroll: a
+  game, a Peek, a preview.
+- **A form window (an editor) should fit too.** Lay its fields out in columns where needed.
+- **Only at the 41rem floor** may a form window keep one scrolling body, and only where its fields
+  cannot fit even in columns. The page's notes say so.
+- **A docked panel (the Peek) never scrolls inside** in the workspace.
+
+### Server-paged lists
+
+A list the server pages (Match History, the first: its notes below once it adopts) takes `per` from
+the row budget, with no floor of ten (the server's minimum becomes 1). A cookie per list keeps the
+last budget, so the server's first paint draws about the right count: UI state, not personal data.
+No query's cost changes: the server already slices an in-memory list.
+
+### Tests
+
+- **`e2e/workspace.ts`:**
+  - the owner's configurations (`OWNER_SIZES`, `SIDES`, `OWNER_CONFIGS`), `FLOOR` and `EDGE_SIZES`,
+    and `MARGIN` (12px);
+  - opening and waiting: `openAt` (the sidebar's cookie, Admin Mode's view), `resizeTo`, `settled`,
+    `regions`;
+  - the checks: `measureWorkspace`, `fits`, `fitsWindow`;
+  - paging: `walkPages`, `walkBack` (Previous back to the first page: a walk forward's pages,
+    reversed), `expectEveryRecord`, `regionSizes`, `pageFull`;
+  - the rest: `noScrollbarTracks`, `flowUnchanged`, `withWideText` (CI's wider text, doubled) and
+    `demoPlayerId`.
+- **What `fits` holds:**
+  - the page is the window, and nothing is wider than it;
+  - every card ends above `#content`'s padding, and everything it draws lies inside it (an
+    element's box, or a block's own text that does not wrap: All Champions' own rule);
+  - a list ends at least 12px above its footer;
+  - nothing in `#content` scrolls;
+  - nothing a reader needs (text, a control, a picture) is clipped or drawn off the screen, a
+    text's own lines cut by a fixed height or a line clamp included; `checkVisibility()` decides
+    what is drawn, so a closed `<details>`'s content does not count;
+  - no truncation in `#content` cuts its text (`truncates`, every `.truncate` by default);
+  - no text under 12px (a small tile's letters, an uppercase label and a chart aside);
+  - every region's pages are whole: as many as its rows and its divider make (`pageSizes`), or, for
+    a cumulative list, as its `data-starts` says, in order from its first row, the page drawn holding
+    its own rows (`regionSizes`); `expectEveryRecord` holds each page to its slots, and a cumulative
+    list's walk to the same starts on every page (nothing cut again as it is walked).
+  - `e2e/workspace-helper.spec.ts` holds the checks themselves to what they must catch, on small
+    pages drawn in the test.
+- **`e2e/one-screen.spec.ts`** (desktop project only, the suite's server, CI's wider text) is a table
+  of rows. Each row opens once per sidebar state and resizes in place:
+
+  ```ts
+  { name: "Admin Data & Integrations", path: "/admin/data", admin: true, at: EIGHT_AND_FLOOR }
+  ```
+
+  The fields are `name`, `path` (`{player}` for a demo profile), `admin`, `cookies`, `at` (`EIGHT`,
+  `EIGHT_AND_FLOOR` or `at([...sizes])`), `then` (a state, which must not grow the page), and fits'
+  options (`workspace`, `pager`, `cards`, `rows`, `truncates`).
+
+  It began with the pages that already fit, measured on 28 Nov 2026 (the default demo, the wider
+  text):
+
+  | Where | Pages |
+  |---|---|
+  | The eight and the floor | Champion Intel (empty, and with a champion), My Profile without a profile of one's own, a profile's Accounts, All Champions' list, Admin Data & Integrations, Admin Audit Logs (its log empty, below) |
+  | The eight, not the floor | Team Overview (33px over with the sidebar open, 6 folded), Leaderboards (87px), Admin Accounts (36px), Admin Access levels (10px with the sidebar open; it fits folded), Players (below) |
+  | From 1440 × 900 only | a profile's Overview and a member's own My Profile (376–390px over at 1366 × 768) |
+
+  Each lane widens its pages' rows as it brings them to one screen.
+
+  **The server is shared.** On CI the specs before this one in its shard have made accounts (4 in
+  shard 4 of run 46125624658), and how many depends on where the shard starts, so a row must hold
+  with more than the demo's own data. Measured with 12 accounts made first (28 Nov 2026), every row
+  fits as it is but two pages that grow with them:
+  - **Players** (a row of its two columns for every two members): 20px over at the floor with CI's 4, 165px over at 1366 × 768 with
+    12. Its row holds the eight until lane D pages its roster (batch 3); it fits there with up to
+    about 6 accounts made before it.
+  - **Audit Logs** (50 entries at a time, with Load older; the demo's log is empty and each account
+    made adds an entry): 117px over at 1366 × 768 with 12. Its row holds the page's chrome and its
+    empty state, filtered to a day with nothing recorded, until a lane pages it (tracked).
+- **The Production check** loads no new page (production's CPU is rationed). Where it already loads a
+  page at a desktop width, it may add the generic fact "a page carrying `data-workspace` does not
+  scroll, and nothing in main scrolls". Admin pages and the folded sidebar are CI's only.
+
+### The pages
+
+Each lane documents its pages here as it brings them to one screen: their pattern, their tiers,
+their windows, and any exception with its reason. All Champions, the first, follows.
+
+### Settings (28 Nov 2026)
+
+`/settings` and `/admin/settings` (the same page, `components/settings/account-settings.tsx`): a
+sectioned workspace whose rail is the account card.
+
+- **The rail:** the card keeps the picture, who you are, Add or Change, and its actions (My Profile,
+  Riot Accounts, the mode switch, Sign out); its index gives way to the sections' links (Name, Links
+  for a member with a player profile, Password, This device). In the short form (under 46rem tall) the
+  picture is 56px beside who you are, so a member's card (two more sections' worth of rows) keeps the
+  window at the floor.
+- **One section at a time** beside it, in the address. Each field keeps its own Save, every section
+  stays mounted, so a draft survives a switch; the rail marks a section with a draft not saved
+  (display name, username, social links, a password typed) and one whose field shows its error line.
+- **Riot's notice and the privacy link** are under the section shown, whichever it is, so the shell's
+  `#compliance` link always lands on it; the shell's nudge to `#password` opens the Password section.
+  A soft navigation to `/settings` (the account menu's link) shows the first section.
+- **Fit**, measured with CI's wider text: every section, the owner's and a member's own, at the eight
+  configurations and 1366 × 657 (the platform spec's rows; a member's in `e2e/settings-workspace.spec.ts`).
+- **Tests:** `e2e/settings-workspace.spec.ts` (each section, Back and Forward, the keys, a draft
+  across a switch and the markers, `#compliance`, `#password` and the skip link after it, the soft
+  navigation, Back leaving the page, Admin Mode's copy, the flow outside the gate, a member's fit).
+  Specs that use a section other than Name on a desktop window open it by its address
+  (`/settings?section=links`); the flow ignores it.
+
+### System Health (28 Nov 2026)
+
+`/admin/system`: a sectioned workspace with a rail of Statuses, Page speed, Build & database (with
+Warnings), Diagnostics, Environment and Riot compliance (Demo data too on an empty team).
+
+- **Nothing opens by growing the page.** Page speed's Technical details (by device and by page)
+  open in a window, one table at a time (a 60rem sheet: the by-device table's seven columns whole);
+  Diagnostics' recent errors (up to 8, each whole there, never cut) and recent job runs (up to 15) open
+  in windows from a row each. The flow's Technical details fold is not drawn in the workspace: its
+  panels are sections of their own. Riot compliance is open, and `#compliance` opens it.
+- **The Audit Logs line** is under every section, after Riot compliance in the markup too where that
+  section is shown (`WorkspacePlaced`; `ws:order-last` draws the first paint only).
+- **The flow** (phones, tablets, short or narrow windows, a larger text size) is the stack it always
+  was: Statuses, Page speed with its fold, the Technical details fold round its panels, the Audit Logs
+  line, the Riot compliance fold. Until the page knows its posture the folds are drawn (a fold's
+  state is the browser's), their title rows hidden by the CSS gate in the workspace, so a deep link
+  to a Technical details section shows it once the page has hydrated.
+- **Fit**, with CI's wider text: every section, and page speed's and the job runs' windows open, at
+  the eight configurations and 1366 × 657. The demo has one job run and no errors: a production-sized
+  Diagnostics (5 slowest runs, 8 errors, 15 runs) keeps the section small by its windows, which fit
+  15 rows at 1366 × 768 (not measured on production data).
+- **Tests:** `e2e/system-health-workspace.spec.ts` (each section, Back, `#compliance` open and kept
+  through the skip link, the Audit Logs line's place in the markup, the windows fitting with no inner
+  scroll and growing nothing, the flow outside the gate); the platform
+  spec's rows (each section, and both windows open).
+
+### Personal data, Accounts and Access levels (28 Nov 2026)
+
+Users & Permissions' three pages. In the short form (under 46rem tall) the hub's "Admin Mode"
+eyebrow gives its line back (the sidebar and the section tabs above name it).
+
+- **Personal data** (`/admin/people/privacy`): a sectioned workspace beside a quiet rail (Privacy
+  requests, Erase a former member, Erasure records with its count), in the address. Its two folds
+  stay: each still fits open. The records are paged to the room under the actions (the backups' fold
+  and the buttons first there, the records' card to the frame's foot), in the markup in that order
+  once the page knows it is in the workspace (`ErasureRecords` places the fold, its `notes`); none in
+  the demo. A record's Release confirmation keeps its own keys (the list's PageDown would turn the
+  page under it).
+- **Accounts** (`/admin/people`): its groups are one list paged to the room under the search row
+  (`usePagedRows`, cumulative: the pages cut once over the whole list by the lines' own heights and
+  the headings each page draws; a page draws its rows in their groups, each group, marked
+  `data-ws-group`, with its heading again on every page it is on), the inline Pager in its foot;
+  Profiles without an account are a group like the others there (no fold). An empty group's "Nobody
+  yet." is a line of the list; the range counts people. A person opened from another page keeps the
+  list on that page; a search goes to page 1. A person view stepped with ‹ › to someone on another
+  page brings the list to their page, and its close gives the focus to their row (DetailModal's
+  opener counts only while it is on the page; else `returnFocus`). It was 36px over at 1366 × 657 on
+  the default demo, and over everywhere with a real team's accounts; it fits at the eight and the
+  floor whatever their number. Its pages are uneven (a page with more headings holds fewer lines):
+  with CI's 16 lines at 1366 × 657 they hold 7, 5 and 4.
+- **Access levels** (`/admin/people/access`): fits by its own layout (10px over at the floor with the
+  sidebar open before the eyebrow gave its line back). More than three base levels (the Owner's own)
+  add a row of cards; see the tracked list.
+- **Tests:** `e2e/people-workspace.spec.ts` (sections, Back, the folds open, the records' controls
+  in the markup in the order drawn, the Release confirmation's keys, every account on exactly one
+  page, on the default demo and with accounts made first up to CI's 16 lines, at 1366 × 657 open and
+  1366 × 768 folded: every page fitting, Previous back to the same pages, a resize keeping the first
+  line shown; a person's page kept, the focus back on a person stepped to on another page, the flow
+  outside the gate); the platform spec's rows.
+
 ### All Champions' workspace (27 Nov 2026)
+
+The first one-screen page, approved as it is: the platform's gate, data contract, shared modules and
+tests above were lifted from it. It keeps its own section (the container named `section`), its own
+list and grid wiring and its own spec (`e2e/all-champions-workspace.spec.ts`); moving it onto the
+shared modules is a tracked follow-up.
 
 The owner's request of 27 Nov 2026: on a desktop, All Champions fits one window and never scrolls,
 not by trimming padding but by its layout. It has two postures (docs/MATCHUPS.md has what each shows):

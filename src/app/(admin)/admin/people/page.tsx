@@ -12,6 +12,8 @@ import { PeoplePanel, type PlayerAdminRow } from "@/components/admin/people-pane
 import { accountForBrowser, listAccountsForPlayers } from "@/server/accounts/repository";
 import { loadSocialLinks } from "@/server/repositories/profile";
 import { visibleSocialLinks } from "@/domain/social-links";
+import { WS_COLUMN } from "@/components/ui/workspace-classes";
+import { cn } from "@/lib/cn";
 
 export const dynamic = "force-dynamic";
 
@@ -49,7 +51,9 @@ export default async function AdminPeoplePage({ searchParams }: { searchParams: 
     publicLinks: visibleSocialLinks(links.get(p.id)).map((l) => ({ kind: l.kind, label: l.label, text: l.text })),
   }));
   return (
-    <div className="space-y-5">
+    // A flex column on a desktop window (WS_COLUMN): the list's card reaches the frame's foot, its pager there. No stack margin
+    // there: the erasure result's window after the section (closed, drawn nowhere) would leave the section 20px short of the foot.
+    <div className={cn("space-y-5 ws-host:space-y-0", WS_COLUMN)}>
       <PeoplePanel addAccount={canManageAccounts ? <AddPlayerAccount /> : null} initial={{ person: one(sp.person), status: one(sp.status), q: one(sp.q) }} riotConfigured={!!process.env.RIOT_API_KEY} players={rows} adminAccounts={accounts.filter((a) => !a.playerId)} presets={presets} currentUserId={session.userId} viewerIsOwner={isOwner(session)} canManageAccounts={canManageAccounts} canManageRoster={hasPermission(session, "manage-players")} />
     </div>
   );

@@ -10,6 +10,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Switch } from "@/components/ui/switch";
 import { toast } from "@/components/ui/toast";
+import { useSectionMarker } from "@/components/ui/sectioned-workspace";
 
 const PLACEHOLDERS: Record<SocialKind, string> = { youtube: "youtube.com/@yourname", twitch: "twitch.tv/yourname", discord: "your Discord username" };
 
@@ -105,6 +106,8 @@ export function SocialLinksEditor({ initial, preview = false, titled = true }: {
   const [busy, setBusy] = React.useState(false);
   const changed = socialDraftChanged(draft, saved);
   const invalid = Object.values(socialDraftProblems(draft)).some(Boolean);
+  // The rail's marker in Settings' workspace (a no-op on the welcome step and in Previews).
+  useSectionMarker({ unsaved: !preview && changed, error: !preview && (invalid || !!error) });
   const set = (k: SocialKind, patch: Partial<SocialDraft[SocialKind]>) => {
     setDraft((d) => ({ ...d, [k]: { ...d[k], ...patch } }));
     setError(null);

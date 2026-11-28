@@ -52,7 +52,8 @@ test.describe("the text hierarchy", () => {
   });
 
   test("a disabled control is drawn in the disabled tone with the not-allowed cursor, never half transparent", async ({ page }) => {
-    await page.goto("/settings");
+    // Settings' Password section (on a desktop window one section is shown at a time; the flow ignores ?section=).
+    await page.goto("/settings?section=password");
     // Change password is disabled until the fields are filled; the device rows' Clear while nothing is kept.
     const change = page.getByRole("button", { name: "Change password" });
     await expect(change).toBeDisabled();
