@@ -179,6 +179,9 @@ async function cardTabOrder(page: Page) {
 const readsInOrder = (order: { top: number; left: number }[]) => order.every((c, i) => i === 0 || c.top > order[i - 1]!.top + 2 || (Math.abs(c.top - order[i - 1]!.top) <= 2 && c.left > order[i - 1]!.left));
 
 test("Settings: the account card leads, drawn in the order it is read, with Sign out on the first screen and each field's Save on its row", async ({ page }, info) => {
+  // The flow this test holds: on the desktop project a window under 41rem tall, outside the one-screen workspace (a desktop
+  // window of 41rem or more shows one section at a time: e2e/settings-workspace.spec.ts).
+  if (info.project.name === "desktop") await page.setViewportSize({ width: 1440, height: 640 });
   await page.goto("/settings");
   const card = page.getByTestId("settings-account");
   await expect(card).toBeVisible();
@@ -295,8 +298,9 @@ test("Settings: the account card leads, drawn in the order it is read, with Sign
     await expect(links.first()).toHaveAttribute("aria-current", "location");
     if (info.project.name === "desktop") {
       // A tall window ends the page right under a section jumped to: it stays marked, not the last one (the end-of-page rule gives way).
+      // Just under 80rem wide, outside the workspace (a desktop window from 80rem wide and 41rem tall shows one section at a time).
       const size = page.viewportSize()!;
-      await page.setViewportSize({ width: 1920, height: 1200 });
+      await page.setViewportSize({ width: 1270, height: 1200 });
       const password = index.locator("a[href='#password']");
       await password.click();
       await expect(password).toHaveAttribute("aria-current", "location");
@@ -347,7 +351,8 @@ test("Settings in a window 480px tall or less (a phone held sideways) and on the
 
 test("Settings for a member with Social links: the index marks the section being read as the page scrolls; on a 320px touch screen a tap just under a wrapped quiet link is still its own", async ({ browser, page: admin }, info) => {
   test.skip(info.project.name !== "desktop", "the card's index is a list from md; once is enough");
-  const { context, page } = await memberContext(browser, admin, { width: 1440, height: 700 }, { base: "Spy" });
+  // Under 41rem tall: the flow, whose index spies on the scroll (a desktop window of 41rem or more shows one section at a time).
+  const { context, page } = await memberContext(browser, admin, { width: 1440, height: 640 }, { base: "Spy" });
   try {
     await page.goto("/settings");
     const index = page.getByTestId("settings-index");

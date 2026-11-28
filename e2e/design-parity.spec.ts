@@ -35,7 +35,8 @@ const TARGETS: Target[] = [
   { name: "Panel", path: (m) => `${m}/champions`, selector: "[data-testid=all-champions-table]" },
   { name: "DataRow", path: () => "/players", selector: "[data-testid=player-card]" },
   { name: "badge (chip)", path: () => "/team", selector: "[data-testid=main-role-badge]" },
-  { name: "Button", path: () => "/settings", selector: "main button:has-text('Change password')" },
+  // Settings' Password section (on a desktop window one section is shown at a time: docs/RESPONSIVE.md, "One-screen desktop pages").
+  { name: "Button", path: () => "/settings?section=password", selector: "main button:has-text('Change password')" },
   { name: "section tabs (current)", path: () => "/players", selector: "[data-testid=team-tabs] a[aria-current=page]", phoneSelector: "[data-testid=mobile-topbar] a[aria-current=page]" },
   { name: "InfoTip bubble", path: () => "/team", selector: "[data-testid=info-tip-bubble]", open: "[data-testid=team-header] [data-testid=info-tip]" },
   // One Select (ui/select.tsx): the app's popover button on a desktop (the Overview's game filter), the

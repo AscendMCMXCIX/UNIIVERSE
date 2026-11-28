@@ -15,7 +15,8 @@ test("a member switches on the links to show; teammates see only those, and noth
   test.skip(info.project.name !== "desktop", "one size is enough for the flow; the touch layout has its own check below");
   const { context, page, username } = await memberContext(browser, admin);
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
-  await page.goto("/settings");
+  // Settings' Links section (on a desktop window one section is shown at a time; the flow ignores ?section=).
+  await page.goto("/settings?section=links");
   const form = page.getByTestId("social-links-form");
   await expect(form).toBeVisible();
   // Nothing is shown until its owner says so; each switch on its platform's line, no row of its own.
@@ -79,7 +80,7 @@ test("a member switches on the links to show; teammates see only those, and noth
   expect(await admin.content()).not.toContain("e2e_live_stream");
 
   // Switched off again: gone for teammates too.
-  await page.goto("/settings");
+  await page.goto("/settings?section=links");
   await page.getByTestId("social-public-youtube").click();
   await expect(toggle(page.getByTestId("social-links-form"), "YouTube")).not.toBeChecked();
   await page.getByTestId("social-links-save").click();

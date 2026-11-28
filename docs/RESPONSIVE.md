@@ -880,7 +880,18 @@ sectionsClassName? railClassName? testId?>`.
 - **Leaving:** `beforeLeave` may keep a section when the reader switches or steps Back or Forward
   within the page, and Back's address is then put back. A Back that leaves the page is the page's
   own: no section is asked, and nothing is pushed onto the other page's address.
-- **Pure helpers:** `sectionFromSearch`, `sectionHref`, `initialSection`, `addressTarget`.
+- **An old deep link's hash** naming an element inside a section (`/settings#password`) opens that
+  section, where the query names none; a rail switch drops the hash (the section is in the query).
+- **Markers:** a section's own (`marker`), and what its fields report from inside it:
+  `useSectionMarker({ unsaved, error })`, a no-op outside a sectioned workspace (the same editor on
+  another page). Read out with the link (", unsaved changes", ", has an error").
+- **The rail's look** is a section's views' (docs/DESIGN_SYSTEM.md §5, the secondary level, as the
+  in-page indexes it stands in for): words, the current one semibold over the 2px accent line, no fill.
+- **The page's own layout** (`children`): a page whose rail is part of a card of its own (Settings'
+  account card) places `<SectionRail />` and `<SectionPanels />` itself, server markup between them;
+  `<SectionPanels only={[…]} />` draws some sections where the flow puts others between them (System
+  Health's fold round four of its sections). `short` opts in to the short form's marks.
+- **Pure helpers:** `sectionFromSearch`, `sectionHref`, `initialSection`, `addressTarget`, `mergedMarker`.
 
 **Elsewhere**
 
@@ -985,6 +996,29 @@ No query's cost changes: the server already slices an in-memory list.
 
 Each lane documents its pages here as it brings them to one screen: their pattern, their tiers,
 their windows, and any exception with its reason. All Champions, the first, follows.
+
+### Settings (28 Nov 2026)
+
+`/settings` and `/admin/settings` (the same page, `components/settings/account-settings.tsx`): a
+sectioned workspace whose rail is the account card.
+
+- **The rail:** the card keeps the picture, who you are, Add or Change, and its actions (My Profile,
+  Riot Accounts, the mode switch, Sign out); its index gives way to the sections' links (Name, Links
+  for a member with a player profile, Password, This device). In the short form (under 46rem tall) the
+  picture is 56px beside who you are, so a member's card (two more sections' worth of rows) keeps the
+  window at the floor.
+- **One section at a time** beside it, in the address. Each field keeps its own Save, every section
+  stays mounted, so a draft survives a switch; the rail marks a section with a draft not saved
+  (display name, username, social links, a password typed) and one whose field shows its error line.
+- **Riot's notice and the privacy link** are under the section shown, whichever it is, so the shell's
+  `#compliance` link always lands on it; the shell's nudge to `#password` opens the Password section.
+  A soft navigation to `/settings` (the account menu's link) shows the first section.
+- **Fit**, measured with CI's wider text: every section, the owner's and a member's own, at the eight
+  configurations and 1366 × 657 (the platform spec's rows; a member's in `e2e/settings-workspace.spec.ts`).
+- **Tests:** `e2e/settings-workspace.spec.ts` (each section, Back and Forward, the keys, a draft
+  across a switch and the markers, `#compliance`, `#password`, the soft navigation, Back leaving the
+  page, Admin Mode's copy, the flow outside the gate, a member's fit). Specs that use a section other
+  than Name on a desktop window open it by its address (`/settings?section=links`); the flow ignores it.
 
 ### All Champions' workspace (27 Nov 2026)
 

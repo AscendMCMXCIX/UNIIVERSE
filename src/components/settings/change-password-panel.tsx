@@ -10,6 +10,7 @@ import { Panel, PanelBody, PanelHeader } from "@/components/ui/panel";
 import { NewPasswordFields, newPasswordReady } from "@/components/forms/new-password-fields";
 import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/cn";
+import { useSectionMarker } from "@/components/ui/sectioned-workspace";
 
 /** Your password: the current one re-authenticates the change, the new one is typed twice. Never autosaved. */
 export function ChangePasswordPanel({ hasPassword, className }: { hasPassword: boolean; className?: string }) {
@@ -18,6 +19,8 @@ export function ChangePasswordPanel({ hasPassword, className }: { hasPassword: b
   const [confirmValue, setConfirmValue] = React.useState("");
   const [fieldError, setFieldError] = React.useState<{ field: "current" | "next"; text: string } | null>(null);
   const [busy, setBusy] = React.useState(false);
+  // The rail's marker in Settings' workspace: a password typed and not saved, or refused.
+  useSectionMarker({ unsaved: !!(current || next || confirmValue), error: !!fieldError });
   return (
     <Panel className={cn(!hasPassword && "border-warn/50", className)} id="password">
       <PanelHeader title={hasPassword ? "Password" : "Set a password"} subtitle={hasPassword ? "Your current one confirms it's you; changing it signs out your other devices." : "Your account has no password yet. Set one now so you can sign in again after this session ends or on another device."} />

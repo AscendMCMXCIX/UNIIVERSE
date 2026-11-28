@@ -6,6 +6,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { isPlainClick } from "@/lib/back-to-top";
 import { cn } from "@/lib/cn";
 import { formatCount } from "@/lib/format";
+import { subTabClass } from "./sub-tabs";
 import { itemHref, itemIn } from "./address-item";
 import { WorkspaceMarksProvider, useWorkspaceMarks, type WorkspaceMarks } from "./workspace";
 
@@ -70,14 +71,72 @@ export function initialSection(initial: string | null | undefined, ids: readonly
 const here = () => `${window.location.pathname}${window.location.search}${window.location.hash}`;
 
 /**
- * The section an address change shows (pure: Back, Forward, a soft navigation; for its unit test):
- * null where the address is another page's (`pathname` is not the one this workspace rendered for:
- * Back is leaving the page, which is not a section's to decide) or names the section shown already.
+ * The section an address change shows (pure: Back, Forward, a soft navigation; for its unit test).
+ * The section ?section= names; else the one holding the hash's element (`hashSection`: an old deep
+ * link, /settings#password, names its panel); else the first. null where the address is another
+ * page's (`pathname` is not the one this workspace rendered for: Back is leaving the page, which is
+ * not a section's to decide) or names the section shown already.
  */
-export function addressTarget(at: { pathname: string; rendered: string; search: string; ids: readonly string[]; param?: string; current: string }): string | null {
+export function addressTarget(at: { pathname: string; rendered: string; search: string; ids: readonly string[]; param?: string; current: string; hashSection?: string | null }): string | null {
   if (at.pathname !== at.rendered) return null;
-  const to = sectionFromSearch(at.search, at.ids, at.param);
+  const named = itemIn(at.search, at.param ?? "section");
+  const to = named !== null && at.ids.includes(named) ? named : at.hashSection && at.ids.includes(at.hashSection) ? at.hashSection : (at.ids[0] ?? "");
   return to === at.current ? null : to;
+}
+
+/** The section holding the element the address's hash names (inside `root`), or null. */
+function hashSectionIn(root: HTMLElement | null): string | null {
+  const hash = window.location.hash.slice(1);
+  if (!hash || !root) return null;
+  let id = hash;
+  try {
+    id = decodeURIComponent(hash);
+  } catch {}
+  const target = document.getElementById(id);
+  const holder = target && root.contains(target) ? target.closest<HTMLElement>("[data-ws-section]") : null;
+  return holder?.dataset.wsSection ?? null;
+}
+
+type Marker = NonNullable<WorkspaceSectionItem["marker"]>;
+
+/** A section's marker: its own (the page's) with what its fields report (useSectionMarker), unsaved or in error where any is. */
+export function mergedMarker(own: Marker | undefined, reported: readonly Marker[]): Marker | undefined {
+  if (!reported.length) return own;
+  return { ...own, unsaved: !!own?.unsaved || reported.some((m) => m.unsaved), error: !!own?.error || reported.some((m) => m.error) };
+}
+
+interface SectionsValue {
+  sections: readonly WorkspaceSectionItem[];
+  current: string;
+  workspace: boolean;
+  label: string;
+  testId: string;
+  rootRef: React.RefObject<HTMLDivElement | null>;
+  choose: (e: React.MouseEvent<HTMLAnchorElement>, id: string) => void;
+  linkHref: (id: string) => string;
+  markerOf: (id: string) => Marker | undefined;
+  report: (section: string, from: string, marker: Marker | null) => void;
+}
+
+const SectionsContext = React.createContext<SectionsValue | null>(null);
+const SectionIdContext = React.createContext<string | null>(null);
+
+/**
+ * A field's state for its section's marker in the rail (a draft not saved, an error shown): called
+ * by an editor inside a section's content, it is a no-op anywhere else (the flow's pages that hold
+ * the same editor: the welcome step, Previews).
+ */
+export function useSectionMarker(marker: { unsaved?: boolean; error?: boolean }) {
+  const ctx = React.useContext(SectionsContext);
+  const section = React.useContext(SectionIdContext);
+  const from = React.useId();
+  const report = ctx?.report;
+  const { unsaved = false, error = false } = marker;
+  React.useEffect(() => {
+    if (!report || !section) return;
+    report(section, from, unsaved || error ? { unsaved, error } : null);
+    return () => report(section, from, null);
+  }, [report, section, from, unsaved, error]);
 }
 
 /** Focuses a section's wrapper as an in-page link's jump does: tabindex -1 only until it loses the focus, so a click inside never focuses it. */
@@ -90,8 +149,12 @@ function focusSection(el: HTMLElement | null) {
   el.focus({ preventScroll: true });
 }
 
-/** The rail's link: quiet text, the current one in the main ink on a raised surface with the accent's edge (a selected row's). */
-const RAIL_LINK = "relative flex min-h-9 w-full items-center gap-2 rounded-md px-3 text-left text-sm transition-colors duration-150 pointer-coarse:min-h-11 focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent";
+/*
+  The rail's links are a section's views (docs/DESIGN_SYSTEM.md §5, "Text-led controls", the secondary
+  level, as the in-page indexes it stands in for: Settings'): words, the current one in the main ink,
+  semibold, over the 2px accent line inside its box; no fill and no ring (subTabClass). One a line, each
+  as wide as its words (the line under them, not across the rail).
+*/
 
 export function SectionedWorkspace({
   sections,
@@ -105,6 +168,8 @@ export function SectionedWorkspace({
   sectionsClassName,
   railClassName,
   testId = "sectioned-workspace",
+  short = false,
+  children,
 }: {
   sections: readonly WorkspaceSectionItem[];
   /** The section to show first where the address cannot be read (outside Next's router: a unit test's render); the page's own ?section= otherwise. */
@@ -125,11 +190,21 @@ export function SectionedWorkspace({
   sectionsClassName?: string;
   railClassName?: string;
   testId?: string;
+  /** Opts in to the workspace's short form (ws-short: classes; useWorkspaceMarks' `short`), where `marks` is not given. */
+  short?: boolean;
+  /**
+   * The page's own layout of the rail and the sections (a rail inside a card of its own: Settings'
+   * account card), in place of the default row: it places <SectionRail /> and <SectionPanels />
+   * where it wants them (server markup between them is fine). `index` and `actions` are then the
+   * page's to place too. The whole keeps `className` only (and the container `ws`).
+   */
+  children?: React.ReactNode;
 }) {
-  const own = useWorkspaceMarks();
+  const own = useWorkspaceMarks({ short });
   const marks = given ?? own;
   const ids = React.useMemo(() => sections.map((s) => s.id), [sections]);
-  // The address as Next holds it (the server's request on the first paint, then every push, Back and soft navigation).
+  // The address as Next holds it (the server's request on the first paint, then every push, Back and soft navigation: a
+  // new object for each new address, the hash's included).
   const search = useSearchParams();
   const pathname = usePathname() || "/";
   const address = search ? sectionFromSearch(search.toString(), ids, param) : null;
@@ -139,27 +214,33 @@ export function SectionedWorkspace({
   React.useLayoutEffect(() => {
     latest.current = { ids, current, sections, pathname };
   });
-  const sectionsRef = React.useRef<HTMLDivElement>(null);
+  // The whole (its sections' wrappers are found in it, wherever the page's own layout puts them).
+  const rootRef = React.useRef<HTMLDivElement>(null);
   const focusAfter = React.useRef<string | null>(null);
   // A section's beforeLeave is deciding a Back or a Forward: the address waits for its answer.
   const deciding = React.useRef(false);
-  const wrapperOf = (id: string) => sectionsRef.current?.querySelector<HTMLElement>(`[data-ws-section="${CSS.escape(id)}"]`) ?? null;
+  const wrapperOf = (id: string) => rootRef.current?.querySelector<HTMLElement>(`[data-ws-section="${CSS.escape(id)}"]`) ?? null;
+  // The window's address as a section (null: another page's, or the section shown).
+  const target = React.useCallback((from: string) => {
+    const { ids: now, pathname: rendered } = latest.current;
+    return addressTarget({ pathname: window.location.pathname, rendered, search: window.location.search, ids: now, param, current: from, hashSection: hashSectionIn(rootRef.current) });
+  }, [param]);
 
-  // The address, followed: as the page mounts (a page restored by Back may name a section the server did not render), and
-  // whenever Next's address changes (a soft navigation to this page with another query keeps it mounted). The window's own
-  // address is read, not the render's, so an address a refused Back has already put back is never shown in passing.
+  // The address, followed: as the page mounts (a page restored by Back may name a section the server did not render; an
+  // old deep link's hash names a panel), and whenever Next's address changes (a soft navigation to this page with another
+  // query keeps it mounted). The window's own address is read, not the render's, so an address a refused Back has already
+  // put back is never shown in passing.
   React.useLayoutEffect(() => {
     if (deciding.current) return;
-    const { ids: now, current: shown, pathname: rendered } = latest.current;
-    const to = addressTarget({ pathname: window.location.pathname, rendered, search: window.location.search, ids: now, param, current: shown });
+    const to = target(latest.current.current);
     if (to !== null) setChosen(to);
-  }, [address, param]);
+  }, [search, target]);
 
   // Back and Forward within the page: the section the address names, asked first of the section being left.
   React.useEffect(() => {
     const onPop = () => {
-      const { ids: now, current: from, sections: list, pathname: rendered } = latest.current;
-      const to = addressTarget({ pathname: window.location.pathname, rendered, search: window.location.search, ids: now, param, current: from });
+      const { current: from, sections: list } = latest.current;
+      const to = target(from);
       if (to === null) return;
       const guard = list.find((s) => s.id === from)?.beforeLeave;
       if (!guard) return setChosen(to);
@@ -173,7 +254,7 @@ export function SectionedWorkspace({
     };
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
-  }, [param]);
+  }, [param, target]);
 
   // The section the reader switched to takes the focus once drawn.
   React.useLayoutEffect(() => {
@@ -191,67 +272,126 @@ export function SectionedWorkspace({
     if (id === from) return focusSection(wrapperOf(id));
     const guard = sections.find((s) => s.id === from)?.beforeLeave;
     if (guard && !(await guard())) return;
-    // An entry of its own, as a section tab's: Back returns to the section before.
-    window.history.pushState(null, "", sectionHref(here(), id, latest.current.ids, param));
+    // An entry of its own, as a section tab's: Back returns to the section before. The hash goes (an old deep link's
+    // panel, the notice's anchor): the section is in the query.
+    window.history.pushState(null, "", sectionHref(`${window.location.pathname}${window.location.search}`, id, latest.current.ids, param));
     focusAfter.current = id;
     setChosen(id);
   };
 
   // A link's own address (before the page's code runs, or opened in a new tab): the page's path with the section; a plain click keeps the rest of the query.
-  const linkHref = (id: string) => sectionHref(pathname, id, ids, param);
+  const linkHref = React.useCallback((id: string) => sectionHref(pathname, id, ids, param), [pathname, ids, param]);
+
+  // What the sections' fields report (useSectionMarker), by section and by field.
+  const [reported, setReported] = React.useState<Record<string, Record<string, Marker>>>({});
+  const report = React.useCallback((section: string, from: string, marker: Marker | null) => {
+    setReported((all) => {
+      const was = all[section]?.[from];
+      if (!marker && !was) return all;
+      if (marker && was && was.unsaved === marker.unsaved && was.error === marker.error) return all;
+      const next = { ...(all[section] ?? {}) };
+      if (marker) next[from] = marker;
+      else delete next[from];
+      return { ...all, [section]: next };
+    });
+  }, []);
+  const markerOf = (id: string) => mergedMarker(sections.find((s) => s.id === id)?.marker, Object.values(reported[id] ?? {}));
+
+  const value: SectionsValue = { sections, current, workspace: marks.workspace, label, testId, rootRef, choose: (e, id) => void choose(e, id), linkHref, markerOf, report };
+  const whole = { "data-testid": testId, "data-section": marks.workspace ? current : undefined, ...marks.attrs };
 
   return (
     <WorkspaceMarksProvider marks={marks}>
-      <div className={cn("@container/ws ws:flex ws:flex-1 ws:flex-row ws:items-stretch ws:gap-5 ws:space-y-0", className)} data-testid={testId} data-section={marks.workspace ? current : undefined} {...marks.attrs}>
-        {index ? <div className="ws:hidden">{index}</div> : null}
-        <nav aria-label={label} className={cn("hidden ws:flex ws:w-56 ws:shrink-0 ws:flex-col ws:gap-4", railClassName)} data-testid={`${testId}-rail`}>
-          <ul className="flex flex-col gap-0.5">
-            {sections.map((s) => {
-              const on = s.id === current;
-              const m = s.marker;
-              return (
-                <li key={s.id}>
-                  <a
-                    href={linkHref(s.id)}
-                    onClick={(e) => void choose(e, s.id)}
-                    aria-current={on ? "page" : undefined}
-                    className={cn(RAIL_LINK, on ? "bg-surface-2 font-semibold text-fg before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-accent" : "font-medium text-fg-muted hover:bg-surface-2/60 hover:text-fg")}
-                    data-testid={`${testId}-link`}
-                    data-target={s.id}
-                  >
-                    <span className="min-w-0 flex-1">{s.title}</span>
-                    {m?.error ? (
-                      <>
-                        <AlertCircle className="h-4 w-4 shrink-0 text-bad" aria-hidden data-testid={`${testId}-error`} />
-                        <span className="sr-only">, has an error</span>
-                      </>
-                    ) : null}
-                    {m?.unsaved ? (
-                      <>
-                        <span className="h-2 w-2 shrink-0 rounded-full bg-warn" aria-hidden data-testid={`${testId}-unsaved`} />
-                        <span className="sr-only">, unsaved changes</span>
-                      </>
-                    ) : null}
-                    {typeof m?.count === "number" ? (
-                      <span className="shrink-0 text-xs tabular-nums text-fg-subtle" data-testid={`${testId}-count`}>
-                        {formatCount(m.count)}
-                      </span>
-                    ) : null}
-                  </a>
-                </li>
-              );
-            })}
-          </ul>
-          {actions ? <div className="mt-auto flex flex-col gap-2" data-testid={`${testId}-actions`}>{actions}</div> : null}
-        </nav>
-        <div ref={sectionsRef} className={cn("min-w-0 ws:flex ws:min-w-0 ws:flex-1 ws:flex-col", sectionsClassName)}>
-          {sections.map((s) => (
-            <div key={s.id} className={cn(s.className, "ws:flex-1 ws:flex-col", s.id === current ? "ws:flex" : "ws:hidden")} data-ws-section={s.id} data-current={s.id === current || undefined}>
-              {s.content}
-            </div>
-          ))}
-        </div>
-      </div>
+      <SectionsContext.Provider value={value}>
+        {children !== undefined ? (
+          <div ref={rootRef} className={cn("@container/ws", className)} {...whole}>
+            {children}
+          </div>
+        ) : (
+          <div ref={rootRef} className={cn("@container/ws ws:flex ws:flex-1 ws:flex-row ws:items-stretch ws:gap-5 ws:space-y-0", className)} {...whole}>
+            {index ? <div className="ws:hidden">{index}</div> : null}
+            <SectionRail className={cn("ws:w-56 ws:shrink-0", railClassName)} actions={actions} />
+            <SectionPanels className={sectionsClassName} />
+          </div>
+        )}
+      </SectionsContext.Provider>
     </WorkspaceMarksProvider>
+  );
+}
+
+function useSections(what: string): SectionsValue {
+  const ctx = React.useContext(SectionsContext);
+  if (!ctx) throw new Error(`${what} is drawn inside a SectionedWorkspace`);
+  return ctx;
+}
+
+/**
+ * The rail: the sections' links (the current one marked, each marker read out), then `actions`.
+ * Drawn in the workspace only. Inside a SectionedWorkspace: by default it draws one; a page with its
+ * own layout (children) places this one where it wants it.
+ */
+export function SectionRail({ className, actions, linkClassName }: { className?: string; actions?: React.ReactNode; /** The links' own spacing (a rail inside a card). */ linkClassName?: string }) {
+  const { sections, current, label, testId, choose, linkHref, markerOf } = useSections("SectionRail");
+  return (
+    <nav aria-label={label} className={cn("hidden ws:flex ws:flex-col ws:gap-4", className)} data-testid={`${testId}-rail`}>
+      <ul className="flex flex-col items-start gap-0.5">
+        {sections.map((s) => {
+          const on = s.id === current;
+          const m = markerOf(s.id);
+          return (
+            <li key={s.id}>
+              <a
+                href={linkHref(s.id)}
+                onClick={(e) => choose(e, s.id)}
+                aria-current={on ? "page" : undefined}
+                className={subTabClass(on, cn("text-left", linkClassName))}
+                data-testid={`${testId}-link`}
+                data-target={s.id}
+              >
+                <span className="min-w-0">{s.title}</span>
+                {m?.error ? (
+                  <>
+                    <AlertCircle className="h-4 w-4 shrink-0 text-bad" aria-hidden data-testid={`${testId}-error`} />
+                    <span className="sr-only">, has an error</span>
+                  </>
+                ) : null}
+                {m?.unsaved ? (
+                  <>
+                    <span className="h-2 w-2 shrink-0 rounded-full bg-warn" aria-hidden data-testid={`${testId}-unsaved`} />
+                    <span className="sr-only">, unsaved changes</span>
+                  </>
+                ) : null}
+                {typeof m?.count === "number" ? (
+                  <span className="shrink-0 text-xs tabular-nums text-fg-subtle" data-testid={`${testId}-count`}>
+                    {formatCount(m.count)}
+                  </span>
+                ) : null}
+              </a>
+            </li>
+          );
+        })}
+      </ul>
+      {actions ? <div className="mt-auto flex flex-col gap-2" data-testid={`${testId}-actions`}>{actions}</div> : null}
+    </nav>
+  );
+}
+
+/**
+ * The sections, every one mounted, the current one shown in the workspace and the others hidden there
+ * only (all stacked in the flow). `only`: these sections alone, for a page whose flow puts others
+ * between them (System Health's "Technical details" fold round four of its sections), in the order
+ * given; every section is drawn by exactly one SectionPanels.
+ */
+export function SectionPanels({ className, only }: { className?: string; only?: readonly string[] }) {
+  const { sections: all, current } = useSections("SectionPanels");
+  const sections = only ? only.flatMap((id) => all.filter((s) => s.id === id)) : all;
+  return (
+    <div className={cn("min-w-0 ws:flex ws:min-w-0 ws:flex-1 ws:flex-col", className)}>
+      {sections.map((s) => (
+        <div key={s.id} className={cn(s.className, "ws:flex-1 ws:flex-col", s.id === current ? "ws:flex" : "ws:hidden")} data-ws-section={s.id} data-current={s.id === current || undefined}>
+          <SectionIdContext.Provider value={s.id}>{s.content}</SectionIdContext.Provider>
+        </div>
+      ))}
+    </div>
   );
 }

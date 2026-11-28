@@ -1,7 +1,7 @@
 import { describe, expect, it } from "vitest";
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { SectionedWorkspace, addressTarget, initialSection, sectionFromSearch, sectionHref, type WorkspaceSectionItem } from "./sectioned-workspace";
+import { SectionPanels, SectionRail, SectionedWorkspace, addressTarget, initialSection, mergedMarker, sectionFromSearch, sectionHref, type WorkspaceSectionItem } from "./sectioned-workspace";
 import { workspaceMarks } from "./workspace";
 
 /*
@@ -56,10 +56,27 @@ describe("an address change (Back, Forward, a soft navigation)", () => {
     expect(addressTarget({ ...at, current: "name", search: "" })).toBeNull();
   });
 
+  it("maps an old deep link's hash to the section holding its element (/settings#password), the query's section first", () => {
+    expect(addressTarget({ ...at, current: "name", search: "", hashSection: "password" })).toBe("password");
+    expect(addressTarget({ ...at, current: "name", search: "?section=device", hashSection: "password" })).toBe("device");
+    // A hash outside every section (the notice's #compliance) leaves the query's section.
+    expect(addressTarget({ ...at, current: "links", search: "?section=links", hashSection: null })).toBeNull();
+    expect(addressTarget({ ...at, current: "name", search: "", hashSection: "billing" })).toBeNull();
+  });
+
   it("leaves a Back that leaves the page alone: another page's address is not a section's to decide (no beforeLeave asked, no ?section= pushed onto it)", () => {
     // /admin/branding?section=colours opened from /admin by a soft navigation, then Back: popstate fires while Branding is still mounted.
     expect(addressTarget({ pathname: "/admin", rendered: "/admin/branding", search: "", ids: ["name", "colours"], current: "colours" })).toBeNull();
     expect(addressTarget({ pathname: "/admin/settings", rendered: "/settings", search: "?section=password", ids, current: "name" })).toBeNull();
+  });
+});
+
+describe("a section's marker", () => {
+  it("is the page's own, with what its fields report: unsaved or in error where any of them is", () => {
+    expect(mergedMarker(undefined, [])).toBeUndefined();
+    expect(mergedMarker({ count: 3 }, [])).toEqual({ count: 3 });
+    expect(mergedMarker(undefined, [{ unsaved: true, error: false }, { unsaved: false, error: false }])).toEqual({ unsaved: true, error: false });
+    expect(mergedMarker({ count: 2 }, [{ unsaved: false, error: true }])).toEqual({ count: 2, unsaved: false, error: true });
   });
 });
 
@@ -95,6 +112,22 @@ describe("SectionedWorkspace as the server draws it", () => {
     expect(out).toContain('<span class="sr-only">, has an error</span>');
     expect(out).toContain('data-testid="settings-ws-count">3</span>');
     expect(out.match(/aria-current/g)).toHaveLength(1);
+  });
+
+  it("lets a page lay out the rail and the sections itself (children): the rail inside its own card, server markup between them", () => {
+    const out = renderToStaticMarkup(h(SectionedWorkspace, { sections, label: "Settings sections", testId: "settings-ws", initial: "links", className: "grid gap-3" }, h("section", { "aria-label": "Your account" }, h("p", null, "who you are"), h(SectionRail, { className: "ws:mt-2" })), h("div", null, h(SectionPanels, {}), h("p", { id: "compliance" }, "notice"))));
+    expect(out).toMatch(/^<div class="@container\/ws grid gap-3" data-testid="settings-ws" data-section="links" data-workspace="">/);
+    expect(out).toMatch(/<section aria-label="Your account"><p>who you are<\/p><nav aria-label="Settings sections" class="hidden ws:flex ws:flex-col ws:gap-4 ws:mt-2" data-testid="settings-ws-rail">/);
+    expect(out).toContain('data-ws-section="links" data-current="true"><p>links panel</p></div>');
+    expect(out).toContain('data-ws-section="password"><p>password panel</p></div></div><p id="compliance">notice</p>');
+    expect(() => renderToStaticMarkup(h(SectionRail, {}))).toThrow(/inside a SectionedWorkspace/);
+  });
+
+  it("draws some sections where a page's flow puts others between them (SectionPanels' `only`), each section once", () => {
+    const out = renderToStaticMarkup(h(SectionedWorkspace, { sections, label: "System Health sections", testId: "sys", initial: "password" }, h(SectionPanels, { only: ["password", "name"] }), h("details", null, h(SectionPanels, { only: ["links"] }))));
+    expect(out.indexOf('data-ws-section="password"')).toBeLessThan(out.indexOf('data-ws-section="name"'));
+    expect(out).toContain('<details><div class="min-w-0 ws:flex ws:min-w-0 ws:flex-1 ws:flex-col"><div class="ws:flex-1 ws:flex-col ws:hidden" data-ws-section="links">');
+    for (const id of ["name", "links", "password"]) expect(out.split(`data-ws-section="${id}"`)).toHaveLength(2);
   });
 
   it("an unknown section shows the first; outside the workspace nothing is marked", () => {

@@ -67,6 +67,23 @@ const ROWS: OneScreenRow[] = [
   { name: "All Champions, the list", path: "/players/{player}/champions", at: EIGHT_AND_FLOOR, workspace: true, pager: "all-champions-pager", cards: "[data-testid=all-champions-table]", rows: "[data-testid=top-champion]", truncates: "[data-testid=top-champion] .truncate" },
   { name: "Admin Accounts", path: "/admin/people", admin: true, at: EIGHT },
   { name: "Admin Access levels", path: "/admin/people/access", admin: true, at: [...EIGHT, { size: FLOOR, side: "collapsed" }] },
+  // Settings, a sectioned workspace (lane A2, 28 Nov 2026): each section, Admin Mode's copy, and a draft with its error line.
+  { name: "Settings, Name", path: "/settings", at: EIGHT_AND_FLOOR, workspace: true },
+  { name: "Settings, Password", path: "/settings?section=password", at: EIGHT_AND_FLOOR, workspace: true },
+  { name: "Settings, This device", path: "/settings?section=device", at: EIGHT_AND_FLOOR, workspace: true },
+  {
+    name: "Settings, a draft and an error line",
+    path: "/settings",
+    at: EIGHT_AND_FLOOR,
+    workspace: true,
+    then: async (page) => {
+      await page.locator("#display-name").fill("A display name being typed");
+      await page.locator("#username").fill("a");
+      await expect(page.locator("#username-help")).toHaveClass(/text-bad/);
+    },
+  },
+  { name: "Admin Settings, Name", path: "/admin/settings", admin: true, at: EIGHT_AND_FLOOR, workspace: true },
+  { name: "Admin Settings, Password", path: "/admin/settings?section=password", admin: true, at: EIGHT_AND_FLOOR, workspace: true },
   { name: "Admin Data & Integrations", path: "/admin/data", admin: true, at: EIGHT_AND_FLOOR },
   { name: "Admin Audit Logs", path: "/admin/audit", admin: true, at: EIGHT_AND_FLOOR },
 ];

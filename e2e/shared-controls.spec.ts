@@ -148,9 +148,10 @@ test("Champion Intel and Settings: no boxed group", async ({ page }) => {
   await expectAllFlat(page, a, "Champion Intel, two champions");
   await page.goto("/settings", { waitUntil: "networkidle" });
   await expectAllFlat(page, a, "Settings");
-  // Its index, the row on a phone and the list from md alike (a filled list entry until the Release 17 review).
-  const index = page.getByTestId("settings-index");
-  await expect(index).toBeVisible();
+  // Its index, the row on a phone and the list from md alike (a filled list entry until the Release 17 review); on a
+  // desktop window the sections' rail in its place (the one-screen workspace), text-led the same way.
+  const index = page.getByTestId("settings-index").or(page.getByTestId("settings-workspace-rail")).filter({ visible: true });
+  await expect(index).toHaveCount(1);
   await expectFlat(index, a, "Settings' sections");
 });
 

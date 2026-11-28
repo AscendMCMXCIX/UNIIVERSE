@@ -202,7 +202,8 @@ test("Settings → On this device at 200% text on a narrow phone: each Clear tak
 });
 
 test("Settings → On this device: what this browser remembers, each with Clear and Clear all, nothing sent to the server; the account's picture the same colour in the frame and in Settings", async ({ page }, info) => {
-  await page.goto("/settings");
+  // Settings' This device section (on a desktop window one section is shown at a time; the flow ignores ?section=).
+  await page.goto("/settings?section=device");
   const panel = page.getByTestId("on-this-device");
   await expect(panel).toBeVisible();
   await expect(panel.getByTestId("device-item")).toHaveCount(4);
