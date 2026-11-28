@@ -12,7 +12,7 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog } from "@/components/ui/dialog";
 import { Fold } from "@/components/ui/fold";
 import { PagedFooter, usePagedRows, type RowProps } from "@/components/ui/paged-list";
-import { useAddressSection } from "@/components/ui/sectioned-workspace";
+import { useAddressSection } from "@/components/ui/address-section";
 import { WorkspaceCard, WorkspaceSection, useWorkspaceMarks } from "@/components/ui/workspace";
 import { RoleIcon } from "@/components/role-icon";
 import { RoleSegmented, segmentClass, segmentedGroupClass } from "@/components/ui/segmented";

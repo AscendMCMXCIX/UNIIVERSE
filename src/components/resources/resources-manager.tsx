@@ -10,7 +10,7 @@ import { Select } from "@/components/ui/select";
 import { Badge } from "@/components/ui/badge";
 import { ConfirmDialog, Dialog } from "@/components/ui/dialog";
 import { PagedFooter, usePagedRows, type RowProps } from "@/components/ui/paged-list";
-import { useAddressSection } from "@/components/ui/sectioned-workspace";
+import { useAddressSection } from "@/components/ui/address-section";
 import { segmentClass, segmentedGroupClass } from "@/components/ui/segmented";
 import { toast } from "@/components/ui/toast";
 import { WorkspaceCard, WorkspaceSection, useWorkspaceMarks } from "@/components/ui/workspace";
