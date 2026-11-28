@@ -225,7 +225,7 @@ test("outside the gate the three lists are the flow, as they were: Show more, th
   await expect(page.getByTestId("match-expanded").getByTestId("match-breakdown")).toBeVisible();
   await expect(page.locator("dialog[open]")).toHaveCount(0);
   // A page size the workspace kept is the flow's to forget (a window that left the workspace).
-  await page.context().addCookies([{ name: "uniiverse_per_encounters", value: "3", url: page.url() }]);
+  await page.context().addCookies([{ name: "uniiverse_per_encounters", value: "3", url: new URL(page.url()).origin }]);
   await openAt(page, `${MH(id)}?view=encounters`, [1366, 640], "expanded");
   await expect.poll(() => page.getByTestId("encounter-row").count()).toBe(7);
   expect((await page.context().cookies()).find((c) => c.name === "uniiverse_per_encounters")).toBeUndefined();

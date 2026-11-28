@@ -28,12 +28,14 @@ export async function inWorkspace(page: Page): Promise<boolean> {
 }
 
 /**
- * A desktop window just under the one-screen gate's 80rem (1279px wide, its height kept): the flow, where a game opens
- * under its card, held by the tests of that behaviour (the workspace's game window has its own: e2e/matches-workspace.spec.ts).
+ * A desktop window just under the one-screen gate's 41rem (640px tall, its width and so its cards' layout kept): the flow,
+ * where a game opens under its card and a page holds ten games, held by the tests of that behaviour and of what a full page
+ * shows (the workspace has its own: e2e/matches-workspace.spec.ts, e2e/one-screen.spec.ts). Call it before the page loads.
  */
+export const FLOW_HEIGHT = 640;
 export async function inTheFlow(page: Page) {
   const vp = page.viewportSize();
-  if (vp && vp.width >= 1280) await page.setViewportSize({ width: 1279, height: vp.height });
+  if (vp && vp.width >= 1280 && vp.height >= 656) await page.setViewportSize({ width: vp.width, height: FLOW_HEIGHT });
 }
 
 /** Phones and the workspace open a game in a window (the whole screen, or the workspace's game window). */
