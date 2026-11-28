@@ -74,6 +74,10 @@ const ROWS: OneScreenRow[] = [
   { name: "Admin Resources, All", path: "/admin/resources", admin: true, at: EIGHT_AND_FLOOR, workspace: true, pager: "resources-pager", cards: "[data-testid=resources-card]", rows: "[data-testid=managed-resource]" },
   { name: "Admin Resources, one section", path: "/admin/resources?section=league", admin: true, at: EIGHT_AND_FLOOR, workspace: true, pager: "resources-pager", cards: "[data-testid=resources-card]", rows: "[data-testid=managed-resource]" },
   { name: "Admin Resources, the editor open", path: "/admin/resources", admin: true, at: EIGHT_AND_FLOOR, workspace: true, pager: "resources-pager", cards: "[data-testid=resources-card]", rows: "[data-testid=managed-resource]", then: (page) => page.getByTestId("resource-add").click() },
+  { name: "Admin Matchup notes, Not written yet", path: "/admin/matchup-notes", admin: true, at: EIGHT_AND_FLOOR, workspace: true, pager: "matchup-notes-pager", cards: "[data-testid=matchup-notes-card]", rows: "[data-testid=matchup-queue-row]" },
+  { name: "Admin Matchup notes, All notes", path: "/admin/matchup-notes?view=all", admin: true, at: EIGHT_AND_FLOOR, workspace: true, pager: "matchup-notes-pager", cards: "[data-testid=matchup-notes-card]", rows: "[data-testid=matchup-note-row]" },
+  { name: "Admin Matchup notes, the editor open", path: "/admin/matchup-notes", admin: true, at: EIGHT_AND_FLOOR, workspace: true, cards: "[data-testid=matchup-notes-card]", rows: "[data-testid=matchup-queue-row]", then: (page) => page.getByTestId("matchup-notes-new").click() },
+  { name: "Admin Matchup notes, a re-review open", path: "/admin/matchup-notes?view=all", admin: true, at: EIGHT_AND_FLOOR, workspace: true, cards: "[data-testid=matchup-notes-card]", rows: "[data-testid=matchup-note-row]", then: (page) => page.getByTestId("matchup-note-review").first().click() },
 ];
 
 test.beforeEach(({ browserName }, info) => {
