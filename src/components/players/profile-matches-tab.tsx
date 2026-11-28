@@ -16,6 +16,33 @@ import { dataStatus } from "@/domain/data-status";
 import { describeAccountSync } from "@/domain/account-status";
 import { chooseSeason, offeredSeasons } from "@/domain/season";
 import { championMap, IdentitySync, refreshFor } from "./profile-sections";
+import { cookies } from "next/headers";
+import { LIST_PER_COOKIES, readListPer, type PagedListName } from "@/lib/list-per";
+import { rowsPerPageCap } from "@/server/demo/test-hooks";
+
+/**
+ * A server-paged list's page size: the address's, else the list's cookie (the one-screen workspace's last
+ * row budget: lib/list-per.ts), else the default; and where it came from (the workspace's first paint
+ * shows its height tiers only for the default). The demo's test cap (rowsPerPageCap) goes with it.
+ */
+async function listPer(search: MatchSearch, list: PagedListName): Promise<{ per: number | undefined; perFrom: "address" | "cookie" | "default"; cap: number | null }> {
+  const jar = await cookies();
+  const cap = rowsPerPageCap(jar);
+  const asked = Number(search.per) || undefined;
+  if (asked) return { per: asked, perFrom: "address", cap };
+  const kept = readListPer(jar.get(LIST_PER_COOKIES[list])?.value);
+  return kept ? { per: kept, perFrom: "cookie", cap } : { per: undefined, perFrom: "default", cap };
+}
+
+/**
+ * The game a link opens, for the page that holds it (getMatchHistory's openMatch), where the page size is the workspace's:
+ * the address's or the list's cookie (the workspace's last budget). With neither, the server's default (the flow's, and a
+ * first visit's before the workspace has measured) keeps its first page: the flow's rule, a link to a game on another page
+ * opening the match window, stands; the workspace then writes its budget with no page, and the server finds the game's.
+ */
+function workspaceMatch(search: MatchSearch, sized: { perFrom: "address" | "cookie" | "default" }): string | null {
+  return sized.perFrom !== "default" && typeof search.match === "string" && search.match ? search.match : null;
+}
 
 /* The player profile's Match History tab (components/players/profile-sections.tsx has the frame shared by every tab). */
 
@@ -28,6 +55,8 @@ export interface MatchSearch {
   account?: string;
   page?: string;
   per?: string;
+  /** The game open (the match window, or under its card): a link to it opens with the list on its page in the workspace (getMatchHistory's openMatch). */
+  match?: string;
   /** "encounters": the players met in the games, with their own choices (domain/encounters encounterListChoice). */
   view?: string;
   /** In Encounters, one player's games (domain/encounters readEncounterFocus): their key, and a side. */
@@ -38,6 +67,9 @@ export interface MatchSearch {
   sort?: string;
   q?: string;
   limit?: string;
+  /** Encounters' workspace pages (domain/encounters encounterListChoice): the page and its size. */
+  epage?: string;
+  eper?: string;
   /** Match History's own Refine choices (domain/history-refine readRefine). */
   result?: string;
   patch?: string;
@@ -67,13 +99,14 @@ async function ProfileMatchesTabBody({ db, header, session, basePath, search }: 
     const focus = readEncounterFocus(search);
     return focus ? <ProfileEncounterGamesBody db={db} header={header} session={session} basePath={basePath} search={search} focus={focus} /> : <ProfileEncountersBody db={db} header={header} session={session} basePath={basePath} search={search} />;
   }
+  const sized = await listPer(search, search.group === "sessions" ? "sessions" : "games");
   const [data, championsById, syncStatus, accounts] = await Promise.all([
-    getMatchHistory(db, player.id, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, scope: search.scope ?? null, championId: search.champion ?? null, accountId: search.account ?? null, page: Number(search.page) || 1, per: Number(search.per) || undefined, refine: { result: search.result, patch: search.patch, from: search.from, to: search.to, with: search.with, against: search.against, hl: search.hl, group: search.group } }, (r) => (legalRolesFor(player).includes(r) ? poolFor(player, r) : []), (id) => canViewPlayerStats(session, id), { admin: isAdmin(session) }),
+    getMatchHistory(db, player.id, { season: Number(search.season) || null, mode: isSeasonMode(search.mode) ? search.mode : "all", role: search.role ?? null, scope: search.scope ?? null, championId: search.champion ?? null, accountId: search.account ?? null, page: Number(search.page) || undefined, per: sized.per, openMatch: workspaceMatch(search, sized), refine: { result: search.result, patch: search.patch, from: search.from, to: search.to, with: search.with, against: search.against, hl: search.hl, group: search.group } }, (r) => (legalRolesFor(player).includes(r) ? poolFor(player, r) : []), (id) => canViewPlayerStats(session, id), { admin: isAdmin(session) }),
     championMap(db),
     getMatchSyncStatus(db, player.id),
     listAccountsForPlayer(db, player.id),
   ]);
-  return <MatchHistoryView data={data} championsById={championsById} basePath={`${basePath}/matches`} playerId={player.id} playerName={player.displayName} status={gamesStatus(accounts, syncStatus, data)} refresh={refreshFor(session, player.id, syncStatus)} />;
+  return <MatchHistoryView data={data} championsById={championsById} basePath={`${basePath}/matches`} playerId={player.id} playerName={player.displayName} status={gamesStatus(accounts, syncStatus, data)} refresh={refreshFor(session, player.id, syncStatus)} perFrom={sized.perFrom} cap={sized.cap} />;
 }
 
 /**
@@ -112,9 +145,10 @@ async function ProfileEncounterGamesBody({ db, header, session, basePath, search
   const season = chooseSeason(search.season, offeredSeasons(seasonNow, bySeason.map((r) => r.season)), seasonNow);
   const mode = isSeasonMode(search.mode) ? search.mode : "all";
   const met = await loadEncounterFocus(db, { accountIds: accountId ? [accountId] : ids, season, mode }, focus);
-  const data = await getMatchHistory(db, player.id, { season, mode, accountId, page: Number(search.page) || 1, per: Number(search.per) || undefined, onlyMatchIds: met.matchIds }, (r) => (legalRolesFor(player).includes(r) ? poolFor(player, r) : []), (id) => canViewPlayerStats(session, id), { admin: isAdmin(session) });
+  const sized = await listPer(search, "met");
+  const data = await getMatchHistory(db, player.id, { season, mode, accountId, page: Number(search.page) || undefined, per: sized.per, onlyMatchIds: met.matchIds, openMatch: workspaceMatch(search, sized) }, (r) => (legalRolesFor(player).includes(r) ? poolFor(player, r) : []), (id) => canViewPlayerStats(session, id), { admin: isAdmin(session) });
   const encounter = { focus, list: encounterListChoice(search), summary: met.summary, renamed: met.renamed, opgg: met.opgg };
-  return <MatchHistoryView data={data} championsById={championsById} basePath={`${basePath}/matches`} playerId={player.id} playerName={player.displayName} status={gamesStatus(accounts, syncStatus, data)} refresh={refreshFor(session, player.id, syncStatus)} encounter={encounter} />;
+  return <MatchHistoryView data={data} championsById={championsById} basePath={`${basePath}/matches`} playerId={player.id} playerName={player.displayName} status={gamesStatus(accounts, syncStatus, data)} refresh={refreshFor(session, player.id, syncStatus)} encounter={encounter} perFrom={sized.perFrom} cap={sized.cap} />;
 }
 
 /**
@@ -131,8 +165,18 @@ async function ProfileEncountersBody({ db, header, session, basePath, search }: 
   const seasons = offeredSeasons(seasonNow, bySeason.map((r) => r.season));
   const season = chooseSeason(search.season, seasons, seasonNow);
   const mode = isSeasonMode(search.mode) ? search.mode : "all";
-  const choice = encounterListChoice(search);
-  const page = await loadEncounterPage(db, { accountIds: accountId ? [accountId] : ids, season, mode }, choice);
+  // The workspace's page size: the address's, else the list's cookie (its last row budget, for the first paint; the flow,
+  // which shows the first 25 and Show more, drops it once it knows: EncountersView).
+  const jar = await cookies();
+  const asked = encounterListChoice(search);
+  const kept = asked.per === null && !search.limit ? readListPer(jar.get(LIST_PER_COOKIES.encounters)?.value) : null;
+  const sized = kept ? { ...asked, per: kept } : asked;
+  const scopeOf = { accountIds: accountId ? [accountId] : ids, season, mode };
+  let page = await loadEncounterPage(db, scopeOf, sized);
+  // A page past the list's end (an old address, a list that shrank): its last page.
+  const last = sized.per ? Math.max(1, Math.ceil(page.total / sized.per)) : 1;
+  const choice = sized.per && sized.page > last ? { ...sized, page: last } : sized;
+  if (choice !== sized) page = await loadEncounterPage(db, scopeOf, choice);
   const data: EncountersData = {
     filter: { season, mode, role: null, scope: "all", championId: null, accountId },
     seasons,
@@ -142,6 +186,8 @@ async function ProfileEncountersBody({ db, header, session, basePath, search }: 
     modes: modeCounts(bySeason, { season, mode, account: !!accountId }),
     choice,
     page,
+    perFrom: asked.per !== null ? "address" : kept ? "cookie" : "default",
+    cap: rowsPerPageCap(jar),
   };
   // The games list's status and Refresh: the players met come from the same games.
   return <EncountersView data={data} basePath={`${basePath}/matches`} status={gamesStatus(accounts, sync)} refresh={refreshFor(session, player.id, sync)} />;

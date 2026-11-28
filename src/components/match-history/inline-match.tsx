@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { ChevronLeft, ChevronRight, ChevronUp } from "lucide-react";
+import { ChevronLeft, ChevronRight, ChevronUp, X } from "lucide-react";
 import { cn } from "@/lib/cn";
 import { UnfoldHeader, UnfoldRegion } from "@/components/ui/unfold";
 import type { MatchDetailResult } from "@/server/players/match-history";
@@ -117,29 +117,36 @@ export function keepStepFocus(testId: string, close: string) {
   );
 }
 
-/** Previous, Next and Close, in the open card's header and in the game's sticky footer. */
-export function GameSteps({ nav, onClose, where }: { nav: GameNav | null; onClose: () => void; where: "header" | "footer" }) {
-  const id = where === "header" ? "game-header" : "game";
+/** The test ids' stem of each set of steps: the open card's header, the game's sticky footer, the workspace's game window. */
+const STEP_IDS = { header: "game-header", footer: "game", window: "match-detail" } as const;
+/** Each set's Close. */
+const CLOSE_IDS = { header: "game-header-close", footer: "match-close", window: "match-detail-close" } as const;
+
+/** Previous, Next and Close, in the open card's header, in the game's sticky footer, and in the workspace's game window (its header's end). */
+export function GameSteps({ nav, onClose, where, between }: { nav: GameNav | null; onClose: () => void; where: "header" | "footer" | "window"; /** Between Previous and Next: where the game stands in the list (the window's "Game 5 of 208"). */ between?: React.ReactNode }) {
+  const id = STEP_IDS[where];
+  const close = CLOSE_IDS[where];
   return (
     <span className="relative z-10 flex shrink-0 items-center gap-0.5" data-game-step="" data-where={where}>
       <button type="button" className={STEP} disabled={!nav?.prev} onClick={() => {
           if (!nav?.prev) return;
           nav.go(nav.prev);
-          keepStepFocus(`${id}-prev`, where === "header" ? "game-header-close" : "match-close");
+          keepStepFocus(`${id}-prev`, close);
         }} data-testid={`${id}-prev`}>
         <ChevronLeft className="h-3.5 w-3.5" aria-hidden />
-        Previous<span className={cn(where === "header" && "sr-only")}> game</span>
+        Previous<span className={cn(where !== "footer" && "sr-only")}> game</span>
       </button>
+      {between}
       <button type="button" className={STEP} disabled={!nav?.next} onClick={() => {
           if (!nav?.next) return;
           nav.go(nav.next);
-          keepStepFocus(`${id}-next`, where === "header" ? "game-header-close" : "match-close");
+          keepStepFocus(`${id}-next`, close);
         }} data-testid={`${id}-next`}>
-        Next<span className={cn(where === "header" && "sr-only")}> game</span>
+        Next<span className={cn(where !== "footer" && "sr-only")}> game</span>
         <ChevronRight className="h-3.5 w-3.5" aria-hidden />
       </button>
-      <button type="button" className={cn(STEP, "text-fg")} onClick={onClose} data-testid={where === "header" ? "game-header-close" : "match-close"}>
-        <ChevronUp className="h-3.5 w-3.5" aria-hidden />
+      <button type="button" className={cn(STEP, "text-fg", where === "window" && "border border-border-strong")} onClick={onClose} data-testid={close}>
+        {where === "window" ? <X className="h-3.5 w-3.5" aria-hidden /> : <ChevronUp className="h-3.5 w-3.5" aria-hidden />}
         Close<span className="sr-only"> this game</span>
       </button>
     </span>
@@ -150,11 +157,14 @@ export function GameSteps({ nav, onClose, where }: { nav: GameNav | null; onClos
  * The post-game view under an open card, with its own loading and error states, and a footer that
  * stays at the bottom of the screen while the game's end is below it: Previous, Next and Close.
  */
+// In a one-screen workspace a list opens its games in the game window (MatchDetailModal's `workspace`): a game a link names is
+// drawn under its card only in the server's HTML, before the page knows its posture, and hidden there (ws:hidden), so the
+// workspace's first paint is the list alone.
 export function MatchExpansion({ id, label, playerId, matchId, champ, nav, onClose, fit = true }: { id: string; label: string; playerId: string; matchId: string; champ: (id: string | null) => PortraitChampion; nav: GameNav | null; onClose: () => void; /** Bring the game into view once drawn: false after Previous or Next, whose card is held where the last one's header was. */ fit?: boolean }) {
   return (
     // The shared Unfold region (components/ui/unfold.tsx): it grows open, and its compact header
     // stays pinned with Close while the game is on screen and its own header has gone up.
-    <UnfoldRegion id={id} label={label} header={<UnfoldHeader title={label} onClose={onClose} testId="match-unfold-header" />} className="rounded-b-panel border border-t-0 border-border bg-bg-elevated" testId="match-expanded">
+    <UnfoldRegion id={id} label={label} header={<UnfoldHeader title={label} onClose={onClose} testId="match-unfold-header" />} className="rounded-b-panel border border-t-0 border-border bg-bg-elevated ws:hidden" testId="match-expanded">
       <div className="px-3 pt-3 sm:px-4 sm:pt-3">
         <InlineMatch playerId={playerId} matchId={matchId} champ={champ} fit={fit} />
         <GameFooter id={id} nav={nav} onClose={onClose} />

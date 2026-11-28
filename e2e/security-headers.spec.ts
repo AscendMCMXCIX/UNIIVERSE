@@ -35,8 +35,9 @@ test("the admin preview studio can still frame the app's own pages", async ({ pa
 
 test("a stored image keeps its own stricter policy", async ({ page }) => {
   // No view cookie: the local owner opens in Admin Mode. An app background is added, checked and
-  // removed again, so other tests see the demo as it was.
-  await page.goto("/admin/branding");
+  // removed again, so other tests see the demo as it was. Branding's Images (on a desktop window one
+  // section at a time: docs/RESPONSIVE.md, "One-screen desktop pages").
+  await page.goto("/admin/branding?section=images");
   // A file chosen before the card is interactive is never seen: wait for it (it says so once hydrated).
   await expect(page.getByTestId("brand-appBackground")).toHaveAttribute("data-ready", "true");
   await page.getByLabel("Upload app background").setInputFiles({ name: "backdrop.png", mimeType: "image/png", buffer: png() });

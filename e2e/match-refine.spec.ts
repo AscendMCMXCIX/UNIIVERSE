@@ -1,7 +1,7 @@
 import { expect, test, type Locator, type Page } from "./test";
 import { optionsOf, pick } from "./select";
 import { openFilterBar } from "./filters";
-import { closeGame, openGame, opensFullScreen } from "./match-history";
+import { closeGame, openGame, opensFullScreen, inTheFlow } from "./match-history";
 
 /*
   Match History's own Refine choices (demo data, in memory): the result, the patch, the days
@@ -135,6 +135,8 @@ test("a patch, the days played and a highlight narrow the list; an address with 
 });
 
 test("Refine groups the list into playing sessions, newest first, each with its record; games stay where they were", async ({ page }) => {
+  // A full page of ten games, each opened under its card: the flow (in the one-screen gate a page holds what fits, and games open in the game window).
+  await inTheFlow(page);
   await openHistory(page);
   const before = await page.getByTestId("match-row").evaluateAll((els) => els.map((e) => e.getAttribute("data-match")));
   // The layout under the header is unchanged until grouping is chosen.

@@ -28,6 +28,14 @@ export interface EncounterListChoice {
   sort: EncounterSort;
   q: string;
   limit: number;
+  /**
+   * The one-screen workspace's pages (docs/RESPONSIVE.md, "One-screen desktop pages", Match History →
+   * Encounters): `per` players a page, its row budget, and the page shown (1-based); null `per` in the
+   * flow, which shows the first `limit` and Show more. In the address as `epage` and `eper` (a player's
+   * games keep the list's choices for the way back, beside their own `page` and `per`).
+   */
+  page: number;
+  per: number | null;
 }
 
 /** Players shown at first, and added by each "Show more". */
@@ -51,10 +59,12 @@ export const defaultMinimum = (q: string) => (q ? 1 : 2);
  * records side by side, most games first). A win-rate order asked of every game with a player reads
  * as most games.
  */
-export function encounterListChoice(sp: { rel?: string; min?: string; sort?: string; q?: string; limit?: string }): EncounterListChoice {
+export function encounterListChoice(sp: { rel?: string; min?: string; sort?: string; q?: string; limit?: string; epage?: string; eper?: string }): EncounterListChoice {
   const q = (sp.q ?? "").trim().slice(0, 32);
   const min = Number(sp.min);
   const limit = Math.round(Number(sp.limit));
+  const per = Math.round(Number(sp.eper));
+  const page = Math.round(Number(sp.epage));
   const relation = RELATIONS.find((r) => r === sp.rel) ?? (sp.rel ? LEGACY_RELATIONS[sp.rel] : undefined) ?? "all";
   return {
     relation,
@@ -62,8 +72,13 @@ export function encounterListChoice(sp: { rel?: string; min?: string; sort?: str
     sort: sortsFor(relation).find((x) => x === sp.sort) ?? "games",
     q,
     limit: limit > ENCOUNTER_PAGE ? Math.min(MAX_SHOWN, limit) : ENCOUNTER_PAGE,
+    page: per >= 1 && page > 1 ? Math.min(page, MAX_SHOWN) : 1,
+    per: per >= 1 ? Math.min(per, ENCOUNTER_PER_MAX) : null,
   };
 }
+
+/** The most players a workspace page holds (lib/list-per.ts's LIST_PER_MAX). */
+export const ENCOUNTER_PER_MAX = 25;
 
 /** The address parameters of a choice, defaults left out (the reverse of encounterListChoice). */
 export function encounterListParams(c: EncounterListChoice): Record<string, string> {
@@ -73,6 +88,10 @@ export function encounterListParams(c: EncounterListChoice): Record<string, stri
   if (c.sort !== "games") out.sort = c.sort;
   if (c.q) out.q = c.q;
   if (c.limit !== ENCOUNTER_PAGE) out.limit = String(c.limit);
+  if (c.per !== null) {
+    out.eper = String(c.per);
+    if (c.page > 1) out.epage = String(c.page);
+  }
   return out;
 }
 

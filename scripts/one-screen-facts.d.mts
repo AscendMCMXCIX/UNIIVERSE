@@ -58,3 +58,14 @@ export function oneScreenInput(page: OneScreenPage): OneScreenInput;
 export function readOneScreen(input: OneScreenInput): OneScreenRead;
 export function showAllCounts(words: string | null | undefined): [number | null, number | null];
 export function oneScreenVerdicts(input: { page: OneScreenPage; size: string; read: OneScreenRead }): Verdict[];
+
+/** A workspace page's paged list as drawn: its `data-ws-region` name and figures (NaN where one is not drawn). */
+export interface WorkspaceRegion {
+  region: string;
+  per: number;
+  page: number;
+  pages: number;
+  total: number;
+}
+/** A workspace page's paged lists: each settled (drawn with its page size), and the settled ones' pages holding every row. */
+export function workspaceRegionVerdicts(input: { kind: string; name: string; regions: WorkspaceRegion[] }): Verdict[];

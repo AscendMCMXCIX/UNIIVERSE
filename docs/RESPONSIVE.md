@@ -983,6 +983,31 @@ footer with it: such a parent takes `ws-host:space-y-0` (Accounts' page).
 
 **Elsewhere**
 
+- **`workspace-classes.ts`:** the class constants (`WS_COLUMN`, `WS_SECTION`, `WS_CARD_SURFACE`,
+  `WS_CARD_FILL`, `WS_FOOT`), with no `"use client"`, so a server component (the admin layout, a
+  page's root) imports them as strings; `workspace.tsx` re-exports them. From a `"use client"`
+  module a server component would get a client reference in place of the string.
+- **`address-section.ts`, `useAddressSection(ids, { initial, param })`:** one choice of a few kept
+  in the address, by the sectioned workspace's rules (the first has no parameter, an unknown value
+  is the first, each choice the reader makes is an entry, Back and Forward followed, a choice no
+  longer offered falls back to the first and its address is replaced). Like the sectioned
+  workspace it follows the address whatever changes it (`useSearchParams`, `addressTarget`): a soft
+  navigation to the page with another query (Platform Settings' Branding tab on
+  `?section=colours`) shows the choice it names, and a Back that leaves the page is the page's own,
+  nothing written onto the other page's address. `choose(id, { replace })` replaces instead of
+  pushing (an old `#hash` naming a section). The address's first (the one with no parameter) is the
+  first of `ids` when the page arrived, for as long as it is open and offered (`addressOrder`): a page
+  whose own first moves (Matchup notes' default view, worked out again on every refresh) keeps what
+  its parameter-less entries name, so Back lands on the view it left. Used for a list's filter (Admin
+  Resources' `?section=`), a queue's view (Admin Matchup notes' `?view=`) and a page that lays out its
+  own rail (Admin Branding, with `SectionRail`'s markup and look).
+- **`detail-modal.tsx`:** a workspace window's width, `workspaceWidth` (`pane`, All Champions'
+  56.25rem, the default; `game`, 76rem: the game window and Matchup notes' editor), with
+  `data-width` on the dialog; a sheet's `sheetWidth="table"` (60rem: `WorkspaceWindow`'s tables).
+- **`reader-idle.ts`, `lib/list-per.ts`, `section-header.tsx`:** a server-paged list's own address
+  write waits for the reader (`useReaderBusy`, `whenReaderIdle`); its cookie keeps the last budget
+  (`readListPer`, `rememberListPer`, `forgetListPer`); `SectionHeader`'s `toolbarLead` and `scopeEnd`
+  slots hold a pager that costs no line. Match History's notes below.
 - **`fit-rows.tsx`, `useRowBudget`:** unchanged by default. `mode: "cumulative"` counts rows of
   several heights by their own heights in order, then more at the tallest drawn row's pitch
   (`row-budget.ts`, `cumulativeRows`; for rows of one height it is `rowBudget`'s count exactly).
@@ -1030,10 +1055,10 @@ body".
 
 ### Server-paged lists
 
-A list the server pages (Match History, the first: its notes below once it adopts) takes `per` from
-the row budget, with no floor of ten (the server's minimum becomes 1). A cookie per list keeps the
-last budget, so the server's first paint draws about the right count: UI state, not personal data.
-No query's cost changes: the server already slices an in-memory list.
+A list the server pages (Match History, Encounters and Team Matches: their notes under "The pages")
+takes `per` from the row budget, with no floor of ten (the server's minimum becomes 1). A cookie per
+list keeps the last budget, so the server's first paint draws about the right count: UI state, not
+personal data. No query's cost changes: the server already slices a list it holds or counts.
 
 ### Tests
 
@@ -1188,6 +1213,180 @@ eyebrow gives its line back (the sidebar and the section tabs above name it).
   1366 × 768 folded: every page fitting, Previous back to the same pages, a resize keeping the first
   line shown; a person's page kept, the focus back on a person stepped to on another page, the flow
   outside the gate); the platform spec's rows.
+
+### Platform Settings' pages (28 Nov 2026)
+
+Admin Mode's Platform Settings: Branding (with the old `/admin/public-access`), Previews, Resources
+and Matchup notes. The admin layout's column and each page's root carry `WS_COLUMN`; each page's
+`PageHeader` stays above its section, unchanged. Outside the gate every page is as it was (their
+phone and tablet specs are unchanged and pass). Fit measured on the demo with CI's wider text: every
+state below fits at the owner's eight configurations and at 1366 × 657, sidebar open and folded
+(`e2e/one-screen.spec.ts`, 16 rows).
+
+- **Previews: a fitted canvas (pattern d).** The studio is a card that fills the frame: its controls
+  (Page, Screen size, Rotate, Reset, Open full size) and the size line in a 15rem column at its
+  left, the device in the room beside them. The device is scaled by the room's width and height
+  (`previewScale`; in the flow by the width alone, as before) and placed in its box (absolute,
+  centred), so the box takes its height from the window, never from the device: at 1366 × 657 a
+  phone is drawn at about 50%, at 1920 × 1080 a desktop at 57%. The size line says the scale ("shown
+  at N% to fit"); Open full size shows it at 100%. Text inside the scaled picture is smaller than
+  the floor: it is a picture of a page, labelled as such, as Laptop and Desktop always were. The
+  frame never scrolls; the device's own page scrolls inside it, as on the device.
+- **Resources: a paged list, its editor in a window (pattern a).** One card that fills the frame:
+  the toolbar holds a filter (All, each section with its count, and Removed while a default is
+  removed; in the address as `?section=`), the count and Add resource. Rows are two lines at least
+  (`min-h-17`: the title with its marks, host and, under All, its section; then the whole
+  description), the five row buttons at the right, paged by `usePagedRows` in its cumulative mode (a
+  long title or description takes a row a third line: the pages are cut once over the whole list by
+  the rows' own heights, measured again for another filter or another row's text) with the inline
+  Pager in the card's foot (PageUp, PageDown, Home, End across pages). At 1366 × 657 a page holds 4–5 rows, at
+  1920 × 1080 nine. Up and Down move within a section; a row moved past its page's edge brings its
+  page into view and keeps the focus on its move buttons. Add and Edit open the form in a window
+  (Dialog, `picker`) that fits at every size with nothing scrolling; Removed defaults are the
+  filter's last choice, with Restore all. In the flow the form opens in place and Removed defaults
+  are listed at the end, as before.
+- **Matchup notes: one view at a time, paged (pattern a).** The queue's groups are one view switch
+  in the address (`?view=`): Needs re-review, Not written yet, Drafts, Published, All notes, each
+  with its count; the default is the first with something to do (Needs re-review, else Not written
+  yet). The role filter stays beside it, New note at the line's end; the counts and the current
+  patch move to the card's foot beside the pager. One list a view, in the queue's order (opponents,
+  then pairings), one line a row (`min-h-12`: the counts leave out "this season", which the list's
+  note above it says once; a long pairing or state takes two), paged to what fits by `usePagedRows`'
+  cumulative mode (the pages cut once over the view's rows by their own heights, measured again for
+  another view, role or refresh): 7–8 rows at 1366 × 768, 12 at 1920 × 1080 (203 lanes
+  are 17–34 pages). No fold grows the page. A changed role starts at page 1; a saved change keeps
+  the page (its row may leave the view).
+  - **The note editor** is a workspace window at the game's width (DetailModal `size="workspace"`,
+    `workspaceWidth="game"`: the window less 1rem above and below, 76rem wide), its parts in tabs
+    (Scope and points, Sources, Preview): the scope on one line, the points two by two, the sources
+    two by two, a point's text as tall as its words (`field-sizing-content`). Four points of 35 words,
+    or six sources, fit at the owner's eight configurations with nothing scrolling inside. **At the
+    floor (1366 × 657)** a full editor keeps one scrolling body (decision 5: its fields cannot fit
+    even in columns there); the default editor (one point, one source) fits. A tab holding a problem
+    is marked, and a refused save opens the first such tab; the problem lines of a refused full
+    editor can make its body scroll until they are fixed.
+  - **The re-review window** fits as it is.
+- **Branding: a sectioned workspace (pattern b).** A 12rem rail of the sections (Name, Images,
+  Background, Colours, Public page) with the Save bar at its foot, and one section beside it, in the
+  address (`?section=`; the old `#brand-…` anchors name their section; `/admin/public-access`
+  redirects to `?section=public#brand-public`). The form is one: every section stays mounted, so a
+  draft survives a switch; the rail marks a section with unsaved changes (Name, Background, Colours)
+  and Colours while a contrast check fails (Save waits for it); images save on upload and are never
+  marked. Colours fits at the floor by its workspace layout: the title and its line on one line,
+  the fields beside the preview, the eight checks under both in four columns, and a failing field
+  marked by its red edge, its message read out with it (the checks show the message). The rail is
+  the page's own rather than `SectionedWorkspace`'s: the flow is one form whose Save bar sticks
+  across every section, which per-section wrappers would cut short; the Public team page is the
+  panel's last section, 20px under the Save bar in the flow as it was under the panel.
+
+### Match History, Encounters and Team Matches (28 Nov 2026)
+
+Pattern (a), a paged list plus detail, with every game in a window: a pane would narrow the cards to
+their two-row layout and drop the post-game view to its taller grid, and a game in the list's place
+is about 100px short at 1366 × 768. Outside the gate all three are the flow, exactly as before: ten
+cards a page with the stacked pager, Encounters' first 25 and Show more, Team Matches' first 20 and
+Show more, a game under its card.
+
+- **Server-paged by the row budget.** Each list's cards a page are `useRowBudget`'s count in its
+  cumulative mode (the cards' own heights and the gaps between them: a session's header, a second
+  line, a card that grows with its members), written to the address once the window has been at rest
+  for 250ms (one server render for the size it comes to rest at; until it arrives, the cards past the
+  budget are left out, so a shrink never overflows). The new page (Match History's and Team Matches')
+  is the one holding the game open in the game window (`lib/list-per.ts`, `budgetPageOf`), else the
+  one holding the page's first card, so the window's Previous and Next go on from it; the open game
+  stays in the address. A game open that is not on the page shown leaves the page out of the write,
+  and the server takes the page holding it. The write waits while the reader acts
+  (`ui/reader-idle.ts`: a press, a click or a key in the last 1.5s; a navigation they started, a link
+  followed or a filter chosen, until the list's data next arrives, up to 10s, however slow the
+  server; and a Back or a Forward on its way, while the window's address is no longer the one the
+  page drew), so it never overtakes the reader's navigation and is never written onto another page's
+  address or another view's. Match History's `per` (the server's minimum is
+  now 1, its maximum 25), Encounters' `eper` and `epage` (beside a player's games' own `page` and
+  `per`: the list's page survives the way back), Team Matches' `per` and `page`. Every server slices a
+  list it already holds or counts (Match History's in memory, Encounters' one statement with an
+  OFFSET, Team Matches' in memory, its teams and scores read for that page only): no query costs more.
+- **Turning pages never skips a record; one may show twice where the count changed.** The server
+  cuts its pages by `per`, so these lists keep `useRowBudget`'s count rather than the cumulative cut
+  of a client list (`usePagedRows`, above): it is measured on the page drawn and keyed to the list,
+  not the page, so it is measured again only where a page overflows (a page drawing more headers or
+  taller cards grows its frame) or the window changes; along a walk it only shrinks. Where it changes,
+  the new page is the one holding the first card of the page drawn, at the new count
+  (`budgetPageOf`: Match History, Team Matches and Encounters alike), so that page's first cards,
+  fewer than it holds, may be the ones the page before showed last: the sessions on the demo at
+  1648 × 900 or 1536 × 864 hold 4 cards on page 1, and page 2, drawn at 4 with two headers, holds 3
+  and starts at the 4th game. Nothing is skipped whatever the count does (`lib/list-per.test.ts`
+  walks 600 lists, the measured kind and an adversary's; `e2e/matches-workspace.spec.ts` walks the
+  sessions and Team Matches and asserts where a repeat may be: only where the count changed, at the
+  page holding the drawn page's first card).
+- **The cookie per list** (`lib/list-per.ts`: `uniiverse_per_games`, `_sessions`, `_met`,
+  `_encounters`, `_together`; a number from 1 to 25, UI state like the sidebar's) keeps the last
+  budget, so the server's first paint of the next visit draws about the right count. A first visit
+  draws the default and hides the cards past the window's height tier until it has measured
+  (`wsTierClass`: Match History { gate: 2, mid: 3, tall: 4 }, Encounters { 3, 7, 9 }, Team Matches
+  { 1, 2, 3 }). The flow forgets a kept size (a window that left the workspace) and draws its own.
+- **Measured, at the owner's sizes** (1366 × 768 / 1440 × 900 / 1648 × 900 / 1920 × 1080 / 1366 × 657,
+  the sidebar open and folded alike): Match History 4 / 5 / 4 / 5 / 3 cards, grouped by session 2 / 4 /
+  4 / 5 / 2 (the first page's), a player's games 3 / 4 / 4 / 4 / 2; Encounters 6 / 9 / 8 / 10 / 4 rows;
+  Team Matches 2 / 3 / 3 / 3 / 2 cards on the demo (its cards are 110–250px with their members).
+  At 1366 × 657 the page's foot is the short form's 12px (`ws-short-host:pb-3`, every workspace page).
+- **The pager costs no line.** Match History's inline Pager is the toolbar's first item, on the views'
+  row (`SectionHeader`'s `toolbarLead`: on the scope line it cost 12px, a card at 1366 × 768); where
+  Refine's chips share that row (a refinement, the sessions), it moves to the scope line's end
+  (`scopeEnd`), so the toolbar keeps its row beside the views; Team
+  Matches' on the filters' row before Bookmarked; Encounters' in the table's footer, in Show more's
+  place (the footer's range replaces the "N of M shown" line). The test ids stay the flow's where the
+  flow had a pager (`match-pages`, `match-prev`, `match-next`; only one of the two is ever drawn).
+- **Keys.** On Match History's list PageDown and PageUp turn the page and focus its first or last
+  card once it has come, Home and End the list's first and last game.
+- **The game window.** `MatchDetailModal` with `workspace`: `DetailModal` `size="workspace"` with
+  `workspaceWidth="game"` (the match window's 76rem, so the post-game view keeps its two columns; the
+  pane's 56.25rem drops it to its taller grid) at the workspace's height, headless. One header line:
+  the result, the champion and the length; the queue, the date and the patch; a ranked game's LP;
+  then Previous, "Game 5 of 208" (its place on the whole list) and Next (`GameSteps` `where="window"`:
+  `match-detail-prev`, `-next`, `-close`). Previous and Next go on across the list's pages: the
+  server sends each page's neighbours (the previous page's last game, the next page's first), the
+  list turns behind the window, the address is replaced, and the focus stays on the button pressed.
+  The one history rule holds: opening adds one entry (a step across pages keeps it the window's), so
+  Back and Escape close it, the focus back on the card of the game last seen. Opened from the
+  keyboard or by a link, Close has the focus, ringed, as every window's close button does
+  (`DetailModal`'s `headlessClose`); opened by a click, the window itself. Close is the steps' last
+  control, in the window's top-right corner, and the window's content keeps 12px clear of the steps.
+  The scoreboard's marks for players met lead to their games (Encounters), closing the window.
+- **Names whole on the cards.** A player's name on a card's teams that is wider than its slot (a
+  long Riot name, or one beside an opponent's rank: "Demo Rival 6" at 1366 × 768 with the sidebar
+  open, once the opponents' ranks were read) takes a second line in the workspace instead of an
+  ellipsis, the icon and the rank level with its first line (`team-composition.tsx`, `WS_NAME`,
+  passed into `PlayerLink`'s own truncations). The card grows by that line, and the cumulative
+  budget counts it (fewer cards a page where it no longer fits). The flow keeps its five fixed lines
+  and the ellipsis, the whole name in the slot's hover text.
+- **PostGame's pages by measure** (`fitPages`): the view drawn whole while it fits the window's room,
+  two pages where it does not (the window is wide: "Player and build", the player with the build
+  panels beside it and the lane under it; "Scoreboard", the scoreboard over its notes), until the room
+  grows or changes width (a phone's three pages are unchanged). Measured with the timeline drawn:
+  a demo game is 607px against the floor's 542px room (1366 × 657), so the floor pages it; from
+  1366 × 768 (a 653px room) every game measured is whole.
+- **A link to a game** (`?match=`) opens with the list on the game's page, the window's Previous, Next
+  and place with it, wherever the game is on the list (`lib/list-per.ts`, `pageHolding`). Match
+  History's server takes that page where the address names none and the page size is the workspace's
+  (the address's or the list's cookie: `getMatchHistory`'s `openMatch`); with neither it keeps its
+  first page, the flow's rule (a link to a game on another page opens the match window), and the
+  workspace's write then leaves the page out. Team Matches' server takes it where the address names
+  no page or one that does not hold the game (`per` is the workspace's only there). A link opened in
+  the flow drops its page size and keeps the game: Team Matches lists up to the end of the page that
+  held it (`limit`, `flowLimitFor`). A game opened by a link and closed in the workspace leaves the
+  list's page in the address, so a reload shows the same page.
+- **Before hydration** a game a link names is drawn under its card in the server's HTML and hidden by
+  the workspace's CSS (`MatchExpansion`'s `ws:hidden`), so the first paint is the list alone.
+- **Tests.** The platform spec's rows (the games, a game open, sessions, a player's games, Encounters,
+  My Profile's Match History, Team Matches and a game open, each at the eight and the floor) and
+  `e2e/matches-workspace.spec.ts` (the budget in the address and the cookie, contiguous pages to the
+  last game, the keys, the window across pages with Escape and Back, every game of a page at the
+  floor, a new page size keeping the open game's page, a link to a game past the first page with a
+  kept budget, a first visit's and one copied at another size, Encounters' pages and the way back,
+  Team Matches' pages and window, the game window's focus as it opens and its corner, a long name
+  whole on a card's second line, the flow unchanged).
+  The Production check reads both pages at 1440 × 900 as workspace pages and opens their games in the
+  window (docs/LIVE_VALIDATION.md); the tablet keeps the under-the-card facts.
 
 ### All Champions' workspace (27 Nov 2026)
 

@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from "./test";
 import { createMember } from "./member-account";
-import { cardOf, closeGame, openGame, showGamePage } from "./match-history";
+import { cardOf, closeGame, openGame, showGamePage, inTheFlow } from "./match-history";
 
 /*
   Ranks on the collapsed match cards (components/match-history/team-composition.tsx and
@@ -68,6 +68,8 @@ const ranksOn = (card: Locator) =>
 
 test("a player's rank shows on the card once the opened game has checked it, and on every later visit, without asking Riot again", async ({ page }) => {
   test.skip((page.viewportSize()?.width ?? 1440) < 768, "a phone's card leaves both teams and their ranks to the game's own screen (docs/MOBILE.md)");
+  // A full page of ten games, each opened under its card: the flow (in the one-screen gate a page holds what fits, and games open in the game window).
+  await inTheFlow(page);
   const actions = watchActions(page);
   await openHistory(page, "ADC");
   // Listing the games calls nothing: no rank check, so nothing asked of Riot.
@@ -200,6 +202,27 @@ test("a member's OP.GG profile: a small link beside their profile link, on the c
     await tab.close();
     // The click opened OP.GG, not the game.
     await expect(card.getByTestId("match-row")).toHaveAttribute("aria-expanded", "false");
+    // In the one-screen workspace (the desktop's window) no name is cut: one as wide as a Riot name can be (16 wide letters, none
+    // to break at; made in the page, as no account here has one) takes a second line beside its arrow, PlayerLink's own
+    // truncation taking the workspace's wrap (team-composition.tsx, WS_NAME).
+    if (info.project.name === "desktop") {
+      await expect(page.getByTestId("match-history")).toHaveAttribute("data-workspace", "");
+      const link = you.getByTestId("player-link");
+      await link.evaluate((el) => {
+        const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        for (let n = walk.nextNode(); n; n = walk.nextNode())
+          if (n.textContent!.trim()) {
+            n.nodeValue = "MMMMMMMMMMMMMMMM";
+            return;
+          }
+      });
+      const long = await link.evaluate((el) => ({ cut: el.scrollWidth > el.clientWidth + 0.5, lines: Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)) }));
+      expect(long.cut, "the member's long name whole beside its arrow").toBe(false);
+      expect(long.lines, "on a second line").toBeGreaterThanOrEqual(2);
+      await expect(opgg).toBeVisible();
+      const [name, arrowBox] = [(await link.boundingBox())!, (await opgg.boundingBox())!];
+      expect(arrowBox.x, "the arrow after the name").toBeGreaterThanOrEqual(name.x + name.width - 0.5);
+    }
   }
 
   // The opened game: the name opens the profile; beside it the same OP.GG link, in the tab order.

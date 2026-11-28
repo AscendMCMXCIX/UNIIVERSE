@@ -135,7 +135,7 @@ test("members see the same page, and no longer find a public switch or opt-in", 
   await expect(page.getByTestId("public-profile-panel")).toHaveCount(0);
   // The old Admin address stays in Admin Mode: Branding's Public team page section, which links to the page.
   await page.goto("/admin/public-access");
-  await expect(page).toHaveURL(/\/admin\/branding#brand-public$/);
+  await expect(page).toHaveURL(/\/admin\/branding\?section=public#brand-public$/);
   await expect(page.getByTestId("brand-public").getByRole("link", { name: "Open the public team page" })).toHaveAttribute("href", "/public");
 });
 

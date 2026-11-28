@@ -38,12 +38,18 @@ export const REMOVED_PARTS = "[data-testid=post-game-notes], [data-testid=post-g
 /** The three segmented headings, in order, read before the lane (Release 16; from 26 Nov 2026 the lane sits under the scoreboard on a desktop). */
 export const PANEL_WORDS = ["Build Path", "Skill Order", "Runes"];
 
-/** The open game under its card, read in the page (self-contained, for evaluate). */
+/**
+ * The open game, read in the page (self-contained, for evaluate): under its card (the flow: a tablet, a short
+ * window), or in the one-screen workspace's game window (a desktop window in the gate, since 28 Nov 2026:
+ * docs/RESPONSIVE.md, "One-screen desktop pages"), whose header line holds the result and the steps.
+ */
 export function readPostGame() {
   const clean = (el) => el?.textContent?.replace(/\s+/g, " ").trim() ?? "";
-  const li = document.querySelector("li[data-expanded]");
+  const card = document.querySelector("li[data-expanded]");
+  const li = card ?? document.querySelector("dialog[open][data-testid=match-detail]");
   if (!li) return { open: false };
-  const header = li.querySelector("[data-testid=match-card-header]");
+  const where = card ? "card" : "window";
+  const header = li.querySelector("[data-testid=match-card-header], [data-testid=match-detail-header]");
   const items = li.querySelector("[data-testid=post-game-items]");
   const breakdown = li.querySelector("[data-testid=match-breakdown]");
   // Each figure's own words, counted over the game.
@@ -59,7 +65,8 @@ export function readPostGame() {
   const scores = [...li.querySelectorAll("[data-testid=participant-score]")];
   return {
     open: true,
-    result: clean(header?.querySelector(":scope > span > span:first-child")),
+    where,
+    result: clean(where === "card" ? header?.querySelector(":scope > span > span:first-child") : header?.querySelector("[data-testid=match-result]")),
     // The inventory: six items and the trinket, or the line saying they were not recorded.
     itemSlots: items ? items.children.length : 0,
     itemsNotRecorded: /^Items not recorded$/.test(clean(items)),
@@ -122,7 +129,7 @@ export function readPostGame() {
       parts: li.querySelectorAll(removedParts).length,
       words: words.filter((w) => text.includes(w)).length,
     },
-    steps: ["game-header-prev", "game-header-next", "game-header-close", "game-prev", "game-next", "match-close"].filter((t) => li.querySelector(`[data-testid=${t}]`)).length,
+    steps: (where === "card" ? ["game-header-prev", "game-header-next", "game-header-close", "game-prev", "game-next", "match-close"] : ["match-detail-prev", "match-detail-next", "match-detail-close"]).filter((t) => li.querySelector(`[data-testid=${t}]`)).length,
   };
 }
 
@@ -132,7 +139,7 @@ export function readPostGame() {
  * (compared in the page: no name leaves it).
  */
 export function readInspection() {
-  const li = document.querySelector("li[data-expanded]");
+  const li = document.querySelector("li[data-expanded]") ?? document.querySelector("dialog[open][data-testid=match-detail]");
   const breakdown = li?.querySelector("[data-testid=match-breakdown]");
   if (!breakdown) return { open: false };
   const current = breakdown.querySelectorAll("[data-testid=participant-select][aria-current=true]");
@@ -194,7 +201,8 @@ export function postGameVerdicts({ kind, at }) {
   }
   const removed = at.removed ?? { parts: NaN, words: NaN };
   fact("no notes, no gold curve, no comparison, no written why, no score strip, no build legend, no grey notes under the scoreboard and no score through the game", removed.parts === 0 && removed.words === 0, removed);
-  fact("Previous, Next and Close, in the game's header and its footer", at.steps === 6, { steps: at.steps });
+  if (at.where === "window") fact("Previous, Next and Close, in the game window's header line", at.steps === 3, { steps: at.steps });
+  else fact("Previous, Next and Close, in the game's header and its footer", at.steps === 6, { steps: at.steps });
   return out;
 }
 
@@ -225,14 +233,16 @@ export function switchVerdicts({ kind, before, after, back }) {
  * Where it runs over, where the height goes: each part's test id and height in px (no names, no text).
  */
 export function readFit() {
-  const li = document.querySelector("li[data-expanded]");
-  const card = li?.querySelector("[data-testid=match-card]");
-  const region = li?.querySelector("[data-testid=match-expanded]");
+  const dialog = document.querySelector("dialog[open][data-testid=match-detail][data-size=workspace]");
+  const li = document.querySelector("li[data-expanded]") ?? dialog;
+  // Under its card: the card's top to the game's end; in the workspace's game window: the window's top to the view's end, against the window inside the screen.
+  const card = dialog ? dialog : li?.querySelector("[data-testid=match-card]");
+  const region = dialog ? dialog.querySelector("[data-testid=match-breakdown]") : li?.querySelector("[data-testid=match-expanded]");
   const bd = li?.querySelector("[data-testid=match-breakdown]");
   if (!li || !card || !region || !bd) return { open: false };
-  const pinned = parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
+  const pinned = dialog ? 0 : parseFloat(getComputedStyle(document.documentElement).scrollPaddingTop) || 0;
   const height = Math.round(region.getBoundingClientRect().bottom - card.getBoundingClientRect().top);
-  const room = Math.floor(innerHeight - pinned);
+  const room = dialog ? Math.floor(Math.min(innerHeight, dialog.getBoundingClientRect().bottom) - dialog.getBoundingClientRect().top - (parseFloat(getComputedStyle(region.parentElement.parentElement).paddingBottom) || 0)) : Math.floor(innerHeight - pinned);
   let scrollers = 0;
   let clipped = 0;
   for (const el of [bd, ...bd.querySelectorAll("*")]) {
@@ -260,7 +270,7 @@ export function readFit() {
           rows: [...li.querySelectorAll("[data-testid=participant]")].map(h),
         }
       : null;
-  return { open: true, size: `${innerWidth}x${innerHeight}`, height, room, scrollers, clipped, parts };
+  return { open: true, where: dialog ? "window" : "card", size: `${innerWidth}x${innerHeight}`, height, room, scrollers, clipped, parts };
 }
 
 /** What the check asserts about the open game against the window (`at`, readFit): it fits the room under the pinned bars, and nothing inside it scrolls or is cut off. */
@@ -271,7 +281,8 @@ export function fitVerdicts({ kind, at }) {
     fact("the opened game is there to measure", false, { open: false });
     return out;
   }
-  fact(`at ${at.size} the card and its open game fit the window (${at.height}px of ${at.room})`, at.height <= at.room, at.parts ? { height: at.height, room: at.room, ...at.parts } : { height: at.height, room: at.room });
+  if (at.where === "window") fact(`at ${at.size} the game window is inside the screen and the game fits it (${at.height}px of ${at.room})`, at.height <= at.room, at.parts ? { height: at.height, room: at.room, ...at.parts } : { height: at.height, room: at.room });
+  else fact(`at ${at.size} the card and its open game fit the window (${at.height}px of ${at.room})`, at.height <= at.room, at.parts ? { height: at.height, room: at.room, ...at.parts } : { height: at.height, room: at.room });
   fact(`at ${at.size} nothing inside the open game scrolls or is cut off`, at.scrollers === 0 && at.clipped === 0, { scrollers: at.scrollers, clipped: at.clipped });
   return out;
 }

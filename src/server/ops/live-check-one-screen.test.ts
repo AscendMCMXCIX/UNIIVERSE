@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { FILL_ROW_MAX_REM, FILL_SPARE_MAX, ONE_SCREEN_SECTIONS, ROOM_MIN, oneScreenInput, oneScreenVerdicts, showAllCounts, type OneScreenRead } from "../../../scripts/one-screen-facts.mjs";
+import { FILL_ROW_MAX_REM, FILL_SPARE_MAX, ONE_SCREEN_SECTIONS, ROOM_MIN, oneScreenInput, oneScreenVerdicts, showAllCounts, workspaceRegionVerdicts, type OneScreenRead } from "../../../scripts/one-screen-facts.mjs";
 
 /*
   The Production check's one-screen facts (scripts/one-screen-facts.mjs, Release 16): the readings
@@ -137,5 +137,30 @@ describe("one screen", () => {
     expect(oneScreenVerdicts({ page: "leaderboards", size: "1920 × 1080", read: empty })[4]!.status).toBe("PASS");
     // The profile reads no spare room.
     expect(oneScreenVerdicts({ page: "profile", size: "1440 × 900", read: PROFILE_1440 }).map((x) => x.name).some((n) => /blank band/.test(n))).toBe(false);
+  });
+});
+
+describe("a workspace page's paged lists in the Production check (workspaceRegionVerdicts)", () => {
+  const settled = { region: "together", per: 3, page: 1, pages: 2, total: 6 };
+  const status = (regions: Parameters<typeof workspaceRegionVerdicts>[0]["regions"]) => workspaceRegionVerdicts({ kind: "desktop", name: "Team Matches", regions }).map((v) => v.status);
+
+  it("passes lists drawn at their page size whose pages hold every row", () => {
+    expect(status([settled, { region: "games", per: 4, page: 3, pages: 52, total: 208 }])).toEqual(["PASS", "PASS"]);
+  });
+
+  it("names a list still on its way to the window's page size (no data-per yet) as its own fact, not pages worked out from NaN", () => {
+    // Production's timing: the budget's page not yet arrived when the page was read (a fresh context, no page-size cookie).
+    const waiting = { region: "together", per: NaN, page: 1, pages: NaN, total: 6 };
+    const [settles, pages] = workspaceRegionVerdicts({ kind: "desktop", name: "Team Matches", regions: [waiting] });
+    expect(settles!.status).toBe("FAIL");
+    expect(settles!.detail).toEqual({ regions: 1, unsettled: ["together"] });
+    expect(pages!.status).toBe("WARN");
+    // One settled beside one not: the settled one's pages are still checked.
+    expect(status([settled, waiting])).toEqual(["FAIL", "PASS"]);
+  });
+
+  it("fails pages that do not hold every row, and a page with no paged list drawn", () => {
+    expect(status([{ ...settled, pages: 1 }])).toEqual(["PASS", "FAIL"]);
+    expect(status([])).toEqual(["FAIL", "FAIL"]);
   });
 });

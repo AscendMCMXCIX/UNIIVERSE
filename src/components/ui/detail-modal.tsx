@@ -96,6 +96,14 @@ const SIZE: Record<ModalSize, string> = {
 };
 
 /**
+ * The workspace window's widths (`workspaceWidth`): `pane`, All Champions' (the docked pane's narrow form,
+ * up to 56.25rem: SIZE.workspace's own); `game`, a game's (the match window's wide 76rem, so the post-game
+ * view keeps its two columns: under 56rem it takes its taller tablet grid), at the same fixed height.
+ */
+const WORKSPACE_WIDTH = { pane: "w-[min(56.25rem,calc(100%-2rem))]", game: "w-[min(76rem,calc(100%-2rem))]" } as const;
+export type WorkspaceWidth = keyof typeof WORKSPACE_WIDTH;
+
+/**
  * The motion of each size: a sheet slides up from the bottom edge on phones, a screen rises a little
  * into place, every window else rises into the centre. A screen drops its motion once it has run
  * (`data-entered`, see DetailModal), so whatever the browser does with an animation, the screen
@@ -458,6 +466,8 @@ export function DetailModal({
   returnFocus,
   refocus,
   headless = false,
+  headlessClose,
+  workspaceWidth = "pane",
 }: {
   open: boolean;
   onClose: () => void;
@@ -527,6 +537,15 @@ export function DetailModal({
    * of a fixed height (the workspace window): never one as tall as its content (BODY_SCROLLS).
    */
   headless?: boolean;
+  /**
+   * With `headless`: the content's own labelled Close (a selector inside the window), which takes the
+   * focus as the window opens from the keyboard or by a link, as every other window's close button
+   * does, ringed (the game window's "Close this game"). Without it the heading has that focus: All
+   * Champions' workspace window, as its docked pane's heading does.
+   */
+  headlessClose?: string;
+  /** With size="workspace": the window's width (WORKSPACE_WIDTH), All Champions' pane by default. */
+  workspaceWidth?: WorkspaceWidth;
 }) {
   const generated = React.useId();
   const titleId = titleIdProp ?? `modal-title-${generated}`;
@@ -788,8 +807,9 @@ export function DetailModal({
       // a screen, until it is pressed or the focus moves on; else the close button, ringed for the
       // keyboard.
       if (screen || opensFocusingItself(lastInput())) letGo = focusWindow(d);
-      // A headless window has no close button of its own: its heading, as the pane's takes the focus opened from the keys.
-      else if (headless) d.querySelector<HTMLElement>(`[id="${CSS.escape(titleId)}"]`)?.focus({ preventScroll: true });
+      // A headless window has no close button of its own: the content's labelled Close where it names one (the game
+      // window), else its heading, as the pane's takes the focus opened from the keys (All Champions' workspace window).
+      else if (headless) ((headlessClose ? d.querySelector<HTMLElement>(headlessClose) : null) ?? d.querySelector<HTMLElement>(`[id="${CSS.escape(titleId)}"]`))?.focus({ preventScroll: true });
       else closeRef.current?.focus({ preventScroll: true });
     }
     if (!open && d.open) {
@@ -836,7 +856,7 @@ export function DetailModal({
         if (el?.isConnected) el.focus({ preventScroll: true });
       });
     };
-  }, [open, settle, screen, headless, titleId]);
+  }, [open, settle, screen, headless, headlessClose, titleId]);
 
   React.useEffect(
     () => () => {
@@ -962,11 +982,13 @@ export function DetailModal({
         MODAL_BACKDROP,
         MOTION[size] ?? MODAL_MOTION,
         // A table's sheet (the one-screen workspace's data windows: System Health's page speed and job runs): 60rem, its columns whole.
-        size === "sheet" && sheetWidth !== "standard" ? SIZE.sheet.replace("sm:w-[min(30rem,calc(100%-2rem))]", sheetWidth === "picker" ? "sm:w-[min(42rem,calc(100%-2rem))]" : sheetWidth === "table" ? "sm:w-[min(60rem,calc(100%-2rem))]" : "sm:w-[min(34rem,calc(100%-2rem))]") : SIZE[size],
+        // A workspace window's width (WORKSPACE_WIDTH): All Champions' pane by default, a game's or an editor's wide window.
+        size === "sheet" && sheetWidth !== "standard" ? SIZE.sheet.replace("sm:w-[min(30rem,calc(100%-2rem))]", sheetWidth === "picker" ? "sm:w-[min(42rem,calc(100%-2rem))]" : sheetWidth === "table" ? "sm:w-[min(60rem,calc(100%-2rem))]" : "sm:w-[min(34rem,calc(100%-2rem))]") : size === "workspace" && workspaceWidth !== "pane" ? SIZE.workspace.replace(WORKSPACE_WIDTH.pane, WORKSPACE_WIDTH[workspaceWidth]) : SIZE[size],
         className,
       )}
       data-testid={testId}
       data-size={size}
+      data-width={size === "workspace" ? workspaceWidth : undefined}
       data-flow={flow || undefined}
       // What a pull on a docked sheet scrolls before it drags the sheet (useSheetDrag): the body, or
       // the whole sheet while it scrolls as one.

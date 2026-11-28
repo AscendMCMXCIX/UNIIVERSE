@@ -385,8 +385,74 @@ const PHONE_PAGES: Array<{ key: PhonePage; label: string }> = [
   { key: "build", label: "Build" },
   { key: "board", label: "Scoreboard" },
 ];
+/**
+ * A desktop's game window paged by measure (fitPages: the workspace's floor) is wide: the player and their build share the
+ * first page side by side (the player, the build panels beside it, the lane under the player), the scoreboard the second.
+ */
+const FIT_PAGES: Array<{ key: PhonePage; label: string }> = [
+  { key: "player", label: "Player and build" },
+  { key: "board", label: "Scoreboard" },
+];
 
-export function PostGame({ playerId, view, champ, variant, encounterLinks = false }: { playerId: string; view: MatchDetailView; champ: (id: string | null) => PortraitChampion; variant: "inline" | "window"; /** A window over the list itself (a phone's whole-screen game): its marks may lead to the list's Encounters, as under a card. */ encounterLinks?: boolean }) {
+/**
+ * The grid areas of the view's parts from 40rem (VIEW_GRID's), literal for Tailwind. A view paged by its
+ * measure (`fitPages`: a desktop's game window too short for it) leaves them out: each page's parts then
+ * sit in a plain two-column grid (the player alone; the build panels beside the lane; the scoreboard over
+ * its notes across both), never in the empty areas of the parts on the other pages.
+ */
+const AREA = { player: "@min-[40rem]/pg:[grid-area:player]", side: "@min-[40rem]/pg:[grid-area:side]", lane: "@min-[40rem]/pg:[grid-area:lane]", board: "@min-[40rem]/pg:[grid-area:board]", notes: "@min-[40rem]/pg:[grid-area:notes]" } as const;
+const FIT_PAGED_GRID = "grid gap-x-5 gap-y-3 @min-[40rem]/pg:grid-cols-2";
+const SPAN_BOTH = "@min-[40rem]/pg:col-span-2";
+/** Paged by measure: the build panels beside the player and the lane under it (two rows of the second column). */
+const SIDE_BESIDE = "@min-[40rem]/pg:row-span-2";
+
+/**
+ * Whether a view taller than the room it is given (its parent: the game window's fixed-height body) must
+ * show its pages (pure, for its unit test): unpaged, when it is taller than the room; paged, until the room
+ * grows past the height it had when the view went to its pages, or changes width (the view's layout
+ * follows its width), when it is measured whole again.
+ */
+export function fitPagesNext(paged: boolean, m: { view: number; room: number; roomWidth: number; at: { room: number; width: number } | null }): boolean {
+  if (!paged) return m.view > m.room + 0.5;
+  if (!m.at) return true;
+  return !(m.room > m.at.room + 0.5 || Math.abs(m.roomWidth - m.at.width) > 0.5);
+}
+
+/**
+ * Pages by measure (`fitPages`: the workspace's game window, a fixed height with nothing scrolling inside):
+ * the view drawn whole while it fits its parent, its three pages (Player, Build, Scoreboard) where it does
+ * not (a game with a long build path or long names at 1366 × 657, the workspace's floor). Measured as it
+ * is drawn and as its parts arrive (the timeline, the groups, the ranks), and again when the room changes.
+ */
+function useFitPages(enabled: boolean, rootRef: React.RefObject<HTMLDivElement | null>): boolean {
+  const [paged, setPaged] = React.useState(false);
+  const at = React.useRef<{ room: number; width: number } | null>(null);
+  const pagedRef = React.useRef(paged);
+  React.useLayoutEffect(() => {
+    pagedRef.current = paged;
+  });
+  React.useLayoutEffect(() => {
+    const root = rootRef.current;
+    const room = root?.parentElement;
+    if (!enabled || !root || !room) return;
+    const check = () => {
+      const m = { view: root.getBoundingClientRect().height, room: room.clientHeight, roomWidth: room.clientWidth, at: at.current };
+      const next = fitPagesNext(pagedRef.current, m);
+      if (next === pagedRef.current) return;
+      at.current = next ? { room: m.room, width: m.roomWidth } : null;
+      pagedRef.current = next;
+      setPaged(next);
+    };
+    check();
+    const ro = typeof ResizeObserver === "function" ? new ResizeObserver(check) : null;
+    ro?.observe(root);
+    ro?.observe(room);
+    return () => ro?.disconnect();
+  }, [enabled, rootRef]);
+  return enabled && paged;
+}
+
+export function PostGame({ playerId, view, champ, variant, encounterLinks = false, fitPages = false }: { playerId: string; view: MatchDetailView; champ: (id: string | null) => PortraitChampion; variant: "inline" | "window"; /** A window over the list itself (a phone's whole-screen game, a desktop's workspace window): its marks may lead to the list's Encounters, as under a card. */ encounterLinks?: boolean; /** A window of a fixed height (the workspace's game window): its pages where the view does not fit its parent (useFitPages). */ fitPages?: boolean }) {
   const cache = React.useContext(MatchDetailCacheContext);
   const id = view.matchId;
   // The timeline first (the lane, the build path, the skill order and the scores' lane read it), then the possible groups, the rank check and the players met, each after the view is on screen.
@@ -410,7 +476,9 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
   // a time (the window's own screen, never a long scroll).
   const phone = usePhone();
   const short = useShortWindow();
-  const paged = (phone || short) && variant === "window";
+  const rootRef = React.useRef<HTMLDivElement>(null);
+  const fitPaged = useFitPages(fitPages && variant === "window" && !phone && !short, rootRef);
+  const paged = ((phone || short) && variant === "window") || fitPaged;
   const [page, setPage] = React.useState<PhonePage>("player");
   const all = React.useMemo(() => view.teams.flatMap((t) => t.participants), [view.teams]);
   const subject = all.find((p) => p.slot === selected && !p.removed) ?? view.player;
@@ -462,7 +530,9 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
   const position = subject.position ? POSITION_WORDS[laneOf(subject.position) ?? ""] : undefined;
   const support = subject.isPlayer ? view.role === "SUPPORT" : laneOf(subject.position) === "UTILITY";
   /** On a phone's pages, hidden unless its page is shown (kept in the page, so nothing reloads). */
-  const on = (p: PhonePage) => (paged && page !== p ? "hidden" : undefined);
+  // Paged by measure, the build's parts are the first page's (FIT_PAGES).
+  const on = (p: PhonePage) => (paged && page !== (fitPaged && p === "build" ? "player" : p) ? "hidden" : undefined);
+  const pages = fitPaged ? FIT_PAGES : PHONE_PAGES;
   const meta = (
     <span className="flex flex-wrap items-center gap-x-3 gap-y-1 empty:hidden" data-testid="post-game-meta">
       {/* The date and the patch each kept whole: a narrow line (the notes beside the lane) breaks between them. */}
@@ -475,10 +545,10 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
     </span>
   );
   return (
-    <div className="@container/pg [overflow-anchor:none]" data-testid="match-breakdown" data-variant={variant} data-met={meetings ? (meetings.status === "ok" ? meetings.players.length : 0) : undefined} data-timeline={timeline ? timeline.status : "loading"} data-selected={subject.slot} data-paged={paged || undefined} data-page={paged ? page : undefined}>
+    <div ref={rootRef} className="@container/pg [overflow-anchor:none]" data-testid="match-breakdown" data-variant={variant} data-met={meetings ? (meetings.status === "ok" ? meetings.players.length : 0) : undefined} data-timeline={timeline ? timeline.status : "loading"} data-selected={subject.slot} data-paged={paged || undefined} data-paged-by={fitPaged ? "measure" : undefined} data-page={paged ? page : undefined}>
       {paged ? (
-        <div role="radiogroup" aria-label="Show the player, the build or the scoreboard" className={segmentedGroupClass("mb-2.5 flex w-full flex-wrap [&>*]:flex-1")} data-testid="post-game-pages">
-          {PHONE_PAGES.map((p) => (
+        <div role="radiogroup" aria-label="Show the player, the build or the scoreboard" className={segmentedGroupClass(cn("mb-2.5 flex w-full flex-wrap [&>*]:flex-1", fitPaged && "@min-[40rem]/pg:w-fit"))} data-testid="post-game-pages">
+          {pages.map((p) => (
             <button
               key={p.key}
               type="button"
@@ -490,7 +560,7 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
                 const step = e.key === "ArrowRight" || e.key === "ArrowDown" ? 1 : e.key === "ArrowLeft" || e.key === "ArrowUp" ? -1 : 0;
                 if (!step) return;
                 e.preventDefault();
-                const next = PHONE_PAGES[(PHONE_PAGES.findIndex((x) => x.key === p.key) + step + PHONE_PAGES.length) % PHONE_PAGES.length]!;
+                const next = pages[(pages.findIndex((x) => x.key === p.key) + step + pages.length) % pages.length]!;
                 setPage(next.key);
                 (e.currentTarget.parentElement?.querySelector(`[data-testid=post-game-page-${next.key}]`) as HTMLElement | null)?.focus();
               }}
@@ -503,8 +573,8 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
         </div>
       ) : null}
       {/* The player, the build panels, the lane and the scoreboard, placed by VIEW_GRID. */}
-      <div className={VIEW_GRID}>
-        <section aria-label={own && view.own ? "Your game" : `${nameOf(subject)}'s game`} className={cn("min-w-0 space-y-2 self-start @min-[56rem]/pg:space-y-2.5 @min-[40rem]/pg:[grid-area:player]", on("player"))} data-testid="post-game-yours" data-own={own || undefined}>
+      <div className={fitPaged ? FIT_PAGED_GRID : VIEW_GRID}>
+        <section aria-label={own && view.own ? "Your game" : `${nameOf(subject)}'s game`} className={cn("min-w-0 space-y-2 self-start @min-[56rem]/pg:space-y-2.5", !fitPaged && AREA.player, on("player"))} data-testid="post-game-yours" data-own={own || undefined}>
           {/* Who is inspected, and the way back to the profile's player: one line, as tall whoever it is. */}
           <div className="flex min-h-7 items-center gap-2 pointer-coarse:min-h-11" data-testid="inspected">
             <p className="min-w-0 flex-1 truncate text-sm leading-5 @max-[20rem]/pg:whitespace-normal" aria-live="polite">
@@ -529,18 +599,18 @@ export function PostGame({ playerId, view, champ, variant, encounterLinks = fals
           <MoreStats p={subject} support={support} />
         </section>
         {/* The build panels fill their grid area: from 56rem the height the scoreboard and the lane leave beside them. */}
-        <div className={cn("min-w-0 flex-col @min-[40rem]/pg:[grid-area:side]", on("build") ?? "flex")} data-testid="post-game-side">
+        <div className={cn("min-w-0 flex-col", fitPaged ? SIDE_BESIDE : AREA.side, on("build") ?? "flex")} data-testid="post-game-side">
           <ParticipantPanels panel={panel} onPanel={setPanel} result={timeline} entry={entry} page={subject.runePage} />
         </div>
-        <div className={cn("min-w-0 self-start @min-[40rem]/pg:[grid-area:lane]", on("build"))}>
+        <div className={cn("min-w-0 self-start", !fitPaged && AREA.lane, on("build"))}>
           <Lane view={view} champ={champ} me={subject} entry={entry} state={state} />
         </div>
-        <section aria-label="Scoreboard" className={cn("min-w-0 self-start @min-[40rem]/pg:[grid-area:board]", on("board"))} data-testid="post-game-scoreboard" onKeyDown={onRowKeys}>
+        <section aria-label="Scoreboard" className={cn("min-w-0 self-start", fitPaged ? SPAN_BOTH : AREA.board, on("board"))} data-testid="post-game-scoreboard" onKeyDown={onRowKeys}>
           <Scoreboard teams={view.teams} champ={champ} groups={groups} laneSlot={subject.laneOpponentSlot} rankOf={rankOf} queueId={view.queueId} checking={checking} met={met} meetHref={meetHref} selection={{ selected: subject.slot, onSelect: inspect, score: scoreOf, scoring: !timeline, scored: scores?.scored ?? 0 }} />
         </section>
         {/* The scoreboard's quiet notes: the ranks and the possible groups, each with its (i); the date, the bookmark and OP.GG.
             One line 6px under the scoreboard (the grid's 12px gap less 6px); from 56rem beside the lane, right-aligned, wrapping in its cell. */}
-        <div className={cn("-mt-1.5 min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 text-2xs leading-4 text-fg-subtle @min-[40rem]/pg:[grid-area:notes] @min-[56rem]/pg:mt-0 @min-[56rem]/pg:flex-col @min-[56rem]/pg:items-end @min-[56rem]/pg:justify-start @min-[56rem]/pg:self-start @min-[56rem]/pg:text-right @min-[56rem]/pg:[&>span]:justify-end", on("board") ?? "flex")} data-testid="scoreboard-notes">
+        <div className={cn("-mt-1.5 min-w-0 flex-wrap items-center justify-between gap-x-4 gap-y-1 text-2xs leading-4 text-fg-subtle @min-[56rem]/pg:mt-0 @min-[56rem]/pg:flex-col @min-[56rem]/pg:items-end @min-[56rem]/pg:justify-start @min-[56rem]/pg:self-start @min-[56rem]/pg:text-right @min-[56rem]/pg:[&>span]:justify-end", fitPaged ? SPAN_BOTH : AREA.notes, on("board") ?? "flex")} data-testid="scoreboard-notes">
           <span className="flex flex-wrap items-center gap-x-3 gap-y-1">
             <ScoreboardNotes ranks={view.teams.flatMap((t) => t.participants.filter((x) => !x.removed).map(rankOf))} queueId={view.queueId} checking={checking} result={ranks} groups={groups} />
           </span>

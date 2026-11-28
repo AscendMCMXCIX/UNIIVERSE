@@ -1,5 +1,5 @@
 import { test, expect, type Page } from "./test";
-import { openGame } from "./match-history";
+import { inTheFlow, openGame } from "./match-history";
 import { openPerson } from "./member-account";
 
 /*
@@ -13,7 +13,7 @@ import { openPerson } from "./member-account";
 */
 test.skip(({ viewport, browserName }) => viewport?.width !== 1440 || browserName !== "chromium", "the desktop project sets both sizes itself");
 
-type Target = { name: string; path: (mate: string) => string; phone?: (mate: string) => string; selector: string; phoneSelector?: string; open?: string; phoneOpen?: string; prepare?: (page: Page) => Promise<void> };
+type Target = { name: string; path: (mate: string) => string; phone?: (mate: string) => string; selector: string; phoneSelector?: string; open?: string; phoneOpen?: string; prepare?: (page: Page) => Promise<void>; /** The desktop page in the flow (inTheFlow: 640px tall), where the part is the flow's alone. */ flow?: boolean };
 
 /** Down to the end of the page in steps, as a reader scrolls (the pinned row then offers Filters). */
 async function toTheEnd(page: Page) {
@@ -47,7 +47,8 @@ const TARGETS: Target[] = [
   // the pinned row's Filters, a Popover on a desktop and the sheet a touch phone keeps.
   { name: "Peek", path: () => "/team", selector: "[data-peek-panel]", phoneSelector: "dialog[data-testid=player-detail]", open: "[data-testid=lineup-row-MID] [data-testid=open-player-detail]" },
   { name: "PreviewWindow (‹ ›)", path: () => "/team", selector: "[data-testid=detail-next]", open: "[data-testid=lineup-row-MID] [data-testid=open-player-detail]" },
-  { name: "Popover", path: (m) => `${m}/matches`, selector: "[data-popover]", phoneSelector: "dialog[data-testid=filter-sheet]", prepare: toTheEnd, open: "[data-testid=toolbar-filters]", phoneOpen: "[data-testid=match-history] [data-testid=filter-toggle]" },
+  // The pinned row is the flow's (a desktop window under the one-screen gate's 41rem: in the workspace Match History never scrolls).
+  { name: "Popover", path: (m) => `${m}/matches`, selector: "[data-popover]", phoneSelector: "dialog[data-testid=filter-sheet]", prepare: toTheEnd, open: "[data-testid=toolbar-filters]", phoneOpen: "[data-testid=match-history] [data-testid=filter-toggle]", flow: true },
 ];
 
 /** Differences DESIGN_SYSTEM.md lists, by component and property, each with its reason. */
@@ -103,6 +104,8 @@ test("the shared components look the same on a phone and on a desktop", async ({
   const mate = `/players/${(await dp.getByTestId("lineup-row-MID").getAttribute("data-player-id"))!}`;
   const problems: string[] = [];
   for (const t of TARGETS) {
+    await dp.setViewportSize({ width: 1440, height: 900 });
+    if (t.flow) await inTheFlow(dp);
     await dp.goto(t.path(mate));
     await pp.goto((t.phone ?? t.path)(mate));
     if (t.prepare) await t.prepare(dp);

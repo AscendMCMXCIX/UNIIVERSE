@@ -51,6 +51,9 @@ describe("the post-game facts", () => {
     expect(failed({ ...DEMO, tiles: 4 })).toHaveLength(1);
     expect(failed({ ...DEMO, lane: null, laneWords: "" })).toHaveLength(1);
     expect(failed({ ...DEMO, steps: 3 })).toHaveLength(1);
+    // The one-screen workspace's game window (a desktop in the gate): Previous, Next and Close on its header line, three.
+    expect(failed({ ...DEMO, where: "window", steps: 3 })).toHaveLength(0);
+    expect(failed({ ...DEMO, where: "window", steps: 2 })).toHaveLength(1);
   });
   it("fail when the lane is not under the scoreboard on two columns, or the build column ends short of it; one column is a warning", () => {
     expect(failed({ ...DEMO, layout: { ...DEMO.layout!, laneTop: 300 } })).toEqual([LAYOUT_FACT]);
@@ -131,6 +134,9 @@ describe("the open game against the window", () => {
     expect(failedFit({ ...fits, scrollers: 1 })).toBe(1);
     expect(failedFit({ ...fits, clipped: 2 })).toBe(1);
     expect(failedFit({ open: false })).toBe(1);
+    // In the workspace's game window: the window inside the screen and the game within it.
+    expect(fitVerdicts({ kind: "desktop", at: { ...fits, where: "window" } })[0]!.name).toMatch(/game window is inside the screen/);
+    expect(failedFit({ ...fits, where: "window", height: 700, room: 600 })).toBe(1);
   });
   it("reads only sizes, counts and test ids (no name or text leaves the page)", () => {
     const source = readFit.toString();

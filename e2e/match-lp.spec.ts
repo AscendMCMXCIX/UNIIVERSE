@@ -1,3 +1,4 @@
+import { inWorkspace } from "./match-history";
 import { expect, test, type Page } from "./test";
 
 /*
@@ -189,8 +190,10 @@ test("in an opened game, the LP's reason is within a keyboard's reach: its tip i
   const card = page.getByTestId("match-card").filter({ has: page.locator('[data-testid="match-lp"]:visible') }).first();
   // The card's own control (its figures lie over it), opened as a keyboard does.
   await card.getByTestId("match-row").focus();
+  // A phone's window, the one-screen workspace's game window (a desktop in the gate), or the card's header in the flow.
+  const windowed = info.project.name === "phone" || (await inWorkspace(page));
   await page.keyboard.press("Enter");
-  const opened = info.project.name === "phone" ? page.getByRole("dialog") : page.getByTestId("match-card-header");
+  const opened = windowed ? page.getByRole("dialog") : page.getByTestId("match-card-header");
   const tip = opened.locator('[data-testid="match-lp-tip"]').first();
   await expect(tip).toBeVisible();
   expect(await tip.getAttribute("tabindex"), "a tab stop of its own in the window").toBeNull();
@@ -205,6 +208,6 @@ test("in an opened game, the LP's reason is within a keyboard's reach: its tip i
     await tip.hover();
     await expect(page.getByTestId("match-lp-tip-bubble")).toHaveText(note);
     await tip.click();
-    await expect(page.getByTestId("match-card-header")).toBeVisible();
+    await expect(windowed ? page.getByRole("dialog") : page.getByTestId("match-card-header")).toBeVisible();
   }
 });
