@@ -12,7 +12,7 @@ import { useRowBudget } from "@/components/ui/fit-rows";
 import { Pager } from "@/components/ui/pager";
 import { rangeText, rangeWords } from "@/components/ui/paged-list";
 import { useWorkspaceMarks, wsTierClass, type WorkspaceMarks } from "@/components/ui/workspace";
-import { LIST_PER_MAX, rememberListPer } from "@/lib/list-per";
+import { LIST_PER_MAX, forgetListPer, rememberListPer } from "@/lib/list-per";
 
 /** A game either side of the workspace's page (the server's), for the game window's steps across the pages. */
 export interface TogetherNeighbour {
@@ -44,6 +44,7 @@ const CARD_PROBE_REM = 7.5;
 /** The first paint's cards by the window's height tier, before the page has measured (where neither the address nor the cookie gave a size). */
 const FIRST_PAINT_TIERS = { gate: 1, mid: 2, tall: 3 } as const;
 const GAME_WORDS = { one: "game", many: "games" } as const;
+const noSubscribe = () => () => {};
 
 interface TogetherPagingState {
   marks: WorkspaceMarks;
@@ -92,6 +93,8 @@ export function TogetherWorkspace({ paging, total, listKey, className, children 
   const router = useRouter();
   const [pending, startTransition] = React.useTransition();
   const marks = useWorkspaceMarks();
+  // Interactive once hydrated (data-ready, which browser tests wait for: the workspace's mark is then the page's own).
+  const interactive = React.useSyncExternalStore(noSubscribe, () => true, () => false);
   const cardRef = React.useRef<HTMLDivElement>(null);
   const listRef = React.useRef<HTMLOListElement>(null);
   const endRef = React.useRef<HTMLDivElement>(null);
@@ -99,14 +102,19 @@ export function TogetherWorkspace({ paging, total, listKey, className, children 
   const perPage = marks.paged && budget !== null ? Math.min(LIST_PER_MAX, budget) : null;
   const replace = React.useCallback((url: string) => startTransition(() => router.replace(url, { scroll: false })), [router]);
   React.useEffect(() => {
-    if (marks.ws === false && paging.per !== null) return replace(withParams({ per: null, page: null }));
+    // The flow: a page size from the cookie is forgotten (the server drew the first 20 and Show more without it), one from the address dropped.
+    if (marks.ws === false && paging.per !== null) {
+      forgetListPer("together");
+      if (paging.perFrom === "cookie") return startTransition(() => router.refresh());
+      return replace(withParams({ per: null, page: null }));
+    }
     if (perPage === null || perPage === paging.per || total === 0) return;
     const t = window.setTimeout(() => {
       rememberListPer("together", perPage);
       replace(withParams({ per: String(perPage), page: String(Math.floor(paging.offset / perPage) + 1) }));
     }, PER_SETTLE_MS);
     return () => window.clearTimeout(t);
-  }, [perPage, paging.per, paging.offset, total, marks.ws, replace]);
+  }, [perPage, paging.per, paging.offset, paging.perFrom, total, marks.ws, replace, router]);
   const goTo = React.useCallback((page: number, match?: string) => replace(withParams({ page: page > 1 ? String(page) : null, ...(match ? { match } : {}) })), [replace]);
   const [live, setLive] = React.useState("");
   const paged = perPage !== null && paging.per !== null;
@@ -121,7 +129,7 @@ export function TogetherWorkspace({ paging, total, listKey, className, children 
   const value = React.useMemo<TogetherPagingState>(() => ({ marks, perPage, paged, paging, total, cardRef, listRef, endRef, goTo, pending, live, turn, tiered: paging.perFrom === "default" && perPage === null && marks.ws !== false }), [marks, perPage, paged, paging, total, goTo, pending, live, turn]);
   return (
     <TogetherPagingContext.Provider value={value}>
-      <div className={cn("space-y-4 ws:flex ws:flex-1 ws:flex-col ws:gap-4 ws:space-y-0", className)} {...marks.attrs} data-testid="played-together">
+      <div className={cn("space-y-4 ws:flex ws:flex-1 ws:flex-col ws:gap-4 ws:space-y-0", className)} {...marks.attrs} data-testid="played-together" data-ready={interactive ? "true" : undefined}>
         {children}
       </div>
     </TogetherPagingContext.Provider>

@@ -25,7 +25,7 @@ import { useRowBudget } from "@/components/ui/fit-rows";
 import { Pager } from "@/components/ui/pager";
 import { rangeText, rangeWords } from "@/components/ui/paged-list";
 import { WS_SECTION, WorkspaceFoot, useWorkspaceMarks, wsTierClass } from "@/components/ui/workspace";
-import { rememberListPer } from "@/lib/list-per";
+import { forgetListPer, rememberListPer } from "@/lib/list-per";
 
 /** A row's height while none is drawn (about 41px: a name and its figures on one line). */
 const ROW_PROBE_REM = 2.5625;
@@ -332,8 +332,10 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
   });
   const perPage = marks.paged && budget !== null ? Math.min(ENCOUNTER_PER_MAX, budget) : null;
   React.useEffect(() => {
+    // The flow: a page size from the cookie is forgotten (the server then draws the first 25 and Show more), one from the address dropped.
     if (ws === false && c.per !== null) {
-      startTransition(() => router.replace(href({ per: null }), { scroll: false }));
+      forgetListPer("encounters");
+      startTransition(() => (data.perFrom === "cookie" ? router.refresh() : router.replace(href({ per: null }), { scroll: false })));
       return;
     }
     if (perPage === null || perPage === c.per || page.total === 0) return;

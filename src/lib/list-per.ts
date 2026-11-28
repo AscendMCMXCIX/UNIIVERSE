@@ -41,3 +41,12 @@ export function rememberListPer(list: PagedListName, per: number) {
   if (typeof document === "undefined") return;
   document.cookie = listPerCookie(list, per);
 }
+
+/**
+ * Forgets a list's page size (the flow, which never pages by the budget: a browser window that left the
+ * workspace), so the server's next first paint is the flow's own again.
+ */
+export function forgetListPer(list: PagedListName) {
+  if (typeof document === "undefined") return;
+  document.cookie = `${LIST_PER_COOKIES[list]}=; path=/; max-age=0; samesite=lax`;
+}

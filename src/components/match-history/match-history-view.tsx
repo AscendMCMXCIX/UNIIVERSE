@@ -42,7 +42,7 @@ import { Pager } from "@/components/ui/pager";
 import { useRowBudget } from "@/components/ui/fit-rows";
 import { WS_SECTION, WorkspaceCard, useWorkspaceMarks, wsTierClass } from "@/components/ui/workspace";
 import { rangeWords } from "@/components/ui/paged-list";
-import { LIST_PER_MAX, rememberListPer, type PagedListName } from "@/lib/list-per";
+import { LIST_PER_MAX, forgetListPer, rememberListPer, type PagedListName } from "@/lib/list-per";
 import { screenHeight, scrollToStart } from "@/lib/screen";
 
 /**
@@ -664,6 +664,8 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
     const card = el.querySelector("[data-testid=match-card]");
     const rowPx = card ? card.getBoundingClientRect().height + GAP_REM * rem : ROW_REM * rem;
     const fits = phone ? PHONE_PER : Math.max(10, Math.min(25, Math.floor(room / rowPx)));
+    // A page size the workspace kept for its first paint (a window that left the workspace) is forgotten: the flow sizes its own.
+    if (perFrom === "cookie") forgetListPer(listName);
     if (fits !== data.per && data.total > 0) {
       const firstIndex = (data.page - 1) * data.per;
       // The game a link opened stays open (it is still on the new page, or opens in the window).

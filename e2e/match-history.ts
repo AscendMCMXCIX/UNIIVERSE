@@ -1,16 +1,34 @@
 import { expect, type Locator, type Page } from "./test";
 
 /*
-  Match History's games open under their card (components/match-history/inline-match.tsx): the
+  Match History's games open under their card in the flow (components/match-history/inline-match.tsx): the
   card is a toggle (its button's aria-expanded), and the post-game view (the loadout, figures, lane
   and scoreboard) loads into the region below it. Team → Matches opens its games the same way. The match
   window is for Matchups, Encounters and links to a game that is not on the page shown, and on
-  phones for every game: there a game takes the whole screen (docs/MOBILE.md), so these helpers
-  open and close that window instead, and return the same breakdown from it.
+  phones for every game: there a game takes the whole screen (docs/MOBILE.md), and in the one-screen
+  workspace of a desktop window, where every game opens in the game window over the list; so these
+  helpers open and close that window instead, and return the same breakdown from it.
 */
 
 /** Phones (below md) open a game as the match window over the whole screen. */
 export const opensFullScreen = (page: Page) => (page.viewportSize()?.width ?? 1440) < 768;
+
+/**
+ * A desktop window in the one-screen workspace (docs/RESPONSIVE.md, "One-screen desktop pages": a fine pointer,
+ * from 80rem wide, at least 41rem tall) opens every game of Match History and Team Matches in the game window
+ * over the list (MatchDetailModal's workspace mode), never under its card: the list's section carries
+ * data-workspace once the page knows. Asked once the page is interactive.
+ */
+export async function inWorkspace(page: Page): Promise<boolean> {
+  if (opensFullScreen(page)) return false;
+  const section = page.locator("[data-testid=match-history], [data-testid=played-together], [data-testid=encounters]").first();
+  // The server's HTML marks the section for the CSS gate; once interactive the page knows (it drops the mark in the flow).
+  await expect(section).toHaveAttribute("data-ready", "true", { timeout: 15_000 });
+  return (await section.getAttribute("data-workspace")) !== null;
+}
+
+/** Phones and the workspace open a game in a window (the whole screen, or the workspace's game window). */
+export const opensInWindow = async (page: Page) => opensFullScreen(page) || (await inWorkspace(page));
 
 /** Opens a game as the whole-screen match window (phones) and waits for its breakdown. */
 async function openWindowed(page: Page, click: () => Promise<void>): Promise<Locator> {
@@ -36,7 +54,7 @@ export const expandedOf = (card: Locator) => card.locator("xpath=..").getByTestI
  * second click would close it).
  */
 export async function openGame(card: Locator): Promise<Locator> {
-  if (opensFullScreen(card.page())) return openWindowed(card.page(), () => card.click({ position: { x: 24, y: 16 }, timeout: 2_000 }));
+  if (await opensInWindow(card.page())) return openWindowed(card.page(), () => card.click({ position: { x: 24, y: 16 }, timeout: 2_000 }));
   const row = card.getByTestId("match-row");
   await expect(async () => {
     if ((await row.getAttribute("aria-expanded")) !== "true") await card.click({ position: { x: 24, y: 16 }, timeout: 2_000 });
@@ -49,7 +67,7 @@ export async function openGame(card: Locator): Promise<Locator> {
 
 /** Opens a Team → Matches game (its list item, `together-game`) under its card and waits for its breakdown. */
 export async function openTogether(game: Locator): Promise<Locator> {
-  if (opensFullScreen(game.page())) return openWindowed(game.page(), () => game.getByTestId("together-card").click({ position: { x: 24, y: 12 }, timeout: 2_000 }));
+  if (await opensInWindow(game.page())) return openWindowed(game.page(), () => game.getByTestId("together-card").click({ position: { x: 24, y: 12 }, timeout: 2_000 }));
   const button = game.getByTestId("together-open");
   await expect(async () => {
     if ((await button.getAttribute("aria-expanded")) !== "true") await game.getByTestId("together-card").click({ position: { x: 24, y: 12 }, timeout: 2_000 });
@@ -80,7 +98,7 @@ export async function openMatchWindow(page: Page): Promise<Locator> {
 
 /** Closes a game opened under its card (the card toggles it); on a phone, its whole-screen window. */
 export async function closeGame(card: Locator) {
-  if (opensFullScreen(card.page())) {
+  if (await opensInWindow(card.page())) {
     const win = card.page().getByTestId("match-detail");
     await win.getByTestId("match-detail-close").click();
     await expect(win).toHaveCount(0);
@@ -115,6 +133,7 @@ export async function showGamePage(breakdown: Locator, page: "player" | "build" 
   // A window on a phone or under 481px tall gets its pages once the page has hydrated (usePhone is
   // false on the first render): wait for them there, so a busy machine cannot answer "no pages" early.
   const size = breakdown.page().viewportSize();
+  // (The workspace's game window pages by measure, where the view does not fit it: its tabs are there or not by then.)
   const paged = (await breakdown.getAttribute("data-variant")) === "window" && !!size && (size.width < 768 || size.height <= 480);
   if (paged) await expect(tab).toBeVisible({ timeout: 10_000 });
   if (!(await tab.count())) return;

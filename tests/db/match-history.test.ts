@@ -224,10 +224,18 @@ describe("personal match history", () => {
     const ids = new Set<string>();
     for (let p = 1; p <= page.pages; p++) for (const r of (await getMatchHistory(handle.db, playerId, { per: 10, page: p })).rows) ids.add(r.matchId);
     expect(ids.size).toBe(24);
-    // Out-of-range page numbers and sizes are clamped rather than empty.
+    // Out-of-range page numbers and sizes are clamped rather than empty; one game a page at the least (the one-screen
+    // workspace's row budget, no floor of ten).
     expect((await getMatchHistory(handle.db, playerId, { per: 10, page: 99 })).page).toBe(3);
-    expect((await getMatchHistory(handle.db, playerId, { per: 1 })).per).toBe(5);
+    expect((await getMatchHistory(handle.db, playerId, { per: 1 })).per).toBe(1);
     expect((await getMatchHistory(handle.db, playerId, { per: 500 })).per).toBe(25);
+    // The games either side of a page (the game window's steps across the pages): the previous page's last, the next page's first.
+    const middle = await getMatchHistory(handle.db, playerId, { per: 4, page: 2 });
+    const first = await getMatchHistory(handle.db, playerId, { per: 4, page: 1 });
+    const third = await getMatchHistory(handle.db, playerId, { per: 4, page: 3 });
+    expect(middle.neighbours).toEqual({ before: first.rows[3]!.matchId, after: third.rows[0]!.matchId });
+    expect(first.neighbours.before).toBeNull();
+    expect((await getMatchHistory(handle.db, playerId, { per: 4, page: 6 })).neighbours.after).toBeNull();
   });
 
   it("filters by mode, champion, account and season", async () => {
