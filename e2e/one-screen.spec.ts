@@ -71,6 +71,9 @@ const ROWS: OneScreenRow[] = [
   { name: "Admin Previews, a phone", path: "/admin/previews", admin: true, at: EIGHT_AND_FLOOR, workspace: true, cards: "[data-testid=preview-studio]" },
   { name: "Admin Previews, a desktop", path: "/admin/previews", admin: true, at: EIGHT_AND_FLOOR, workspace: true, cards: "[data-testid=preview-studio]", then: (page) => page.getByTestId("preview-device-desktop").click() },
   { name: "Admin Previews, a tablet held sideways, the setup", path: "/admin/previews", admin: true, at: EIGHT_AND_FLOOR, workspace: true, cards: "[data-testid=preview-studio]", then: async (page) => { await page.getByTestId("preview-device-tablet").click(); await page.getByTestId("preview-rotate").click(); await page.getByTestId("preview-screen-setup").click(); } },
+  { name: "Admin Resources, All", path: "/admin/resources", admin: true, at: EIGHT_AND_FLOOR, workspace: true, pager: "resources-pager", cards: "[data-testid=resources-card]", rows: "[data-testid=managed-resource]" },
+  { name: "Admin Resources, one section", path: "/admin/resources?section=league", admin: true, at: EIGHT_AND_FLOOR, workspace: true, pager: "resources-pager", cards: "[data-testid=resources-card]", rows: "[data-testid=managed-resource]" },
+  { name: "Admin Resources, the editor open", path: "/admin/resources", admin: true, at: EIGHT_AND_FLOOR, workspace: true, pager: "resources-pager", cards: "[data-testid=resources-card]", rows: "[data-testid=managed-resource]", then: (page) => page.getByTestId("resource-add").click() },
 ];
 
 test.beforeEach(({ browserName }, info) => {
