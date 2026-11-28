@@ -80,6 +80,9 @@ async function openedScore(breakdown: Locator): Promise<CardScore> {
 
 test("every card of the first page shows the opened game's performance score and place, MVP and ACE included", async ({ page }) => {
   test.setTimeout(240_000);
+  // The first page of ten, each game opened under its card: the flow. In the one-screen gate a page holds what fits (4 cards at
+  // the desktop project's size once a long name takes its second line), and the game window is matches-workspace's to test.
+  await inTheFlow(page);
   await openHistory(page, "MID");
   const cards = page.getByTestId("match-card");
   const count = await cards.count();
