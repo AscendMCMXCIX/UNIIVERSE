@@ -53,7 +53,8 @@ The same day the owner asked for a leaner process: targeted local tests, CI as t
     - useRowBudget's cumulative mode;
     - the ws: style guard;
     - e2e/workspace.ts, and the platform spec e2e/one-screen.spec.ts: pages × states at the owner's eight configurations and 1366×657.
-  - **Its review:** one review found 10 defects. All are fixed, each with a regression test.
+  - **Its reviews:** one review of the shared layer found 10 defects, and one of the sectioned pages' additions to it found 4. All are fixed, each with a regression test.
+  - **Paged lists with group headings** (Accounts) cut their pages once over the whole list, from the lines' own heights. So every record is on exactly one page, even when a page draws more headings than another. CI's first run caught this with more accounts than the demo has.
   - **The sectioned workspaces:** Settings (/settings and /admin/settings), System Health and Personal data. One section shows at a time, its name in ?section=, and Back walks the sections.
   - **Admin Accounts** is paged, and **Access levels** fits at the floor.
   - **Fit:** every section and window fits at the eight configurations and at 1366×657, measured with CI's wider text.
@@ -69,7 +70,9 @@ The same day the owner asked for a leaner process: targeted local tests, CI as t
     - In the flow it ignores ?section=. Outside the gate every section is stacked, so nothing is hidden.
     - A statically prerendered page would need a Suspense boundary; every page that uses it today is dynamic.
   - **Personal data:** the Check result card in "Erase a former member" was not measured, because it needs Riot.
-  - **Cumulative paging counts lines:** a later page with an extra group heading can be taller, and the list then measures again.
+  - **Admin Audit Logs** shows 50 entries at a time with "Load older", so it overflows once entries exist. Its platform row checks only the empty, filtered state. It needs paging by the row budget, which goes into a later batch.
+  - **Players' platform row** checks the eight configurations only, until the dashboards batch pages its roster. With more than about 6 accounts made before it on CI's shared server, it can also fail at 1366×768.
+  - **usePagedGrid's cumulative mode** still counts its page on the page drawn. No page uses it, and its docs say it is not for client lists.
   - **admin-people's phone check** for no destructive buttons reads a row's whole text. A "Deactivated" badge left by an earlier test can fail it, which makes the test fragile.
   - **Team Overview:** two figure notes in the season card are cut by about 11px at 1648×900 with CI's wider text. Its row keeps the row-only check until the dashboards batch fixes it.
 
