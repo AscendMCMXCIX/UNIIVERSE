@@ -1051,7 +1051,7 @@ No query's cost changes: the server already slices an in-memory list.
   of rows. Each row opens once per sidebar state and resizes in place:
 
   ```ts
-  { name: "Admin Audit Logs", path: "/admin/audit", admin: true, at: EIGHT_AND_FLOOR }
+  { name: "Admin Data & Integrations", path: "/admin/data", admin: true, at: EIGHT_AND_FLOOR }
   ```
 
   The fields are `name`, `path` (`{player}` for a demo profile), `admin`, `cookies`, `at` (`EIGHT`,
@@ -1063,11 +1063,22 @@ No query's cost changes: the server already slices an in-memory list.
 
   | Where | Pages |
   |---|---|
-  | The eight and the floor | Players, Champion Intel (empty, and with a champion), My Profile without a profile of one's own, a profile's Accounts, All Champions' list, Admin Data & Integrations, Admin Audit Logs |
-  | The eight, not the floor | Team Overview (33px over with the sidebar open, 6 folded), Leaderboards (87px), Admin Accounts (36px), Admin Access levels (10px with the sidebar open; it fits folded) |
+  | The eight and the floor | Champion Intel (empty, and with a champion), My Profile without a profile of one's own, a profile's Accounts, All Champions' list, Admin Data & Integrations, Admin Audit Logs (its log empty, below) |
+  | The eight, not the floor | Team Overview (33px over with the sidebar open, 6 folded), Leaderboards (87px), Admin Accounts (36px), Admin Access levels (10px with the sidebar open; it fits folded), Players (below) |
   | From 1440 × 900 only | a profile's Overview and a member's own My Profile (376–390px over at 1366 × 768) |
 
   Each lane widens its pages' rows as it brings them to one screen.
+
+  **The server is shared.** On CI the specs before this one in its shard have made accounts (4 in
+  shard 4 of run 46125624658), and how many depends on where the shard starts, so a row must hold
+  with more than the demo's own data. Measured with 12 accounts made first (28 Nov 2026), every row
+  fits as it is but two pages that grow with them:
+  - **Players** (a row of its two columns for every two members): 20px over at the floor with CI's 4, 165px over at 1366 × 768 with
+    12. Its row holds the eight until lane D pages its roster (batch 3); it fits there with up to
+    about 6 accounts made before it.
+  - **Audit Logs** (50 entries at a time, with Load older; the demo's log is empty and each account
+    made adds an entry): 117px over at 1366 × 768 with 12. Its row holds the page's chrome and its
+    empty state, filtered to a day with nothing recorded, until a lane pages it (tracked).
 - **The Production check** loads no new page (production's CPU is rationed). Where it already loads a
   page at a desktop width, it may add the generic fact "a page carrying `data-workspace` does not
   scroll, and nothing in main scrolls". Admin pages and the folded sidebar are CI's only.
