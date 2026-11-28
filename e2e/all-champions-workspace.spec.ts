@@ -1604,6 +1604,142 @@ test("the workspace window ends at 1355px with the sidebar open (the pane from 1
   expect(windowLook, "the workspace window's surface: the pane's").toEqual(paneLook);
 });
 
+/** Which presentation of the opened champion is drawn: the pane (its column laid out), the workspace window, the sheet, or nothing. */
+const presentation = (page: Page) =>
+  page.evaluate(() => {
+    const drawn = (el: Element | null | undefined) => !!el && el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().height > 0;
+    const dialog = document.querySelector<HTMLElement>("dialog[open][data-testid=champion-preview]");
+    if (dialog && drawn(dialog.querySelector("[data-testid=champion-preview-content]"))) return dialog.dataset.size === "workspace" ? "window" : "sheet";
+    return drawn(document.querySelector("aside[data-preview-pane] [data-testid=champion-preview-content]")) ? "pane" : "nothing";
+  });
+
+test("the champion opened always shows at the pane's two bounds: a section in the half pixel under one (an 18px root, a fractional width) opens the window or the sheet, never a pane its CSS hides", async ({ browser }) => {
+  // Until 28 Nov 2026 the page compared the section's rounded clientWidth with each bound less half a pixel, while the CSS draws
+  // the pane's column from the bound itself (a container query): at 1525px with an 18px root and the sidebar open (a 1165px
+  // section, the bound 64.75 × 18 = 1165.5) the click put the champion in the address, the column stayed display: none and no
+  // window opened. Now the page reads the CSS's own answer (useRoomForPane), so the two can never disagree.
+  const opened = async ([w, h]: [number, number], css: string) => {
+    const context = await browser.newContext({ viewport: { width: w, height: h } });
+    await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: BASE }]);
+    const page = await context.newPage();
+    await page.addInitScript((text) => {
+      const add = () => {
+        if (!document.head) return false;
+        const style = document.createElement("style");
+        style.textContent = text;
+        document.head.appendChild(style);
+        return true;
+      };
+      if (!add()) new MutationObserver((_, o) => add() && o.disconnect()).observe(document, { childList: true, subtree: true });
+    }, css);
+    await page.goto(`${BASE}${top}`, { waitUntil: "load" });
+    await settled(page);
+    const section = await page.getByTestId("all-champions").evaluate((el) => el.getBoundingClientRect().width);
+    // Again until the page is interactive (a click before hydration does nothing); once open, it is left open.
+    await expect(async () => {
+      if (!/champion=/.test(page.url())) await listCard(page).locator('[data-champion="Ambessa"] [data-open-champion]').click({ timeout: 2_000 });
+      await expect(page).toHaveURL(/champion=Ambessa/, { timeout: 1_000 });
+    }).toPass({ timeout: 15_000 });
+    await expect.poll(() => presentation(page), `${w}x${h} ${css || "16px"}: a presentation drawn`).not.toBe("nothing");
+    await page.waitForTimeout(300);
+    const shown = await presentation(page);
+    await context.close();
+    return { section, shown };
+  };
+  const big = "html{font-size:18px!important}";
+  // The workspace's bound (64.75rem of the section): an 18px root at 1524, 1525 (the half pixel under it) and 1526px.
+  expect(await opened([1524, 800], big)).toEqual({ section: 1164, shown: "window" });
+  expect(await opened([1525, 800], big), "1165px of 1165.5: the window, not a hidden pane").toEqual({ section: 1165, shown: "window" });
+  expect(await opened([1526, 800], big)).toEqual({ section: 1166, shown: "pane" });
+  // A fractional section at 16px (a zoom's widths), 0.44px under the bound (1035.56 of 1036), and at it.
+  const cut = "[data-testid=all-champions]{margin-right:0.44px!important}";
+  expect(await opened([1356, 760], cut), "1035.56px of 1036: the window").toEqual({ section: 1035.5625, shown: "window" });
+  expect(await opened([1356, 760], "")).toEqual({ section: 1036, shown: "pane" });
+  // The flow's bound (47.5rem of the section, a window under 80rem wide): 759.56 of 760, and at it.
+  expect(await opened([1080, 900], cut), "759.56px of 760: the sheet").toEqual({ section: 759.5625, shown: "sheet" });
+  expect(await opened([1080, 900], "")).toEqual({ section: 760, shown: "pane" });
+});
+
+test("a click beside the workspace window closes it at once, an opponent's games open included, the focus on the champion's row; Escape still goes back to the grid first, whatever has the focus", async ({ page }) => {
+  const row = () => listCard(page).locator('[data-champion="Ambessa"] [data-open-champion]');
+  const openDarius = async () => {
+    await open(page, top, [1280, 689], "expanded");
+    await row().click();
+    await expect(wsBody(page)).toBeVisible();
+    await settled(page);
+    await openOpponent(page, "Darius", wsBody(page));
+    await expect(page).toHaveURL(/vs=Darius/);
+  };
+  // The dimmed page left of the window (at most 56.25rem wide, centred): one click closes it, Darius and all, as the sheet's did.
+  // Until 28 Nov 2026 the first click only went back to the grid (the window's Escape rule, innermost first, asked of every close).
+  await openDarius();
+  const box = (await wsWindow(page).boundingBox())!;
+  expect(box.x, "room beside the window").toBeGreaterThan(40);
+  await page.mouse.click(Math.round(box.x / 2), Math.round(box.y + box.height / 2));
+  await expect(page.locator("dialog[open][data-testid=champion-preview]")).toHaveCount(0);
+  await expect(page).not.toHaveURL(/champion=|vs=/);
+  await expect(row(), "the focus on the champion's row, as a close gives it").toBeFocused();
+  // Escape, the focus on nothing in the window (a press on its text lets it go): Darius's games back to the grid, the window
+  // open; again: closed, the focus on the row.
+  await openDarius();
+  await wsBody(page).getByTestId("champion-preview-pairing-kda").click({ position: { x: 2, y: 2 } });
+  expect(await page.evaluate(() => document.activeElement === document.body || document.activeElement?.tagName === "DIALOG"), "nothing in the window focused").toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(wsBody(page).getByTestId("champion-preview-opponent-list")).toBeVisible();
+  await expect(wsWindow(page)).toBeVisible();
+  await expect(page).not.toHaveURL(/vs=/);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("dialog[open][data-testid=champion-preview]")).toHaveCount(0);
+  await expect(row()).toBeFocused();
+});
+
+test("the workspace window gives the focus back to the champion it shows: ‹ › twice, then Escape, Close or Back focus that champion's row; a wider window hands it to the same control in the pane", async ({ page }) => {
+  const content = page.getByTestId("champion-preview-content");
+  for (const how of ["Escape", "Close", "Back"] as const) {
+    await open(page, top, [1300, 720], "expanded");
+    const first = (await rowsOnPage(page).first().getAttribute("data-champion"))!;
+    await rowsOnPage(page).first().getByTestId("open-champion").click();
+    await expect(wsBody(page)).toBeVisible();
+    await settled(page);
+    for (let i = 0; i < 2; i++) {
+      const was = (await content.getAttribute("data-champion"))!;
+      await wsBody(page).getByTestId("champion-preview-next").click();
+      await expect(content).not.toHaveAttribute("data-champion", was);
+    }
+    const shown = (await content.getAttribute("data-champion"))!;
+    expect(shown).not.toBe(first);
+    await expect(listCard(page).locator(`[data-testid=top-champion][data-champion="${shown}"]`), "the champion shown on the list's page").toBeVisible();
+    if (how === "Escape") await page.keyboard.press("Escape");
+    else if (how === "Close") await wsBody(page).getByTestId("champion-preview-close").click();
+    else await page.goBack();
+    await expect(page.locator("dialog[open][data-testid=champion-preview]")).toHaveCount(0);
+    // Until 28 Nov 2026 the row the window was opened from (the first), as the pane never did.
+    await expect(listCard(page).locator(`[data-testid=top-champion][data-champion="${shown}"] [data-open-champion]`), `${how}: the row of the champion shown`).toBeFocused();
+  }
+  // 1300 → 1400px wide (the sidebar open): the pane takes the window's place, and the focus stays on the same control in it, also
+  // an opponent's cell and the opponents' pager, which the pane draws a moment later (its answer, then its pages). Until 28 Nov
+  // 2026 it went to the row the window was opened from.
+  for (const [what, target] of [
+    ["P1's ›", "champion-preview-next"],
+    ["an opponent's cell", "cell:Garen"],
+    ["the opponents' pager", "opponents-next"],
+  ] as const) {
+    await open(page, top, [1300, 720], "expanded");
+    await listCard(page).locator('[data-champion="Ambessa"] [data-open-champion]').click();
+    await expect(wsBody(page)).toBeVisible();
+    await settled(page);
+    await (target.startsWith("cell:") ? wsBody(page).locator(`[data-opponent-row="${target.slice(5)}"]`) : wsBody(page).getByTestId(target)).focus();
+    expect(await active(page)).toBe(target);
+    await page.setViewportSize({ width: 1400, height: 720 });
+    await expect(pane(page)).toBeVisible();
+    await expect(page.locator("dialog[open][data-testid=champion-preview]")).toHaveCount(0);
+    await expect.poll(() => active(page), `${what}: the same control in the pane`).toBe(target);
+    expect(await page.evaluate(() => !!document.activeElement?.closest("aside[data-preview-pane]")), `${what}: in the pane`).toBe(true);
+    await page.waitForTimeout(500);
+    expect(await active(page), `${what}: nothing takes the focus later`).toBe(target);
+  }
+});
+
 test("the section's parts are spaced by a gap, not margins: an open match window, the workspace window and the first paint leave the frame its full height", async ({ page }) => {
   const layout = () =>
     page.evaluate(() => {

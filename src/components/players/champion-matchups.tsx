@@ -23,6 +23,7 @@ import { rootPx } from "@/components/ui/posture";
 import { formatCount, formatDayMonth, percent } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { useAnswer, type PreviewData } from "./preview-data";
+import { focusCounterpart, markFocus, type FocusMark } from "./preview-focus";
 
 /*
   The preview's lane opponents (the owner's request of 25 Nov 2026): every lane opponent the
@@ -134,13 +135,6 @@ export function Matchups({ playerId, isOwn, me, role, vs, champ, data, onVs, onM
   return <FlowMatchups {...{ playerId, isOwn, me, role, vs, champ, data, onVs, onMatch, titleId, searchable, sort, setSort, query, setQuery, all, arranged, open, detailId, state, answer }} preview={preview} />;
 }
 
-/** What was focused in the pane's opponents: the same control in the other layout is found by it. */
-interface FocusMark {
-  el: Element;
-  row: string | null;
-  id: string | null;
-  testId: string | null;
-}
 const OPPONENTS_IN_PANE = "[data-preview-pane] [data-testid=champion-preview-opponents]";
 
 /**
@@ -156,7 +150,7 @@ function useFocusAcrossLayouts(layout: "workspace" | "flow"): React.RefObject<Fo
     const onFocus = (e: FocusEvent) => {
       const el = e.target instanceof Element ? e.target : null;
       if (!el?.closest(OPPONENTS_IN_PANE)) return;
-      last.current = { el, row: el.closest<HTMLElement>("[data-opponent-row]")?.dataset.opponentRow ?? null, id: el.id || null, testId: el.closest<HTMLElement>("[data-testid]")?.dataset.testid ?? null };
+      last.current = markFocus(el);
     };
     document.addEventListener("focusin", onFocus);
     return () => document.removeEventListener("focusin", onFocus);
@@ -171,21 +165,7 @@ function useFocusAcrossLayouts(layout: "workspace" | "flow"): React.RefObject<Fo
     if (!mark || mark.el.isConnected || (at && at !== document.body)) return;
     const region = document.querySelector<HTMLElement>(OPPONENTS_IN_PANE);
     if (!region) return;
-    const drawn = (el: HTMLElement | null | undefined): el is HTMLElement => !!el && el.getClientRects().length > 0;
-    const candidates = [
-      mark.row ? region.querySelector<HTMLElement>(`[data-opponent-row="${CSS.escape(mark.row)}"]`) : null,
-      mark.id ? document.getElementById(mark.id) : null,
-      mark.testId ? region.querySelector<HTMLElement>(`[data-testid="${CSS.escape(mark.testId)}"]`) : null,
-      region.querySelector<HTMLElement>("[data-testid=champion-preview-pairing] h4"),
-      region.querySelector<HTMLElement>("[data-opponent-row]"),
-      document.getElementById("champion-preview-title"),
-    ];
-    for (const el of candidates) {
-      const target = el && !el.matches("button, a[href], input, [tabindex]") ? el.querySelector<HTMLElement>("button, a[href], input, [tabindex]") : el;
-      if (!drawn(target)) continue;
-      target.focus({ preventScroll: true });
-      if (document.activeElement === target) return;
-    }
+    focusCounterpart(region, mark, [region.querySelector<HTMLElement>("[data-testid=champion-preview-pairing] h4"), region.querySelector<HTMLElement>("[data-opponent-row]"), document.getElementById("champion-preview-title")]);
   }, [layout]);
   // The workspace's grid draws its first column only until it has measured its pages: it takes the opponent's cell once drawn (WorkspaceMatchups).
   return last;

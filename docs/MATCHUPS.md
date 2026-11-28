@@ -51,8 +51,11 @@ narrower workspace (1280–1355px with the sidebar open, or a larger root) it op
 window** over the paged list (28 Nov 2026; the sheet before, whose unpaged preview scrolled inside
 it): the pane's own content in a window as tall as the screen less 1rem above and below, up to
 56.25rem wide, P1 its title bar, the opponents and an opponent's games paged inside it, nothing
-scrolling; Escape goes back from an opponent's games to the grid first, then closes it; Back closes
-it; ‹ › step champions, the list's page following under it. Everywhere else (phones, tablets, short or narrow windows, a larger text size) the
+scrolling; Escape goes back from an opponent's games to the grid first, then closes it; a click on
+the dimmed page beside it closes it at once, an opponent's games open included (until 28 Nov 2026 the
+first click went back to the grid); Back closes it; ‹ › step champions, the list's page following
+under it; closed, the focus is on the row of the champion it shows (until 28 Nov 2026 the row it was
+opened from). Everywhere else (phones, tablets, short or narrow windows, a larger text size) the
 page keeps the flow described next, unchanged. Measured rows per page (sidebar open and folded): the
 champions 7, 9, 9 and 11 at 1366 × 768, 1440 × 900, 1648 × 900 and 1920 × 1080; Ambessa's lane
 opponents 10, 18, 16 and 22 (two columns); an opponent's games 10, 18, 16 and 20.
@@ -191,10 +194,13 @@ Champions with that champion's preview open, in the pool's role.
 games and win rate are announced), Enter opens it and moves focus to the pane's heading; ↑/↓ (or
 K/J) on the list move it to the row above or below, in that champion's most played position; ‹ ›
 in its header do the same (the focus stays on the arrow pressed, or the other at an end); Escape,
-Close, Back or the selected row again close it, and focus returns to the row (in the workspace, where
-the list was paged away from it, to the first row of the page shown: the list stays on its page).
+Close, Back or the selected row again close it, and focus returns to the row of the champion shown,
+after ‹ › too, in the pane, the workspace window and the sheet alike (in the workspace, where the list
+was paged away from it, to the first row of the page shown: the list stays on its page).
 A zoom or a resize across the workspace's gate keeps the focus on the same opponent's row or control
-in the other layout (the nearest drawn one where it has none, such as a pager). Keys inside the preview are its own (its positions, its opponents' search and orders,
+in the other layout (the nearest drawn one where it has none, such as a pager), and so does the pane
+taking the place of the workspace window or the sheet (a wider window, the sidebar folded, a tablet
+turned sideways). Keys inside the preview are its own (its positions, its opponents' search and orders,
 their rows, the games). A position icon's tooltip closes on Escape alone. In the workspace: ↑/↓
 walk every row from the focused one, turning the page at its edge (the focus follows); PageUp and
 PageDown turn the list's page (the focus on its first row, PageUp its last), Home and End go to the

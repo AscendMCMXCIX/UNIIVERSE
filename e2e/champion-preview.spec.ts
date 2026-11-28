@@ -952,6 +952,41 @@ test("tablets: upright, no room for both: the sheet, its targets 44px; held side
   await expect(page).not.toHaveURL(/champion=/);
 });
 
+test("the sheet closes with the focus on the row of the champion it shows (‹ › twice, then Close or Back), the list where it was; a tablet turned sideways hands the focus to the same control in the pane", async ({ page }, info) => {
+  test.skip(info.project.name === "desktop", "a phone's and a tablet's sheet (the workspace window's: all-champions-workspace.spec.ts)");
+  // Until 28 Nov 2026 the sheet gave the focus to the row it was opened from, whichever champion ‹ › had stepped to; the pane
+  // and the workspace window give it to the row of the champion shown.
+  const profile = await demoMember(page);
+  await page.goto(`${profile}/champions`);
+  const rows = page.getByTestId("top-champion");
+  await expect(rows.nth(3)).toBeVisible();
+  const sheet = page.locator("dialog[open][data-testid=champion-preview]");
+  for (const how of ["close", "back"] as const) {
+    const y = await page.evaluate(() => scrollY);
+    await openRow(page, rows.nth(0));
+    await expect(sheet).toBeVisible();
+    await expect(pane(page)).toHaveCount(0);
+    for (const i of [1, 2]) {
+      await sheet.getByTestId("champion-preview-next").click();
+      await expect(page.getByTestId("champion-preview-content")).toHaveAttribute("data-champion", (await rows.nth(i).getAttribute("data-champion"))!);
+    }
+    if (how === "close") await sheet.getByTestId("champion-preview-close").click();
+    else await page.goBack();
+    await expect(sheet).toHaveCount(0);
+    await expect(rows.nth(2).getByTestId("open-champion"), `${how}: the row of the champion shown`).toBeFocused();
+    expect(await page.evaluate(() => scrollY), `${how}: the list where it was`).toBe(y);
+  }
+  if (info.project.name !== "tablet") return;
+  // Turned sideways (1180 × 820: room for both): the pane takes the sheet's place, the focus on its › as it was on the sheet's.
+  await openRow(page, rows.nth(0));
+  await expect(sheet).toBeVisible();
+  await sheet.getByTestId("champion-preview-next").focus();
+  await page.setViewportSize({ width: 1180, height: 820 });
+  await expect(pane(page)).toBeVisible();
+  await expect(sheet).toHaveCount(0);
+  await expect(pane(page).getByTestId("champion-preview-next"), "the same control in the pane").toBeFocused();
+});
+
 test("a game opened from the preview has a history entry of its own: Back closes the game and the preview stays, Back again closes the preview", async ({ page }) => {
   const profile = await demoMember(page);
   await page.goto(`${profile}/champions`);

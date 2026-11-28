@@ -413,7 +413,9 @@ name wraps. Popover and the desktop `Select` do not open on a phone (the browser
 used there).
 
 Every sheet and window shares `DetailModal`: native `<dialog>` (focus kept inside, the page behind
-inert), Escape and the backdrop close it, focus returns to what opened it, a sheet slides up in
+inert), Escape and the backdrop close it, focus returns to what opened it (or where its owner puts it,
+`refocus`: All Champions' preview gives it to the row of the champion shown, which ‹ › may have
+changed), a sheet slides up in
 220ms with `--ease-emphasized` and out in 140ms (instant with reduced motion). Every window's body
 grows from its content (`flex-auto`, never `flex-1`: Safari 26 collapses the other, above). The
 account screen is a screen of its own instead (`size="screen"`, above). A window opened by a tap
