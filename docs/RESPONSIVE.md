@@ -1234,10 +1234,12 @@ state below fits at the owner's eight configurations and at 1366 × 657, sidebar
   frame never scrolls; the device's own page scrolls inside it, as on the device.
 - **Resources: a paged list, its editor in a window (pattern a).** One card that fills the frame:
   the toolbar holds a filter (All, each section with its count, and Removed while a default is
-  removed; in the address as `?section=`), the count and Add resource. Rows are two lines of one
-  height (`min-h-17`: the title with its marks, host and, under All, its section; then the whole
-  description), the five row buttons at the right, paged by `usePagedRows` with the inline Pager in
-  the card's foot (PageUp, PageDown, Home, End across pages). At 1366 × 657 a page holds 4–5 rows, at
+  removed; in the address as `?section=`), the count and Add resource. Rows are two lines at least
+  (`min-h-17`: the title with its marks, host and, under All, its section; then the whole
+  description), the five row buttons at the right, paged by `usePagedRows` in its cumulative mode (a
+  long title or description takes a row a third line: the pages are cut once over the whole list by
+  the rows' own heights, measured again for another filter or another row's text) with the inline
+  Pager in the card's foot (PageUp, PageDown, Home, End across pages). At 1366 × 657 a page holds 4–5 rows, at
   1920 × 1080 nine. Up and Down move within a section; a row moved past its page's edge brings its
   page into view and keeps the focus on its move buttons. Add and Edit open the form in a window
   (Dialog, `picker`) that fits at every size with nothing scrolling; Removed defaults are the
@@ -1249,7 +1251,9 @@ state below fits at the owner's eight configurations and at 1366 × 657, sidebar
   yet). The role filter stays beside it, New note at the line's end; the counts and the current
   patch move to the card's foot beside the pager. One list a view, in the queue's order (opponents,
   then pairings), one line a row (`min-h-12`: the counts leave out "this season", which the list's
-  note above it says once), paged to what fits: 7–8 rows at 1366 × 768, 12 at 1920 × 1080 (203 lanes
+  note above it says once; a long pairing or state takes two), paged to what fits by `usePagedRows`'
+  cumulative mode (the pages cut once over the view's rows by their own heights, measured again for
+  another view, role or refresh): 7–8 rows at 1366 × 768, 12 at 1920 × 1080 (203 lanes
   are 17–34 pages). No fold grows the page. A changed role starts at page 1; a saved change keeps
   the page (its row may leave the view).
   - **The note editor** is a workspace window at the game's width (DetailModal `size="workspace"`,
@@ -1301,6 +1305,19 @@ Show more, a game under its card.
   `per`: the list's page survives the way back), Team Matches' `per` and `page`. Every server slices a
   list it already holds or counts (Match History's in memory, Encounters' one statement with an
   OFFSET, Team Matches' in memory, its teams and scores read for that page only): no query costs more.
+- **Turning pages never skips a record; one may show twice where the count changed.** The server
+  cuts its pages by `per`, so these lists keep `useRowBudget`'s count rather than the cumulative cut
+  of a client list (`usePagedRows`, above): it is measured on the page drawn and keyed to the list,
+  not the page, so it is measured again only where a page overflows (a page drawing more headers or
+  taller cards grows its frame) or the window changes; along a walk it only shrinks. Where it changes,
+  the new page is the one holding the first card of the page drawn, at the new count
+  (`budgetPageOf`: Match History, Team Matches and Encounters alike), so that page's first cards,
+  fewer than it holds, may be the ones the page before showed last: the sessions on the demo at
+  1648 × 900 or 1536 × 864 hold 4 cards on page 1, and page 2, drawn at 4 with two headers, holds 3
+  and starts at the 4th game. Nothing is skipped whatever the count does (`lib/list-per.test.ts`
+  walks 600 lists, the measured kind and an adversary's; `e2e/matches-workspace.spec.ts` walks the
+  sessions and Team Matches and asserts where a repeat may be: only where the count changed, at the
+  page holding the drawn page's first card).
 - **The cookie per list** (`lib/list-per.ts`: `uniiverse_per_games`, `_sessions`, `_met`,
   `_encounters`, `_together`; a number from 1 to 25, UI state like the sidebar's) keeps the last
   budget, so the server's first paint of the next visit draws about the right count. A first visit

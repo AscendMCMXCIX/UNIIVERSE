@@ -86,8 +86,14 @@ export function ResourcesManager({ initial, filter: initialFilter = null, cap = 
   const listRef = React.useRef<HTMLUListElement>(null);
   const footRef = React.useRef<HTMLDivElement>(null);
   const cardRef = React.useRef<HTMLElement>(null);
-  const { shown, regionProps, listProps, rowProps, pagerProps, footTestId, onListKeyDown } = usePagedRows<Row>({
+  const { shown, measuring, regionProps, listProps, rowProps, pagerProps, footTestId, onListKeyDown } = usePagedRows<Row>({
     rows,
+    // Rows of several heights (a title or a description on two lines, a Hidden badge): the pages cut once over the whole
+    // list by the rows' own heights (useRowBreaks), so a walk never repeats or skips a row.
+    mode: "cumulative",
+    // What the rows' heights depend on beyond their count: the filter (All adds each row's section to its host line) and
+    // what each row draws (an edit, a move, a hide). Another of either is measured again.
+    measureKey: [filter, JSON.stringify(rows)],
     // The section's marks are this component's own (it draws the WorkspaceSection), so it says when to measure.
     active: paged,
     listRef,
@@ -107,7 +113,8 @@ export function ResourcesManager({ initial, filter: initialFilter = null, cap = 
   // page, for a row moved past the page's edge); a move button that can go no further hands it to the other one.
   React.useLayoutEffect(() => {
     const want = focusAfter.current;
-    if (!want || !paged || busy) return;
+    // Not while the list measures (every row drawn for one render, never painted): the page it decides is drawn next.
+    if (!want || !paged || busy || measuring) return;
     const row = listRef.current?.querySelector<HTMLElement>(`[data-row-key="${CSS.escape(want.key)}"]`);
     if (!row) return;
     focusAfter.current = null;

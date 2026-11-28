@@ -189,6 +189,11 @@ export function MatchupNotesAdmin({ data, view: initialView = null, cap = null }
   const bandRef = React.useRef<HTMLParagraphElement>(null);
   const { shown, regionProps, listProps, rowProps, pagerProps, footTestId, onListKeyDown } = usePagedRows<Row>({
     rows: viewRows[view],
+    // Rows of several heights (a long champion pairing or a "Hidden … changed" state on two lines): the pages cut once over
+    // the whole list by the rows' own heights (useRowBreaks), so a walk never repeats or skips a lane.
+    mode: "cumulative",
+    // What the rows' heights depend on beyond their count: the view, the role and what each row draws (a refresh after a save).
+    measureKey: [view, role ?? "all", JSON.stringify(viewRows[view])],
     keyOf: rowKey,
     words: view === "all" ? { one: "note", many: "notes" } : { one: "lane", many: "lanes" },
     testId: "matchup-notes",

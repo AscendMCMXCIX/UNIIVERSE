@@ -25,7 +25,7 @@ import { useRowBudget } from "@/components/ui/fit-rows";
 import { Pager } from "@/components/ui/pager";
 import { rangeText, rangeWords } from "@/components/ui/paged-list";
 import { WS_SECTION, WorkspaceFoot, useWorkspaceMarks, wsTierClass } from "@/components/ui/workspace";
-import { forgetListPer, rememberListPer } from "@/lib/list-per";
+import { budgetPageOf, forgetListPer, rememberListPer } from "@/lib/list-per";
 import { useReaderBusy, whenReaderIdle } from "@/components/ui/reader-idle";
 
 /** A row's height while none is drawn (about 41px: a name and its figures on one line). */
@@ -344,9 +344,11 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
     if (perPage === null || perPage === c.per || page.total === 0 || pending) return;
     // Never over the reader's own navigation (a side, an order, a search followed meanwhile: ui/reader-idle.ts).
     return whenReaderIdle(readerBusy, () => {
+      // The page holding the page's first row at the new size (budgetPageOf, Match History's and Team Matches' rule): a row may
+      // show again across the edge where the size changed, never skipped (lib/list-per.test.ts).
       const first = c.per ? (c.page - 1) * c.per : 0;
       rememberListPer("encounters", perPage);
-      startTransition(() => router.replace(href({ per: perPage, page: Math.floor(first / perPage) + 1 }), { scroll: false }));
+      startTransition(() => router.replace(href({ per: perPage, page: budgetPageOf({ offset: first, ids: [] }, null, perPage) ?? 1 }), { scroll: false }));
     }, PER_SETTLE_MS);
     // `href` follows the choice; the budget and the page decide.
     // eslint-disable-next-line react-hooks/exhaustive-deps

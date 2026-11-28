@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "./test";
-import { FLOOR, cfg, demoPlayerId, expectEveryRecord, fits, flowUnchanged, openAt, region, resizeTo, settled, walkPages, type Size } from "./workspace";
+import { FLOOR, cfg, demoPlayerId, expectEveryRecord, fits, flowUnchanged, openAt, region, resizeTo, settled, walkPages, withWideText, type Side, type Size } from "./workspace";
 
 /*
   Match History, Encounters and Team Matches in the one-screen workspace (docs/RESPONSIVE.md, "One-screen desktop
@@ -327,6 +327,113 @@ test("Team Matches pages its cards, every game once, and its game window steps a
   await page.goBack();
   await expect(page.locator("dialog[open]")).toHaveCount(0);
   await expect(page).not.toHaveURL(/match=/);
+});
+
+/** A server-paged list's page as a walk settles on it: its page and size, its cards' places on the whole list, each card's height, and the session headers it draws. */
+interface ServerPage {
+  page: number;
+  per: number;
+  places: number[];
+  heights: number[];
+  headers: number;
+}
+
+/** Walks a server-paged list by Next to its last page, each page read once its size has settled (the budget written and the page of that size arrived). */
+async function walkServerPages(page: Page, name: string, nextTestId: string, row: string): Promise<ServerPage[]> {
+  const out: ServerPage[] = [];
+  for (let n = 0; n < 80; n++) {
+    await settled(page);
+    const r = (await region(page, name))!;
+    const drawn = await page.evaluate((sel) => [...document.querySelectorAll<HTMLElement>(sel)].filter((el) => el.getBoundingClientRect().height > 0).map((el) => ({ at: Number(el.getAttribute("aria-posinset")), height: el.getBoundingClientRect().height })), row);
+    const headers = await page.evaluate(() => [...document.querySelectorAll<HTMLElement>("[data-testid=session-header]")].filter((el) => el.getBoundingClientRect().height > 0).length);
+    out.push({ page: r.page, per: r.per, places: drawn.map((d) => d.at), heights: drawn.map((d) => Math.round(d.height)), headers });
+    const next = page.getByTestId(nextTestId);
+    if (!(await next.count()) || (await next.isDisabled())) break;
+    await next.click();
+    await expect.poll(async () => (await cards(page, row))[0], { message: "the next page drawn" }).not.toBe(drawn[0]?.at);
+  }
+  return out;
+}
+
+/**
+ * Turning the pages never skips a record, and shows one twice only where the count changed (docs/RESPONSIVE.md, "One-screen desktop
+ * pages", server-paged lists; lib/list-per.test.ts proves the rule on any walk): every place on a page of the walk, each page's places
+ * a run from the first; a page at the size of the one before follows on from it exactly; a page whose size changed (counted again on
+ * the page Next drew) starts at the page, at its new size, holding that drawn page's first card (budgetPageOf), so it shows again the
+ * page before's last cards, fewer than its own size. Returns where the size changed and how many cards that page repeats.
+ */
+function expectTurnsNeverSkip(walk: ServerPage[], total: number, at: string): Array<{ page: number; from: number; to: number; repeats: number }> {
+  const changes: Array<{ page: number; from: number; to: number; repeats: number }> = [];
+  for (const [i, p] of walk.entries()) {
+    const first = p.places[0]!;
+    expect(p.places, `${at}: page ${i + 1}'s places, a run from its first`).toEqual(Array.from({ length: Math.min(p.per, total - first + 1) }, (_, k) => first + k));
+    if (i === 0) {
+      expect(first, `${at}: the walk starts at the first record`).toBe(1);
+      continue;
+    }
+    const before = walk[i - 1]!;
+    // The first card of the page Next drew (0-based): the one after the page before's last.
+    const drawnFirst = before.places[0]! - 1 + before.per;
+    if (p.per === before.per) {
+      expect(first - 1, `${at}: page ${i + 1} follows on from page ${i} (${p.per} a page)`).toBe(drawnFirst);
+      expect(p.page, `${at}: page ${i + 1}'s number`).toBe(before.page + 1);
+      continue;
+    }
+    const start = Math.floor(drawnFirst / p.per) * p.per;
+    expect(first - 1, `${at}: page ${i + 1}, ${before.per} a page then ${p.per}: the page holding the first card Next drew`).toBe(start);
+    expect(p.page, `${at}: page ${i + 1}'s number at ${p.per} a page`).toBe(start / p.per + 1);
+    expect(drawnFirst - start, `${at}: page ${i + 1} repeats fewer cards than it holds`).toBeLessThan(p.per);
+    changes.push({ page: i + 1, from: before.per, to: p.per, repeats: drawnFirst - start });
+  }
+  expect(new Set(walk.flatMap((p) => p.places)).size, `${at}: every record on a page of the walk`).toBe(total);
+  return changes;
+}
+
+test("turning the pages of a server-paged list whose pages differ in height never skips a game: Match History's sessions, with their headers, and Team Matches, its cards as tall as their members; a game shows twice only where the count changed", async ({ page }) => {
+  test.setTimeout(300_000);
+  // CI's wider text, as the platform spec measures: the counts below are the ones it draws.
+  await withWideText(page);
+  const id = await demoPlayerId(page);
+  const changes: Array<{ at: string; page: number; from: number; to: number; repeats: number }> = [];
+  // The sessions: a header before each session and again on a page that starts inside one. At 1648 × 900 and 1536 × 864 the first page
+  // holds 4 cards and the second, drawn at 4, holds 3 (two headers): it is counted again, and the page holding its first card at 3 a page
+  // starts a card earlier. At the floor every page holds 2.
+  for (const [size, side] of [
+    [[1648, 900], "expanded"],
+    [[1536, 864], "collapsed"],
+    [FLOOR, "expanded"],
+  ] as Array<[Size, Side]>) {
+    await page.context().clearCookies();
+    await openAt(page, `${MH(id)}?group=sessions`, size, side);
+    const at = `${cfg(size, side)} sessions`;
+    const total = (await region(page, "games"))!.total;
+    const walk = await walkServerPages(page, "games", "match-next", "[data-testid=match-item]");
+    changes.push(...expectTurnsNeverSkip(walk, total, at).map((c) => ({ at, ...c })));
+    // The pages differ in height by their headers: a page that starts inside a session draws its header again, and one that holds a
+    // session's end draws the next one's too (the demo's sessions are 3 games each, so 4 cards from the 5th take two).
+    expect(walk.some((p) => p.headers > 1) || walk.some((p, i) => i > 0 && p.per !== walk[i - 1]!.per), `${at}: a page with two headers, or a count that changed for one`).toBe(true);
+    expect(walk.every((p) => p.headers >= 1), `${at}: every page under its session's header`).toBe(true);
+  }
+  // Team Matches: its cards are 110–250px with their members; the count holds across the walk at these sizes.
+  for (const size of [
+    [1366, 768],
+    [1440, 900],
+    FLOOR,
+  ] as Size[]) {
+    await page.context().clearCookies();
+    await openAt(page, "/matches", size, "expanded");
+    const at = `${cfg(size, "expanded")} Team Matches`;
+    const total = (await region(page, "together"))!.total;
+    const walk = await walkServerPages(page, "together", "together-next", "[data-testid=together-list] > li");
+    expect(walk.length, `${at}: more than one page`).toBeGreaterThan(1);
+    const heights = walk.flatMap((p) => p.heights);
+    expect(Math.max(...heights) - Math.min(...heights), `${at}: cards of different heights (${Math.min(...heights)}–${Math.max(...heights)}px)`).toBeGreaterThan(8);
+    changes.push(...expectTurnsNeverSkip(walk, total, at).map((c) => ({ at, ...c })));
+  }
+  // The count changed on the way somewhere (so the repeat above was walked), and only where the sessions' headers grew a page.
+  expect(changes.length, "a walk whose count changed").toBeGreaterThan(0);
+  for (const c of changes) expect(c.at, "a change of count only on the sessions").toMatch(/sessions$/);
+  test.info().annotations.push({ type: "changes", description: JSON.stringify(changes) });
 });
 
 test("outside the gate the three lists are the flow, as they were: Show more, the stacked pager, games under their cards", async ({ page }) => {
