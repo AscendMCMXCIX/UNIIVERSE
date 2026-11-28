@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from "./test";
-import { closeGame, openGame } from "./match-history";
+import { closeGame, openGame, inTheFlow } from "./match-history";
 import { NO_BUILD_CLASS, noBuildWords } from "../src/components/match-history/card-build";
 
 /*
@@ -111,6 +111,8 @@ test("every card of the first page shows the opened game's performance score and
 });
 
 test("the score is prominent and keeps one place: bold in the primary colour, its own column after the K/D/A on a wide card, under the K/D/A on a narrow one; MVP gold, ACE violet, other places restrained", async ({ page }) => {
+  // A full page of ten games, each opened under its card: the flow (in the one-screen gate a page holds what fits, and games open in the game window).
+  await inTheFlow(page);
   await openHistory(page, "MID");
   const marks = page.locator("[data-testid=match-score]:visible");
   await expect(marks.first()).toBeVisible();

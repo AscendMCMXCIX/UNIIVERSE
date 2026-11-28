@@ -166,7 +166,7 @@ describe("encounters of one player", () => {
 
   it("reads the list's choices from an address and writes them back, defaults left out", () => {
     // Every player met by default, both records side by side.
-    expect(encounterListChoice({})).toEqual({ relation: "all", min: 2, sort: "games", q: "", limit: ENCOUNTER_PAGE });
+    expect(encounterListChoice({})).toEqual({ relation: "all", min: 2, sort: "games", q: "", limit: ENCOUNTER_PAGE, page: 1, per: null });
     // The earlier names still open the same lists; All has no win-rate order.
     expect(encounterListChoice({ rel: "opponents" }).relation).toBe("against");
     expect(encounterListChoice({ rel: "allies", sort: "best" })).toMatchObject({ relation: "alongside", sort: "best" });
@@ -176,10 +176,14 @@ describe("encounters of one player", () => {
     expect(encounterListChoice({ q: "  Kestrel " })).toMatchObject({ q: "Kestrel", min: 1 });
     expect(encounterListChoice({ q: "Kestrel", min: "3" })).toMatchObject({ min: 3 });
     // Unknown values fall back to the defaults; the list never grows past 500 players.
-    expect(encounterListChoice({ rel: "friends", min: "4", sort: "random", limit: "-3" })).toEqual({ relation: "all", min: 2, sort: "games", q: "", limit: ENCOUNTER_PAGE });
+    expect(encounterListChoice({ rel: "friends", min: "4", sort: "random", limit: "-3" })).toEqual({ relation: "all", min: 2, sort: "games", q: "", limit: ENCOUNTER_PAGE, page: 1, per: null });
+    // The workspace's pages: a page size from 1 to 25 and the page; a page without a size is the first.
+    expect(encounterListChoice({ eper: "6", epage: "3" })).toMatchObject({ per: 6, page: 3 });
+    expect(encounterListChoice({ eper: "80", epage: "-2" })).toMatchObject({ per: 25, page: 1 });
+    expect(encounterListChoice({ epage: "3" })).toMatchObject({ per: null, page: 1 });
     expect(encounterListChoice({ limit: "100000" }).limit).toBe(500);
     expect(encounterListChoice({ q: "x".repeat(80) }).q).toHaveLength(32);
-    for (const sp of [{}, { rel: "alongside", min: "5", sort: "worst", q: "Moon", limit: "50" }, { rel: "against" }, { rel: "all", q: "Moon", sort: "recent" }, { min: "1" }, { rel: "allies" }]) {
+    for (const sp of [{}, { rel: "alongside", min: "5", sort: "worst", q: "Moon", limit: "50" }, { rel: "against" }, { rel: "all", q: "Moon", sort: "recent" }, { min: "1" }, { rel: "allies" }, { eper: "6", epage: "4" }, { eper: "9" }]) {
       const choice = encounterListChoice(sp);
       expect(encounterListChoice(encounterListParams(choice))).toEqual(choice);
     }

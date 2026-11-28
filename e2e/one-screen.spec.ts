@@ -153,7 +153,36 @@ const ROWS: OneScreenRow[] = [
   { name: "Admin Branding, Colours", path: "/admin/branding?section=colours", admin: true, at: EIGHT_AND_FLOOR, workspace: true },
   { name: "Admin Branding, Colours unreadable (two checks failing)", path: "/admin/branding?section=colours", admin: true, at: EIGHT_AND_FLOOR, workspace: true, then: async (page) => { await page.getByRole("textbox", { name: "Background hex" }).fill("#ffffff"); await page.getByRole("textbox", { name: "Surface hex" }).fill("#ffffff"); } },
   { name: "Admin Branding, Public page", path: "/admin/branding?section=public", admin: true, at: EIGHT_AND_FLOOR, workspace: true },
+  // Lane C (28 Nov 2026): Match History, Encounters and Team Matches, each a paged list in the workspace, every game in
+  // the game window (docs/RESPONSIVE.md, "One-screen desktop pages", the pages). Their own spec: e2e/matches-workspace.spec.ts.
+  { name: "Match History, the games", path: "/players/{player}/matches", at: EIGHT_AND_FLOOR, workspace: true, pager: "match-pages", cards: "[data-testid=match-list]", rows: "[data-testid=match-item]" },
+  { name: "Match History, a game open in the game window", path: "/players/{player}/matches", at: EIGHT_AND_FLOOR, workspace: true, then: openFirstGame, cards: "[data-testid=match-list]", rows: "[data-testid=match-item]" },
+  { name: "Match History, grouped by session", path: "/players/{player}/matches?group=sessions", at: EIGHT_AND_FLOOR, workspace: true, pager: "match-pages", cards: "[data-testid=match-list]", rows: "[data-testid=match-item]" },
+  { name: "Match History, one player's games (Encounters → a player)", path: "/players/{player}/matches?view=encounters", at: EIGHT_AND_FLOOR, workspace: true, then: openFirstEncounter, cards: "[data-testid=match-list]", rows: "[data-testid=match-item]" },
+  { name: "Match History, Encounters", path: "/players/{player}/matches?view=encounters", at: EIGHT_AND_FLOOR, workspace: true, pager: "encounter-pager" },
+  { name: "My Profile, Match History", path: "/overview/matches", cookies: { uniiverse_demo_viewer: "member" }, at: EIGHT_AND_FLOOR, workspace: true, cards: "[data-testid=match-list]", rows: "[data-testid=match-item]" },
+  { name: "Team Matches", path: "/matches", at: EIGHT_AND_FLOOR, workspace: true, cards: "[data-testid=together-region]", rows: "[data-testid=together-list] > li" },
+  { name: "Team Matches, a game open in the game window", path: "/matches", at: EIGHT_AND_FLOOR, workspace: true, then: openFirstTogether, cards: "[data-testid=together-region]", rows: "[data-testid=together-list] > li" },
 ];
+
+/** Opens the first game of Match History's page in the game window, its view drawn (whole, or in its pages where it does not fit). */
+async function openFirstGame(page: Page) {
+  await page.getByTestId("match-card").first().click({ position: { x: 24, y: 16 } });
+  await expect(page.locator("dialog[open][data-size=workspace] [data-testid=match-breakdown]")).toBeVisible({ timeout: 15_000 });
+}
+
+/** Opens the first game of Team Matches' page in the game window. */
+async function openFirstTogether(page: Page) {
+  await page.getByTestId("together-card").first().click({ position: { x: 24, y: 12 } });
+  await expect(page.locator("dialog[open][data-size=workspace] [data-testid=match-breakdown]")).toBeVisible({ timeout: 15_000 });
+}
+
+/** From Encounters, the first player met: their games in Match History's list (?met=). */
+async function openFirstEncounter(page: Page) {
+  await page.getByTestId("open-encounter").first().click();
+  await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
+  await expect(page.getByTestId("match-item").first()).toBeVisible();
+}
 
 test.beforeEach(({ browserName }, info) => {
   void browserName;

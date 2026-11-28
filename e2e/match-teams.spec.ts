@@ -1,5 +1,5 @@
 import { expect, test, type Page } from "./test";
-import { expandedOf, openGame } from "./match-history";
+import { expandedOf, inTheFlow, openGame } from "./match-history";
 
 /*
   Both teams on every match card (synthetic demo games: the other players are named "Demo Ally"
@@ -86,6 +86,8 @@ test("Team → Matches: the same preview, with the team members marked", async (
 
 test("player names: a member's opens their profile, the card still opens the game, the keyboard moves card by card", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop", "names are shown on wider screens");
+  // The card toggles its game under it: the flow, just under the one-screen gate (in the gate a game opens in the game window).
+  await inTheFlow(page);
   await page.goto("/team");
   const id = (await page.getByTestId("lineup-row-TOP").getAttribute("data-player-id"))!;
   await page.goto(`/players/${id}/matches`);

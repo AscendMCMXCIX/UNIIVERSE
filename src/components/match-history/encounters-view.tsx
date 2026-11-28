@@ -4,7 +4,7 @@ import * as React from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { ArrowDown, ArrowUp, ArrowUpDown, ChevronRight, Search } from "lucide-react";
-import { ENCOUNTER_MINIMUMS, ENCOUNTER_PAGE, ESTABLISHED_GAMES, INSIGHT_LABELS, INSIGHT_RELATION, RELATIONS, defaultMinimum, encounterFocusParams, encounterListParams, recordFor, sortsFor, type EncounterInsight, type EncounterListChoice, type EncounterRelation, type EncounterSort, type EncounterSummary, type Relation, type RelationRecord, type WinLoss } from "@/domain/encounters";
+import { ENCOUNTER_MINIMUMS, ENCOUNTER_PAGE, ENCOUNTER_PER_MAX, ESTABLISHED_GAMES, INSIGHT_LABELS, INSIGHT_RELATION, RELATIONS, defaultMinimum, encounterFocusParams, encounterListParams, recordFor, sortsFor, type EncounterInsight, type EncounterListChoice, type EncounterRelation, type EncounterSort, type EncounterSummary, type Relation, type RelationRecord, type WinLoss } from "@/domain/encounters";
 import { statsQuery, type SeasonMode, type StatsFilter } from "@/domain/season-stats";
 import { seasonLabel } from "@/domain/season";
 import { WIN_RATE_TONE_CLASS, winRateTone } from "@/domain/stats/win-rate";
@@ -21,6 +21,21 @@ import { formatCount, formatDate, percent } from "@/lib/format";
 import { cn } from "@/lib/cn";
 import { isPlainClick } from "@/lib/back-to-top";
 import { MatchHistoryHeader, scopeText } from "./match-history-header";
+import { useRowBudget } from "@/components/ui/fit-rows";
+import { Pager } from "@/components/ui/pager";
+import { rangeText, rangeWords } from "@/components/ui/paged-list";
+import { WS_SECTION, WorkspaceFoot, useWorkspaceMarks, wsTierClass } from "@/components/ui/workspace";
+import { forgetListPer, rememberListPer } from "@/lib/list-per";
+import { useReaderBusy, whenReaderIdle } from "@/components/ui/reader-idle";
+
+/** A row's height while none is drawn (about 41px: a name and its figures on one line). */
+const ROW_PROBE_REM = 2.5625;
+/** The workspace writes its budget to the address once the window has been at rest this long (each new size is a server render). */
+const PER_SETTLE_MS = 250;
+/** The first paint's rows by the window's height tier, before the page has measured (where neither the address nor the cookie gave a size). */
+const FIRST_PAINT_TIERS = { gate: 3, mid: 7, tall: 9 } as const;
+/** The list's noun: the range, the words read after a page change. */
+const PLAYER_WORDS = { one: "player", many: "players" } as const;
 
 /*
   Match History → Encounters: the players this profile's player keeps meeting in their recorded
@@ -51,6 +66,10 @@ export interface EncountersData {
   modes: { counts: Record<SeasonMode, number>; elsewhere: Array<{ season: number; games: number }> };
   choice: EncounterListChoice;
   page: EncounterPage;
+  /** Where the workspace's page size came from (the address, the list's cookie, or neither: the first paint shows the window's height tier). */
+  perFrom?: "address" | "cookie" | "default";
+  /** A browser test's cap on the workspace's budget (server/demo/test-hooks.ts). */
+  cap?: number | null;
 }
 
 export const ENCOUNTERS_CAVEAT = `Everyone met in this player's recorded games, members left out: not parties or friends. Against: other team; alongside: same team. Grey: fewer than ${ESTABLISHED_GAMES} games.`;
@@ -241,6 +260,10 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
   const [pending, startTransition] = React.useTransition();
   const { filter: f, choice: c, page } = data;
   useEncounterReturn();
+  // The one-screen workspace (docs/RESPONSIVE.md, "One-screen desktop pages", Encounters): the table fills the frame, its
+  // complete rows a page (the row budget, the address's `eper`), the pager in its footer in Show more's place.
+  const marks = useWorkspaceMarks();
+  const ws = marks.ws;
   const [query, setQuery] = React.useState(c.q);
   // A phone keeps the search behind the toolbar's icon until tapped (MH-9), so the list starts higher;
   // open while it holds a search. Wider toolbars always show the box.
@@ -260,7 +283,7 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
   /** The address with these list choices (a new choice starts again from the first page of players). */
   const href = React.useCallback(
     (change: Partial<EncounterListChoice>) => {
-      const next = { ...c, limit: ENCOUNTER_PAGE, ...change };
+      const next = { ...c, limit: ENCOUNTER_PAGE, page: 1, ...change };
       // A minimum left at its default follows the search's default (once while searching, else twice).
       if (change.q !== undefined && change.min === undefined && c.min === defaultMinimum(c.q)) next.min = defaultMinimum(next.q);
       // Win rates are ranked within one side only: All keeps the most games or the most recent.
@@ -284,10 +307,63 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
     return () => window.clearTimeout(t);
   }, [query, c.q, href, router]);
 
-  const keep = { view: "encounters", ...encounterListParams({ ...c, limit: ENCOUNTER_PAGE }) };
+  const keep = { view: "encounters", ...encounterListParams({ ...c, limit: ENCOUNTER_PAGE, page: 1 }) };
   // Reset puts the season, game mode and account back, and the list's minimum and order (the
   // Filters sheet holds them on a phone); the side in view and a search stay.
-  const reset = { view: "encounters", ...encounterListParams({ ...c, min: defaultMinimum(c.q), sort: "games", limit: ENCOUNTER_PAGE }) };
+  const reset = { view: "encounters", ...encounterListParams({ ...c, min: defaultMinimum(c.q), sort: "games", limit: ENCOUNTER_PAGE, page: 1 }) };
+
+  // The workspace's page size: the complete rows between the table's first row and its footer (useRowBudget, by the rows'
+  // own heights: a row met on the other side too has a second line), written to the address once the window is at rest
+  // and kept in the list's cookie. The flow shows the first 25 and Show more: a page size the address or the cookie gave
+  // is dropped there.
+  const cardRef = React.useRef<HTMLDivElement>(null);
+  const listRef = React.useRef<HTMLUListElement>(null);
+  const footRef = React.useRef<HTMLDivElement>(null);
+  const toolbarRef = React.useRef<HTMLDivElement>(null);
+  const budget = useRowBudget(listRef, {
+    footRef,
+    cardRef,
+    probeRem: ROW_PROBE_REM,
+    lastLess: 1,
+    mode: "cumulative",
+    active: marks.paged && page.total > 0,
+    observe: () => [cardRef.current, toolbarRef.current],
+    key: [page.total, c.relation, c.q, c.min, c.sort],
+    cap: data.cap ?? null,
+  });
+  const perPage = marks.paged && budget !== null ? Math.min(ENCOUNTER_PER_MAX, budget) : null;
+  const readerBusy = useReaderBusy();
+  React.useEffect(() => {
+    // The flow: a page size from the cookie is forgotten (the server then draws the first 25 and Show more), one from the address dropped.
+    if (ws === false && c.per !== null) {
+      forgetListPer("encounters");
+      startTransition(() => (data.perFrom === "cookie" ? router.refresh() : router.replace(href({ per: null }), { scroll: false })));
+      return;
+    }
+    if (perPage === null || perPage === c.per || page.total === 0 || pending) return;
+    // Never over the reader's own navigation (a side, an order, a search followed meanwhile: ui/reader-idle.ts).
+    return whenReaderIdle(readerBusy, () => {
+      const first = c.per ? (c.page - 1) * c.per : 0;
+      rememberListPer("encounters", perPage);
+      startTransition(() => router.replace(href({ per: perPage, page: Math.floor(first / perPage) + 1 }), { scroll: false }));
+    }, PER_SETTLE_MS);
+    // `href` follows the choice; the budget and the page decide.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [perPage, c.per, c.page, page.total, ws, pending]);
+  const paged = perPage !== null && c.per !== null;
+  const pages = paged ? Math.max(1, Math.ceil(page.total / c.per!)) : 1;
+  const offset = paged ? (c.page - 1) * c.per! : 0;
+  // The rows drawn: no more than the budget while a page of that size is on its way.
+  const rows = perPage !== null && page.list.length > perPage ? page.list.slice(0, perPage) : page.list;
+  const tiered = data.perFrom === "default" && perPage === null && ws !== false;
+  // The region from the first measure on (its `per` and pages only once the page of the budget's size has come: a test waits).
+  const regionProps = perPage !== null ? { "data-ws-region": "encounters", "data-per": paged && perPage === c.per ? c.per! : undefined, "data-page": c.page, "data-pages": paged ? pages : undefined, "data-total": page.total } : {};
+  const [live, setLive] = React.useState("");
+  const turn = (p: number) => {
+    if (!paged || p < 1 || p > pages) return;
+    setLive(rangeWords(PLAYER_WORDS, (p - 1) * c.per! + 1, Math.min(page.total, p * c.per!), page.total));
+    go({ page: p });
+  };
   // The minimum and the order where they differ from their default: chips beside a phone's Filters.
   const listChips = [
     ...(c.min !== defaultMinimum(c.q) ? [{ key: "min", text: minimumText(c.min), clear: () => go({ min: defaultMinimum(c.q) }) }] : []),
@@ -299,7 +375,7 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
   const insights = c.q ? [] : page.insights.filter((i) => c.relation === "all" || INSIGHT_RELATION[i.kind] === relationOf(c.relation));
   const sorts = sortsFor(c.relation);
   return (
-    <section className="space-y-3" aria-labelledby="match-history" data-testid="encounters" data-ready={interactive ? "true" : undefined} data-relation={c.relation}>
+    <section className={WS_SECTION} {...marks.attrs} aria-labelledby="match-history" data-testid="encounters" data-ready={interactive ? "true" : undefined} data-relation={c.relation}>
       <MatchHistoryHeader
         view="encounters"
         basePath={basePath}
@@ -359,14 +435,14 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
           <ModeElsewhere basePath={basePath} filter={f} elsewhere={data.modes.elsewhere} keep={keep} />
         </p>
       ) : (
-        <div className={cn("space-y-3 transition-opacity duration-150", pending && "opacity-60")} aria-busy={pending}>
+        <div className={cn("space-y-3 transition-opacity duration-150 ws:flex ws:flex-1 ws:flex-col ws:gap-3 ws:space-y-0", pending && "opacity-60")} aria-busy={pending}>
           {insights.length ? <Highlights insights={insights} gamesOf={gamesOf} repeated={page.list[0]?.key ?? null} /> : null}
 
           {/* One card: its toolbar (the filter, the search, and from md the minimum and Sort by
               where the column names are not shown), the column names (each sorts; pinned under the
               section tabs as the list scrolls), the players, then the next page one press away. */}
-          <div className="@container/enc rounded-card border border-border bg-surface panel-depth" data-testid="encounter-table">
-            <div className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 @min-[40rem]/enc:px-4">
+          <div ref={cardRef} className="@container/enc rounded-card border border-border bg-surface panel-depth ws:flex ws:flex-1 ws:flex-col" data-testid="encounter-table" data-ws-card="" {...regionProps}>
+            <div ref={toolbarRef} className="flex flex-wrap items-center gap-2 border-b border-border/70 px-3 py-2.5 @min-[40rem]/enc:px-4">
               <nav aria-label="Which players" className={segmentedGroupClass("@max-[40rem]/enc:min-w-0 @max-[40rem]/enc:flex-[1_1_auto]")} data-testid="encounter-relations">
                 {RELATIONS.map((r) => (
                   // relative: the hidden " players" stays inside its segment (the group wraps when its
@@ -431,20 +507,44 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
             ) : (
               <>
                 <ColumnHeads relation={c.relation} sort={c.sort} href={href} />
-                <ul className="divide-y divide-border/60" data-testid="encounter-list">
-                  {page.list.map((s) => (
-                    <EncounterRow key={s.key} s={s} relation={c.relation} href={gamesOf(s.key, c.relation)} />
+                <ul ref={listRef} className="divide-y divide-border/60" data-testid="encounter-list" aria-describedby={paged ? "encounter-pager-range" : undefined}>
+                  {rows.map((s, i) => (
+                    <EncounterRow key={s.key} s={s} relation={c.relation} href={gamesOf(s.key, c.relation)} place={paged ? { at: offset + i + 1, of: page.total } : undefined} tierClass={tiered ? wsTierClass(i, FIRST_PAINT_TIERS) : undefined} />
                   ))}
                 </ul>
-                {page.list.length < page.total ? (
-                  <Link href={href({ limit: c.limit + ENCOUNTER_PAGE })} replace scroll={false} className="flex min-h-11 w-full items-center justify-center rounded-b-card border-t border-border/70 text-sm font-medium text-accent transition-colors hover:bg-accent/5" data-testid="encounter-more">
+                {!paged && page.list.length < page.total ? (
+                  <Link href={href({ limit: c.limit + ENCOUNTER_PAGE })} replace scroll={false} className="flex min-h-11 w-full items-center justify-center rounded-b-card border-t border-border/70 text-sm font-medium text-accent transition-colors hover:bg-accent/5 ws:hidden" data-testid="encounter-more">
                     Show more ({formatCount(page.list.length)} of {formatCount(page.total)} shown)
                   </Link>
                 ) : null}
               </>
             )}
+            {/* The workspace's footer: the range ("Players 1–6 of 31") and the pager, in Show more's place (WorkspaceFoot: drawn in the workspace only). */}
+            {ws !== false && page.total > 0 ? (
+              <WorkspaceFoot ref={footRef} testId="encounter-foot" className="rounded-b-card">
+                {paged ? (
+                  <Pager
+                    layout="inline"
+                    label="Encounter pages"
+                    page={c.page}
+                    pages={pages}
+                    onPage={turn}
+                    range={rangeText(PLAYER_WORDS, { from: offset + 1, to: Math.min(page.total, offset + c.per!) }, pages, page.total)}
+                    widest={`${page.total}–${page.total} of ${page.total}`}
+                    rangeId="encounter-pager-range"
+                    prevLabel="Previous page"
+                    nextLabel="Next page"
+                    disabled={pending}
+                    live={live}
+                    testId="encounter-pager"
+                    prevTestId="encounter-prev"
+                    nextTestId="encounter-next"
+                  />
+                ) : null}
+              </WorkspaceFoot>
+            ) : null}
           </div>
-          <p className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-xs text-fg-muted">
+          <p className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 px-1 text-xs text-fg-muted ws:hidden">
             <span data-testid="encounter-count">{page.total ? `${formatCount(page.list.length)} of ${formatCount(page.total)} player${page.total === 1 ? "" : "s"} shown` : ""}</span>
             {/* What a grey win rate means is in the ⓘ by the scope line ("Grey: fewer than 5 games"): the permanent legend that
                 repeated it went in Release 17's noise audit. */}
@@ -586,11 +686,13 @@ function SideFigures({ relation, wl }: { relation: Relation; wl: RelationRecord 
 const lastText = (at: number | null) => (at === null ? "—" : formatDate(new Date(at)));
 
 /** One player: the whole row is a link to their games in Match History (one stop for the keyboard; its outline marks the row). */
-function EncounterRow({ s, relation, href }: { s: EncounterSummary; relation: EncounterRelation; href: string }) {
+function EncounterRow({ s, relation, href, place, tierClass }: { s: EncounterSummary; relation: EncounterRelation; href: string; /** Its place on the whole list while the workspace pages it. */ place?: { at: number; of: number }; /** The workspace's first paint: hidden past the window's height tier until measured. */ tierClass?: string }) {
+  // A measured row of the workspace's table (ui/workspace.tsx's data contract).
+  const wsRow = { "data-ws-row": "", "data-row-key": s.key, "aria-posinset": place?.at, "aria-setsize": place?.of };
   const rowLink = "absolute inset-0 outline-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-accent";
   if (relation === "all") {
     return (
-      <li className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-3 py-2.5 transition-colors hover:bg-surface-2/50 max-md:active:bg-surface-2 @min-[60rem]/enc:gap-y-0 @min-[60rem]/enc:py-0 @min-[60rem]/enc:pl-4 @min-[60rem]/enc:pr-3", BOTH_SIDES_GRID)} data-testid="encounter-row" data-key={s.key} data-against={s.opponent.games} data-alongside={s.ally.games}>
+      <li className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-3 py-2.5 transition-colors hover:bg-surface-2/50 max-md:active:bg-surface-2 @min-[60rem]/enc:gap-y-0 @min-[60rem]/enc:py-0 @min-[60rem]/enc:pl-4 @min-[60rem]/enc:pr-3", BOTH_SIDES_GRID, tierClass)} {...wsRow} data-testid="encounter-row" data-key={s.key} data-against={s.opponent.games} data-alongside={s.ally.games}>
         <span className="flex min-w-0 flex-col @min-[60rem]/enc:py-2.5">
           {/* A phone row's name at the row standard (text-md, docs/MOBILE.md); the table's size from md. */}
           <RiotId name={s.name} className="text-sm max-md:text-md max-md:leading-snug" />
@@ -617,7 +719,7 @@ function EncounterRow({ s, relation, href }: { s: EncounterSummary; relation: En
   const other: Relation = side === "opponent" ? "ally" : "opponent";
   const rec = recordFor(s, relation);
   return (
-    <li className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-3 py-2.5 transition-colors hover:bg-surface-2/50 max-md:active:bg-surface-2 @min-[40rem]/enc:pl-4 @min-[40rem]/enc:pr-3", ONE_SIDE_GRID)} data-testid="encounter-row" data-key={s.key} data-against={s.opponent.games} data-alongside={s.ally.games}>
+    <li className={cn("group/row relative grid grid-cols-[minmax(0,1fr)_auto] items-center gap-x-4 gap-y-1 px-3 py-2.5 transition-colors hover:bg-surface-2/50 max-md:active:bg-surface-2 @min-[40rem]/enc:pl-4 @min-[40rem]/enc:pr-3", ONE_SIDE_GRID, tierClass)} {...wsRow} data-testid="encounter-row" data-key={s.key} data-against={s.opponent.games} data-alongside={s.ally.games}>
       <span className="flex min-w-0 flex-col">
         <RiotId name={s.name} className="text-sm max-md:text-md max-md:leading-snug" />
         {/* Met on the other side too: said quietly, so the player is easy to find under both. */}

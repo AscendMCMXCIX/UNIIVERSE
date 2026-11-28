@@ -1,5 +1,5 @@
 import { expect, test, type Page, type Response } from "./test";
-import { cardOf, closeGame, openGame, showGamePage } from "./match-history";
+import { cardOf, closeGame, openGame, showGamePage, inTheFlow } from "./match-history";
 
 /*
   Ranks in an opened game's scoreboard (server/players/participant-ranks.ts, domain/known-rank.ts), on the
@@ -11,6 +11,11 @@ import { cardOf, closeGame, openGame, showGamePage } from "./match-history";
   only for players whose rank is missing or stale, once. The row layout is the one the scoreboard
   already had, on phones too.
 */
+
+test.beforeEach(async ({ page }) => {
+  // Games opened under their cards: the flow (in the one-screen gate a desktop opens them in the game window).
+  await inTheFlow(page);
+});
 
 test.beforeEach(async ({ context, baseURL }) => {
   await context.addCookies([{ name: "uniiverse_view", value: "player", url: baseURL! }]);
