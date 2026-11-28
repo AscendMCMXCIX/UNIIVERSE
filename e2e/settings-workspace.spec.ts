@@ -133,6 +133,27 @@ test("#compliance lands on Riot's notice, an old deep link to a panel opens its 
   await expectSection(page, "device", OWNER);
 });
 
+test("a section an old deep link's hash opened survives an in-page fragment link (the skip link): the query holds it from then on", async ({ page }) => {
+  await openAt(page, "/settings#password", [1440, 900], "expanded");
+  await expectSection(page, "password", OWNER);
+  // The hash's section is written into the address in place.
+  await expect(page).toHaveURL(/\/settings\?section=password#password$/);
+  // Skip to content: a fragment navigation to #content, outside every section (until 28 Nov 2026 it showed Name).
+  await page.getByTestId("skip-link").focus();
+  await page.keyboard.press("Enter");
+  await expect(page).toHaveURL(/\/settings\?section=password#content$/);
+  await page.waitForTimeout(300);
+  await expectSection(page, "password", OWNER);
+  // Back returns to the address the hash opened; Back to /settings (no section, no hash) is still the first section.
+  await page.goBack();
+  await expectSection(page, "password", OWNER);
+  await link(page, "name").click();
+  await link(page, "device").click();
+  await page.goBack();
+  await expect(page).toHaveURL(/\/settings$/);
+  await expectSection(page, "name", OWNER);
+});
+
 test("Back that leaves the page pushes nothing onto the page it goes to", async ({ page }) => {
   await openAt(page, "/team", [1366, 768], "expanded");
   await page.getByTestId("account-menu-button").first().click();

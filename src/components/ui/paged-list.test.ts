@@ -1,7 +1,8 @@
+import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { createElement as h } from "react";
 import { renderToStaticMarkup } from "react-dom/server";
-import { NOTHING_SAID, PagedFooter, keepSaid, listKeyTarget, positionAttributes, rangeText, rangeWords, rowAttributes, usePagedRows, type PagedRows, type Said } from "./paged-list";
+import { NOTHING_SAID, PagedFooter, inDialogWithin, keepSaid, listKeyTarget, positionAttributes, rangeText, rangeWords, rowAttributes, usePagedRows, type PagedRows, type Said } from "./paged-list";
 import { cumulativeRows, firstColumnRun, rowBudget, type DrawnRow } from "./row-budget";
 import { WorkspaceCard, WorkspaceSection } from "./workspace";
 
@@ -147,6 +148,50 @@ describe("listKeyTarget: the keys across pages", () => {
   it("an empty list keeps its page keys and goes nowhere", () => {
     expect(listKeyTarget("End", { index: -1, page: 1, pages: 1, perPage: 7, total: 0 })).toBeNull();
     expect(listKeyTarget("ArrowDown", { index: -1, page: 1, pages: 1, perPage: 7, total: 0, arrows: true })).toBeUndefined();
+  });
+});
+
+describe("a key pressed inside a dialog a row holds (a record's Release confirmation) is the dialog's, not the list's", () => {
+  // A small tree: closest("dialog") walks up from a node, contains() looks down from one.
+  type N = { tag: string; parent: N | null; closest(sel: string): N | null; contains(other: unknown): boolean };
+  const node = (tag: string, parent: N | null = null): N => {
+    const n: N = {
+      tag,
+      parent,
+      closest: (sel) => {
+        for (let at: N | null = n; at; at = at.parent) if (at.tag === sel) return at;
+        return null;
+      },
+      contains: (other) => {
+        for (let at = other as N | null; at; at = at.parent) if (at === n) return true;
+        return false;
+      },
+    };
+    return n;
+  };
+  const page = node("main");
+  const list = node("ul", page);
+  const row = node("li", list);
+  const release = node("button", row);
+  const confirm = node("dialog", row);
+  const cancel = node("button", confirm);
+
+  it("leaves the keys of a dialog inside the list to it (PageDown would unmount the row it is drawn in)", () => {
+    expect(inDialogWithin(cancel as unknown as EventTarget, list as unknown as Node)).toBe(true);
+    expect(inDialogWithin(confirm as unknown as EventTarget, list as unknown as Node)).toBe(true);
+  });
+
+  it("keeps the list's keys on its rows, and for a list that is itself inside a window (a picker's)", () => {
+    expect(inDialogWithin(release as unknown as EventTarget, list as unknown as Node)).toBe(false);
+    const win = node("dialog");
+    const picker = node("ul", win);
+    const cell = node("button", node("li", picker));
+    expect(inDialogWithin(cell as unknown as EventTarget, picker as unknown as Node)).toBe(false);
+    expect(inDialogWithin(null, list as unknown as Node)).toBe(false);
+  });
+
+  it("is asked by both shared key handlers (the list's and the grid's)", () => {
+    for (const file of ["src/components/ui/paged-list.tsx", "src/components/ui/paged-grid.tsx"]) expect(readFileSync(file, "utf8"), file).toContain("inDialogWithin(e.target, e.currentTarget)");
   });
 });
 

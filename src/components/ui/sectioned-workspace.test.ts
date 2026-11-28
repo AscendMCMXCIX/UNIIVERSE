@@ -64,6 +64,19 @@ describe("an address change (Back, Forward, a soft navigation)", () => {
     expect(addressTarget({ ...at, current: "name", search: "", hashSection: "billing" })).toBeNull();
   });
 
+  it("keeps the section shown on an in-page fragment link (the skip link's #content): the query unchanged, a hash naming no section's element", () => {
+    // /settings#password (the hash alone held Password), then Skip to content: /settings#content, popstate. Password stays.
+    expect(addressTarget({ ...at, current: "password", search: "", followed: "", hashSection: null, hashOutside: true })).toBeNull();
+    // /admin/system#compliance, then the skip link.
+    expect(addressTarget({ pathname: "/admin/system", rendered: "/admin/system", ids: ["statuses", "compliance"], current: "compliance", search: "", followed: "", hashOutside: true })).toBeNull();
+    // The query changed (the footer's /settings#compliance from /settings?section=device): the address decides, the first section.
+    expect(addressTarget({ ...at, current: "device", search: "", followed: "?section=device", hashSection: null, hashOutside: true })).toBe("name");
+    // An empty hash is no fragment link: Back to /settings from /settings#password shows the first section.
+    expect(addressTarget({ ...at, current: "password", search: "", followed: "", hashSection: null, hashOutside: false })).toBe("name");
+    // Nothing followed yet (the mount): the address decides.
+    expect(addressTarget({ ...at, current: "name", search: "?section=device", followed: null, hashOutside: true })).toBe("device");
+  });
+
   it("leaves a Back that leaves the page alone: another page's address is not a section's to decide (no beforeLeave asked, no ?section= pushed onto it)", () => {
     // /admin/branding?section=colours opened from /admin by a soft navigation, then Back: popstate fires while Branding is still mounted.
     expect(addressTarget({ pathname: "/admin", rendered: "/admin/branding", search: "", ids: ["name", "colours"], current: "colours" })).toBeNull();

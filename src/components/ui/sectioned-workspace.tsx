@@ -75,26 +75,31 @@ const here = () => `${window.location.pathname}${window.location.search}${window
  * The section ?section= names; else the one holding the hash's element (`hashSection`: an old deep
  * link, /settings#password, names its panel); else the first. null where the address is another
  * page's (`pathname` is not the one this workspace rendered for: Back is leaving the page, which is
- * not a section's to decide) or names the section shown already.
+ * not a section's to decide) or names the section shown already; null too for an in-page fragment
+ * link (the skip link's #content: the query the workspace last followed, `followed`, unchanged, and a
+ * hash naming no section's element, `hashOutside`), which names a place, not a section: the section
+ * shown stays, wherever it came from. An empty hash is no such link (Back to /settings: the first).
  */
-export function addressTarget(at: { pathname: string; rendered: string; search: string; ids: readonly string[]; param?: string; current: string; hashSection?: string | null }): string | null {
+export function addressTarget(at: { pathname: string; rendered: string; search: string; ids: readonly string[]; param?: string; current: string; hashSection?: string | null; followed?: string | null; hashOutside?: boolean }): string | null {
   if (at.pathname !== at.rendered) return null;
+  if (at.hashOutside && at.followed != null && at.search === at.followed) return null;
   const named = itemIn(at.search, at.param ?? "section");
   const to = named !== null && at.ids.includes(named) ? named : at.hashSection && at.ids.includes(at.hashSection) ? at.hashSection : (at.ids[0] ?? "");
   return to === at.current ? null : to;
 }
 
-/** The section holding the element the address's hash names (inside `root`), or null. */
-function hashSectionIn(root: HTMLElement | null): string | null {
+/** The section holding the element the address's hash names (inside `root`), or null; `outside`: a hash that names no section's element (the skip link's #content, the notice's #compliance). */
+function hashIn(root: HTMLElement | null): { section: string | null; outside: boolean } {
   const hash = window.location.hash.slice(1);
-  if (!hash || !root) return null;
+  if (!hash || !root) return { section: null, outside: false };
   let id = hash;
   try {
     id = decodeURIComponent(hash);
   } catch {}
   const target = document.getElementById(id);
   const holder = target && root.contains(target) ? target.closest<HTMLElement>("[data-ws-section]") : null;
-  return holder?.dataset.wsSection ?? null;
+  const section = holder?.dataset.wsSection ?? null;
+  return { section, outside: section === null };
 }
 
 type Marker = NonNullable<WorkspaceSectionItem["marker"]>;
@@ -220,10 +225,15 @@ export function SectionedWorkspace({
   // A section's beforeLeave is deciding a Back or a Forward: the address waits for its answer.
   const deciding = React.useRef(false);
   const wrapperOf = (id: string) => rootRef.current?.querySelector<HTMLElement>(`[data-ws-section="${CSS.escape(id)}"]`) ?? null;
-  // The window's address as a section (null: another page's, or the section shown).
+  // The query last followed: an in-page fragment link (the skip link) keeps it, and names no section.
+  const followed = React.useRef<string | null>(null);
+  // The window's address as a section (null: another page's, the section shown, or an in-page fragment link).
   const target = React.useCallback((from: string) => {
     const { ids: now, pathname: rendered } = latest.current;
-    return addressTarget({ pathname: window.location.pathname, rendered, search: window.location.search, ids: now, param, current: from, hashSection: hashSectionIn(rootRef.current) });
+    const hash = hashIn(rootRef.current);
+    const to = addressTarget({ pathname: window.location.pathname, rendered, search: window.location.search, ids: now, param, current: from, hashSection: hash.section, hashOutside: hash.outside, followed: followed.current });
+    if (window.location.pathname === rendered) followed.current = window.location.search;
+    return to;
   }, [param]);
 
   // The address, followed: as the page mounts (a page restored by Back may name a section the server did not render; an
@@ -255,6 +265,26 @@ export function SectionedWorkspace({
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, [param, target]);
+
+  // A section the hash alone holds (an old deep link to a panel: the shell's /settings#password nudge, /admin/system#compliance)
+  // is written into the query once it is shown in the workspace (/settings?section=password#password), so from then on the
+  // query holds it, as a rail switch's does: an in-page fragment link (the skip link's #content) keeps the query, and a
+  // refresh shows the section. In place (replaceState: no entry of its own), through Next's router, which keeps
+  // useSearchParams in step; on the next task, since on the first paint the router's own effect that follows replaceState
+  // runs after this one. The flow (every section stacked) keeps its hash links' addresses as they are.
+  const paged = marks.paged;
+  React.useEffect(() => {
+    if (!paged) return;
+    const timer = window.setTimeout(() => {
+      const { ids: now, current: shown, pathname: rendered } = latest.current;
+      if (window.location.pathname !== rendered || shown === now[0]) return;
+      const named = itemIn(window.location.search, param);
+      if (named !== null && now.includes(named)) return;
+      if (hashIn(rootRef.current).section !== shown) return;
+      window.history.replaceState(null, "", sectionHref(here(), shown, now, param));
+    }, 0);
+    return () => window.clearTimeout(timer);
+  }, [paged, current, search, param]);
 
   // The section the reader switched to takes the focus once drawn.
   React.useLayoutEffect(() => {

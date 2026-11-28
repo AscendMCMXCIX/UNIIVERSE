@@ -75,6 +75,19 @@ export function listKeyTarget(key: string, at: { index: number; page: number; pa
   return undefined;
 }
 
+/**
+ * Whether a key was pressed inside a dialog that a row of the list holds (pure, for its unit test):
+ * a record's Release confirmation, drawn inline in its row. The list's keys are not that dialog's:
+ * PageDown there would turn the page and unmount the row with the dialog in it, and Home would move
+ * the focus to a row behind the modal. A list that is itself inside a window (a picker's) keeps its
+ * keys: only a dialog inside `list` counts.
+ */
+export function inDialogWithin(target: EventTarget | null, list: { contains(other: Node | null): boolean }): boolean {
+  if (!target || typeof (target as Element).closest !== "function") return false;
+  const dialog = (target as Element).closest("dialog");
+  return !!dialog && dialog !== list && list.contains(dialog);
+}
+
 /** What a page change the reader made has read out (the Pager's live region), and the page it was said for. */
 export interface Said {
   text: string;
@@ -331,7 +344,7 @@ export function usePagedRows<T>(o: PagedRowsOptions<T>): PagedRows<T> {
     if (p !== page) turn(p);
   };
   const onListKeyDown = (e: React.KeyboardEvent) => {
-    if (perPage === null || !range || e.altKey || e.ctrlKey || e.metaKey || isTyping(e.target)) return;
+    if (perPage === null || !range || e.altKey || e.ctrlKey || e.metaKey || isTyping(e.target) || inDialogWithin(e.target, e.currentTarget)) return;
     const row = (e.target as Element).closest?.<HTMLElement>("[data-row-key]");
     const at = row?.dataset.rowKey !== undefined ? (index.get(row.dataset.rowKey) ?? -1) : -1;
     const to = listKeyTarget(e.key, { index: at, page, pages, perPage, total, arrows });
