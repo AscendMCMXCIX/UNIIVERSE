@@ -991,7 +991,9 @@ Show more, a game under its card.
   Team Matches 2 / 3 / 3 / 3 / 2 cards on the demo (its cards are 110–250px with their members).
   At 1366 × 657 the page's foot is the short form's 12px (`ws-short-host:pb-3`, every workspace page).
 - **The pager costs no line.** Match History's inline Pager is the toolbar's first item, on the views'
-  row (`SectionHeader`'s `toolbarLead`: on the scope line it cost 12px, a card at 1366 × 768); Team
+  row (`SectionHeader`'s `toolbarLead`: on the scope line it cost 12px, a card at 1366 × 768); where
+  Refine's chips share that row (a refinement, the sessions), it moves to the scope line's end
+  (`scopeEnd`), so the toolbar keeps its row beside the views; Team
   Matches' on the filters' row before Bookmarked; Encounters' in the table's footer, in Show more's
   place (the footer's range replaces the "N of M shown" line). The test ids stay the flow's where the
   flow had a pager (`match-pages`, `match-prev`, `match-next`; only one of the two is ever drawn).

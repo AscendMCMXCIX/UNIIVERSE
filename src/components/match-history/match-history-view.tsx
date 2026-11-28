@@ -944,8 +944,8 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
   };
   const inlinePager =
     ws === true && data.pages > 1 ? (
-      // On the toolbar's row, before the filters, centred on the row (the controls are 36px, its buttons 32px).
-      <div className="flex min-w-0 flex-1 self-center" data-testid="match-pages-lead">
+      // On the toolbar's row, before the filters, centred on the row (the controls are 36px, its buttons 32px); or at the scope line's end.
+      <div className={cn("flex min-w-0 self-center", refined ? "shrink-0" : "flex-1")} data-testid="match-pages-lead">
       <Pager
         layout="inline"
         label="Match history pages"
@@ -989,7 +989,9 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
         }
         status={status ? <DataStatusNote status={status} refresh={refresh} /> : null}
         statusAfterText
-        toolbarLead={inlinePager}
+        // On the toolbar's row (no line of its own); where refinements' chips fill that row, at the scope line's end.
+        toolbarLead={refined ? null : inlinePager}
+        scopeEnd={refined ? inlinePager : null}
         narrowed={!!narrowed || data.refine.sessions}
         refined={refined}
         refresh={status ? <RefreshButton status={status} refresh={refresh ? { ...refresh, onNewGames: data.page > 1 ? { label: "Show the newest", run: () => go({ page: "1" }) } : undefined } : null} compact /> : null}
