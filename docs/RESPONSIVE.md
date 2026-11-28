@@ -907,7 +907,7 @@ body".
 
 ### Server-paged lists
 
-A list the server pages (Match History, the first: its notes below once it adopts) takes `per` from
+A list the server pages (Match History, Encounters and Team Matches: their notes under "The pages") takes `per` from
 the row budget, with no floor of ten (the server's minimum becomes 1). A cookie per list keeps the
 last budget, so the server's first paint draws about the right count: UI state, not personal data.
 No query's cost changes: the server already slices an in-memory list.
@@ -961,6 +961,67 @@ No query's cost changes: the server already slices an in-memory list.
 
 Each lane documents its pages here as it brings them to one screen: their pattern, their tiers,
 their windows, and any exception with its reason. All Champions, the first, follows.
+
+#### Match History, Encounters and Team Matches (28 Nov 2026)
+
+Pattern (a), a paged list plus detail, with every game in a window: a pane would narrow the cards to
+their two-row layout and drop the post-game view to its taller grid, and a game in the list's place
+is about 100px short at 1366 × 768. Outside the gate all three are the flow, exactly as before: ten
+cards a page with the stacked pager, Encounters' first 25 and Show more, Team Matches' first 20 and
+Show more, a game under its card.
+
+- **Server-paged by the row budget.** Each list's cards a page are `useRowBudget`'s count in its
+  cumulative mode (the cards' own heights and the gaps between them: a session's header, a second
+  line, a card that grows with its members), written to the address once the window has been at rest
+  for 250ms (one server render for the size it comes to rest at; until it arrives, the cards past the
+  budget are left out, so a shrink never overflows). Match History's `per` (the server's minimum is
+  now 1, its maximum 25), Encounters' `eper` and `epage` (beside a player's games' own `page` and
+  `per`: the list's page survives the way back), Team Matches' `per` and `page`. Every server slices a
+  list it already holds or counts (Match History's in memory, Encounters' one statement with an
+  OFFSET, Team Matches' in memory, its teams and scores read for that page only): no query costs more.
+- **The cookie per list** (`lib/list-per.ts`: `uniiverse_per_games`, `_sessions`, `_met`,
+  `_encounters`, `_together`; a number from 1 to 25, UI state like the sidebar's) keeps the last
+  budget, so the server's first paint of the next visit draws about the right count. A first visit
+  draws the default and hides the cards past the window's height tier until it has measured
+  (`wsTierClass`: Match History { gate: 2, mid: 3, tall: 4 }, Encounters { 3, 7, 9 }, Team Matches
+  { 1, 2, 3 }). The flow forgets a kept size (a window that left the workspace) and draws its own.
+- **Measured, at the owner's sizes** (1366 × 768 / 1440 × 900 / 1648 × 900 / 1920 × 1080 / 1366 × 657,
+  the sidebar open and folded alike): Match History 4 / 5 / 4 / 5 / 3 cards, grouped by session 2 / 4 /
+  4 / 5 / 2 (the first page's), a player's games 3 / 4 / 4 / 4 / 2; Encounters 6 / 9 / 8 / 10 / 4 rows;
+  Team Matches 2 / 3 / 3 / 3 / 2 cards on the demo (its cards are 110–250px with their members).
+  At 1366 × 657 the page's foot is the short form's 12px (`ws-short-host:pb-3`, every workspace page).
+- **The pager costs no line.** Match History's inline Pager is the toolbar's first item, on the views'
+  row (`SectionHeader`'s `toolbarLead`: on the scope line it cost 12px, a card at 1366 × 768); Team
+  Matches' on the filters' row before Bookmarked; Encounters' in the table's footer, in Show more's
+  place (the footer's range replaces the "N of M shown" line). The test ids stay the flow's where the
+  flow had a pager (`match-pages`, `match-prev`, `match-next`; only one of the two is ever drawn).
+- **Keys.** On Match History's list PageDown and PageUp turn the page and focus its first or last
+  card once it has come, Home and End the list's first and last game.
+- **The game window.** `MatchDetailModal` with `workspace`: `DetailModal` `size="workspace"` with
+  `workspaceWidth="game"` (the match window's 76rem, so the post-game view keeps its two columns; the
+  pane's 56.25rem drops it to its taller grid) at the workspace's height, headless. One header line:
+  the result, the champion and the length; the queue, the date and the patch; a ranked game's LP;
+  then Previous, "Game 5 of 208" (its place on the whole list) and Next (`GameSteps` `where="window"`:
+  `match-detail-prev`, `-next`, `-close`). Previous and Next go on across the list's pages: the
+  server sends each page's neighbours (the previous page's last game, the next page's first), the
+  list turns behind the window, the address is replaced, and the focus stays on the button pressed.
+  The one history rule holds: opening adds one entry (a step across pages keeps it the window's), so
+  Back and Escape close it, the focus back on the card of the game last seen. The scoreboard's marks
+  for players met lead to their games (Encounters), closing the window.
+- **PostGame's pages by measure** (`fitPages`): the view drawn whole while it fits the window's room,
+  its three pages (Player, Build, Scoreboard) where it does not, in a plain two-column grid (the
+  player alone; the build panels beside the lane; the scoreboard over its notes), until the room
+  grows or changes width. The demo's games fit whole from the floor up (527px of a 542px room at
+  1366 × 657, the tallest real games about 25px more); the pages are the floor's safety net.
+- **Before hydration** a game a link names is drawn under its card in the server's HTML and hidden by
+  the workspace's CSS (`MatchExpansion`'s `ws:hidden`), so the first paint is the list alone.
+- **Tests.** The platform spec's rows (the games, a game open, sessions, a player's games, Encounters,
+  My Profile's Match History, Team Matches and a game open, each at the eight and the floor) and
+  `e2e/matches-workspace.spec.ts` (the budget in the address and the cookie, contiguous pages to the
+  last game, the keys, the window across pages with Escape and Back, every game of a page at the
+  floor, Encounters' pages and the way back, Team Matches' pages and window, the flow unchanged).
+  The Production check reads both pages at 1440 × 900 as workspace pages and opens their games in the
+  window (docs/LIVE_VALIDATION.md); the tablet keeps the under-the-card facts.
 
 ### All Champions' workspace (27 Nov 2026)
 

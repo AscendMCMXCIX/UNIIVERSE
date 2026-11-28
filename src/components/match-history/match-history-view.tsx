@@ -42,6 +42,7 @@ import { Pager } from "@/components/ui/pager";
 import { useRowBudget } from "@/components/ui/fit-rows";
 import { WS_SECTION, WorkspaceCard, useWorkspaceMarks, wsTierClass } from "@/components/ui/workspace";
 import { rangeWords } from "@/components/ui/paged-list";
+import { useReaderBusy, whenReaderIdle } from "@/components/ui/reader-idle";
 import { LIST_PER_MAX, forgetListPer, rememberListPer, type PagedListName } from "@/lib/list-per";
 import { screenHeight, scrollToStart } from "@/lib/screen";
 
@@ -698,18 +699,19 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
     cap,
   });
   const perPage = marks.paged && budget !== null ? Math.min(LIST_PER_MAX, budget) : null;
+  const readerBusy = useReaderBusy();
   React.useEffect(() => {
-    if (perPage === null || perPage === data.per || data.total === 0) return;
-    // Settled first (a resize fires many measures): one server render for the size the window comes to rest at.
-    const t = window.setTimeout(() => {
+    if (perPage === null || perPage === data.per || data.total === 0 || pending) return;
+    // Settled first (a resize fires many measures): one server render for the size the window comes to rest at; and never
+    // over the reader's own navigation (a view, a filter, a page followed meanwhile: ui/reader-idle.ts).
+    return whenReaderIdle(readerBusy, () => {
       const firstIndex = (data.page - 1) * data.per;
       rememberListPer(listName, perPage);
       go({ per: String(perPage), page: String(Math.floor(firstIndex / perPage) + 1) }, { keepMatch: true });
     }, PER_SETTLE_MS);
-    return () => window.clearTimeout(t);
     // `go` follows the address; the budget and the page decide.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [perPage, data.per, data.page, data.total, listName]);
+  }, [perPage, data.per, data.page, data.total, listName, pending]);
 
   // Ranks a breakdown checked with Riot, by match and place: its card shows them at once. They
   // belong to this page of data; the next one reads them from storage like every other rank.

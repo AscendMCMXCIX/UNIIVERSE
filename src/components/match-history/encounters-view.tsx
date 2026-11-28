@@ -26,6 +26,7 @@ import { Pager } from "@/components/ui/pager";
 import { rangeText, rangeWords } from "@/components/ui/paged-list";
 import { WS_SECTION, WorkspaceFoot, useWorkspaceMarks, wsTierClass } from "@/components/ui/workspace";
 import { forgetListPer, rememberListPer } from "@/lib/list-per";
+import { useReaderBusy, whenReaderIdle } from "@/components/ui/reader-idle";
 
 /** A row's height while none is drawn (about 41px: a name and its figures on one line). */
 const ROW_PROBE_REM = 2.5625;
@@ -331,6 +332,7 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
     cap: data.cap ?? null,
   });
   const perPage = marks.paged && budget !== null ? Math.min(ENCOUNTER_PER_MAX, budget) : null;
+  const readerBusy = useReaderBusy();
   React.useEffect(() => {
     // The flow: a page size from the cookie is forgotten (the server then draws the first 25 and Show more), one from the address dropped.
     if (ws === false && c.per !== null) {
@@ -338,16 +340,16 @@ export function EncountersView({ data, basePath, status, refresh }: { data: Enco
       startTransition(() => (data.perFrom === "cookie" ? router.refresh() : router.replace(href({ per: null }), { scroll: false })));
       return;
     }
-    if (perPage === null || perPage === c.per || page.total === 0) return;
-    const t = window.setTimeout(() => {
+    if (perPage === null || perPage === c.per || page.total === 0 || pending) return;
+    // Never over the reader's own navigation (a side, an order, a search followed meanwhile: ui/reader-idle.ts).
+    return whenReaderIdle(readerBusy, () => {
       const first = c.per ? (c.page - 1) * c.per : 0;
       rememberListPer("encounters", perPage);
       startTransition(() => router.replace(href({ per: perPage, page: Math.floor(first / perPage) + 1 }), { scroll: false }));
     }, PER_SETTLE_MS);
-    return () => window.clearTimeout(t);
     // `href` follows the choice; the budget and the page decide.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [perPage, c.per, c.page, page.total, ws]);
+  }, [perPage, c.per, c.page, page.total, ws, pending]);
   const paged = perPage !== null && c.per !== null;
   const pages = paged ? Math.max(1, Math.ceil(page.total / c.per!)) : 1;
   const offset = paged ? (c.page - 1) * c.per! : 0;

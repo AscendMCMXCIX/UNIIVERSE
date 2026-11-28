@@ -27,6 +27,15 @@ export async function inWorkspace(page: Page): Promise<boolean> {
   return (await section.getAttribute("data-workspace")) !== null;
 }
 
+/**
+ * A desktop window just under the one-screen gate's 80rem (1279px wide, its height kept): the flow, where a game opens
+ * under its card, held by the tests of that behaviour (the workspace's game window has its own: e2e/matches-workspace.spec.ts).
+ */
+export async function inTheFlow(page: Page) {
+  const vp = page.viewportSize();
+  if (vp && vp.width >= 1280) await page.setViewportSize({ width: 1279, height: vp.height });
+}
+
 /** Phones and the workspace open a game in a window (the whole screen, or the workspace's game window). */
 export const opensInWindow = async (page: Page) => opensFullScreen(page) || (await inWorkspace(page));
 

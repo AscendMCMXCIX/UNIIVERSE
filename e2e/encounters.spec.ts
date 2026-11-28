@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from "./test";
 import { optionLabels, pick, shownLabel } from "./select";
 import { closeFilterSheet, openFilterBar } from "./filters";
 import { memberContext } from "./member-account";
-import { closeGame, openGame, opensFullScreen, showGamePage } from "./match-history";
+import { closeGame, openGame, opensFullScreen, showGamePage, opensInWindow } from "./match-history";
 
 /*
   A profile's Match History → Encounters on the demo roster: a teammate's profile (the in-memory
@@ -250,11 +250,11 @@ test("one player's games: Match History's own list, both records, each side, a g
     await expect(page.getByTestId(`encounter-games-${choice}`)).toHaveAttribute("aria-current", "page");
     await expect(page.locator("[data-testid='match-history'][data-ready]")).toHaveAttribute("data-total", String(count));
   }
-  // A game opens under its card, as anywhere in Match History: the same breakdown, no window (on a
-  // phone, as everywhere there, the game takes the whole screen).
+  // A game opens as anywhere in Match History: the same breakdown under its card, no window (on a phone, as everywhere
+  // there, the game takes the whole screen; in a desktop's one-screen workspace, the game window over the list).
   const card = page.getByTestId("match-card").first();
   await openGame(card);
-  if (!opensFullScreen(page)) await expect(page.getByTestId("match-detail")).toHaveCount(0);
+  if (!(await opensInWindow(page))) await expect(page.getByTestId("match-detail")).toHaveCount(0);
   await closeGame(card);
   // OP.GG opens in a new tab, never in place.
   const opgg = page.getByTestId("encounter-opgg");

@@ -13,6 +13,7 @@ import { Pager } from "@/components/ui/pager";
 import { rangeText, rangeWords } from "@/components/ui/paged-list";
 import { useWorkspaceMarks, wsTierClass, type WorkspaceMarks } from "@/components/ui/workspace";
 import { LIST_PER_MAX, forgetListPer, rememberListPer } from "@/lib/list-per";
+import { useReaderBusy, whenReaderIdle } from "@/components/ui/reader-idle";
 
 /** A game either side of the workspace's page (the server's), for the game window's steps across the pages. */
 export interface TogetherNeighbour {
@@ -100,6 +101,7 @@ export function TogetherWorkspace({ paging, total, listKey, className, children 
   const endRef = React.useRef<HTMLDivElement>(null);
   const budget = useRowBudget(listRef, { footRef: endRef, cardRef, probeRem: CARD_PROBE_REM, mode: "cumulative", active: marks.paged && total > 0, observe: () => [cardRef.current], key: [total, listKey], cap: paging.cap });
   const perPage = marks.paged && budget !== null ? Math.min(LIST_PER_MAX, budget) : null;
+  const readerBusy = useReaderBusy();
   const replace = React.useCallback((url: string) => startTransition(() => router.replace(url, { scroll: false })), [router]);
   React.useEffect(() => {
     // The flow: a page size from the cookie is forgotten (the server drew the first 20 and Show more without it), one from the address dropped.
@@ -108,13 +110,13 @@ export function TogetherWorkspace({ paging, total, listKey, className, children 
       if (paging.perFrom === "cookie") return startTransition(() => router.refresh());
       return replace(withParams({ per: null, page: null }));
     }
-    if (perPage === null || perPage === paging.per || total === 0) return;
-    const t = window.setTimeout(() => {
+    if (perPage === null || perPage === paging.per || total === 0 || pending) return;
+    // Never over the reader's own navigation (a filter, Bookmarked, a page followed meanwhile: ui/reader-idle.ts).
+    return whenReaderIdle(readerBusy, () => {
       rememberListPer("together", perPage);
       replace(withParams({ per: String(perPage), page: String(Math.floor(paging.offset / perPage) + 1) }));
     }, PER_SETTLE_MS);
-    return () => window.clearTimeout(t);
-  }, [perPage, paging.per, paging.offset, paging.perFrom, total, marks.ws, replace, router]);
+  }, [perPage, paging.per, paging.offset, paging.perFrom, total, marks.ws, replace, router, pending, readerBusy]);
   const goTo = React.useCallback((page: number, match?: string) => replace(withParams({ page: page > 1 ? String(page) : null, ...(match ? { match } : {}) })), [replace]);
   const [live, setLive] = React.useState("");
   const paged = perPage !== null && paging.per !== null;

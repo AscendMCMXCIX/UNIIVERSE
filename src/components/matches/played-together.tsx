@@ -210,8 +210,10 @@ function TogetherSummaryPanel({ summary: s, players, champ }: { summary: Togethe
     </div>
   );
   return (
-    <section aria-labelledby="together-summary-title" className="space-y-3 rounded-card border border-accent/40 bg-surface p-3.5" data-testid="together-summary">
-      <h2 id="together-summary-title" className="text-sm font-semibold text-fg">
+    // In the one-screen workspace the panel is one band (about 120px where it was 200–260): the four tiles under the title,
+    // what each member played most and the combinations beside them, so the list keeps its room (docs/PLAYED_TOGETHER.md).
+    <section aria-labelledby="together-summary-title" className="space-y-3 rounded-card border border-accent/40 bg-surface p-3.5 ws:grid ws:grid-cols-[minmax(0,1fr)_minmax(0,1.15fr)] ws:items-start ws:gap-x-5 ws:gap-y-2 ws:space-y-0" data-testid="together-summary">
+      <h2 id="together-summary-title" className="text-sm font-semibold text-fg ws:col-span-full">
         {names.length === 1 ? `${names[0]} with any teammate` : `${names.slice(0, -1).join(", ")} and ${names.at(-1)} on the same team`}
       </h2>
       <dl className="grid grid-cols-2 gap-1.5 sm:grid-cols-4">
