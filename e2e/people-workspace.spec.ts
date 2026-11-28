@@ -176,6 +176,15 @@ test("Accounts with more accounts than the demo's: the pages are cut once for th
     expectEveryRecord(walk, walk.meta[0]!.total, `${at}: Accounts`);
     const back = await walkBack(page, "list", "people-prev", read);
     expect(back.pages, `${at}: Previous comes back to the pages Next showed`).toEqual([...walk.pages].reverse());
+    // A resize cuts the pages again, once, and keeps the first line shown before it on the screen.
+    await page.getByTestId("people-next").click();
+    await expect.poll(async () => (await region(page, "list"))?.page).toBe(2);
+    for (const other of [[1366, 900] as Size, size]) {
+      const first = (await read())[0]!;
+      await resizeTo(page, other);
+      await expect(page.locator(`[data-testid=people-list] [data-row-key="${first}"]`), `${at} → ${other.join("x")}: the first line shown is still drawn`).toBeVisible();
+      await fits(page, `${at} → ${other.join("x")}: Accounts`, { workspace: true });
+    }
   }
 });
 
