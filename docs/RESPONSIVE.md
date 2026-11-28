@@ -812,7 +812,14 @@ sample)"), so the win rate stays with its record. It is 36px, or 40 where the re
 76px before 28 Nov 2026 and its games had 2 a page instead of 6).
 
 The preview is a pane only where the section holds the opponents' two columns beside the list
-(64.75rem: `WS_PANE_SECTION_REM`, 1356px wide with the sidebar open). A narrower workspace section
+(64.75rem: `WS_PANE_SECTION_REM`, 1356px wide with the sidebar open). Which one is the CSS's own
+decision: the pane's column and a probe beside it carry the same classes (`PANE_COLUMN_SHOWN`, the
+flow's 47.5rem and the workspace's 64.75rem container queries), and the page opens the pane only where
+the probe is drawn (`useRoomForPane`), so a pane is never opened where its column is hidden. Until
+28 Nov 2026 the page compared the section's rounded `clientWidth` with each bound less half a pixel:
+a section in that half pixel (an 18px root at 1525px with the sidebar open, 1165px of 1165.5; a zoom's
+fractional widths, 1035.56px of 1036, or 759.56px of the flow's 760) opened a pane the container
+query hid, and nothing of the champion opened showed. A narrower workspace section
 (1280–1355px with the sidebar open, or a larger root) opens it in **the workspace window** over the paged list (28 Nov 2026; until then
 the sheet, whose unpaged preview, about 2,014px with Ambessa, scrolled inside it: 535px of room at
 1280 × 689). It is `PreviewWindow size="workspace"` with `headless`: a modal window as tall as the
@@ -823,11 +830,22 @@ holds the pane's own content, P1 as its title bar (‹ › and the labelled Clos
 the opponents and an opponent's games paged in place, so nothing scrolls inside it: `useRowBudget`
 ends a list inside an open dialog at the dialog's own foot (`rowBudgetEdge`). It keeps the sheet's
 behaviour: the native modal's focus trap, Escape innermost first (an opponent's games back to the
-grid, the focus on its cell; then the window closes, the focus on the champion's row), Back closing
-it, ‹ › stepping champions (the list's page follows under it), and stepping aside for a game's window.
+grid, the focus on its cell, also where the focus is on nothing in the window; then the window
+closes), a click on the dimmed page beside it closing it at once, opponent and all (`canClose` hears
+what asked, `CloseRequest`: until 28 Nov 2026 the first click only went back to the grid), Back
+closing it, ‹ › stepping champions (the list's page follows under it), and stepping aside for a game's
+window. However it closes, the focus goes to the row of the champion it shows, as the pane's close
+gives it (DetailModal's `refocus`; until 28 Nov 2026 the row it was opened from, whichever champion
+‹ › had stepped to), or the first row of the page shown where that row is not on it. Where the pane
+takes its place (a wider window, the sidebar folded) the focus stays in the preview, on the same
+control in the pane (P1's ‹ › or Close, an opponent's cell, a pager), looked for frame by frame while
+the pane's opponents come in (a second at most, then the nearest: the opponent's heading, the first
+opponent, the pane's heading), as a zoom across the workspace's gate keeps it.
 At 1280 × 689 it pages 20 of Ambessa's opponents, all 9 of Darius's games (room for 20) and 16 of
 Sion's vs Nasus; at 1280 × 656, 14 of those.
-Touch phones and tablets keep the sheet, unchanged. The pane drops the flow's `sticky` and
+Touch phones and tablets keep the sheet, unchanged but for its focus as it closes: the row of the
+champion it shows (it had the same defect, the row it was opened from), and a tablet turned sideways
+hands the focus to the same control in the pane. The pane drops the flow's `sticky` and
 `overflow-clip` (a flex item that clips gets no least height and would cut silently), and the flow's
 pane placement and pinned headings are idle.
 
@@ -887,7 +905,12 @@ an 18px root (1366 × 768 folded, short by the page's own rem; open, the workspa
 open, a narrow section short and tall by its own rem), the workspace window at 1280 × 689, 1280 × 800 and 1340 × 720 (every state paged
 inside it, every record through its pages, Escape, Back, ‹ › and Tab kept inside), its band's edge
 (1355px open the window, 1356 the pane), its live region kept across ‹ › (the champion stepped to is
-read) and its surface the pane's (`panel-depth`'s shadow, not `shadow-2xl`'s),
+read) and its surface the pane's (`panel-depth`'s shadow, not `shadow-2xl`'s), the pane's two bounds
+in the half pixel under them (an 18px root at 1524–1526px, 1035.56 and 759.56px sections: the window
+or the sheet, never nothing), a click beside the window with an opponent open (closed at once, the
+focus on the row) and Escape with the focus on nothing (the grid first), the focus after ‹ › twice
+(Escape, Close and Back on the champion shown's row) and across the window's handover to the pane
+(P1's ›, an opponent's cell, the opponents' pager),
 a linked preview's first
 paint (nothing moves at hydration), the pagers' constant width, the focus after leaving an opponent
 (from a later page, after ‹ ›, from a link), after closing a champion paged away, across a zoom over

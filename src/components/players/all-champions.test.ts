@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChampionRow } from "@/server/players/overview";
-import { gamesShare, shareWords, sortChampions, summaryPairs } from "./all-champions";
+import { PANE_COLUMN_SHOWN, PANE_ROOM_REM, WS_PANE_SECTION_REM, closesWorkspaceWindow, gamesShare, shareWords, sortChampions, summaryPairs } from "./all-champions";
 
 const card = (championId: string, games: number, winRate: number | null, mastery: number | null, kda: number | null = null): ChampionRow =>
   ({ championId, role: "MID", selected: { games, winRate }, performance: { kdaRatio: kda, csPerMinute: null }, mastery: mastery === null ? null : { points: mastery } }) as unknown as ChampionRow;
@@ -98,5 +98,34 @@ describe("All Champions games share", () => {
     expect(gamesShare(3, 0)).toBe(0);
     // Never past the whole bar, whatever it is given.
     expect(gamesShare(40, 36)).toBe(1);
+  });
+});
+
+describe("All Champions' pane and its windows", () => {
+  // The page opens the pane only where the CSS draws its column (useRoomForPane reads the display of a probe with these
+  // classes), so the two never disagree: until 28 Nov 2026 the page compared the section's rounded width with each bound
+  // less half a pixel, and a section in that half pixel (an 18px root at 1525px with the sidebar open: 1165 of 1165.5)
+  // opened a pane the container query hid, nothing of the champion showing.
+  it("draws the pane's column from the two bounds, the flow's on the nearest container and the workspace's on the section", () => {
+    expect(PANE_ROOM_REM).toBe(47.5);
+    expect(WS_PANE_SECTION_REM).toBe(64.75);
+    const classes = PANE_COLUMN_SHOWN.split(" ");
+    expect(classes[0], "hidden until a bound is met").toBe("hidden");
+    expect(classes).toContain(`md:[@media(min-height:30.0625rem)]:@min-[${PANE_ROOM_REM}rem]:block`);
+    expect(classes).toContain("ws:hidden!");
+    expect(classes).toContain(`ws:@min-[${WS_PANE_SECTION_REM}rem]/section:flex!`);
+    expect(classes).toHaveLength(4);
+  });
+
+  // Escape goes innermost first (an opponent's games back to the grid, then the window); every other request closes it at
+  // once, opponent and all, as the sheet's did: until 28 Nov 2026 a click on the dimmed page around the workspace window with
+  // an opponent open only went back to the grid.
+  it("the workspace window goes back a step on Escape alone", () => {
+    expect(closesWorkspaceWindow("escape", true)).toBe(false);
+    expect(closesWorkspaceWindow("escape", false)).toBe(true);
+    for (const via of ["backdrop", "button", "drag", "control"] as const) {
+      expect(closesWorkspaceWindow(via, true), via).toBe(true);
+      expect(closesWorkspaceWindow(via, false), via).toBe(true);
+    }
   });
 });

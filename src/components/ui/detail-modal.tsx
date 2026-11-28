@@ -32,6 +32,14 @@ import { LABELLED_CLOSE, WINDOW_CONTROL_TOUCH } from "./window-control";
 export type ModalSize = "compact" | "standard" | "wide" | "full" | "sheet" | "form" | "screen" | "workspace";
 
 /**
+ * What asked a window to close, as `canClose` hears it: its close button, Escape, a click (or a tap)
+ * on the dimmed page around it, a pull down, or a control inside it (useModalClose: a sheet's Done).
+ * A window that goes back a step before it closes (All Champions' workspace window: an opponent's
+ * games back to the grid) does so for Escape only; every other request closes it, as ever.
+ */
+export type CloseRequest = "button" | "escape" | "backdrop" | "drag" | "control";
+
+/**
  * A window's body: as tall as its content, growing into whatever room the window has to spare, and
  * shrinking to scroll once the window is as tall as it may be (flex: 1 1 auto, with min-height 0).
  *
@@ -436,12 +444,17 @@ export function DetailModal({
   sheetWidth = "standard",
   compactTitle,
   returnFocus,
+  refocus,
   headless = false,
 }: {
   open: boolean;
   onClose: () => void;
-  /** Return false to keep the window open (e.g. after declining to discard unsaved edits). */
-  canClose?: () => boolean;
+  /**
+   * Return false to keep the window open (e.g. after declining to discard unsaved edits). It hears
+   * what asked (CloseRequest), so a window can go back a step on Escape alone and still close at
+   * once from a click on the dimmed page around it.
+   */
+  canClose?: (via: CloseRequest) => boolean;
   /** The window's name; shown unless a custom header is given (then it labels the dialog only). */
   title: string;
   description?: React.ReactNode;
@@ -488,6 +501,14 @@ export function DetailModal({
   /** Where the focus goes back to when nothing on the page opened the window (a window restored by Back, or opened by a deep link): its row in the list, say. */
   returnFocus?: () => HTMLElement | null;
   /**
+   * The owner puts the focus back itself once the window has closed or left the page, on the next
+   * frame (what the page draws in its place is there by then), instead of the window focusing what
+   * opened it: for a window whose item changes while it is open, the row of the one it shows now
+   * (All Champions' preview, whose ‹ › step from champion to champion), or the same control in the
+   * pane that took its place. A window opened in its place still takes over what opened this one.
+   */
+  refocus?: () => void;
+  /**
    * No header at all (neither the title bar nor a custom header, so no close button of its own): the
    * content holds the element with id={titleId} (focused as the window opens from the keyboard) and its
    * own labelled Close. The body is a column with no padding and no overflow of its own, for a window
@@ -501,8 +522,10 @@ export function DetailModal({
   const ref = React.useRef<HTMLDialogElement>(null);
   const opener = React.useRef<HTMLElement | null>(null);
   const returnFocusRef = React.useRef(returnFocus);
+  const refocusRef = React.useRef(refocus);
   React.useLayoutEffect(() => {
     returnFocusRef.current = returnFocus;
+    refocusRef.current = refocus;
   });
 
   const [closing, setClosing] = React.useState(false);
@@ -782,12 +805,14 @@ export function DetailModal({
       presses();
       letGo();
       // Back to what opened the window, whether it was closed or removed from the page (or to the
-      // window replacing it, see handedOver).
+      // window replacing it, see handedOver), or where its owner puts it (refocus).
       const back = opener.current ?? returnFocusRef.current?.() ?? null;
       handedOver = back;
+      const own = refocusRef.current;
       requestAnimationFrame(() => {
         if (handedOver === back) handedOver = null;
-        if (back?.isConnected) back.focus({ preventScroll: true });
+        if (own) own();
+        else if (back?.isConnected) back.focus({ preventScroll: true });
       });
     };
   }, [open, settle, screen, headless, titleId]);
@@ -799,10 +824,10 @@ export function DetailModal({
     [],
   );
 
-  /** Asks to close; false when the owner keeps it open (canClose: unsaved edits). */
-  const requestClose = React.useCallback((): boolean => {
+  /** Asks to close (`via`: what asked, for canClose); false when the owner keeps it open (canClose: unsaved edits). */
+  const requestClose = React.useCallback((via: CloseRequest): boolean => {
     if (timer.current !== null) return true;
-    if (latest.current.canClose && !latest.current.canClose()) return false;
+    if (latest.current.canClose && !latest.current.canClose(via)) return false;
     const reduce = typeof window !== "undefined" && window.matchMedia("(prefers-reduced-motion: reduce)").matches;
     if (reduce) {
       latest.current.onClose();
@@ -818,13 +843,15 @@ export function DetailModal({
     }, EXIT_MS);
     return true;
   }, []);
+  const closeFromPull = React.useCallback(() => requestClose("drag"), [requestClose]);
+  const closeFromControl = React.useCallback(() => void requestClose("control"), [requestClose]);
   // Sheets are pulled down from anywhere on them; whole-screen windows from their header (the
   // shell's bar included), on phones and in short windows, where they take the whole screen (PLAN
   // S4a: pull-down closes every full-screen phone window, not only sheets). The account screen is a
   // screen, not a window over an item: nothing on it pulls, and a touch moves nothing behind it.
-  useSheetDrag(ref, open && (docked || screen), requestClose, docked);
+  useSheetDrag(ref, open && (docked || screen), closeFromPull, docked);
   // Not a window whose content scrolls itself (Card Studio's editor: innerScroll), which has its own touch handling.
-  useSheetDrag(ref, open && whole && !innerScroll, requestClose, false, HANDLE, true);
+  useSheetDrag(ref, open && whole && !innerScroll, closeFromPull, false, HANDLE, true);
 
   // The close button alone in the top-right corner: the window's own navigation sits left of it,
   // past a divider, and nothing in the header comes within CLEARANCE_PX of either.
@@ -839,7 +866,7 @@ export function DetailModal({
       <button
         ref={closeRef}
         type="button"
-        onClick={requestClose}
+        onClick={() => requestClose("button")}
         aria-keyshortcuts="Escape"
         className={
           closeLabel && !screen
@@ -867,7 +894,7 @@ export function DetailModal({
       onCancel={(e) => {
         if (e.target !== e.currentTarget) return;
         e.preventDefault();
-        requestClose();
+        requestClose("escape");
       }}
       // A close the browser forced (e.g. a repeated Escape) still reaches the owner.
       onClose={(e) => {
@@ -878,8 +905,9 @@ export function DetailModal({
         }
         if (timer.current === null) latest.current.onClose();
       }}
+      // A click (or a tap) on the dimmed page around it: the dialog itself is the target (its ::backdrop is its own).
       onClick={(e) => {
-        if (e.target === ref.current) requestClose();
+        if (e.target === ref.current) requestClose("backdrop");
       }}
       onAnimationEnd={(e) => {
         // The dialog's own motions only: not a descendant's, not its backdrop's (dispatched on the dialog, e.pseudoElement set).
@@ -923,7 +951,7 @@ export function DetailModal({
       data-sheet-scroll={docked && flow ? "" : undefined}
     >
       {open ? (
-        <CloseContext.Provider value={requestClose}>
+        <CloseContext.Provider value={closeFromControl}>
           {/* Short windows (a phone held sideways) scroll as one: a large header would otherwise leave
               the body a strip. So does a phone window whose header would fill much of the screen
               (FLOW_SHARE). A custom header then scrolls away while its controls float at the top
