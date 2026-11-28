@@ -358,43 +358,47 @@ export function BrandingPanel({ branding, canEdit, publicPage, section: initialS
 
   return (
     <div ref={wsRoot} className="space-y-6 ws:grid ws:min-h-0 ws:flex-1 ws:grid-cols-[12rem_minmax(0,1fr)] ws:grid-rows-[minmax(0,1fr)_auto] ws:gap-x-6 ws:gap-y-4 ws:space-y-0" data-testid="branding-panel" data-section={marks.workspace ? current : undefined} {...marks.attrs}>
-      {/* The workspace: the sections' rail (the flow has the phone's index below and every section stacked). */}
-      <nav aria-label="Branding sections" className="hidden ws:col-start-1 ws:row-start-1 ws:flex ws:flex-col ws:items-start ws:gap-1" data-testid="branding-rail">
-        {WS_SECTIONS.map((x) => {
-          const on = x.id === current;
-          const m = marker[x.id];
-          return (
-            <a
-              key={x.id}
-              href={sectionHref(pathname || "/admin/branding", x.id, WS_IDS)}
-              onClick={(e) => {
-                if (!isPlainClick(e)) return;
-                e.preventDefault();
-                focusAfter.current = x.id;
-                choose(x.id);
-                if (on) focusAfter.current = null;
-              }}
-              aria-current={on ? "page" : undefined}
-              className={subTabClass(on)}
-              data-testid="branding-rail-link"
-              data-target={x.id}
-            >
-              {x.title}
-              {m.error ? (
-                <>
-                  <AlertCircle className="h-4 w-4 shrink-0 text-bad" aria-hidden data-testid="branding-rail-error" />
-                  <span className="sr-only">, has an error</span>
-                </>
-              ) : null}
-              {m.unsaved ? (
-                <>
-                  <span className="h-2 w-2 shrink-0 rounded-full bg-warn" aria-hidden data-testid="branding-rail-unsaved" />
-                  <span className="sr-only">, unsaved changes</span>
-                </>
-              ) : null}
-            </a>
-          );
-        })}
+      {/* The workspace: the sections' rail (the flow has the phone's index below and every section stacked), with SectionRail's
+          markup and look (ui/sectioned-workspace.tsx: a list of text-led links, subTabClass). */}
+      <nav aria-label="Branding sections" className="hidden ws:col-start-1 ws:row-start-1 ws:flex ws:flex-col" data-testid="branding-rail">
+        <ul className="flex flex-col items-start gap-0.5">
+          {WS_SECTIONS.map((x) => {
+            const on = x.id === current;
+            const m = marker[x.id];
+            return (
+              <li key={x.id}>
+                <a
+                  href={sectionHref(pathname || "/admin/branding", x.id, WS_IDS)}
+                  onClick={(e) => {
+                    if (!isPlainClick(e)) return;
+                    e.preventDefault();
+                    focusAfter.current = x.id;
+                    choose(x.id);
+                    if (on) focusAfter.current = null;
+                  }}
+                  aria-current={on ? "page" : undefined}
+                  className={subTabClass(on, "text-left")}
+                  data-testid="branding-rail-link"
+                  data-target={x.id}
+                >
+                  <span className="min-w-0">{x.title}</span>
+                  {m.error ? (
+                    <>
+                      <AlertCircle className="h-4 w-4 shrink-0 text-bad" aria-hidden data-testid="branding-rail-error" />
+                      <span className="sr-only">, has an error</span>
+                    </>
+                  ) : null}
+                  {m.unsaved ? (
+                    <>
+                      <span className="h-2 w-2 shrink-0 rounded-full bg-warn" aria-hidden data-testid="branding-rail-unsaved" />
+                      <span className="sr-only">, unsaved changes</span>
+                    </>
+                  ) : null}
+                </a>
+              </li>
+            );
+          })}
+        </ul>
       </nav>
       {/* Phones: the form is several screens long, so its sections are one tap away (the overhaul's S9c). */}
       <SectionIndex label="Branding sections" items={BRANDING_SECTIONS} className="md:hidden" testId="branding-index" clipLineDots />
