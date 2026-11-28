@@ -931,9 +931,12 @@ footer with it: such a parent takes `ws-host:space-y-0` (Accounts' page).
   navigation to the page with another query (Platform Settings' Branding tab on
   `?section=colours`) shows the choice it names, and a Back that leaves the page is the page's own,
   nothing written onto the other page's address. `choose(id, { replace })` replaces instead of
-  pushing (an old `#hash` naming a section). Used for a list's filter (Admin Resources'
-  `?section=`), a queue's view (Admin Matchup notes' `?view=`) and a page that lays out its own rail
-  (Admin Branding, with `SectionRail`'s markup and look).
+  pushing (an old `#hash` naming a section). The address's first (the one with no parameter) is the
+  first of `ids` when the page arrived, for as long as it is open and offered (`addressOrder`): a page
+  whose own first moves (Matchup notes' default view, worked out again on every refresh) keeps what
+  its parameter-less entries name, so Back lands on the view it left. Used for a list's filter (Admin
+  Resources' `?section=`), a queue's view (Admin Matchup notes' `?view=`) and a page that lays out its
+  own rail (Admin Branding, with `SectionRail`'s markup and look).
 - **`detail-modal.tsx`:** a workspace window's width, `workspaceWidth` (`pane`, All Champions'
   56.25rem, the default; `game`, 76rem: the game window and Matchup notes' editor), with
   `data-width` on the dialog; a sheet's `sheetWidth="table"` (60rem: `WorkspaceWindow`'s tables).
@@ -1185,12 +1188,16 @@ Show more, a game under its card.
   cumulative mode (the cards' own heights and the gaps between them: a session's header, a second
   line, a card that grows with its members), written to the address once the window has been at rest
   for 250ms (one server render for the size it comes to rest at; until it arrives, the cards past the
-  budget are left out, so a shrink never overflows). Match History's new page is the one holding the
-  game open in the game window (`budgetPage`), else the one holding the page's first card, so the
-  window's Previous and Next go on from it. The write waits while the reader acts
-  (`ui/reader-idle.ts`: a press, a click or a key in the last 1.5s, and a Back or a Forward on its way,
-  while the window's address is no longer the one the page drew), so it never overtakes the reader's
-  navigation and is never written onto another page's address or another view's. Match History's `per` (the server's minimum is
+  budget are left out, so a shrink never overflows). The new page (Match History's and Team Matches')
+  is the one holding the game open in the game window (`lib/list-per.ts`, `budgetPageOf`), else the
+  one holding the page's first card, so the window's Previous and Next go on from it; the open game
+  stays in the address. A game open that is not on the page shown leaves the page out of the write,
+  and the server takes the page holding it. The write waits while the reader acts
+  (`ui/reader-idle.ts`: a press, a click or a key in the last 1.5s; a navigation they started, a link
+  followed or a filter chosen, until the list's data next arrives, up to 10s, however slow the
+  server; and a Back or a Forward on its way, while the window's address is no longer the one the
+  page drew), so it never overtakes the reader's navigation and is never written onto another page's
+  address or another view's. Match History's `per` (the server's minimum is
   now 1, its maximum 25), Encounters' `eper` and `epage` (beside a player's games' own `page` and
   `per`: the list's page survives the way back), Team Matches' `per` and `page`. Every server slices a
   list it already holds or counts (Match History's in memory, Encounters' one statement with an
@@ -1232,13 +1239,25 @@ Show more, a game under its card.
   grows or changes width (a phone's three pages are unchanged). Measured with the timeline drawn:
   a demo game is 607px against the floor's 542px room (1366 × 657), so the floor pages it; from
   1366 × 768 (a 653px room) every game measured is whole.
+- **A link to a game** (`?match=`) opens with the list on the game's page, the window's Previous, Next
+  and place with it, wherever the game is on the list (`lib/list-per.ts`, `pageHolding`). Match
+  History's server takes that page where the address names none and the page size is the workspace's
+  (the address's or the list's cookie: `getMatchHistory`'s `openMatch`); with neither it keeps its
+  first page, the flow's rule (a link to a game on another page opens the match window), and the
+  workspace's write then leaves the page out. Team Matches' server takes it where the address names
+  no page or one that does not hold the game (`per` is the workspace's only there). A link opened in
+  the flow drops its page size and keeps the game: Team Matches lists up to the end of the page that
+  held it (`limit`, `flowLimitFor`). A game opened by a link and closed in the workspace leaves the
+  list's page in the address, so a reload shows the same page.
 - **Before hydration** a game a link names is drawn under its card in the server's HTML and hidden by
   the workspace's CSS (`MatchExpansion`'s `ws:hidden`), so the first paint is the list alone.
 - **Tests.** The platform spec's rows (the games, a game open, sessions, a player's games, Encounters,
   My Profile's Match History, Team Matches and a game open, each at the eight and the floor) and
   `e2e/matches-workspace.spec.ts` (the budget in the address and the cookie, contiguous pages to the
   last game, the keys, the window across pages with Escape and Back, every game of a page at the
-  floor, Encounters' pages and the way back, Team Matches' pages and window, the flow unchanged).
+  floor, a new page size keeping the open game's page, a link to a game past the first page with a
+  kept budget, a first visit's and one copied at another size, Encounters' pages and the way back,
+  Team Matches' pages and window, the flow unchanged).
   The Production check reads both pages at 1440 × 900 as workspace pages and opens their games in the
   window (docs/LIVE_VALIDATION.md); the tablet keeps the under-the-card facts.
 
