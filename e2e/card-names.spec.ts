@@ -57,7 +57,8 @@ test("a member's own card shows their whole name, whatever else the card carries
   const { context, page, username } = await memberContext(browser, admin, undefined, { base: "ascend", role: "Top" });
 
   // Everything a card can carry: three links teammates see, a tagline, an emblem.
-  await page.goto("/settings");
+  // Settings' Links section (on a desktop window one section is shown at a time; the flow ignores ?section=).
+  await page.goto("/settings?section=links");
   const links = page.getByTestId("social-links-form");
   // Settings is drawn on the server: what is typed before the page has hydrated never reaches the
   // form's state, and Save stays disabled. Type the first link until the form has taken it; the

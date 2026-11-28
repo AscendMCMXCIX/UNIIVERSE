@@ -13,6 +13,7 @@ import { InfoTip } from "@/components/ui/info-tip";
 import { toast } from "@/components/ui/toast";
 import { useAvatarUpload } from "@/components/profile/avatar-upload";
 import { SectionIndex, type SectionIndexItem } from "@/components/ui/section-index";
+import { useSectionMarker } from "@/components/ui/sectioned-workspace";
 import { subTabClass } from "@/components/ui/sub-tabs";
 import { cn } from "@/lib/cn";
 
@@ -54,6 +55,8 @@ export function DisplayNameEditor({ displayName }: { displayName: string }) {
     router.refresh();
   };
   const shown = error ?? local;
+  // The rail's marker in Settings' workspace: a name typed and not saved, or refused.
+  useSectionMarker({ unsaved: changed, error: !!shown });
   return (
     <form onSubmit={save} className="min-w-0" data-testid="display-name-form">
       <Label htmlFor="display-name">Display name</Label>
@@ -122,6 +125,7 @@ export function UsernameEditor({ username }: { username: string }) {
     router.refresh();
   };
   const shown = error ?? local;
+  useSectionMarker({ unsaved: changed, error: !!shown });
   return (
     <form onSubmit={save} className="min-w-0" data-testid="username-form">
       <Label htmlFor="username">Username</Label>
@@ -175,9 +179,11 @@ export function AccountPicture({ name, seed, src, children, afterIdentity }: { n
   const { choose, remove, busy, ui } = useAvatarUpload();
   return (
     <div className="contents" data-testid="avatar-editor">
-      {/* 56px on a phone and in a window 480px tall or less, 80px in the card's column from md. */}
-      <Avatar name={name} seed={seed} src={src} size="xl" className="max-md:h-14 max-md:w-14 max-md:text-lg short:h-14 short:w-14 short:text-lg" />
-      <div className="min-w-0 @max-[11rem]:col-span-2 md:not-short:col-span-2" data-testid="account-card-identity">
+      {/* 56px on a phone and in a window 480px tall or less, 80px in the card's column from md; 56px beside who you are again in
+          the one-screen workspace's short form (a window under 46rem tall: a member's card, with Links and two profile links,
+          keeps the window). */}
+      <Avatar name={name} seed={seed} src={src} size="xl" className="max-md:h-14 max-md:w-14 max-md:text-lg short:h-14 short:w-14 short:text-lg ws-short:h-14 ws-short:w-14 ws-short:text-lg" />
+      <div className="min-w-0 @max-[11rem]:col-span-2 md:not-short:col-span-2 ws-short:@min-[11rem]:col-span-1" data-testid="account-card-identity">
         {children}
       </div>
       {afterIdentity}

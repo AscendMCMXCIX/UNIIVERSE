@@ -44,6 +44,28 @@ export function opponentsPerColumnForTest(cookie: string | null | undefined): nu
 }
 
 /*
+  BROWSER TESTS ONLY: every one-screen workspace page pages its lists by the rows that fit the window
+  (ui/paged-list.tsx usePagedRows, ui/paged-grid.tsx usePagedGrid; docs/RESPONSIVE.md, "One-screen
+  desktop pages"), and most of the demo's lists are shorter than a page. A test caps each list's
+  measured page ("3" rows a page, or a column of a grid) so CI's usual server exercises the pages, the
+  keys across them and the pagers on the demo's data. A cap only lowers the measured count: it never
+  draws a row that does not fit. Read only on the in-memory demo, by the page's server component
+  (rowsPerPageCap with its cookie jar), which passes it to its lists as `cap`.
+*/
+
+export const ROWS_PER_PAGE_TEST_COOKIE = "uniiverse-test-rows-per-page";
+
+/** The most rows a workspace list's page shows for a browser test's cookie (1–19); null anywhere but the in-memory demo, or for any other value. */
+export function rowsPerPageForTest(cookie: string | null | undefined): number | null {
+  return demoTestHooksAllowed() && typeof cookie === "string" && /^(1[0-9]|[1-9])$/.test(cookie) ? Number(cookie) : null;
+}
+
+/** rowsPerPageForTest of a request's cookies (`await cookies()` in a server component): the cap its workspace lists take. */
+export function rowsPerPageCap(jar: { get(name: string): { value: string } | undefined }): number | null {
+  return rowsPerPageForTest(jar.get(ROWS_PER_PAGE_TEST_COOKIE)?.value);
+}
+
+/*
   BROWSER TESTS ONLY: the preview's lane opponents offer their search from four opponents
   (domain/champion-preview OPPONENT_SEARCH_FROM), and the demo's champions meet at most three in a
   position that has a second position beside it. A test names a smaller threshold ("2") so a search

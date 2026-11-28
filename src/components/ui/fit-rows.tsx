@@ -1,7 +1,7 @@
 "use client";
 
 import * as React from "react";
-import { rowBudget } from "./row-budget";
+import { cumulativeRows, firstColumnRun, rowBudget, type DrawnRow } from "./row-budget";
 
 /*
   Fit rows (Release 16, round 3): a list on a one-screen page that shows as many rows as fit above the
@@ -216,6 +216,22 @@ export function rowBudgetEdge(card: HTMLElement): number {
   return window.innerHeight - pad - border;
 }
 
+/** The drawn rows as the cumulative mode reads them: each one's bottom below the first's top (page coordinates), its height, its divider. */
+function drawnRows(drawn: readonly HTMLElement[], top: number): DrawnRow[] {
+  return drawn.map((r) => {
+    const box = r.getBoundingClientRect();
+    return { bottom: box.bottom + window.scrollY - top, height: box.height, divided: !!r.nextElementSibling };
+  });
+}
+
+/** The gap between the list's rows: the widest drawn between two rows, else the list's own row gap (a flex or grid gap). */
+function rowGap(list: HTMLElement, drawn: readonly HTMLElement[]): number {
+  let gap = -Infinity;
+  for (let i = 1; i < drawn.length; i++) gap = Math.max(gap, drawn[i]!.getBoundingClientRect().top - drawn[i - 1]!.getBoundingClientRect().bottom);
+  if (gap > -Infinity) return Math.max(0, gap);
+  return parseFloat(getComputedStyle(list).rowGap) || 0;
+}
+
 /**
  * Rows a paged list's column shows (All Champions' one-screen workspace, docs/RESPONSIVE.md): the
  * complete rows that fit between its first row and its card's footer, less the guard band
@@ -243,8 +259,8 @@ export function useRowBudget(
   o: {
     footRef: React.RefObject<HTMLElement | null>;
     cardRef: React.RefObject<HTMLElement | null>;
-    /** The list's row (the drawn ones are measured). */
-    rowSelector: string;
+    /** The list's row (the drawn ones are measured): `[data-ws-row]` by default (ui/workspace.tsx's data contract). */
+    rowSelector?: string;
     /** The row's height in rem when none is drawn. */
     probeRem: number;
     /** 1 for a divided list whose last row has no border (Tailwind's divide-y). */
@@ -256,6 +272,13 @@ export function useRowBudget(
     key: ReadonlyArray<string | number | boolean | null | undefined>;
     /** A browser test's cap on the measured count (server/demo/test-hooks.ts). */
     cap?: number | null;
+    /**
+     * "uniform" (the default, All Champions' lists): rows of one height, counted at the tallest drawn row.
+     * "cumulative": rows of several heights, the drawn rows counted by their own heights in order, then more
+     * at the tallest drawn row's pitch where they all fit (cumulativeRows). The count is the page size of
+     * every page: a later page whose rows are taller grows the frame, which measures again (fewer rows).
+     */
+    mode?: "uniform" | "cumulative";
   },
 ): number | null {
   const [rows, setRows] = React.useState<number | null>(null);
@@ -271,7 +294,7 @@ export function useRowBudget(
   const current = React.useRef<number | null>(null);
   const taken = React.useRef<number[]>([]);
   const measure = React.useCallback(() => {
-    const { footRef, cardRef, rowSelector, probeRem, lastLess = 0 } = opts.current;
+    const { footRef, cardRef, rowSelector = "[data-ws-row]", probeRem, lastLess = 0, mode = "uniform" } = opts.current;
     const list = listRef.current;
     const foot = footRef.current;
     const card = cardRef.current;
@@ -286,7 +309,10 @@ export function useRowBudget(
     const root = parseFloat(getComputedStyle(document.documentElement).fontSize) || 16;
     // The tallest drawn row (they are one height), a divided list's last row counted with its border.
     const rowPx = drawn.length ? Math.max(...drawn.map((r) => r.getBoundingClientRect().height + (r.nextElementSibling ? 0 : lastLess))) : probeRem * root;
-    let next = rowBudget({ room: limit - top, rowPx, lastLess, min: 1, max: opts.current.cap ?? Infinity });
+    // The cumulative mode reads the drawn rows of the first column (a two-column grid's second column starts again from
+    // the top: counted on, it would double the column); with none drawn yet, both count at the probe's height.
+    const column = mode === "cumulative" ? drawn.slice(0, firstColumnRun(drawn.map((r) => r.getBoundingClientRect()))) : drawn;
+    let next = mode === "cumulative" && column.length ? cumulativeRows({ room: limit - top, rows: drawnRows(column, top), gap: rowGap(list, column), lastLess, min: 1, max: opts.current.cap ?? Infinity }) : rowBudget({ room: limit - top, rowPx, lastLess, min: 1, max: opts.current.cap ?? Infinity });
     const was = current.current;
     if (next === was) return;
     const t = taken.current;

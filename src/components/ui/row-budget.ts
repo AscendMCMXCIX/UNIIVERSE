@@ -20,6 +20,50 @@ export function rowBudget({ room, rowPx, lastLess = 0, min = 1, max = Infinity }
   return Math.max(min, Math.min(max, fits));
 }
 
+/** A drawn row as useRowBudget's "cumulative" mode reads it: where it ends below the first row's top, and whether it has its divider. */
+export interface DrawnRow {
+  /** Its bottom less the first drawn row's top (px, as laid out: the gaps between rows included). */
+  bottom: number;
+  /** Its height (px, as drawn). */
+  height: number;
+  /** It has a row after it in the list, so it carries its divider (Tailwind's divide-y: `lastLess` px), which it loses as a page's last row. */
+  divided: boolean;
+}
+
+/**
+ * How many of the drawn rows, in the list's order, make its first column (pure, for the cumulative
+ * mode): the leading run whose left edge is the first row's, to the pixel. A one-column list is all of
+ * them; a column-major grid of two (usePagedGrid) draws its second column's cells after the first's,
+ * their tops starting again from the top, so counting on through them would count a column twice.
+ */
+export function firstColumnRun(boxes: ReadonlyArray<{ left: number }>): number {
+  if (!boxes.length) return 0;
+  const left = boxes[0]!.left;
+  let n = 1;
+  while (n < boxes.length && Math.abs(boxes[n]!.left - left) <= 1) n++;
+  return n;
+}
+
+/**
+ * Complete rows that fit by their own heights (useRowBudget's mode "cumulative", for a list whose rows
+ * are not one height: a card with an optional line, a group of fields): the drawn rows in their order,
+ * as many as end within `room` (each counted as the page's last: without its divider); where every
+ * drawn row fits, more at `pitch` each (the tallest drawn row with its divider, and the gap between
+ * rows), as many as still fit. At least `min` (1), at most `max`; no row drawn gives `min`. For rows of
+ * one height it is rowBudget's count exactly (row-budget.test.ts).
+ */
+export function cumulativeRows({ room, rows, gap = 0, lastLess = 0, min = 1, max = Infinity }: { room: number; rows: readonly DrawnRow[]; gap?: number; lastLess?: number; min?: number; max?: number }): number {
+  if (!rows.length || !Number.isFinite(room)) return min;
+  // The same hundredth of a pixel as rowBudget's, for a fractional layout's rounding.
+  const end = (r: DrawnRow) => r.bottom - (r.divided ? lastLess : 0);
+  let n = 0;
+  while (n < rows.length && end(rows[n]!) <= room + 0.01) n++;
+  if (n < rows.length) return Math.max(min, Math.min(max, n));
+  const pitch = Math.max(...rows.map((r) => r.height + (r.divided ? 0 : lastLess))) + Math.max(0, gap);
+  const more = pitch > 0 ? Math.max(0, Math.floor((room - end(rows[n - 1]!) + 0.01) / pitch)) : 0;
+  return Math.max(min, Math.min(max, n + more));
+}
+
 /** Pages for `total` rows at `perPage` a page: at least 1 (an empty list is one page). */
 export function pageCount(total: number, perPage: number): number {
   return Math.max(1, Math.ceil(Math.max(0, total) / Math.max(1, perPage)));

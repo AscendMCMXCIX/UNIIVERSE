@@ -12,6 +12,8 @@ import { Input, Label } from "@/components/ui/input";
 import { toast } from "@/components/ui/toast";
 import { formatCount, formatDate } from "@/lib/format";
 import { REAPPLY_PHRASE, typedMatches } from "@/domain/typed-confirmation";
+import { PagedFooter, usePagedRows } from "@/components/ui/paged-list";
+import { WorkspaceCard } from "@/components/ui/workspace";
 
 /*
   The erasure records (Admin Mode → Users & Permissions → Personal data): one line per erasure,
@@ -19,6 +21,10 @@ import { REAPPLY_PHRASE, typedMatches } from "@/domain/typed-confirmation";
   releases a person's Riot accounts when that person asks to come back. Importing them into a
   restored database and re-applying them are the Owner's, each only once REAPPLY is typed: they do
   what the erasure-reconcile setup job does (server/actions/privacy.ts checks both again).
+
+  On a desktop window (Personal data's workspace) the records are paged to the room left under the
+  actions (usePagedRows, the inline Pager in the card's foot), the card reaching the frame's foot;
+  elsewhere every record is listed, as always.
 */
 
 type Asking = { kind: "import"; file: File } | { kind: "reconcile" };
@@ -119,6 +125,11 @@ export function ErasureRecords({ records, viewerIsOwner = false }: { records: Er
   const [asking, setAsking] = React.useState<Asking | null>(null);
   const [opened, setOpened] = React.useState(0);
   const fileRef = React.useRef<HTMLInputElement>(null);
+  // The measure's refs are this component's own (the React compiler's lint refuses refs read from the hook's result).
+  const listRef = React.useRef<HTMLUListElement>(null);
+  const footRef = React.useRef<HTMLDivElement>(null);
+  const cardRef = React.useRef<HTMLElement>(null);
+  const { shown, regionProps, listProps, rowProps, pagerProps, footTestId, onListKeyDown } = usePagedRows({ rows: records, keyOf: (r) => r.reference, words: { one: "record", many: "records" }, testId: "erasure-records", probeRem: 2.75, lastLess: 1, listRef, footRef, cardRef });
   const ask = (next: Asking) => {
     setOpened((n) => n + 1);
     setAsking(next);
@@ -160,11 +171,13 @@ export function ErasureRecords({ records, viewerIsOwner = false }: { records: Er
   };
 
   return (
-    <div className="space-y-3" data-testid="erasure-records">
+    // In the workspace a flex column: the actions first, the records' card last, filling the room to the frame's foot.
+    <div className="space-y-3 ws:flex ws:flex-1 ws:flex-col ws:gap-3 ws:space-y-0" data-testid="erasure-records">
       {records.length ? (
-        <ul className="divide-y divide-border rounded-card border border-border">
-          {records.map((r) => (
-            <li key={r.reference} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-sm" data-testid="erasure-record">
+        <WorkspaceCard bare ref={cardRef} className="rounded-card border border-border ws:order-last" {...regionProps}>
+          <ul ref={listRef} className="divide-y divide-border" {...listProps} onKeyDown={onListKeyDown}>
+          {shown.map((r) => (
+            <li key={r.reference} className="flex flex-wrap items-center gap-x-3 gap-y-1 px-3 py-2 text-sm" data-testid="erasure-record" {...rowProps(r)}>
               <span className="font-semibold tabular-nums text-fg">{r.reference}</span>
               <span className="text-fg-muted">erased {formatDate(r.erasedAt)}</span>
               {!r.usable ? (
@@ -184,7 +197,9 @@ export function ErasureRecords({ records, viewerIsOwner = false }: { records: Er
               {r.usable && !r.releasedAt ? <ReleaseButton reference={r.reference} /> : null}
             </li>
           ))}
-        </ul>
+          </ul>
+          <PagedFooter footRef={footRef} pager={pagerProps} testId={footTestId} />
+        </WorkspaceCard>
       ) : (
         <p className="text-sm text-fg-muted">No one has been erased.</p>
       )}

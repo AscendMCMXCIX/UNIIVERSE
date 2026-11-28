@@ -1,6 +1,6 @@
 import { AxeBuilder } from "@axe-core/playwright";
 import { expect, test, type BrowserContext, type Locator, type Page } from "./test";
-import { createMember, grantAdministrator, memberContext, openDanger, openPerson, view } from "./member-account";
+import { createMember, grantAdministrator, memberContext, openDanger, openPerson, turnUntilDrawn, view } from "./member-account";
 
 /*
   ADMIN SAFETY (the overhaul's S1a). Admin Mode → Data & Integrations lists its jobs as Checks and
@@ -159,8 +159,9 @@ test("an administrator who is not the Owner gets the checks and refreshes only: 
       for (const key of SETUP_KEYS) expect(html, `${width}: ${key} sent`).not.toContain(`"${key}"`);
       expect(html).not.toContain("TURN OFF");
       await axe(deputy.page, `${width}: Data & Integrations for an administrator`);
-      // Personal data: Export and Release, but importing and re-applying the records are the Owner's.
-      await deputy.page.goto("/admin/people/privacy");
+      // Personal data: Export and Release, but importing and re-applying the records are the Owner's (its Erasure records section:
+      // on a desktop window one section is shown at a time; the flow ignores ?section=).
+      await deputy.page.goto("/admin/people/privacy?section=records");
       const records = deputy.page.getByTestId("erasure-records");
       await expect(records.getByTestId("erasure-export")).toBeVisible();
       await expect(records.getByTestId("erasure-owner-only")).toContainText("The Owner imports and re-applies the records");
@@ -180,8 +181,10 @@ test("Users & Permissions: the Production check's account is locked under Kept a
   const { username } = await createMember(page, "Typed");
   await page.goto("/admin/people");
 
-  // The Production check's account: its own locked group; its view offers Deactivate and Delete only.
+  // The Production check's account: its own locked group; its view offers Deactivate and Delete only (on a desktop window the
+  // list is paged: its page turned to the group, the last).
   const kept = page.getByTestId("people-group-kept");
+  await turnUntilDrawn(page, kept);
   await expect(kept).toContainText("Kept automatically");
   await expect(kept).toContainText("Deactivate it to turn the signed-in checks off");
   await expect(kept.getByTestId("admin-kept-row")).toHaveCount(1);
@@ -233,8 +236,8 @@ test("Users & Permissions: the Production check's account is locked under Kept a
   await confirm.getByRole("button", { name: "Cancel" }).click();
   await expect(confirm).toBeHidden();
 
-  // Personal data: Re-apply records is the erasure-reconcile job's work, so it waits for REAPPLY.
-  await page.goto("/admin/people/privacy");
+  // Personal data: Re-apply records is the erasure-reconcile job's work, so it waits for REAPPLY (its Erasure records section).
+  await page.goto("/admin/people/privacy?section=records");
   const records = page.getByTestId("erasure-records");
   await expect(records.getByTestId("erasure-owner-only")).toHaveCount(0);
   await expect(records.getByTestId("erasure-import")).toBeVisible();

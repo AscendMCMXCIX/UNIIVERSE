@@ -56,7 +56,8 @@ async function makeMember(browser: Browser, admin: Page, who: Who): Promise<Brow
   await setup.getByRole("button", { name: "Finish setup" }).click();
   await page.getByTestId("personalise-done").click();
   await expect(page.locator("aside").getByTestId("account-current-name")).toHaveText(who.display);
-  await page.goto("/settings");
+  // Settings' Links section (on a desktop window one section is shown at a time; the flow ignores ?section=).
+  await page.goto("/settings?section=links");
   const links = page.getByTestId("social-links-form");
   // Settings is drawn on the server: type the first link until the hydrated form has taken it.
   await expect(async () => {

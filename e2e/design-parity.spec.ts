@@ -35,7 +35,8 @@ const TARGETS: Target[] = [
   { name: "Panel", path: (m) => `${m}/champions`, selector: "[data-testid=all-champions-table]" },
   { name: "DataRow", path: () => "/players", selector: "[data-testid=player-card]" },
   { name: "badge (chip)", path: () => "/team", selector: "[data-testid=main-role-badge]" },
-  { name: "Button", path: () => "/settings", selector: "main button:has-text('Change password')" },
+  // Settings' Password section (on a desktop window one section is shown at a time: docs/RESPONSIVE.md, "One-screen desktop pages").
+  { name: "Button", path: () => "/settings?section=password", selector: "main button:has-text('Change password')" },
   { name: "section tabs (current)", path: () => "/players", selector: "[data-testid=team-tabs] a[aria-current=page]", phoneSelector: "[data-testid=mobile-topbar] a[aria-current=page]" },
   { name: "InfoTip bubble", path: () => "/team", selector: "[data-testid=info-tip-bubble]", open: "[data-testid=team-header] [data-testid=info-tip]" },
   // One Select (ui/select.tsx): the app's popover button on a desktop (the Overview's game filter), the
@@ -278,7 +279,8 @@ test("Admin's pages: one header rhythm, one panel depth, one fold, aligned toolb
   // G4-5, G4-10, G4-12: System Health's fold is a row in its panel; the status list has the panels' depth; each verdict has its icon.
   await dp.goto("/admin/system");
   const sys = await dp.evaluate(() => ({
-    fold: document.querySelector("[data-testid=field-performance-details]")?.getAttribute("data-fold") ?? "missing",
+    // On a desktop window (the one-screen workspace) the fold's row opens a window instead, the same row inside its panel.
+    fold: document.querySelector("[data-testid=field-performance-details]")?.getAttribute("data-fold") ?? (document.querySelector("[data-testid=field-performance-window-open]") ? "row" : "missing"),
     depth: getComputedStyle(document.querySelector("[data-testid=system-status]")!).boxShadow,
     verdicts: [...document.querySelectorAll("[data-testid^=field-words-]")].map((li) => !!li.querySelector("svg")),
   }));

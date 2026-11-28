@@ -1,6 +1,6 @@
 import { expect, test } from "./test";
 import { pick } from "./select";
-import { createMember, memberContext, openDanger, openPerson, signIn, view } from "./member-account";
+import { createMember, memberContext, openDanger, openPerson, signIn, turnUntilDrawn, view } from "./member-account";
 
 /*
   PERMANENT ERASURE in Admin Mode → Users & Permissions, always on an account made for the test
@@ -49,10 +49,12 @@ test("an administrator erases a member's personal data after seeing what changes
   const reference = (await done.innerText()).match(/ER-[A-Z2-9]{6}/)![0];
   await done.getByRole("button", { name: "Done" }).click();
   await page.goto("/admin/people");
+  // Searched for (on a desktop window the list is paged: a row on another page would be missing too).
+  await page.getByTestId("people-search").fill(username);
   await expect(page.getByTestId("admin-player-row").filter({ hasText: `@${username}` })).toHaveCount(0);
 
-  // The record names no one.
-  await page.goto("/admin/people/privacy");
+  // The record names no one (Personal data's Erasure records section).
+  await page.goto("/admin/people/privacy?section=records");
   await expect(page.getByTestId("erasure-record").filter({ hasText: reference })).toContainText("In force");
   await expect(page.getByTestId("admin-privacy")).not.toContainText(username);
   // The admin log keeps the reference, and the earlier entries name them "Erased member".
@@ -79,6 +81,8 @@ test("the Owner and the administrator's own account are never offered for erasur
   await page.goto("/admin/people");
   // The demo's local owner is the administrator here, and the Owner: their row has no Erase.
   const own = page.getByTestId("admin-user-row").filter({ hasText: "(you)" });
+  // On a desktop window the list is paged: its page turned to the row.
+  await turnUntilDrawn(page, own);
   await expect(own).toHaveCount(1);
   await expect(own).toContainText("Owner");
   const view = await openPerson(page, "(you)", "admin-user-row");

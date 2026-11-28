@@ -21,7 +21,11 @@ export function PageHeader({ title, description, actions, className, eyebrow, gu
   return (
     <header className={cn("flex flex-wrap items-end justify-between gap-x-4 gap-y-2", phoneEmpty && SECTION_NAMED_TITLE, className)}>
       <div className="min-w-0">
-        {eyebrow ? <div className={cn("mb-1 text-xs font-semibold uppercase tracking-label text-accent", admin && PHONE_HIDDEN)}>{eyebrow}</div> : null}
+        {eyebrow ? (
+          <div className={cn("mb-1 text-xs font-semibold uppercase tracking-label text-accent", admin && PHONE_HIDDEN)} data-eyebrow="">
+            {eyebrow}
+          </div>
+        ) : null}
         <h1 className={cn(PAGE_TITLE, sectionNamed && !phoneEmpty && SECTION_NAMED_TITLE)}>{title}</h1>
         {description ? <p className={cn("mt-1 text-sm text-fg-muted", guide && "max-md:hidden", admin && PHONE_HIDDEN)}>{description}</p> : null}
       </div>

@@ -1,5 +1,5 @@
 import { afterEach, describe, expect, it, vi } from "vitest";
-import { championsFirstForTest, championsPerPageForTest, kitChangedForTest, longestNotesForTest, noteAgeForTest, opponentSearchFromForTest, opponentsPerColumnForTest } from "./test-hooks";
+import { ROWS_PER_PAGE_TEST_COOKIE, championsFirstForTest, championsPerPageForTest, kitChangedForTest, longestNotesForTest, noteAgeForTest, opponentSearchFromForTest, opponentsPerColumnForTest, rowsPerPageCap, rowsPerPageForTest } from "./test-hooks";
 
 describe("All Champions' Show all test hook", () => {
   afterEach(() => vi.unstubAllEnvs());
@@ -79,5 +79,30 @@ describe("Matchup Intel's notes test hooks", () => {
     vi.stubEnv("VERCEL", "");
     vi.stubEnv("DATABASE_URL", "postgres://example.invalid/db");
     expect(longestNotesForTest("1")).toBe(false);
+  });
+});
+
+describe("the workspace lists' rows-per-page test hook", () => {
+  afterEach(() => vi.unstubAllEnvs());
+  const jar = (value?: string) => ({ get: (name: string) => (name === ROWS_PER_PAGE_TEST_COOKIE && value !== undefined ? { value } : undefined) });
+  it("is read on the in-memory demo only, for 1 to 19 rows a page, from a request's cookies", () => {
+    vi.stubEnv("UNIIVERSE_DB_MODE", "memory");
+    vi.stubEnv("VERCEL", "");
+    vi.stubEnv("DATABASE_URL", "");
+    expect(ROWS_PER_PAGE_TEST_COOKIE).toBe("uniiverse-test-rows-per-page");
+    expect(rowsPerPageForTest("3")).toBe(3);
+    expect(rowsPerPageForTest("19")).toBe(19);
+    for (const bad of ["0", "20", "-1", "3x", "", null, undefined]) expect(rowsPerPageForTest(bad)).toBeNull();
+    expect(rowsPerPageCap(jar("2"))).toBe(2);
+    expect(rowsPerPageCap(jar())).toBeNull();
+    vi.stubEnv("VERCEL", "1");
+    expect(rowsPerPageForTest("3")).toBeNull();
+    expect(rowsPerPageCap(jar("2"))).toBeNull();
+    vi.stubEnv("VERCEL", "");
+    vi.stubEnv("UNIIVERSE_DB_MODE", "postgres");
+    expect(rowsPerPageForTest("3")).toBeNull();
+    vi.stubEnv("UNIIVERSE_DB_MODE", "memory");
+    vi.stubEnv("DATABASE_URL", "postgres://x");
+    expect(rowsPerPageForTest("3")).toBeNull();
   });
 });
