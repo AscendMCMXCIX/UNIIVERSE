@@ -1162,8 +1162,8 @@ These are stable and working; extend them instead:
 ### Recommended workflow
 1. **Inspect** the current code and production (read-only jobs: `auth-audit`, `data-audit`, `perf-probe`).
 2. **Plan** in stages and **implement** small, tested checkpoints.
-3. **Test:** `pnpm typecheck && pnpm lint && pnpm test`, the DB tests on Postgres, `pnpm build && pnpm test:e2e`.
-4. **Commit and push** to `main`; Vercel deploys automatically.
+3. **Test:** `pnpm verify`, then the database tests and browser specs for what changed (CLAUDE.md §2). CI runs every test on the pull request.
+4. **Commit** on a branch, open a pull request and merge it once CI has passed (CLAUDE.md §1–§4); Vercel deploys `main` automatically.
 5. **Verify:** check `/api/health` (via the smoke workflow) for the commit, run the relevant data jobs, and report honestly what was and was not verified.
 
 ### Common mistakes to avoid
@@ -1271,5 +1271,5 @@ These are stable and working; extend them instead:
     - The user is not a developer: one plain instruction at a time.
 
 12. **Recommended workflow for Claude Code prompts.**
-    - Inspect (code plus read-only production jobs) → plan stages → implement small tested checkpoints → `pnpm typecheck && pnpm lint && pnpm test`, the DB tests on Postgres, `pnpm build && pnpm test:e2e` → push to `main` (auto-deploy) → verify with the smoke workflow and data jobs → report honestly.
+    - Inspect (code plus read-only production jobs) → plan stages → implement small tested checkpoints → `pnpm verify` and the tests for what changed → a pull request whose CI runs every test → merge (auto-deploy) → verify with the smoke workflow and data jobs → report honestly.
     - Point Claude to the files in Section O's lookup table, and ask it to update the matching tests and docs (`README.md`, `docs/ARCHITECTURE.md`, `docs/LIVE_VALIDATION.md`).

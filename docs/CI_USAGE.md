@@ -268,3 +268,10 @@ At the owner's request to speed up delivery (one browser job had grown to 40–5
 - **The browser suite runs in four parallel shards** (`Browser tests (shard N of 4)`). Each builds the app and runs a quarter of the spec files with `--shard=N/4` against its own in-memory demo, so no shard sees another's data. The job `Build and browser tests (Playwright)` keeps its name: it passes only when all four shards passed, and it leaves the tree's marker, so the reuse after a merge works as before.
 - **Safari's engine runs in CI on every pull request** (`Safari's engine (WebKit) on the priority pages`, the same steps and name as `webkit.yml`), in parallel with the shards. `webkit.yml` stays for a branch with no pull request. It does not run on the push to `main`, since the pull request's run covered the same tree.
 - **Expected wall-clock time:** the slowest of the shards and WebKit, about 15–25 minutes, against 40–54 before. Runner minutes go up (four builds instead of one), but standard runners are not billed for this public repository.
+
+## 28 Nov 2026: CI is the full-suite gate
+
+At the owner's request, sessions no longer run the whole browser suite locally before a pull request is ready (CLAUDE.md §2). On a session's machine (4 CPUs, one worker per shard) it took over an hour in two shards. CI runs the same suite in about 20 minutes, in four shards plus WebKit. Locally, a change runs `pnpm verify`, a build and the specs that cover it. The ready pull request's CI is the run that covers everything.
+
+- The repository is public, so these runs bill no Actions minutes. What still counts is wall-clock time and the cancelled runs a stream of small pushes causes. So pushes to a ready PR stay batched (CLAUDE.md §3).
+- A pull request can be marked ready as soon as its first batch passes its targeted checks, so CI runs while the work goes on.

@@ -509,6 +509,9 @@ below-the-fold ones lazily, and keep uploaded brand images small ([HOSTING_USAGE
   `e2e/cross-device.spec.ts` covers another time zone and language, unreachable image hosts,
   invalid nesting, cut-off figures and target sizes; `e2e/quality.spec.ts` runs axe.
 - A fix comes with the test that would have caught it.
+- Locally, run the tests for what changed. CI runs every test on each ready pull request and is the
+  full-suite gate (CLAUDE.md §2, since 28 Nov 2026). How much review a change gets depends on its
+  risk (CLAUDE.md §8).
 - A test passes in any year (16 Nov 2026). It fixes its own dates and passes them as `now`, and
   where the code it calls reads the clock itself it pins it (`vi.useFakeTimers({ toFake: ["Date"] })`
   and `vi.setSystemTime`), or it works out the dates it expects.
