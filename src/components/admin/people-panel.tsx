@@ -210,9 +210,9 @@ function inGroups(lines: readonly ListItem[]): Array<{ group: ListItem["group"];
 const PEOPLE_TIERS = { gate: 5, mid: 8, tall: 11 };
 const ACCOUNT_WORDS = { one: "account", many: "accounts" };
 
-function Group({ title, count, note, testId, className, children }: { title: string; count: number; note?: string; testId: string; className?: string; children: React.ReactNode }) {
+function Group({ title, count, note, testId, className, paged = false, children }: { title: string; count: number; note?: string; testId: string; className?: string; /** A group of the workspace's paged list: its element marks the group (data-ws-group) for the cumulative measure. */ paged?: boolean; children: React.ReactNode }) {
   return (
-    <section className={cn("space-y-1", className)} data-testid={testId}>
+    <section className={cn("space-y-1", className)} data-testid={testId} {...(paged ? { "data-ws-group": testId } : {})}>
       <GroupHead title={title} count={count} note={note} />
       {children}
     </section>
@@ -228,6 +228,7 @@ function Group({ title, count, note, testId, className, children }: { title: str
  *
  * On a desktop window (the one-screen workspace, docs/RESPONSIVE.md, "One-screen desktop pages":
  * Accounts) the groups are one list paged to the room under the search row (usePagedRows, cumulative:
+ * the pages cut once over the whole list, by the lines' own heights and the headings each page draws;
  * a page draws its rows in their groups, each group's heading again on every page it is on), the
  * inline Pager in its foot; Profiles without an account are a group there like the others (no fold:
  * the list pages instead of growing). The range counts accounts and profiles, not an empty group's
@@ -381,7 +382,7 @@ export function PeoplePanel({
           <WorkspaceCard bare ref={cardRef} {...regionProps} testId="people-list">
             <div ref={listRef} className="space-y-3" {...listProps} onKeyDown={onListKeyDown}>
               {inGroups(paged ? pageItems : items).map(({ group, lines }) => (
-                <Group key={group.testId} title={group.title} count={group.count} note={group.note} testId={group.testId}>
+                <Group key={group.testId} title={group.title} count={group.count} note={group.note} testId={group.testId} paged>
                   <ul className="divide-y divide-border">
                     {lines.map((i) =>
                       i.p ? (

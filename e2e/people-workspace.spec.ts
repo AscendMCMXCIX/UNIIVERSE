@@ -1,6 +1,6 @@
 import { expect, test, type Page } from "./test";
 import { createMember, openDanger, openPerson } from "./member-account";
-import { FLOOR, cfg, expectEveryRecord, fits, openAt, resizeTo, settled, walkPages, withWideText, type Size } from "./workspace";
+import { FLOOR, cfg, expectEveryRecord, fits, openAt, region, resizeTo, settled, walkBack, walkPages, withWideText, type Size } from "./workspace";
 
 /*
   Users & Permissions on a desktop window (docs/RESPONSIVE.md, "One-screen desktop pages": Personal
@@ -142,6 +142,49 @@ test("Accounts: the list is paged to the room under its search row, every accoun
     await page.getByTestId("people-search").fill("demo");
     await expect.poll(async () => (await page.locator("[data-ws-region=list]").getAttribute("data-page")) ?? "1").toBe("1");
     await page.getByTestId("people-search").fill("");
+  }
+});
+
+/** The Accounts list's lines (its people and an empty group's line), as its region counts them at the floor. */
+async function accountLines(page: Page): Promise<number> {
+  await openAt(page, "/admin/people", FLOOR, "expanded", { admin: true });
+  return (await region(page, "list"))!.total;
+}
+
+test("Accounts with more accounts than the demo's: the pages are cut once for the room, Next never repeats or skips a line, Previous comes back to the same pages", async ({ page }) => {
+  test.setTimeout(240_000);
+  // A CI shard's server holds the accounts its earlier specs made: 16 lines on 28 Nov 2026 (run 46125624658), where page 2,
+  // drawing more group headings than page 1, measured fewer lines a page, and the list moved to the page holding its first
+  // line at that size: the walk drew page 1's last two lines again. Made here as other specs make them, up to 16 lines.
+  for (let n = 0; n < 8 && (await accountLines(page)) < 16; n++) await createMember(page, "Pages");
+  await withWideText(page);
+  for (const [size, side] of [
+    [FLOOR, "expanded"],
+    [[1366, 768], "collapsed"],
+  ] as Array<[Size, "expanded" | "collapsed"]>) {
+    await openAt(page, "/admin/people", size, side, { admin: true });
+    const at = cfg(size, side);
+    // Each page fits its room (none taller for its headings), and its lines are read once it has.
+    const read = async () => {
+      const n = (await region(page, "list"))!.page;
+      await fits(page, `${at}: Accounts, page ${n}`, { workspace: true, pager: "people-pager" });
+      return page.locator("[data-testid=people-list] [data-ws-row]").evaluateAll((rows) => rows.map((r) => (r as HTMLElement).dataset.rowKey!));
+    };
+    const walk = await walkPages(page, "list", "people-next", read);
+    expect(walk.meta[0]!.total, `${at}: the lines made`).toBeGreaterThanOrEqual(16);
+    expect(walk.pages.length, `${at}: several pages`).toBeGreaterThan(1);
+    expectEveryRecord(walk, walk.meta[0]!.total, `${at}: Accounts`);
+    const back = await walkBack(page, "list", "people-prev", read);
+    expect(back.pages, `${at}: Previous comes back to the pages Next showed`).toEqual([...walk.pages].reverse());
+    // A resize cuts the pages again, once, and keeps the first line shown before it on the screen.
+    await page.getByTestId("people-next").click();
+    await expect.poll(async () => (await region(page, "list"))?.page).toBe(2);
+    for (const other of [[1366, 900] as Size, size]) {
+      const first = (await read())[0]!;
+      await resizeTo(page, other);
+      await expect(page.locator(`[data-testid=people-list] [data-row-key="${first}"]`), `${at} → ${other.join("x")}: the first line shown is still drawn`).toBeVisible();
+      await fits(page, `${at} → ${other.join("x")}: Accounts`, { workspace: true });
+    }
   }
 });
 

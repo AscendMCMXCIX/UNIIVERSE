@@ -749,6 +749,8 @@ What `e2e/workspace.ts` (and, where it already loads a page, the Production chec
 | `data-row-key` | a row or a cell | its key, for the keys across pages and the focus |
 | `data-ws-region` with `data-per`, `data-page`, `data-pages`, `data-total` | a paged list's region | its pages, while paged |
 | `data-divider` | a paged grid's region | the row its divider slot stands before, where its pages draw one (the tests work out its pages from it) |
+| `data-starts` | a cumulative list's region | where each page starts, 0-based row indexes ("0,7,13"): its pages are cut by the rows' own heights, not `data-per` each (the tests read its pages from it) |
+| `data-ws-group` | a group of a cumulative list (its heading and its rows) | the group the cumulative measure counts a page's heading for, where a page starts inside it |
 | `data-ws-section` | a sectioned workspace's section | its id (`?section=`) |
 
 ### The frame
@@ -820,7 +822,8 @@ Each is built from the shared modules below.
 `arrows` and `flowRows`.
 
 It returns:
-- the pages: `perPage`, `paged`, `page`, `pages`, `range`, `offset`, `shown`;
+- the pages: `perPage`, `paged`, `page`, `pages`, `range`, `offset`, `shown`, and `starts`,
+  `pageOf(index)` and `measuring` (the cumulative mode's, below);
 - the reader's moves: `turn(p)`, `live`, `goToIndex(i)`, `focusKey(key)`, `onListKeyDown`
   (PageUp/PageDown a page, Home/End, ↑/↓ with `arrows`; keys pressed inside a dialog a row holds,
   a record's Release confirmation, are the dialog's: `inDialogWithin`, in the grid's handler too);
@@ -834,6 +837,50 @@ those attributes on a link or a button.
 
 `<PagedFooter footRef pager leading? testId className>` draws `WorkspaceFoot`, then `leading` (a
 legend, a coverage line), then the inline Pager.
+
+**Rows of several heights: `mode: "cumulative"`** (28 Nov 2026; Accounts first). The uniform mode
+(the default, unchanged) pages by one row height: every page holds `perPage` rows. A list whose rows
+are not one height (a card with an optional line, a name on two lines, groups with headings) pages
+with `mode: "cumulative"`, and its pages are cut once over the whole list by the rows' own heights
+(`useRowBreaks`, `fit-rows.tsx`; `pageStarts`, `row-budget.ts`):
+
+- **The cut.** The hook measures every row as drawn, then fills each page greedily: as many rows as
+  end within the room between the list's top and its card's footer, less the guard band, counting a
+  row's own height, the headings the page draws, an empty group's line and the divider a page's last
+  row loses. Page *n* starts right after page *n − 1*'s last row. A page always holds a row, even one
+  taller than the room (the frame then grows by the deficit; nothing is hidden). `cap` limits the
+  rows a page.
+- **The promises.** The pages depend on the list and the room only, never on the page drawn: every
+  row is on exactly one page, Next never repeats or skips a row, Previous comes back to the same
+  page, and the page count and the range ("8–14 of 30") are the cut's. A resize (another room, width
+  or root size) cuts them again once, and the list shows the page holding the first row shown before
+  it, or the selected row's (`usePagedList`'s rules, unchanged, with the cut as its budget: another
+  cut is another budget). A search still goes to page 1, an order or a filter to the selected row's
+  page or page 1. Until 28 Nov 2026 the mode took one count of rows a page, measured on the page
+  drawn: a page drawing more headings measured fewer, and the list moved to the page holding its
+  first row at that count, drawing rows twice (CI run 46125624658, Accounts).
+- **What a consumer passes:** `mode: "cumulative"`, the rows, `probeRem` (a row's height for a row not
+  drawn), `lastLess` for a divided list, and `measureKey` for anything else its rows' heights depend
+  on (columns). Draw the rows from `shown` only, keyed by their own key, with `rowProps(row)`.
+  - **Groups:** put `data-ws-group` (unique per group) on the element that holds a group's heading and
+    its rows, and on every page that holds a group's rows draw its heading again (Accounts'
+    `inGroups`). The measure counts that heading for a page that starts inside the group.
+  - **While it measures** (`measuring` true) `shown` is every row, in its groups as a page draws them,
+    for one render that is never painted: the measure runs in a layout effect and the page it decides
+    is drawn in the same task. That render comes when the rows change (`rows`, `search`, `order`,
+    `measureKey`), the list's width or the root's size change (a resize, the sidebar, a zoom) and once
+    the fonts have loaded. A change of height alone reads the room again and re-cuts the same rows,
+    drawing nothing more. Don't slice `rows` yourself, and keep effects off `shown`.
+- **What it gets:** `starts` (where each page starts, 0-based; null while not paged), `pageOf(index)`
+  (the page holding a row), `range`, `offset`, `shown`, `pages`, and `perPage` as the most rows a page
+  holds: pages differ, so never multiply `perPage` by a page number; use `starts`, `range` and
+  `pageOf`. The keys (`onListKeyDown`: PageDown the next page's first row, PageUp the previous page's
+  last), `goToIndex` and `turn` follow the cut. The region publishes `data-starts`, which the tests
+  read (`regionSizes`).
+- **Not for:** a server-paged list, whose server cuts its pages by `per` (Match History): it keeps
+  `useRowBudget`'s count, keyed to measure once per list, not per page. A grid (`usePagedGrid`) keeps
+  `useRowBudget`'s per-column count. A client list cut by `useRowBudget`'s cumulative count directly
+  (a slice of `per` rows a page) has the defect above: it moves to `usePagedRows`' cumulative mode.
 
 The page follows `usePagedList`'s rules: a search goes to page 1; new `data` (a filter) to the
 selected row's page or page 1; another order likewise; another selection to its page; another budget
@@ -939,8 +986,14 @@ footer with it: such a parent takes `ws-host:space-y-0` (Accounts' page).
 - **`fit-rows.tsx`, `useRowBudget`:** unchanged by default. `mode: "cumulative"` counts rows of
   several heights by their own heights in order, then more at the tallest drawn row's pitch
   (`row-budget.ts`, `cumulativeRows`; for rows of one height it is `rowBudget`'s count exactly).
-  Every page has the count's size: a later page whose rows are taller grows the frame, which measures
-  again (fewer rows). `rowSelector` defaults to `[data-ws-row]`.
+  That count is measured on the page drawn, so it serves only a list cut elsewhere and measured once
+  per list (a server-paged list's `per`, `usePagedGrid`'s cells); a client list of rows of several
+  heights pages with `usePagedRows`' cumulative mode (`useRowBreaks`, above). `rowSelector` defaults
+  to `[data-ws-row]`.
+- **`fit-rows.tsx`, `useRowBreaks(listRef, { footRef, cardRef, probeRem, active, key, total,
+  rowSelector?, groupSelector?, lastLess?, observe?, cap? })`:** returns `{ starts, measuring }`, the
+  cumulative mode's cut (above); `readLines` reads the rows' and groups' boxes. Pure parts in
+  `row-budget.ts`: `pageStarts`, `pageHeight`, `startsPageOf`, `startsRange`, `startsSizes`.
 - **`server/demo/test-hooks.ts`:** `ROWS_PER_PAGE_TEST_COOKIE` (`uniiverse-test-rows-per-page`, 1–19),
   read only on the in-memory demo. The page's server component calls `rowsPerPageCap(await cookies())`
   and passes the result to its lists as `cap`, so CI pages short demo lists.
@@ -990,7 +1043,8 @@ No query's cost changes: the server already slices an in-memory list.
   - opening and waiting: `openAt` (the sidebar's cookie, Admin Mode's view), `resizeTo`, `settled`,
     `regions`;
   - the checks: `measureWorkspace`, `fits`, `fitsWindow`;
-  - paging: `walkPages`, `expectEveryRecord`, `pageFull`;
+  - paging: `walkPages`, `walkBack` (Previous back to the first page: a walk forward's pages,
+    reversed), `expectEveryRecord`, `regionSizes`, `pageFull`;
   - the rest: `noScrollbarTracks`, `flowUnchanged`, `withWideText` (CI's wider text, doubled) and
     `demoPlayerId`.
 - **What `fits` holds:**
@@ -1004,15 +1058,17 @@ No query's cost changes: the server already slices an in-memory list.
     what is drawn, so a closed `<details>`'s content does not count;
   - no truncation in `#content` cuts its text (`truncates`, every `.truncate` by default);
   - no text under 12px (a small tile's letters, an uppercase label and a chart aside);
-  - every region's pages are whole: as many as its rows and its divider make (`pageSizes`), and
-    `expectEveryRecord` holds each page to its slots.
+  - every region's pages are whole: as many as its rows and its divider make (`pageSizes`), or, for
+    a cumulative list, as its `data-starts` says, in order from its first row, the page drawn holding
+    its own rows (`regionSizes`); `expectEveryRecord` holds each page to its slots, and a cumulative
+    list's walk to the same starts on every page (nothing cut again as it is walked).
   - `e2e/workspace-helper.spec.ts` holds the checks themselves to what they must catch, on small
     pages drawn in the test.
 - **`e2e/one-screen.spec.ts`** (desktop project only, the suite's server, CI's wider text) is a table
   of rows. Each row opens once per sidebar state and resizes in place:
 
   ```ts
-  { name: "Admin Audit Logs", path: "/admin/audit", admin: true, at: EIGHT_AND_FLOOR }
+  { name: "Admin Data & Integrations", path: "/admin/data", admin: true, at: EIGHT_AND_FLOOR }
   ```
 
   The fields are `name`, `path` (`{player}` for a demo profile), `admin`, `cookies`, `at` (`EIGHT`,
@@ -1024,11 +1080,22 @@ No query's cost changes: the server already slices an in-memory list.
 
   | Where | Pages |
   |---|---|
-  | The eight and the floor | Players, Champion Intel (empty, and with a champion), My Profile without a profile of one's own, a profile's Accounts, All Champions' list, Admin Data & Integrations, Admin Audit Logs |
-  | The eight, not the floor | Team Overview (33px over with the sidebar open, 6 folded), Leaderboards (87px), Admin Accounts (36px), Admin Access levels (10px with the sidebar open; it fits folded) |
+  | The eight and the floor | Champion Intel (empty, and with a champion), My Profile without a profile of one's own, a profile's Accounts, All Champions' list, Admin Data & Integrations, Admin Audit Logs (its log empty, below) |
+  | The eight, not the floor | Team Overview (33px over with the sidebar open, 6 folded), Leaderboards (87px), Admin Accounts (36px), Admin Access levels (10px with the sidebar open; it fits folded), Players (below) |
   | From 1440 × 900 only | a profile's Overview and a member's own My Profile (376–390px over at 1366 × 768) |
 
   Each lane widens its pages' rows as it brings them to one screen.
+
+  **The server is shared.** On CI the specs before this one in its shard have made accounts (4 in
+  shard 4 of run 46125624658), and how many depends on where the shard starts, so a row must hold
+  with more than the demo's own data. Measured with 12 accounts made first (28 Nov 2026), every row
+  fits as it is but two pages that grow with them:
+  - **Players** (a row of its two columns for every two members): 20px over at the floor with CI's 4, 165px over at 1366 × 768 with
+    12. Its row holds the eight until lane D pages its roster (batch 3); it fits there with up to
+    about 6 accounts made before it.
+  - **Audit Logs** (50 entries at a time, with Load older; the demo's log is empty and each account
+    made adds an entry): 117px over at 1366 × 768 with 12. Its row holds the page's chrome and its
+    empty state, filtered to a day with nothing recorded, until a lane pages it (tracked).
 - **The Production check** loads no new page (production's CPU is rationed). Where it already loads a
   page at a desktop width, it may add the generic fact "a page carrying `data-workspace` does not
   scroll, and nothing in main scrolls". Admin pages and the folded sidebar are CI's only.
@@ -1101,22 +1168,26 @@ eyebrow gives its line back (the sidebar and the section tabs above name it).
   the demo. A record's Release confirmation keeps its own keys (the list's PageDown would turn the
   page under it).
 - **Accounts** (`/admin/people`): its groups are one list paged to the room under the search row
-  (`usePagedRows`, cumulative: a page draws its rows in their groups, each group's heading again on
-  every page it is on), the inline Pager in its foot; Profiles without an account are a group like
-  the others there (no fold). An empty group's "Nobody yet." is a line of the list; the range counts
-  people. A person opened from another page keeps the list on that page; a search goes to page 1.
-  A person view stepped with ‹ › to someone on another page brings the list to their page, and its
-  close gives the focus to their row (DetailModal's opener counts only while it is on the page; else
-  `returnFocus`).
-  It was 36px over at 1366 × 657 on the default demo, and over everywhere with a real team's
-  accounts; it fits at the eight and the floor whatever their number.
+  (`usePagedRows`, cumulative: the pages cut once over the whole list by the lines' own heights and
+  the headings each page draws; a page draws its rows in their groups, each group, marked
+  `data-ws-group`, with its heading again on every page it is on), the inline Pager in its foot;
+  Profiles without an account are a group like the others there (no fold). An empty group's "Nobody
+  yet." is a line of the list; the range counts people. A person opened from another page keeps the
+  list on that page; a search goes to page 1. A person view stepped with ‹ › to someone on another
+  page brings the list to their page, and its close gives the focus to their row (DetailModal's
+  opener counts only while it is on the page; else `returnFocus`). It was 36px over at 1366 × 657 on
+  the default demo, and over everywhere with a real team's accounts; it fits at the eight and the
+  floor whatever their number. Its pages are uneven (a page with more headings holds fewer lines):
+  with CI's 16 lines at 1366 × 657 they hold 7, 5 and 4.
 - **Access levels** (`/admin/people/access`): fits by its own layout (10px over at the floor with the
   sidebar open before the eyebrow gave its line back). More than three base levels (the Owner's own)
   add a row of cards; see the tracked list.
 - **Tests:** `e2e/people-workspace.spec.ts` (sections, Back, the folds open, the records' controls
   in the markup in the order drawn, the Release confirmation's keys, every account on exactly one
-  page, a person's page kept, the focus back on a person stepped to on another page, the flow outside
-  the gate); the platform spec's rows.
+  page, on the default demo and with accounts made first up to CI's 16 lines, at 1366 × 657 open and
+  1366 × 768 folded: every page fitting, Previous back to the same pages, a resize keeping the first
+  line shown; a person's page kept, the focus back on a person stepped to on another page, the flow
+  outside the gate); the platform spec's rows.
 
 ### All Champions' workspace (27 Nov 2026)
 

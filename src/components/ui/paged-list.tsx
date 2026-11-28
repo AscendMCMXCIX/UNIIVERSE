@@ -2,10 +2,10 @@
 
 import * as React from "react";
 import { formatCount } from "@/lib/format";
-import { useRowBudget } from "./fit-rows";
+import { useRowBreaks, useRowBudget } from "./fit-rows";
 import { Pager, type PagerProps } from "./pager";
 import { isTyping } from "./posture";
-import { pageCount, pageOf, pageRange, usePagedList } from "./row-budget";
+import { pageCount, pageOf, pageRange, startsPageOf, startsRange, startsSizes, usePagedList } from "./row-budget";
 import { WorkspaceFoot, useWorkspaceSection } from "./workspace";
 
 /*
@@ -60,14 +60,16 @@ export function rangeText(words: PagedWords, range: { from: number; to: number }
 /**
  * The row a key moves the focus to (pure, for its unit test): PageDown the next page's first row,
  * PageUp the previous page's last, Home the first row, End the last; with `arrows`, ↓/↑ the next or
- * the previous row from the focused one (`index`, -1 where the focus is on no row). undefined: not a
- * key of the list's (left to the browser); null: the list's key, with nowhere to go (at an end).
+ * the previous row from the focused one (`index`, -1 where the focus is on no row). A cumulative list
+ * passes where its pages start (`starts`). undefined: not a key of the list's (left to the browser);
+ * null: the list's key, with nowhere to go (at an end).
  */
-export function listKeyTarget(key: string, at: { index: number; page: number; pages: number; perPage: number; total: number; arrows?: boolean }): number | null | undefined {
-  const { index, page, pages, perPage, total, arrows = false } = at;
+export function listKeyTarget(key: string, at: { index: number; page: number; pages: number; perPage: number; total: number; arrows?: boolean; starts?: readonly number[] }): number | null | undefined {
+  const { index, page, pages, perPage, total, arrows = false, starts } = at;
   if (total <= 0) return key === "PageDown" || key === "PageUp" || key === "Home" || key === "End" ? null : undefined;
-  if (key === "PageDown") return page < pages ? page * perPage : null;
-  if (key === "PageUp") return page > 1 ? (page - 1) * perPage - 1 : null;
+  // A cumulative list's pages are not `perPage` each: where they start (`starts`) says.
+  if (key === "PageDown") return page < pages ? (starts ? starts[page]! : page * perPage) : null;
+  if (key === "PageUp") return page > 1 ? (starts ? starts[page - 1]! : (page - 1) * perPage) - 1 : null;
   if (key === "Home") return index === 0 ? null : 0;
   if (key === "End") return index === total - 1 ? null : total - 1;
   if (arrows && key === "ArrowDown") return index >= 0 && index < total - 1 ? index + 1 : null;
@@ -124,14 +126,15 @@ export function rowElement(list: HTMLElement | null, key: string): HTMLElement |
  * A row to focus once it is drawn (a key or a step that turned the page): set it with `want(key)`;
  * every render looks for it and focuses it, then lets go. `settled` (the list drawn in its pages)
  * lets go too where the row is not drawn, so a pending focus never takes the focus later from what
- * the reader does next.
+ * the reader does next. While `hold` (a cumulative list measuring, every row drawn) it waits.
  */
-export function useFocusOnceDrawn(listRef: React.RefObject<HTMLElement | null>, settled: boolean): (key: string) => void {
+export function useFocusOnceDrawn(listRef: React.RefObject<HTMLElement | null>, settled: boolean, hold = false): (key: string) => void {
   const pending = React.useRef<string | null>(null);
   const [, redraw] = React.useState(0);
   React.useLayoutEffect(() => {
     const key = pending.current;
-    if (!key) return;
+    // A cumulative list measuring (`hold`) draws every row for a render: the row is focused on its page, drawn next.
+    if (!key || hold) return;
     const target = (() => {
       const row = rowElement(listRef.current, key);
       return row ? rowFocusTarget(row) : null;
@@ -169,7 +172,12 @@ export interface PagedRowsOptions<T> {
   probeRem: number;
   /** 1 for a divided list (divide-y: its last row has no border). */
   lastLess?: number;
-  /** useRowBudget's: "uniform" rows of one height (the default), "cumulative" rows of several. */
+  /**
+   * "uniform": rows of one height, every page `perPage` rows (useRowBudget; the default). "cumulative": rows
+   * of several heights, in groups or not, the pages cut once over the whole list by the rows' own heights
+   * (useRowBreaks): while it measures, `shown` is every row for one render that is never painted; a group's
+   * element carries `data-ws-group` and a page that starts inside a group draws its heading again.
+   */
   mode?: "uniform" | "cumulative";
   /** The fixed bands above the rows inside the card (a toolbar, the column heads): a wrap there moves the first row. */
   observe?: () => ReadonlyArray<Element | null | undefined>;
@@ -208,6 +216,8 @@ export interface RegionProps {
   "data-total"?: number;
   /** A paged grid's divider slot (usePagedGrid's `divider`, where its pages draw one): the row it stands before. */
   "data-divider"?: number;
+  /** A cumulative list's pages: where each starts (0-based row indexes, comma-separated: "0,7,13"). */
+  "data-starts"?: string;
 }
 
 export interface PositionProps {
@@ -242,8 +252,14 @@ export function rowAttributes(key: string, at: number, total: number, o: RowProp
 }
 
 export interface PagedRows<T> {
-  /** Rows a page; null while not paged (the flow, or not measured yet). */
+  /** Rows a page (a cumulative list's: the most a page holds); null while not paged (the flow, or not measured yet). */
   perPage: number | null;
+  /** A cumulative list's pages: where each starts (0-based row indexes); null in the uniform mode and while not paged. */
+  starts: readonly number[] | null;
+  /** The page (1-based) holding the row at `index` (of `rows`), as the list is paged now; 1 while not paged. */
+  pageOf: (index: number) => number;
+  /** A cumulative list measuring: `shown` is every row, for one render that is never painted. */
+  measuring: boolean;
   /** Paged: a page of the rows is drawn (perPage measured, the workspace known). */
   paged: boolean;
   /** 1-based, and the pages there are (1 while not paged). */
@@ -253,7 +269,7 @@ export interface PagedRows<T> {
   range: { from: number; to: number } | null;
   /** The index of the first row drawn. */
   offset: number;
-  /** The rows to draw: a page of them, or the flow's. */
+  /** The rows to draw: a page of them, or the flow's (every row while a cumulative list measures). */
   shown: readonly T[];
   /** Shows page `p` and reads its range out (a page the reader chose). */
   turn: (p: number) => void;
@@ -302,6 +318,8 @@ export function usePagedRows<T>(o: PagedRowsOptions<T>): PagedRows<T> {
   const cardRef = o.cardRef ?? ownCard;
   const { rows, keyOf, words, testId, search = "", order = null, data = null, reset = null, selected = null, arrows = false } = o;
   const total = rows.length;
+  const cumulative = o.mode === "cumulative";
+  const measureKey = [total, search, typeof order === "string" || typeof order === "number" ? order : JSON.stringify(order ?? null), ...(o.measureKey ?? [])];
   const budget = useRowBudget(listRef, {
     footRef,
     cardRef,
@@ -309,20 +327,30 @@ export function usePagedRows<T>(o: PagedRowsOptions<T>): PagedRows<T> {
     probeRem: o.probeRem,
     lastLess: o.lastLess,
     mode: o.mode,
-    active: active && total > 0,
+    active: active && total > 0 && !cumulative,
     observe: o.observe,
-    key: [total, search, typeof order === "string" || typeof order === "number" ? order : JSON.stringify(order ?? null), ...(o.measureKey ?? [])],
+    key: measureKey,
     cap: o.cap ?? null,
   });
-  const perPage = active ? budget : null;
+  // A cumulative list's pages, cut once over the whole list (useRowBreaks); the uniform mode's measure is useRowBudget's alone.
+  const breaks = useRowBreaks(listRef, { footRef, cardRef, rowSelector: o.rowSelector, probeRem: o.probeRem, lastLess: o.lastLess, active: active && total > 0 && cumulative, observe: o.observe, key: measureKey, cap: o.cap ?? null, total });
+  // The rows they were cut for may be more than there are for the one render that measures the new rows (a search): within them.
+  const cut = cumulative && active && breaks.starts ? breaks.starts.filter((s, i) => i === 0 || s < total).join(",") : null;
+  const starts = React.useMemo(() => (cut === null ? null : cut.split(",").map(Number)), [cut]);
+  const perPage = active ? (cumulative ? (starts ? Math.max(...startsSizes(starts, total)) : null) : budget) : null;
   const index = React.useMemo(() => new Map(rows.map((r, i) => [keyOf(r), i])), [rows, keyOf]);
   const selectedIndex = selected !== null ? (index.get(selected) ?? -1) : -1;
-  const { page, go } = usePagedList({ perPage, total, selected, selectedIndex, search, order, data, reset });
-  const pages = perPage === null ? 1 : pageCount(total, perPage);
-  const range = perPage === null ? null : pageRange(page, perPage, total);
+  const { page, go } = usePagedList(
+    { perPage, total, selected, selectedIndex, search, order, data, reset, ...(cut !== null ? { layout: cut } : {}) },
+    starts ? { pageOfIndex: (i) => startsPageOf(starts, i), firstOf: (p) => starts[Math.min(Math.max(1, p), starts.length) - 1]!, pages: starts.length } : undefined,
+  );
+  const pages = perPage === null ? 1 : starts ? starts.length : pageCount(total, perPage);
+  const range = perPage === null ? null : starts ? startsRange(starts, page, total) : pageRange(page, perPage, total);
   const offset = range && range.from > 0 ? range.from - 1 : 0;
   const flow = o.flowRows ?? rows;
-  const shown = React.useMemo(() => (range ? rows.slice(offset, offset + (perPage ?? 0)) : flow), [range, rows, offset, perPage, flow]);
+  const measuring = breaks.measuring;
+  const shown = React.useMemo(() => (measuring ? rows : range ? rows.slice(offset, starts ? range.to : offset + (perPage ?? 0)) : flow), [measuring, range, rows, offset, starts, perPage, flow]);
+  const pageOfRow = React.useCallback((i: number) => (perPage === null ? 1 : starts ? startsPageOf(starts, i) : pageOf(i, perPage)), [perPage, starts]);
   const [said, setSaid] = React.useState<Said>(NOTHING_SAID);
   // The page changed for another reason than the reader's turn: what was said goes (keepSaid).
   if (keepSaid(said, page) !== said) setSaid(NOTHING_SAID);
@@ -331,15 +359,15 @@ export function usePagedRows<T>(o: PagedRowsOptions<T>): PagedRows<T> {
     (p: number) => {
       if (perPage === null) return;
       go(p);
-      const r = pageRange(p, perPage, total);
+      const r = starts ? startsRange(starts, p, total) : pageRange(p, perPage, total);
       setSaid({ text: rangeWords(words, r.from, r.to, total), page: p });
     },
-    [go, perPage, total, words],
+    [go, perPage, starts, total, words],
   );
-  const focusKey = useFocusOnceDrawn(listRef, range !== null);
+  const focusKey = useFocusOnceDrawn(listRef, range !== null, measuring);
   const goToIndex = (i: number) => {
     if (perPage === null || i < 0 || i >= total) return;
-    const p = pageOf(i, perPage);
+    const p = pageOfRow(i);
     focusKey(keyOf(rows[i]!));
     if (p !== page) turn(p);
   };
@@ -347,12 +375,12 @@ export function usePagedRows<T>(o: PagedRowsOptions<T>): PagedRows<T> {
     if (perPage === null || !range || e.altKey || e.ctrlKey || e.metaKey || isTyping(e.target) || inDialogWithin(e.target, e.currentTarget)) return;
     const row = (e.target as Element).closest?.<HTMLElement>("[data-row-key]");
     const at = row?.dataset.rowKey !== undefined ? (index.get(row.dataset.rowKey) ?? -1) : -1;
-    const to = listKeyTarget(e.key, { index: at, page, pages, perPage, total, arrows });
+    const to = listKeyTarget(e.key, { index: at, page, pages, perPage, total, arrows, ...(starts ? { starts } : {}) });
     if (to === undefined) return;
     e.preventDefault();
     if (to !== null) goToIndex(to);
   };
-  const regionProps: RegionProps = range ? { "data-ws-region": o.region ?? "list", "data-per": perPage ?? undefined, "data-page": page, "data-pages": pages, "data-total": total } : {};
+  const regionProps: RegionProps = range ? { "data-ws-region": o.region ?? "list", "data-per": perPage ?? undefined, "data-page": page, "data-pages": pages, "data-total": total, ...(cut !== null ? { "data-starts": cut } : {}) } : {};
   const rangeId = o.rangeId ?? `${testId}-range`;
   const rowProps = (row: T, o?: RowPropsOptions): RowProps => {
     const key = keyOf(row);
@@ -375,7 +403,7 @@ export function usePagedRows<T>(o: PagedRowsOptions<T>): PagedRows<T> {
     prevTestId: `${testId}-prev`,
     nextTestId: `${testId}-next`,
   };
-  return { perPage, paged: range !== null, page, pages, range, offset, shown, turn, live, goToIndex, focusKey, onListKeyDown, regionProps, listProps: workspace ? { "aria-describedby": rangeId } : {}, rowProps, positionProps, pagerProps, listRef, footRef, cardRef, footTestId: `${testId}-foot` };
+  return { perPage, starts: range ? starts : null, pageOf: pageOfRow, measuring, paged: range !== null, page, pages, range, offset, shown, turn, live, goToIndex, focusKey, onListKeyDown, regionProps, listProps: workspace ? { "aria-describedby": rangeId } : {}, rowProps, positionProps, pagerProps, listRef, footRef, cardRef, footTestId: `${testId}-foot` };
 }
 
 /**

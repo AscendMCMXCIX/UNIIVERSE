@@ -1,5 +1,5 @@
 import { chromium } from "@playwright/test";
-import { slotPages } from "../src/components/ui/row-budget";
+import { slotPages, startsSizes } from "../src/components/ui/row-budget";
 import { expect, type Page } from "./test";
 import { widenText } from "./wide-text";
 
@@ -10,7 +10,8 @@ import { widenText } from "./wide-text";
   and read through the data contract (ui/workspace.tsx): data-workspace on a workspace section,
   data-ws-card on a card that reaches the frame's foot, data-ws-foot on its footer, data-ws-row on a
   measured row, data-ws-region with data-per, data-page, data-pages and data-total on a paged list
-  (and data-divider on a paged grid whose pages draw a divider slot: usePagedGrid's `divider`).
+  (and data-divider on a paged grid whose pages draw a divider slot: usePagedGrid's `divider`; and
+  data-starts on a cumulative list, whose pages are cut by their lines' own heights: where each starts).
 
   The promise held (fits): the page is the window (scrollHeight ≤ innerHeight, nothing wider than it);
   every card ends above #content's bottom padding, and everything a card draws lies inside it (a long
@@ -21,7 +22,9 @@ import { widenText } from "./wide-text";
   aria-hidden decoration aside); no truncation in #content cuts its text; nothing a reader needs is
   drawn off the screen (the page cannot scroll to it); no text under the 12px floor (a small tile's
   letters, an uppercase label's 11px and a chart's text aside: globals.css); and every region has a
-  page size, its pages the ones its rows and its divider make (pageSizes).
+  page size, its pages the ones its rows and its divider make (pageSizes), or, for a cumulative list,
+  the ones its data-starts says, every row on one of them and the page drawn holding its own rows
+  (regionSizes).
 
   Nothing here names a person: pages are reached by role, and messages hold sizes and counts only.
 */
@@ -79,6 +82,10 @@ export interface RegionPage {
   total: number;
   /** A paged grid's divider slot: the row it stands before (data-divider), or null. */
   divider: number | null;
+  /** A cumulative list's pages: where each starts, 0-based (data-starts), or null. */
+  starts: number[] | null;
+  /** The rows the region draws ([data-ws-row] inside it, drawn). */
+  drawn: number;
 }
 
 /**
@@ -91,9 +98,30 @@ export function pageSizes(total: number, per: number, divider: number | null = n
   return slotPages(Array.from({ length: Math.max(0, total) }, (_, i) => i), per, divider).map((p) => p.filter((slot) => slot.kind === "row").length);
 }
 
-/** The regions' pages as drawn: data-per, data-page, data-pages, data-total and data-divider of each drawn [data-ws-region]. */
+/**
+ * The rows each page of a region holds (pure): a cumulative list's by where its pages start
+ * (data-starts: row-budget.ts's startsSizes), else pageSizes' from its page size and its divider.
+ */
+export function regionSizes(r: Pick<RegionPage, "total" | "per" | "divider" | "starts">): number[] {
+  return r.starts ? startsSizes(r.starts, r.total) : pageSizes(r.total, r.per, r.divider);
+}
+
+/** The regions' pages as drawn: data-per, data-page, data-pages, data-total, data-divider and data-starts of each drawn [data-ws-region], and the rows it draws. */
 export const regions = (page: Page): Promise<RegionPage[]> =>
-  page.evaluate(() => [...document.querySelectorAll<HTMLElement>("[data-ws-region]")].filter((el) => el.getBoundingClientRect().height > 0).map((el) => ({ region: el.dataset.wsRegion!, per: Number(el.dataset.per), page: Number(el.dataset.page), pages: Number(el.dataset.pages), total: Number(el.dataset.total), divider: el.dataset.divider === undefined ? null : Number(el.dataset.divider) })));
+  page.evaluate(() =>
+    [...document.querySelectorAll<HTMLElement>("[data-ws-region]")]
+      .filter((el) => el.getBoundingClientRect().height > 0)
+      .map((el) => ({
+        region: el.dataset.wsRegion!,
+        per: Number(el.dataset.per),
+        page: Number(el.dataset.page),
+        pages: Number(el.dataset.pages),
+        total: Number(el.dataset.total),
+        divider: el.dataset.divider === undefined ? null : Number(el.dataset.divider),
+        starts: el.dataset.starts === undefined ? null : el.dataset.starts.split(",").map(Number),
+        drawn: [...el.querySelectorAll("[data-ws-row]")].filter((r) => r.getBoundingClientRect().height > 0).length,
+      })),
+  );
 
 export const region = async (page: Page, name: string) => (await regions(page)).find((r) => r.region === name);
 
@@ -279,7 +307,7 @@ export const measureWorkspace = (page: Page, o: { cards?: string; rows?: string;
       offscreen: offscreen.slice(0, 5).map((el) => `${name(el)} ${Math.round(drawnBox(el)?.bottom ?? 0)}`),
       small: small.slice(0, 5).map((el) => `${name(el)} ${getComputedStyle(el).fontSize}`),
       workspace: !!document.querySelector("[data-workspace]"),
-      regions: [...document.querySelectorAll<HTMLElement>("[data-ws-region]")].filter(shown).map((el) => ({ region: el.dataset.wsRegion!, per: Number(el.dataset.per), page: Number(el.dataset.page), pages: Number(el.dataset.pages), total: Number(el.dataset.total), divider: el.dataset.divider === undefined ? null : Number(el.dataset.divider) })),
+      regions: [...document.querySelectorAll<HTMLElement>("[data-ws-region]")].filter(shown).map((el) => ({ region: el.dataset.wsRegion!, per: Number(el.dataset.per), page: Number(el.dataset.page), pages: Number(el.dataset.pages), total: Number(el.dataset.total), divider: el.dataset.divider === undefined ? null : Number(el.dataset.divider), starts: el.dataset.starts === undefined ? null : el.dataset.starts.split(",").map(Number), drawn: [...el.querySelectorAll("[data-ws-row]")].filter(shown).length })),
       windowBox: dialog && body ? { size: dialog.dataset.size ?? "", top: dialog.getBoundingClientRect().top, bottom: dialog.getBoundingClientRect().bottom, height: dialog.getBoundingClientRect().height, body: body.getBoundingClientRect().bottom, rootPx: parseFloat(getComputedStyle(root).fontSize) } : null,
     };
   }, { cards: o.cards ?? "[data-ws-card]", rows: o.rows ?? "[data-ws-row]", truncates: o.truncates ?? "#content .truncate" });
@@ -313,7 +341,14 @@ export async function fits(page: Page, at: string, o: FitsOptions = {}) {
     expect(r.per, `${at}: ${r.region} shows a row or more a page`).toBeGreaterThanOrEqual(1);
     expect(r.page, `${at}: ${r.region}'s page exists`).toBeGreaterThanOrEqual(1);
     expect(r.page, `${at}: ${r.region}'s page exists`).toBeLessThanOrEqual(r.pages);
-    expect(r.pages, `${at}: ${r.region}'s pages hold every row`).toBe(pageSizes(r.total, r.per, r.divider).length);
+    expect(r.pages, `${at}: ${r.region}'s pages hold every row`).toBe(regionSizes(r).length);
+    if (r.starts) {
+      // A cumulative list: its pages start at its first row and go on, each after the last, every row on one of them.
+      expect(r.starts[0], `${at}: ${r.region}'s first page starts at its first row`).toBe(0);
+      for (let p = 1; p < r.starts.length; p++) expect(r.starts[p]!, `${at}: ${r.region}'s pages in order (${r.starts.join(",")})`).toBeGreaterThan(r.starts[p - 1]!);
+      expect(r.starts[r.starts.length - 1]!, `${at}: ${r.region}'s last page holds a row`).toBeLessThan(Math.max(1, r.total));
+      expect(r.drawn, `${at}: ${r.region}'s page ${r.page} draws its own rows`).toBe(regionSizes(r)[r.page - 1]);
+    }
   }
 }
 
@@ -350,17 +385,45 @@ export async function walkPages<R>(page: Page, name: string, nextTestId: string,
 }
 
 /**
+ * Walks a region's pages back by its Previous button, from the page shown to the first, collecting each
+ * page's rows (`read`) and its region's figures: reversed, a walk forward's pages, where Back comes
+ * back to the pages Next showed.
+ */
+export async function walkBack<R>(page: Page, name: string, prevTestId: string, read: () => Promise<R[]>): Promise<{ pages: R[][]; meta: RegionPage[] }> {
+  const pages: R[][] = [];
+  const meta: RegionPage[] = [];
+  for (let n = 0; n < 60; n++) {
+    await settled(page);
+    const at = (await region(page, name))!;
+    meta.push(at);
+    pages.push(await read());
+    if (at.page <= 1) break;
+    await page.getByTestId(prevTestId).click();
+    await expect.poll(async () => (await region(page, name))?.page).toBe(at.page - 1);
+  }
+  return { pages, meta };
+}
+
+/**
  * Every record once across the pages (the main promise), and each page as full as its slots allow (a
  * walk's result: rows by a key): `per` slots a page, a divider taking one on its page and on every page
- * after it, and a page ending a slot early rather than end on it (pageSizes).
+ * after it, and a page ending a slot early rather than end on it (pageSizes); a cumulative list's pages
+ * the ones its data-starts says, the same on every page of the walk (nothing cut again as it is
+ * walked), each page the one the walk reached (regionSizes).
  */
 export function expectEveryRecord(walk: { pages: string[][]; meta: RegionPage[] }, total: number, at: string) {
   const keys = walk.pages.flat();
   expect(keys, `${at}: every record`).toHaveLength(total);
   expect(new Set(keys).size, `${at}: every record once`).toBe(total);
-  const { per, divider } = walk.meta[0]!;
-  const sizes = pageSizes(total, per, divider);
-  expect(walk.pages, `${at}: pages of ${per} slots${divider !== null ? `, a divider before row ${divider + 1}` : ""}`).toHaveLength(sizes.length);
+  const first = walk.meta[0]!;
+  const { per, divider, starts } = first;
+  const sizes = regionSizes({ ...first, total });
+  if (starts)
+    for (const [i, m] of walk.meta.entries()) {
+      expect(m.starts, `${at}: page ${i + 1}'s pages are the ones the walk began with (${starts.join(",")})`).toEqual(starts);
+      expect(m.page, `${at}: the walk's page ${i + 1}`).toBe(i + 1);
+    }
+  expect(walk.pages, starts ? `${at}: pages starting at rows ${starts.map((s) => s + 1).join(", ")}` : `${at}: pages of ${per} slots${divider !== null ? `, a divider before row ${divider + 1}` : ""}`).toHaveLength(sizes.length);
   for (const [i, p] of walk.pages.entries()) expect(p, `${at}: page ${i + 1} holds ${sizes[i]} rows`).toHaveLength(sizes[i]!);
 }
 
