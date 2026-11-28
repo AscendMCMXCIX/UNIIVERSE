@@ -893,6 +893,26 @@ sectionsClassName? railClassName? testId?>`.
   Health's fold round four of its sections). `short` opts in to the short form's marks.
 - **Pure helpers:** `sectionFromSearch`, `sectionHref`, `initialSection`, `addressTarget`, `mergedMarker`.
 
+**`workspace-window.tsx`**
+
+What a fold opens in the flow, in the workspace, each the flow's own markup outside it:
+
+- `<WorkspaceWindow flow label description? title windowDescription? views? testId>`: in the workspace
+  a row (`${testId}-open`) that opens a window (`${testId}-window`: DetailModal's sheet, 60rem for a
+  table) holding the details, one view at a time where there are several (`views`, a text-led switch;
+  `children` under every view). A data window fits the screen with no inner scroll. The flow's copy
+  (`flow`) is drawn on the server and until the posture is known, hidden by the CSS gate in the
+  workspace, then leaves the page, so the details are never in it twice. System Health's page speed
+  by device and by page, its recent errors and job runs.
+- `WorkspaceOpenFold`: a fold that is a section's whole content, open in the workspace once known
+  (no CSS can open a fold), its title row kept. System Health's Riot compliance.
+- `WorkspaceFlowFold`: a fold round several sections in the flow; in the workspace its sections
+  stand on their own. System Health's Technical details.
+
+**Using the paged list in a component.** Pass the component's own refs (`listRef`, `footRef`,
+`cardRef`) and destructure the result (`const { shown, regionProps, … } = usePagedRows(…)`): the
+React compiler's lint refuses refs read from the hook's result object during render.
+
 **Elsewhere**
 
 - **`fit-rows.tsx`, `useRowBudget`:** unchanged by default. `mode: "cumulative"` counts rows of
@@ -1019,6 +1039,30 @@ sectioned workspace whose rail is the account card.
   across a switch and the markers, `#compliance`, `#password`, the soft navigation, Back leaving the
   page, Admin Mode's copy, the flow outside the gate, a member's fit). Specs that use a section other
   than Name on a desktop window open it by its address (`/settings?section=links`); the flow ignores it.
+
+### System Health (28 Nov 2026)
+
+`/admin/system`: a sectioned workspace with a rail of Statuses, Page speed, Build & database (with
+Warnings), Diagnostics, Environment and Riot compliance (Demo data too on an empty team).
+
+- **Nothing opens by growing the page.** Page speed's Technical details (by device and by page)
+  open in a window, one table at a time (a 60rem sheet: the by-device table's seven columns whole);
+  Diagnostics' recent errors (up to 8, each whole there, never cut) and recent job runs (up to 15) open
+  in windows from a row each. The flow's Technical details fold is not drawn in the workspace: its
+  panels are sections of their own. Riot compliance is open, and `#compliance` opens it.
+- **The Audit Logs line** is under every section (`ws:order-last`).
+- **The flow** (phones, tablets, short or narrow windows, a larger text size) is the stack it always
+  was: Statuses, Page speed with its fold, the Technical details fold round its panels, the Audit Logs
+  line, the Riot compliance fold. Until the page knows its posture the folds are drawn (a fold's
+  state is the browser's), their title rows hidden by the CSS gate in the workspace, so a deep link
+  to a Technical details section shows it once the page has hydrated.
+- **Fit**, with CI's wider text: every section, and page speed's and the job runs' windows open, at
+  the eight configurations and 1366 × 657. The demo has one job run and no errors: a production-sized
+  Diagnostics (5 slowest runs, 8 errors, 15 runs) keeps the section small by its windows, which fit
+  15 rows at 1366 × 768 (not measured on production data).
+- **Tests:** `e2e/system-health-workspace.spec.ts` (each section, Back, `#compliance` open, the
+  windows fitting with no inner scroll and growing nothing, the flow outside the gate); the platform
+  spec's rows (each section, and both windows open).
 
 ### All Champions' workspace (27 Nov 2026)
 

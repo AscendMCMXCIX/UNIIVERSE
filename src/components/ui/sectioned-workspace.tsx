@@ -4,7 +4,7 @@ import * as React from "react";
 import { AlertCircle } from "lucide-react";
 import { usePathname, useSearchParams } from "next/navigation";
 import { isPlainClick } from "@/lib/back-to-top";
-import { cn } from "@/lib/cn";
+import { cn, withDefaults } from "@/lib/cn";
 import { formatCount } from "@/lib/format";
 import { subTabClass } from "./sub-tabs";
 import { itemHref, itemIn } from "./address-item";
@@ -310,7 +310,8 @@ export function SectionedWorkspace({
         ) : (
           <div ref={rootRef} className={cn("@container/ws ws:flex ws:flex-1 ws:flex-row ws:items-stretch ws:gap-5 ws:space-y-0", className)} {...whole}>
             {index ? <div className="ws:hidden">{index}</div> : null}
-            <SectionRail className={cn("ws:w-56 ws:shrink-0", railClassName)} actions={actions} />
+            {/* The page's rail classes replace the default width (withDefaults), not stack on it. */}
+            <SectionRail className={withDefaults("ws:w-56 ws:shrink-0", railClassName)} actions={actions} />
             <SectionPanels className={sectionsClassName} />
           </div>
         )}

@@ -3,10 +3,43 @@ import { Badge } from "@/components/ui/badge";
 import { Panel, PanelBody, PanelHeader, SectionLabel } from "@/components/ui/panel";
 import { timeAgo } from "@/lib/format";
 import { ScrollRegion } from "@/components/ui/scroll-region";
+import { WorkspaceWindow } from "@/components/ui/workspace-window";
+import { formatCount } from "@/lib/format";
 
-/** Owner-only operational view: build, database latency from this function, jobs, errors. */
+/**
+ * Owner-only operational view: build, database latency from this function, jobs, errors. On a desktop
+ * window (System Health's workspace) the recent errors (up to 8, each whole there, never cut) and the
+ * recent job runs (up to 15) open in a window from a row each, so the section never grows past the
+ * screen; elsewhere they are inline, as always.
+ */
 export function DiagnosticsPanel({ d }: { d: Diagnostics }) {
   const dbTone = d.db.pingMs < 20 ? "good" : d.db.pingMs < 150 ? "info" : "warn";
+  const runsTable = (
+    <table className="w-full">
+      <thead className="text-left text-fg-muted">
+        <tr>
+          <th className="py-1 pr-3 font-medium">Job</th>
+          <th className="py-1 pr-3 font-medium">Trigger</th>
+          <th className="py-1 pr-3 font-medium">Started</th>
+          <th className="py-1 pr-3 font-medium">Duration</th>
+          <th className="py-1 pr-3 font-medium">Result</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-border">
+        {d.recentRuns.map((r) => (
+          <tr key={r.id}>
+            <td className="py-1 pr-3 font-mono text-fg">{r.job}</td>
+            <td className="py-1 pr-3 text-fg-muted">{r.trigger}</td>
+            <td className="py-1 pr-3 text-fg-muted">{timeAgo(r.startedAt)}</td>
+            <td className="py-1 pr-3 text-fg-muted">{r.durationMs === null ? "running" : `${(r.durationMs / 1000).toFixed(1)} s`}</td>
+            <td className="py-1 pr-3">
+              <Badge tone={r.ok === null ? "info" : r.ok ? (r.error ? "warn" : "good") : "bad"}>{r.ok === null ? "running" : r.ok ? (r.error ? "degraded" : "ok") : "failed"}</Badge>
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
   return (
     <Panel>
       <PanelHeader title="Diagnostics" subtitle="Measured from the server instance that rendered this page. Secrets are never shown." />
@@ -32,46 +65,60 @@ export function DiagnosticsPanel({ d }: { d: Diagnostics }) {
             ))}
           </div>
           <div>
-            <SectionLabel className="mb-1">Recent errors</SectionLabel>
-            {d.recentErrors.length === 0 ? <p className="text-fg-subtle">No job errors recorded.</p> : null}
-            {d.recentErrors.map((e, i) => (
-              <div key={i} className="mb-1 text-fg-muted">
-                <span className="font-mono text-fg">{e.job}</span> <span className="text-fg-subtle">{timeAgo(e.at)}</span>
-                <div className="truncate text-bad" title={e.error}>
-                  {e.error}
-                </div>
-              </div>
-            ))}
+            {d.recentErrors.length === 0 ? (
+              <>
+                <SectionLabel className="mb-1">Recent errors</SectionLabel>
+                <p className="text-fg-subtle">No job errors recorded.</p>
+              </>
+            ) : (
+              <WorkspaceWindow
+                testId="diagnostics-errors"
+                label="Recent errors"
+                description={`${formatCount(d.recentErrors.length)} recorded`}
+                title="Recent errors"
+                windowDescription="The latest job errors, newest first, each in full."
+                flow={
+                  <>
+                    <SectionLabel className="mb-1">Recent errors</SectionLabel>
+                    {d.recentErrors.map((e, i) => (
+                      <div key={i} className="mb-1 text-fg-muted">
+                        <span className="font-mono text-fg">{e.job}</span> <span className="text-fg-subtle">{timeAgo(e.at)}</span>
+                        <div className="truncate text-bad" title={e.error}>
+                          {e.error}
+                        </div>
+                      </div>
+                    ))}
+                  </>
+                }
+              >
+                <ul className="space-y-2 text-xs">
+                  {d.recentErrors.map((e, i) => (
+                    <li key={i} className="text-fg-muted">
+                      <span className="font-mono text-fg">{e.job}</span> <span className="text-fg-subtle">{timeAgo(e.at)}</span>
+                      <p className="text-bad [overflow-wrap:anywhere]">{e.error}</p>
+                    </li>
+                  ))}
+                </ul>
+              </WorkspaceWindow>
+            )}
           </div>
         </div>
         <div>
-          <SectionLabel className="mb-1">Recent job runs</SectionLabel>
-          <ScrollRegion label="Recent job runs">
-            <table className="w-full">
-              <thead className="text-left text-fg-muted">
-                <tr>
-                  <th className="py-1 pr-3 font-medium">Job</th>
-                  <th className="py-1 pr-3 font-medium">Trigger</th>
-                  <th className="py-1 pr-3 font-medium">Started</th>
-                  <th className="py-1 pr-3 font-medium">Duration</th>
-                  <th className="py-1 pr-3 font-medium">Result</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-border">
-                {d.recentRuns.map((r) => (
-                  <tr key={r.id}>
-                    <td className="py-1 pr-3 font-mono text-fg">{r.job}</td>
-                    <td className="py-1 pr-3 text-fg-muted">{r.trigger}</td>
-                    <td className="py-1 pr-3 text-fg-muted">{timeAgo(r.startedAt)}</td>
-                    <td className="py-1 pr-3 text-fg-muted">{r.durationMs === null ? "running" : `${(r.durationMs / 1000).toFixed(1)} s`}</td>
-                    <td className="py-1 pr-3">
-                      <Badge tone={r.ok === null ? "info" : r.ok ? (r.error ? "warn" : "good") : "bad"}>{r.ok === null ? "running" : r.ok ? (r.error ? "degraded" : "ok") : "failed"}</Badge>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </ScrollRegion>
+          <WorkspaceWindow
+            testId="diagnostics-runs"
+            label="Recent job runs"
+            description={`The last ${formatCount(d.recentRuns.length)}`}
+            title="Recent job runs"
+            windowDescription="The latest background job runs, newest first."
+            flow={
+              <>
+                <SectionLabel className="mb-1">Recent job runs</SectionLabel>
+                <ScrollRegion label="Recent job runs">{runsTable}</ScrollRegion>
+              </>
+            }
+          >
+            <div className="text-xs">{runsTable}</div>
+          </WorkspaceWindow>
         </div>
       </PanelBody>
     </Panel>

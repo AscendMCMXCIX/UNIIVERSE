@@ -279,7 +279,8 @@ test("Admin's pages: one header rhythm, one panel depth, one fold, aligned toolb
   // G4-5, G4-10, G4-12: System Health's fold is a row in its panel; the status list has the panels' depth; each verdict has its icon.
   await dp.goto("/admin/system");
   const sys = await dp.evaluate(() => ({
-    fold: document.querySelector("[data-testid=field-performance-details]")?.getAttribute("data-fold") ?? "missing",
+    // On a desktop window (the one-screen workspace) the fold's row opens a window instead, the same row inside its panel.
+    fold: document.querySelector("[data-testid=field-performance-details]")?.getAttribute("data-fold") ?? (document.querySelector("[data-testid=field-performance-window-open]") ? "row" : "missing"),
     depth: getComputedStyle(document.querySelector("[data-testid=system-status]")!).boxShadow,
     verdicts: [...document.querySelectorAll("[data-testid^=field-words-]")].map((li) => !!li.querySelector("svg")),
   }));

@@ -3,6 +3,7 @@ import type { VitalsReport } from "@/server/observability/web-vitals";
 import { Panel, PanelBody, PanelHeader, SectionLabel } from "@/components/ui/panel";
 import { Badge } from "@/components/ui/badge";
 import { Fold } from "@/components/ui/fold";
+import { WorkspaceWindow } from "@/components/ui/workspace-window";
 import { formatCount } from "@/lib/format";
 import { AlertTriangle, CheckCircle2, CircleDashed, Clock, type LucideIcon } from "lucide-react";
 
@@ -56,6 +57,83 @@ const CELL = "py-1 pr-3 max-sm:flex max-sm:justify-between max-sm:gap-3 max-sm:p
 export function FieldPerformancePanel({ report }: { report: VitalsReport }) {
   const loads = report.metrics.find((m) => m.metric === "TTFB")?.all?.count ?? 0;
   const empty = loads === 0 && report.metrics.every((m) => !m.all);
+  // The two tables and their note: in the flow under Technical details (a fold in the panel), on a desktop window in a
+  // window of their own, one table at a time (WorkspaceWindow), so the section never grows past the screen.
+  const deviceTable = (
+    <table className={TABLE}>
+      <thead className={HEAD}>
+        <tr>
+          <th className="py-1 pr-3 font-medium">Measure</th>
+          <th className="py-1 pr-3 font-medium">75% of loads</th>
+          <th className="py-1 pr-3 font-medium">Good</th>
+          <th className="py-1 pr-3 font-medium">Needs work</th>
+          <th className="py-1 pr-3 font-medium">Poor</th>
+          <th className="py-1 pr-3 font-medium">By device</th>
+          <th className="py-1 pr-3 text-right font-medium">Measured</th>
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-border max-sm:block">
+        {report.metrics.map(({ metric, all, byDevice }) => (
+          <tr key={metric} className={ROW} data-testid={`field-metric-${metric}`}>
+            <td className="py-1 pr-3 font-medium text-fg max-sm:block max-sm:pr-0">
+              {VITALS[metric].label} ({metric}){CORE.includes(metric) ? null : <span className="font-normal text-fg-subtle"> · supporting</span>}
+            </td>
+            <td className={`${CELL} tabular-nums`} data-label="75% of loads">
+              <Bound metric={metric} s={all} />
+            </td>
+            <td className={`${CELL} tabular-nums text-fg`} data-label="Good">{all ? pct(all.good) : "—"}</td>
+            <td className={`${CELL} tabular-nums text-fg`} data-label="Needs work">{all ? pct(all.needsImprovement) : "—"}</td>
+            <td className={`${CELL} tabular-nums text-fg`} data-label="Poor">{all ? pct(all.poor) : "—"}</td>
+            <td className={`${CELL} text-fg-muted`} data-label="By device">
+              <span className="min-w-0 text-right sm:text-left">
+                {byDevice.length
+                  ? byDevice.map(({ device, summary }) => (
+                      <span key={device} className="ml-2 inline-block whitespace-nowrap first:ml-0">
+                        {device} <Bound metric={metric} s={summary} />
+                      </span>
+                    ))
+                  : "—"}
+              </span>
+            </td>
+            <td className={`${CELL} tabular-nums text-fg sm:text-right`} data-label="Measured">{all ? formatCount(all.count) : 0}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+  const pagesTable = (
+    <table className={TABLE}>
+      <thead className={HEAD}>
+        <tr>
+          <th className="py-1 pr-3 font-medium">Page</th>
+          <th className="py-1 pr-3 text-right font-medium">Loads</th>
+          {CORE.map((m) => (
+            <th key={m} className="py-1 pr-3 font-medium">
+              {m}
+            </th>
+          ))}
+        </tr>
+      </thead>
+      <tbody className="divide-y divide-border max-sm:block">
+        {report.pages.map((p) => (
+          <tr key={p.page} className={ROW} data-testid={`field-page-${p.page}`}>
+            <td className="py-1 pr-3 font-medium text-fg max-sm:block max-sm:pr-0">{p.page}</td>
+            <td className={`${CELL} tabular-nums text-fg sm:text-right`} data-label="Loads">{formatCount(p.loads)}</td>
+            {CORE.map((m) => (
+              <td key={m} className={`${CELL} tabular-nums`} data-label={m}>
+                <Bound metric={m} s={p[m as "LCP" | "INP" | "CLS"]} />
+              </td>
+            ))}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  );
+  const notes = (
+    <p className="text-fg-subtle">
+      Good, needs work and poor follow Google&apos;s Core Web Vitals thresholds (LCP 2.5 s and 4 s, INP 200 ms and 500 ms, CLS 0.1 and 0.25). Only the page group and device class are recorded with each count: nothing identifies a member or what they opened. Browsers that do not support a measure send none for it.
+    </p>
+  );
   return (
     <Panel data-testid="field-performance">
       <PanelHeader title="Page speed in members' browsers" subtitle={`Real page loads, last ${report.days} days.`} />
@@ -90,85 +168,35 @@ export function FieldPerformancePanel({ report }: { report: VitalsReport }) {
                 );
               })}
             </ul>
-            <Fold variant="row" className="border-t border-border pt-2" title="Technical details" description="By device and by page." testId="field-performance-details">
-              <div className="space-y-4 text-xs">
-                <p className="text-fg-subtle">Field data from members&apos; own browsers since {report.since}, not a lab test. A figure is the value 75% of loads stayed within.</p>
-                <table className={TABLE}>
-                  <thead className={HEAD}>
-                    <tr>
-                      <th className="py-1 pr-3 font-medium">Measure</th>
-                      <th className="py-1 pr-3 font-medium">75% of loads</th>
-                      <th className="py-1 pr-3 font-medium">Good</th>
-                      <th className="py-1 pr-3 font-medium">Needs work</th>
-                      <th className="py-1 pr-3 font-medium">Poor</th>
-                      <th className="py-1 pr-3 font-medium">By device</th>
-                      <th className="py-1 pr-3 text-right font-medium">Measured</th>
-                    </tr>
-                  </thead>
-                  <tbody className="divide-y divide-border max-sm:block">
-                    {report.metrics.map(({ metric, all, byDevice }) => (
-                      <tr key={metric} className={ROW} data-testid={`field-metric-${metric}`}>
-                        <td className="py-1 pr-3 font-medium text-fg max-sm:block max-sm:pr-0">
-                          {VITALS[metric].label} ({metric}){CORE.includes(metric) ? null : <span className="font-normal text-fg-subtle"> · supporting</span>}
-                        </td>
-                        <td className={`${CELL} tabular-nums`} data-label="75% of loads">
-                          <Bound metric={metric} s={all} />
-                        </td>
-                        <td className={`${CELL} tabular-nums text-fg`} data-label="Good">{all ? pct(all.good) : "—"}</td>
-                        <td className={`${CELL} tabular-nums text-fg`} data-label="Needs work">{all ? pct(all.needsImprovement) : "—"}</td>
-                        <td className={`${CELL} tabular-nums text-fg`} data-label="Poor">{all ? pct(all.poor) : "—"}</td>
-                        <td className={`${CELL} text-fg-muted`} data-label="By device">
-                          <span className="min-w-0 text-right sm:text-left">
-                            {byDevice.length
-                              ? byDevice.map(({ device, summary }) => (
-                                  <span key={device} className="ml-2 inline-block whitespace-nowrap first:ml-0">
-                                    {device} <Bound metric={metric} s={summary} />
-                                  </span>
-                                ))
-                              : "—"}
-                          </span>
-                        </td>
-                        <td className={`${CELL} tabular-nums text-fg sm:text-right`} data-label="Measured">{all ? formatCount(all.count) : 0}</td>
-                      </tr>
-                    ))}
-                  </tbody>
-                </table>
-                {report.pages.length ? (
-                  <div>
-                    <SectionLabel className="mb-1">By page (where the app was opened)</SectionLabel>
-                    <table className={TABLE}>
-                      <thead className={HEAD}>
-                        <tr>
-                          <th className="py-1 pr-3 font-medium">Page</th>
-                          <th className="py-1 pr-3 text-right font-medium">Loads</th>
-                          {CORE.map((m) => (
-                            <th key={m} className="py-1 pr-3 font-medium">
-                              {m}
-                            </th>
-                          ))}
-                        </tr>
-                      </thead>
-                      <tbody className="divide-y divide-border max-sm:block">
-                        {report.pages.map((p) => (
-                          <tr key={p.page} className={ROW} data-testid={`field-page-${p.page}`}>
-                            <td className="py-1 pr-3 font-medium text-fg max-sm:block max-sm:pr-0">{p.page}</td>
-                            <td className={`${CELL} tabular-nums text-fg sm:text-right`} data-label="Loads">{formatCount(p.loads)}</td>
-                            {CORE.map((m) => (
-                              <td key={m} className={`${CELL} tabular-nums`} data-label={m}>
-                                <Bound metric={m} s={p[m as "LCP" | "INP" | "CLS"]} />
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                      </tbody>
-                    </table>
+            <WorkspaceWindow
+              testId="field-performance-window"
+              className="border-t border-border pt-2"
+              label="Technical details"
+              description="By device and by page."
+              title="Page speed: technical details"
+              windowDescription={<>Field data from members&apos; own browsers since {report.since}, not a lab test. A figure is the value 75% of loads stayed within.</>}
+              flow={
+                <Fold variant="row" className="border-t border-border pt-2" title="Technical details" description="By device and by page." testId="field-performance-details">
+                  <div className="space-y-4 text-xs">
+                    <p className="text-fg-subtle">Field data from members&apos; own browsers since {report.since}, not a lab test. A figure is the value 75% of loads stayed within.</p>
+                    {deviceTable}
+                    {report.pages.length ? (
+                      <div>
+                        <SectionLabel className="mb-1">By page (where the app was opened)</SectionLabel>
+                        {pagesTable}
+                      </div>
+                    ) : null}
+                    {notes}
                   </div>
-                ) : null}
-                <p className="text-fg-subtle">
-                  Good, needs work and poor follow Google&apos;s Core Web Vitals thresholds (LCP 2.5 s and 4 s, INP 200 ms and 500 ms, CLS 0.1 and 0.25). Only the page group and device class are recorded with each count: nothing identifies a member or what they opened. Browsers that do not support a measure send none for it.
-                </p>
-              </div>
-            </Fold>
+                </Fold>
+              }
+              views={[
+                { id: "device", label: "By device", content: <div className="text-xs">{deviceTable}</div> },
+                ...(report.pages.length ? [{ id: "page", label: "By page", content: <div className="text-xs">{pagesTable}</div> }] : []),
+              ]}
+            >
+              <div className="text-xs">{notes}</div>
+            </WorkspaceWindow>
           </>
         )}
       </PanelBody>

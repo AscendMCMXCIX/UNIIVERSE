@@ -67,6 +67,30 @@ const ROWS: OneScreenRow[] = [
   { name: "All Champions, the list", path: "/players/{player}/champions", at: EIGHT_AND_FLOOR, workspace: true, pager: "all-champions-pager", cards: "[data-testid=all-champions-table]", rows: "[data-testid=top-champion]", truncates: "[data-testid=top-champion] .truncate" },
   { name: "Admin Accounts", path: "/admin/people", admin: true, at: EIGHT },
   { name: "Admin Access levels", path: "/admin/people/access", admin: true, at: [...EIGHT, { size: FLOOR, side: "collapsed" }] },
+  // System Health, a sectioned workspace (lane A2): each section, and page speed's details in their window.
+  ...["statuses", "speed", "build", "diagnostics", "environment", "compliance"].map((id) => ({ name: `Admin System Health, ${id}`, path: `/admin/system${id === "statuses" ? "" : `?section=${id}`}`, admin: true, at: EIGHT_AND_FLOOR, workspace: true })),
+  {
+    name: "Admin System Health, page speed's details open",
+    path: "/admin/system?section=speed",
+    admin: true,
+    at: EIGHT_AND_FLOOR,
+    workspace: true,
+    then: async (page) => {
+      await page.getByTestId("field-performance-window-open").click();
+      await expect(page.getByTestId("field-performance-window-window")).toBeVisible();
+    },
+  },
+  {
+    name: "Admin System Health, the recent job runs open",
+    path: "/admin/system?section=diagnostics",
+    admin: true,
+    at: EIGHT_AND_FLOOR,
+    workspace: true,
+    then: async (page) => {
+      await page.getByTestId("diagnostics-runs-open").click();
+      await expect(page.getByTestId("diagnostics-runs-window")).toBeVisible();
+    },
+  },
   // Settings, a sectioned workspace (lane A2, 28 Nov 2026): each section, Admin Mode's copy, and a draft with its error line.
   { name: "Settings, Name", path: "/settings", at: EIGHT_AND_FLOOR, workspace: true },
   { name: "Settings, Password", path: "/settings?section=password", at: EIGHT_AND_FLOOR, workspace: true },

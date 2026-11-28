@@ -41,12 +41,21 @@ test("a page load is counted by page group and device class, and System Health s
   const panel = page.getByTestId("field-performance");
   await expect(panel).toContainText("Page speed in members' browsers");
   await expect(panel).toContainText("not a lab test");
-  // In words first; every measure by device and by page under Technical details.
+  // In words first; every measure by device and by page under Technical details: a fold in the flow, a window of its own on a
+  // desktop window (System Health's workspace, ?section=speed: docs/RESPONSIVE.md, "One-screen desktop pages").
   await expect(async () => {
-    await page.reload();
+    await page.goto("/admin/system?section=speed");
     await expect(page.getByTestId("field-words-LCP")).toBeVisible({ timeout: 2000 });
-    await page.getByTestId("field-performance-details").locator("summary").click();
-    await expect(page.getByTestId("field-page-players")).toBeVisible({ timeout: 2000 });
+    const opener = page.getByTestId("field-performance-window-open");
+    if (await opener.isVisible()) {
+      await opener.click();
+      const win = page.getByTestId("field-performance-window-window");
+      await win.getByTestId("field-performance-window-view").filter({ hasText: "By page" }).click();
+      await expect(win.getByTestId("field-page-players")).toBeVisible({ timeout: 2000 });
+    } else {
+      await page.getByTestId("field-performance-details").locator("summary").click();
+      await expect(page.getByTestId("field-page-players")).toBeVisible({ timeout: 2000 });
+    }
   }).toPass({ timeout: 20_000 });
 });
 
