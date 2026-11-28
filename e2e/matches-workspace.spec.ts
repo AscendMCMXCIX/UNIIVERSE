@@ -41,7 +41,16 @@ async function gameWindow(page: Page) {
   });
 }
 
+/**
+ * The open game window fits, once its layout has settled: a part that has just arrived (the timeline, the groups) is measured
+ * by the view's ResizeObserver before the next paint, which pages the view where it no longer fits; a read in between (a
+ * task between React's commit and that frame) sees the view as it was for an instant no reader sees.
+ */
 async function expectWindowFits(page: Page, at: string) {
+  await expect(async () => expectWindowFitsNow(page, at)).toPass({ timeout: 5_000 });
+}
+
+async function expectWindowFitsNow(page: Page, at: string) {
   const w = await gameWindow(page);
   expect(w, `${at}: the game window is open`).not.toBeNull();
   const inner = await page.evaluate(() => innerHeight);
@@ -165,6 +174,29 @@ test("at the floor (1366 × 657) every game of a page fits the game window, whol
     await next.click();
     await expect(page.getByTestId("match-detail-position")).toHaveText(new RegExp(`^Game ${i + 2} of`));
   }
+});
+
+test("a new page size keeps the game open in the window on the list's page, so its Next goes on from it", async ({ page }) => {
+  test.setTimeout(90_000);
+  const id = await demoPlayerId(page);
+  // The fourth game of the first ten, read in the flow (a window just under the gate: ten cards a page).
+  await openAt(page, `${MH(id)}?per=10`, [1366, 640], "collapsed");
+  await expect(page.getByTestId("match-row")).toHaveCount(10);
+  const fourth = (await page.getByTestId("match-row").nth(3).getAttribute("data-match"))!;
+  // At the floor with that game open from a link: the budget (three cards) is written to the address, on the page holding the
+  // game (the second), not the page holding the first card (the first, where Next waited for a page that never came).
+  await page.setViewportSize({ width: FLOOR[0], height: FLOOR[1] });
+  await page.goto(`${MH(id)}?per=10&page=1&match=${fourth}`);
+  await expect(page.locator("dialog[open] [data-testid=match-breakdown]")).toBeVisible();
+  await expect.poll(() => new URL(page.url()).searchParams.get("per"), { timeout: 15_000 }).not.toBe("10");
+  const per = Number(new URL(page.url()).searchParams.get("per"));
+  expect(per, "the floor's budget is under four cards (the fourth game is on another page than the first)").toBeLessThan(4);
+  await expect.poll(() => new URL(page.url()).searchParams.get("page")).toBe(String(Math.floor(3 / per) + 1));
+  expect(new URL(page.url()).searchParams.get("match")).toBe(fourth);
+  await expect(page.getByTestId("match-detail-position")).toHaveText(/^Game 4 of/);
+  await expect(page.locator(`[data-testid=match-item][data-row-key="${fourth}"]`)).toBeVisible();
+  await page.getByTestId("match-detail-next").click();
+  await expect(page.getByTestId("match-detail-position")).toHaveText(/^Game 5 of/);
 });
 
 test("Encounters pages its table by its rows: every player once, the pager in Show more's place, and a player's games keep the list's page for the way back", async ({ page }) => {

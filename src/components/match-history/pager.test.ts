@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { pageList, pagerFold, pagerItems, pagerRem, widestItems, type PagerItem } from "./pager";
+import { budgetPage, pageList, pagerFold, pagerItems, pagerRem, widestItems, type PagerItem } from "./pager";
 import { MOUSE_BUTTON_REM, lineItems } from "@/components/ui/pager-data";
 
 /*
@@ -106,5 +106,21 @@ describe("the inline pager's reserved line", () => {
         const widest = Math.max(...Array.from({ length: pages }, (_, i) => pagerRem(lineItems(pagerItems(i + 1, pages), folded), MOUSE_BUTTON_REM)));
         expect(reserved, `${pages} pages, ${folded ? "folded" : "whole"}`).toBeCloseTo(widest, 6);
       }
+  });
+});
+
+describe("the page a new budget shows (budgetPage)", () => {
+  const page = { page: 1, per: 10, rows: Array.from({ length: 10 }, (_, i) => ({ matchId: `m${i + 1}` })) };
+
+  it("holds the game open in the window: its Previous and Next go on from it (a budget of 3 with game 4 open: page 2, not page 1)", () => {
+    expect(budgetPage(page, "m4", 3)).toBe(2);
+    expect(budgetPage(page, "m10", 3)).toBe(4);
+    expect(budgetPage({ ...page, page: 2, per: 4, rows: page.rows.slice(0, 4) }, "m3", 5)).toBe(2);
+  });
+
+  it("holds the page's first card where no game is open, or the one open is not on the page shown", () => {
+    expect(budgetPage(page, null, 3)).toBe(1);
+    expect(budgetPage({ ...page, page: 3 }, null, 4)).toBe(6);
+    expect(budgetPage(page, "elsewhere", 3)).toBe(1);
   });
 });

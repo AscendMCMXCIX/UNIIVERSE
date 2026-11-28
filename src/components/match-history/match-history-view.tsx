@@ -39,6 +39,7 @@ import { useNow } from "@/components/ui/relative-time";
 import { fmtDuration, fmtInt, fmtNum } from "./match-format";
 import { WINDOW_POSTURE_QUERY, keepsEscape, modalOpen, prefersWindow } from "@/components/ui/posture";
 import { Pager } from "@/components/ui/pager";
+import { budgetPage } from "./pager";
 import { useRowBudget } from "@/components/ui/fit-rows";
 import { WS_SECTION, WorkspaceCard, useWorkspaceMarks, wsTierClass } from "@/components/ui/workspace";
 import { rangeWords } from "@/components/ui/paged-list";
@@ -706,9 +707,10 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
     // Settled first (a resize fires many measures): one server render for the size the window comes to rest at; and never
     // over the reader's own navigation (a view, a filter, a page followed meanwhile: ui/reader-idle.ts).
     return whenReaderIdle(readerBusy, () => {
-      const firstIndex = (data.page - 1) * data.per;
+      // The page holding the game open in the window (the address names it), else the first card shown (usePagedList's rule
+      // for another budget): the open game stays on the list's page, so its Previous and Next go on from it.
       rememberListPer(listName, perPage);
-      go({ per: String(perPage), page: String(Math.floor(firstIndex / perPage) + 1) }, { keepMatch: true });
+      go({ per: String(perPage), page: String(budgetPage(data, new URLSearchParams(window.location.search).get("match"), perPage)) }, { keepMatch: true });
     }, PER_SETTLE_MS);
     // `go` follows the address; the budget and the page decide.
     // eslint-disable-next-line react-hooks/exhaustive-deps
