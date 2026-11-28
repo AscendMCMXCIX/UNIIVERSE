@@ -75,7 +75,7 @@ const ROWS: OneScreenRow[] = [
   { name: "Match History, one player's games (Encounters → a player)", path: "/players/{player}/matches?view=encounters", at: EIGHT_AND_FLOOR, workspace: true, then: openFirstEncounter, cards: "[data-testid=match-list]", rows: "[data-testid=match-item]" },
   { name: "Match History, Encounters", path: "/players/{player}/matches?view=encounters", at: EIGHT_AND_FLOOR, workspace: true, pager: "encounter-pager" },
   { name: "My Profile, Match History", path: "/overview/matches", cookies: { uniiverse_demo_viewer: "member" }, at: EIGHT_AND_FLOOR, workspace: true, cards: "[data-testid=match-list]", rows: "[data-testid=match-item]" },
-  { name: "Team Matches", path: "/matches", at: EIGHT_AND_FLOOR, workspace: true, pager: "together-pager", cards: "[data-testid=together-region]", rows: "[data-testid=together-list] > li" },
+  { name: "Team Matches", path: "/matches", at: EIGHT_AND_FLOOR, workspace: true, cards: "[data-testid=together-region]", rows: "[data-testid=together-list] > li" },
   { name: "Team Matches, a game open in the game window", path: "/matches", at: EIGHT_AND_FLOOR, workspace: true, then: openFirstTogether, cards: "[data-testid=together-region]", rows: "[data-testid=together-list] > li" },
 ];
 
