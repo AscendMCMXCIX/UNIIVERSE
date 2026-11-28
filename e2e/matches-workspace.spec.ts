@@ -199,6 +199,90 @@ test("a new page size keeps the game open in the window on the list's page, so i
   await expect(page.getByTestId("match-detail-position")).toHaveText(/^Game 5 of/);
 });
 
+/** A list's games in order as the server draws them, by their match ids (`attr`: Match History's `data-match`, Team Matches' `data-match-id`). */
+async function gameIds(page: Page, path: string, attr: string) {
+  const html = await (await page.request.get(path)).text();
+  return [...new Set([...html.matchAll(new RegExp(`${attr}="([^"]+)"`, "g"))].map((m) => m[1]!))];
+}
+
+/** The rows-per-page test cookie (server/demo/test-hooks.ts): the budget no more than `n` cards, whatever the window. */
+const capAt = (n: number) => ({ "uniiverse-test-rows-per-page": String(n) });
+
+test("a link to a game past Match History's first page opens with the list on its page, Previous, Next and its place kept, with a kept budget or a first visit's", async ({ page }) => {
+  test.setTimeout(120_000);
+  const id = await demoPlayerId(page);
+  await page.context().clearCookies();
+  const ids = await gameIds(page, `${MH(id)}?per=25`, "data-match");
+  expect(ids.length, "the demo player's first 25 games").toBe(25);
+  // A reader whose kept budget is three (the list's cookie) follows a link to the 7th game: the server draws page 3 (games 7 to
+  // 9), not page 1, where the window opened with no Previous, no Next and no place.
+  await openAt(page, `${MH(id)}?match=${ids[6]}`, [1440, 900], "expanded", { cookies: { uniiverse_per_games: "3", ...capAt(3) } });
+  await expect(page.locator("dialog[open] [data-testid=match-breakdown]")).toBeVisible();
+  await expect(page.getByTestId("match-detail-position")).toHaveText(/^Game 7 of \d+/);
+  expect((await region(page, "games"))!.page).toBe(3);
+  await expect(page.locator(`[data-testid=match-item][data-row-key="${ids[6]}"]`)).toBeVisible();
+  await page.getByTestId("match-detail-next").click();
+  await expect(page.getByTestId("match-detail-position")).toHaveText(/^Game 8 of/);
+  // Closed, the address names the page the list shows, so a reload or a copy shows it.
+  await page.keyboard.press("Escape");
+  await expect(page.locator("dialog[open]")).toHaveCount(0);
+  await expect(page).not.toHaveURL(/match=/);
+  await expect(page).toHaveURL(/page=3(&|$)/);
+  // A first visit (no kept budget): the server's ten first, the game in the window; the budget is written with the page left
+  // out, and the server's page holds the 15th game (page 5 of three).
+  await page.context().clearCookies();
+  await openAt(page, `${MH(id)}?match=${ids[14]}`, [1440, 900], "expanded", { cookies: capAt(3) });
+  await expect(page).toHaveURL(/per=3/);
+  await expect(page).toHaveURL(new RegExp(`match=${ids[14]}`));
+  await expect(page.getByTestId("match-detail-position")).toHaveText(/^Game 15 of/);
+  expect((await region(page, "games"))!.page).toBe(5);
+  await page.getByTestId("match-detail-prev").click();
+  await expect(page.getByTestId("match-detail-position")).toHaveText(/^Game 14 of/);
+});
+
+test("Team Matches: a link to a game past the first page opens on its page with a kept budget, and stays open through a first visit's page size, a link copied at another and the flow", async ({ page }) => {
+  test.setTimeout(120_000);
+  await page.context().clearCookies();
+  const ids = await gameIds(page, "/matches?per=6", "data-match-id");
+  expect(ids.length, "the demo's six Team Matches games").toBe(6);
+  const last = ids[5]!;
+  const open = page.locator("dialog[open][data-size=workspace] [data-testid=match-breakdown]");
+  // A reader whose kept budget is two follows a link to the 6th game: the server lists page 3 (games 5 and 6), not page 1,
+  // where the game never opened.
+  await openAt(page, `/matches?match=${last}`, [1440, 900], "expanded", { cookies: { uniiverse_per_together: "2", ...capAt(2) } });
+  await expect(open).toBeVisible();
+  await expect(page.getByTestId("match-detail-position")).toHaveText("Game 6 of 6");
+  expect((await region(page, "together"))!.page).toBe(3);
+  await page.getByTestId("match-detail-prev").click();
+  await expect(page.getByTestId("match-detail-position")).toHaveText("Game 5 of 6");
+  await page.keyboard.press("Escape");
+  await expect(page.locator("dialog[open]")).toHaveCount(0);
+  await expect(page).not.toHaveURL(/match=/);
+  await expect(page).toHaveURL(/page=3(&|$)/);
+  // A first visit: the server lists the first 20 (all six) and the window opens; the budget is then written on the page that
+  // holds the game, with the game kept (it used to go to page 1, closing the window and dropping ?match=).
+  await page.context().clearCookies();
+  await openAt(page, `/matches?match=${last}`, [1440, 900], "expanded", { cookies: capAt(2) });
+  await expect(page).toHaveURL(/per=2/);
+  await expect(page).toHaveURL(new RegExp(`match=${last}`));
+  await expect(open).toBeVisible();
+  await expect(page.getByTestId("match-detail-position")).toHaveText("Game 6 of 6");
+  expect((await region(page, "together"))!.page).toBe(3);
+  // A link copied at three a page (page 2 holds the 6th game) read at two a page: page 3, not page 2 (games 3 and 4).
+  await page.context().clearCookies();
+  await openAt(page, `/matches?per=3&page=2&match=${last}`, [1440, 900], "expanded", { cookies: capAt(2) });
+  await expect(page).toHaveURL(/per=2/);
+  await expect(page).toHaveURL(/page=3(&|$)/);
+  await expect(open).toBeVisible();
+  await expect(page.getByTestId("match-detail-position")).toHaveText("Game 6 of 6");
+  // The same link in the flow (a short window): its page size dropped, the game still open under its card and in the address.
+  await page.context().clearCookies();
+  await openAt(page, `/matches?per=3&page=2&match=${last}`, [1366, 640], "expanded");
+  await expect(page).not.toHaveURL(/per=/);
+  await expect(page).toHaveURL(new RegExp(`match=${last}`));
+  await expect(page.locator(`[data-testid=together-game][data-match-id="${last}"][data-expanded]`)).toBeVisible();
+});
+
 test("Encounters pages its table by its rows: every player once, the pager in Show more's place, and a player's games keep the list's page for the way back", async ({ page }) => {
   test.setTimeout(120_000);
   const id = await demoPlayerId(page);

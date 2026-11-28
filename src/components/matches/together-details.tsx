@@ -231,10 +231,15 @@ const domId = (entry: string) => `together-${entry.replace(/[^\w-]/g, "-")}`;
  * History's: the first open pushes one entry, under its card as on a phone's whole screen, so Back
  * closes the game; another game replaces it; closing goes Back when this list pushed the entry.
  */
-function writeMatch(matchId: string | null, push = false) {
+function writeMatch(matchId: string | null, push = false, page?: number) {
   const next = new URLSearchParams(window.location.search);
   if (matchId) next.set("match", matchId);
   else next.delete("match");
+  // The page the list shows (a game closed in the workspace: the server's page, where a link named none), so a reload shows it.
+  if (page !== undefined && (Number(next.get("page")) || 1) !== page) {
+    if (page > 1) next.set("page", String(page));
+    else next.delete("page");
+  }
   // No state of our own: Next.js keeps its router in step with the new address (as Match History does).
   const url = `${window.location.pathname}${next.size ? `?${next.toString()}` : ""}`;
   if (push) window.history.pushState(null, "", url);
@@ -471,7 +476,7 @@ export function TogetherList({ entries, total, offset = 0, championsById, classN
       return;
     }
     setOpen(null);
-    writeMatch(null);
+    writeMatch(null, false, workspace && ws?.paging.per ? ws.paging.page : undefined);
   };
   return (
     <MatchDetailCacheContext.Provider value={cache}>

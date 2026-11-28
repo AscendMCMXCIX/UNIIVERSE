@@ -616,20 +616,23 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
     pushed.current = null;
   }, [listKey]);
 
-  const latestParams = React.useRef({ params, pathname });
+  const latestParams = React.useRef({ params, pathname, page: data.page, ws });
   React.useLayoutEffect(() => {
-    latestParams.current = { params, pathname };
+    latestParams.current = { params, pathname, page: data.page, ws };
   });
   /**
    * The open game in the address. Under its card it replaces the current entry (Back leaves the
    * page, not the game); on a phone, where the game takes the whole screen, it is a new entry, so
-   * Back (the button, the gesture, Android's key) closes it and returns to the list as it was.
+   * Back (the button, the gesture, Android's key) closes it and returns to the list as it was. A game
+   * closed in the workspace leaves the page the list shows in the address: the server's, where a link
+   * named none (getMatchHistory's openMatch), so a reload or a copy shows the same page.
    */
   const writeMatch = React.useCallback((matchId: string | null, { push = false }: { push?: boolean } = {}) => {
-    const { params, pathname } = latestParams.current;
+    const { params, pathname, page, ws } = latestParams.current;
     const next = new URLSearchParams(params.toString());
     if (matchId) next.set("match", matchId);
     else next.delete("match");
+    if (!matchId && ws === true && (Number(next.get("page")) || 1) !== page) next.set("page", String(page));
     const url = `${pathname}${next.size ? `?${next.toString()}` : ""}`;
     if (push) window.history.pushState(null, "", url);
     else window.history.replaceState(null, "", url);
