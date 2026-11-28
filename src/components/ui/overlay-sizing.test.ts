@@ -228,7 +228,10 @@ describe("what shows over a window is drawn inside it", () => {
     const modal = code(read("src/components/ui/detail-modal.tsx"));
     expect(modal).toMatch(/useLayoutEffect\(\(\) => \{\s*const d = ref\.current;\s*if \(!open \|\| !d\) return;\s*return \(\) => noteModalClosed\(d\);/);
     expect(modal).toMatch(/setClosing\(true\);\s*if \(ref\.current\) noteModalClosed\(ref\.current\);/);
-    expect(modal).toMatch(/if \(OPENING_MOTIONS\.has\(e\.animationName\)\) \{\s*settle\(\);\s*noteModalAtRest\(e\.currentTarget\);/);
+    // Its own opening motion only (opensWith, detail-modal-motion.test.ts): never its backdrop's fade, which ends on the dialog
+    // too (e.pseudoElement "::backdrop") and before a sheet's slide.
+    expect(modal).toMatch(/if \(e\.target !== ref\.current \|\| e\.pseudoElement\) return;/);
+    expect(modal).toMatch(/if \(opensWith\(size, e\)\) \{\s*settle\(\);\s*noteModalAtRest\(e\.currentTarget\);/);
     expect(modal).toContain("restTimer = window.setTimeout(() => noteModalAtRest(d), REST_MS)");
   });
 

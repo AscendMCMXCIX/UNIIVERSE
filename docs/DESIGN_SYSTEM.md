@@ -543,6 +543,7 @@ One set of containers, chosen by what the content is, never by page. Each is one
 | **Task dialog** | work that needs full attention (editors, confirmations, pickers, Card Studio, Install) | `dialog.tsx`: `Dialog` with its `size` (every one states it, `TASK_DIALOG_REM`): `form` 30rem for forms and confirmations (`ConfirmDialog`, the account and job confirmations, Change Riot ID, Position your picture), `picker` 42rem for a choice among many or an editor with a table (Access, an access level); Card Studio alone `min(100% − 3rem, 100rem)` by `min(100% − 3rem, 64rem)` (`DetailModal size="full"`, Release 17: its live preview 45% of it, docs/PLAYER_CARD_STUDIO.md); Install and sign-in 30rem (`compact`, `form`); the champion picker 42rem (`standard`). Phones and short windows: docked to the bottom edge, or the whole screen | its button | Close, Escape, the backdrop | none |
 | **Paged list** | a list in a fixed workspace that would grow past the window (All Champions' champions, lane opponents and an opponent's games, 27 Nov 2026): the complete rows that fit, a pager reaching the rest | `pager.tsx`: `Pager` (Match History's, `layout="inline"`); `fit-rows.tsx`: `useRowBudget`; `row-budget.ts`: `rowBudget`, `slotPages`, `usePagedList`, `useFollowed` (the item just closed, so a list comes back on its page) | the list's own pager, its keys (PageUp/PageDown, Home/End, ↑/↓ across a page's edge) | — | never: a page is the list's own state |
 | **Phone window shell** | the window an item opens in on a touch phone or in a short window (a Peek's, a game's) | `preview-window.tsx`: `PreviewWindow` on `DetailModal` | the item | ✕, Escape, Back, a pull down on its header (or its bar) | the item's own (`?player=`, `?match=`) |
+| **Workspace window** | All Champions' pane where the workspace's section is too narrow for it (1280–1355px with the sidebar open, 28 Nov 2026): the pane's own content, paged, in a window of a fixed height | `PreviewWindow size="workspace" headless` on `DetailModal` (the content's heading names it; `useRowBudget` ends its lists at the window's foot) | a row of the list | the content's labelled Close, Escape (an opponent's games back to the grid first), a click beside it, Back; the focus then on the row of the champion shown | the pane's (`?champion=&crole=[&vs=]`) |
 | **Popover** | anchored choices (menus, filter dropdowns, the pinned row's Filters) | `popover.tsx`: `Popover` (a panel of fields: the Filters, 34rem, where previews open beside the list; a touch phone keeps the sheet); `menu.tsx` (a menu) | click, Enter, Space | an outside press, Escape (focus back on its button), the focus leaving it, Done, its button leaving the screen | none of its own; a choice replaces the query. The Filters (popover or sheet) have no history entry: one under a replaced query made Back, or a close while a choice loaded, restore the old address |
 | **Select** (a Popover) | one value from a short list in a toolbar or a form (game mode, season, minimum games, sort, a filter's status…) | `select.tsx`: `Select` (options as data) | click, Enter, Space, ↑/↓ | a choice, Escape, Tab, an outside press, a resize, its button leaving the screen | none; a choice calls `onValueChange`, which writes the address as the native select did |
 | **Explain** | a short explanation beside a term | `info-tip.tsx`: `InfoTip` | hover, focus, tap | leaving, Escape, any tap | none |
@@ -730,8 +731,24 @@ const peek = usePeek({ param: "player", ids, initial: searchParams.get("player")
   workspace's panes are the frame), the pane's summary is four bands (one identity bar, the positions
   for two or more, five figure cells, the kills line), the opponents are two columns of merged cells
   ("9 · 5W 4L") under one toolbar line, and an opponent's games open in place of the grid with
-  ‹ 3 of 40 ›. The pane needs the opponents' two columns (a 64.75rem section); narrower, the sheet.
-  Phones, tablets, short windows and large text keep the flow above.
+  ‹ 3 of 40 ›. Under 46 of the page's own rem the workspace takes its **short form** (`ws-short`,
+  28 Nov 2026; under 48 where the section is narrow, 1356–1463px with the sidebar open, where the tall
+  form's lines wrap; docs/RESPONSIVE.md, "the short form"), so every state fits down to 41rem: the totals
+  ("29 games in all, 1 with no recorded position") become the identity bar's second line, and the
+  figure cells become **the compact figure row**: one row of five cells, each label before its figure
+  on one baseline and its sub under it ("Win rate 50% · KDA 3.22 · …"), the same cells, words and
+  sizes, a 12px least gap with the spare room spread between them, each cell kept at its least width
+  so long values add a line (the record's two groups, then the label) rather than overlap; the kills
+  line and the coverage run as one text, the bands are 8px apart and the detail's controls 32px. The
+  pane needs the opponents' two columns (a 64.75rem section); narrower (1280–1355px with the sidebar
+  open), **the workspace window**: the pane's narrow form, `PreviewWindow size="workspace"` with
+  `headless` (no title bar: P1 is its header, with ‹ › and the labelled Close), as tall as the screen
+  less 1rem above and below and up to 56.25rem wide, the pane's surface (`bg-surface panel-depth`, its
+  sheen, hairline and shadow, with no `shadow-2xl` beside it), its lists paged inside it,
+  nothing scrolling; it keeps the window's focus trap, Escape (an opponent's games first: `canClose`
+  hears what asked, so a click beside it closes it at once), Back and ‹ ›, and gives the focus back to
+  the row of the champion it shows (`refocus`). Phones, tablets, short windows and large text keep the
+  flow above.
 - **Matchup Intel's abilities** (`?ability=Mordekaiser.Q`, `ability-peek.tsx`, 23 Nov 2026) were a
   consumer until Matchup Intel was retired the same day (Release 16).
 

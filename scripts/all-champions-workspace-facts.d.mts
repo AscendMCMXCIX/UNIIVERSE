@@ -13,6 +13,8 @@ export interface WorkspaceRead {
   pad: number;
   /** The section carries [data-workspace] (the workspace applied). */
   workspace: boolean;
+  /** The section carries [data-ws-short]: the workspace's short form (under 46 of the page's own rem). */
+  short?: boolean;
   /** Each card drawn: the list's and the preview's, its bottom, and the room between its last row and its footer (null without rows). */
   cards: Array<{ card: "list" | "preview"; bottom: number; margin: number | null }>;
   /** Elements in #content that scroll on their own. */

@@ -204,7 +204,8 @@ test("desktop: the preview opens in a pane beside the list; the list narrows but
   await expect(pane(page)).toBeVisible();
   // The same at 1280, 1366, 1920 and 2560, the sidebar open and collapsed: beside the list, within the screen, nothing wider
   // than it, one screen; except at 1280 × 800 with the sidebar open, whose workspace is too narrow for the opponents' two
-  // columns beside the list (open decision O1): the preview there is the sheet, over the list's pages.
+  // columns beside the list: the preview there is the workspace window over the list's pages (the pane's content, paged
+  // inside it, nothing scrolling; e2e/all-champions-workspace.spec.ts holds it in full).
   for (const sidebar of ["expanded", "collapsed"]) {
     await page.context().addCookies([{ name: "uniiverse_sidebar", value: sidebar, url: page.url() }]);
     await page.reload();
@@ -212,8 +213,17 @@ test("desktop: the preview opens in a pane beside the list; the list narrows but
     for (const { width, height } of [{ width: 1280, height: 800 }, { width: 1366, height: 768 }, { width: 1920, height: 1080 }, { width: 2560, height: 1440 }]) {
       await page.setViewportSize({ width, height });
       if (width === 1280 && sidebar === "expanded") {
-        await expect(page.locator("dialog[open][data-testid=champion-preview]"), "1280px, the sidebar open: the sheet").toBeVisible();
+        const win = page.locator("dialog[open][data-testid=champion-preview][data-size=workspace]");
+        await expect(win, "1280px, the sidebar open: the workspace window").toBeVisible();
         await expect(page.getByTestId("all-champions-table")).toHaveAttribute("data-ws-region", "list");
+        // Its heading is P1's (no title bar of its own), with the labelled Close; nothing in it scrolls.
+        await expect(win.locator("[data-preview-pane] #champion-preview-title")).toBeVisible();
+        await expect(win.getByRole("button", { name: "Close the champion" })).toBeVisible();
+        await expect(win.getByTestId("modal-title")).toHaveCount(0);
+        await expect
+          .poll(() => win.evaluate((d) => [d, ...d.querySelectorAll("*")].filter((el) => /(auto|scroll)/.test(getComputedStyle(el).overflowY) && el.scrollHeight > el.clientHeight + 1).length), "1280px, the sidebar open: nothing scrolls inside the window")
+          .toBe(0);
+        await expect.poll(() => oneScreen(page)).toEqual({ fits: true, scrollers: 0 });
         continue;
       }
       await expect.poll(() => beside(page, rows.nth(1)), `${width}px, the sidebar ${sidebar}`).toEqual(BESIDE);
@@ -372,7 +382,7 @@ test("desktop: at 1280 (the sidebar folded) and 1366 (open), opening the pane mo
   test.skip(info.project.name !== "desktop", "a mouse: 24px position buttons");
   // Demo Sub (Top): Sion in five positions, Malphite in three, Ornn in two, Mordekaiser in one, each "In pool".
   const profile = await demoMember(page, "Demo Sub (Top)");
-  // Both are the one-screen workspace; at 1280 with the sidebar open the preview is the sheet (decision O1, the test above).
+  // Both are the one-screen workspace; at 1280 with the sidebar open the preview is the workspace window (the test above).
   for (const [size, sidebar] of [[{ width: 1280, height: 800 }, "collapsed"], [{ width: 1366, height: 768 }, "expanded"]] as const) {
     await page.context().addCookies([{ name: "uniiverse_sidebar", value: sidebar, url: baseURL! }]);
     await page.setViewportSize(size);
@@ -844,6 +854,44 @@ test("phones: a sheet; ‹ › switch, Back closes it and the list keeps its pla
   await expect(preview).toHaveCount(0);
 });
 
+test("phones: the sheet comes to rest (the toasts move into it) when its own slide ends, never at its backdrop's fade", async ({ page }, info) => {
+  test.skip(info.project.name !== "phone", "the sheet is for phones");
+  // Every window's ::backdrop fades in (160ms) and that animationend is dispatched on the dialog itself; the sheet slides in for
+  // 220ms. top-layer.ts moves the toasts into a window once it is at rest, so they never ride its transform while it moves.
+  await page.addInitScript(() => {
+    const w = window as unknown as { __motion: Array<{ name: string; pseudo: string; t: number }>; __toasterIn: number | null };
+    w.__motion = [];
+    w.__toasterIn = null;
+    document.addEventListener(
+      "animationend",
+      (e) => {
+        if (e.target instanceof HTMLDialogElement) w.__motion.push({ name: e.animationName, pseudo: e.pseudoElement, t: performance.now() });
+      },
+      true,
+    );
+    new MutationObserver(() => {
+      if (w.__toasterIn === null && document.querySelector("dialog[open] [data-testid=toaster]")) w.__toasterIn = performance.now();
+    }).observe(document, { childList: true, subtree: true });
+  });
+  const profile = await demoMember(page);
+  await page.goto(`${profile}/champions`);
+  const rows = page.getByTestId("top-champion");
+  await expect(rows.first()).toBeVisible();
+  await openRow(page, rows.first());
+  await expect(page.locator("dialog[open][data-testid=champion-preview]")).toBeVisible();
+  await expect.poll(() => page.evaluate(() => (window as unknown as { __toasterIn: number | null }).__toasterIn !== null), { message: "the toasts in the sheet" }).toBe(true);
+  const r = await page.evaluate(() => {
+    const w = window as unknown as { __motion: Array<{ name: string; pseudo: string; t: number }>; __toasterIn: number };
+    return { motion: w.__motion, toasterIn: w.__toasterIn };
+  });
+  const backdrop = r.motion.find((m) => m.pseudo === "::backdrop");
+  const own = r.motion.find((m) => m.name === "sheet-in" && !m.pseudo);
+  expect(backdrop, "the backdrop's fade ends on the dialog (what made the sheet at rest early)").toBeDefined();
+  expect(own, "the sheet's own slide").toBeDefined();
+  expect(backdrop!.t, "the backdrop's fade ends first").toBeLessThan(own!.t);
+  expect(r.toasterIn, "the toasts move in once the slide has ended, not at the backdrop's fade").toBeGreaterThanOrEqual(own!.t - 1);
+});
+
 test("phones at 320px and 200% text: the sheet's labelled Close, ‹ › and every line of the identity stay inside the sheet", async ({ page }, info) => {
   test.skip(info.project.name !== "phone", "the sheet is for phones");
   await page.setViewportSize({ width: 320, height: 568 });
@@ -902,6 +950,41 @@ test("tablets: upright, no room for both: the sheet, its targets 44px; held side
   await pane(page).getByTestId("champion-preview-close").click();
   await expect(page.getByTestId("champion-preview")).toHaveCount(0);
   await expect(page).not.toHaveURL(/champion=/);
+});
+
+test("the sheet closes with the focus on the row of the champion it shows (‹ › twice, then Close or Back), the list where it was; a tablet turned sideways hands the focus to the same control in the pane", async ({ page }, info) => {
+  test.skip(info.project.name === "desktop", "a phone's and a tablet's sheet (the workspace window's: all-champions-workspace.spec.ts)");
+  // Until 28 Nov 2026 the sheet gave the focus to the row it was opened from, whichever champion ‹ › had stepped to; the pane
+  // and the workspace window give it to the row of the champion shown.
+  const profile = await demoMember(page);
+  await page.goto(`${profile}/champions`);
+  const rows = page.getByTestId("top-champion");
+  await expect(rows.nth(3)).toBeVisible();
+  const sheet = page.locator("dialog[open][data-testid=champion-preview]");
+  for (const how of ["close", "back"] as const) {
+    const y = await page.evaluate(() => scrollY);
+    await openRow(page, rows.nth(0));
+    await expect(sheet).toBeVisible();
+    await expect(pane(page)).toHaveCount(0);
+    for (const i of [1, 2]) {
+      await sheet.getByTestId("champion-preview-next").click();
+      await expect(page.getByTestId("champion-preview-content")).toHaveAttribute("data-champion", (await rows.nth(i).getAttribute("data-champion"))!);
+    }
+    if (how === "close") await sheet.getByTestId("champion-preview-close").click();
+    else await page.goBack();
+    await expect(sheet).toHaveCount(0);
+    await expect(rows.nth(2).getByTestId("open-champion"), `${how}: the row of the champion shown`).toBeFocused();
+    expect(await page.evaluate(() => scrollY), `${how}: the list where it was`).toBe(y);
+  }
+  if (info.project.name !== "tablet") return;
+  // Turned sideways (1180 × 820: room for both): the pane takes the sheet's place, the focus on its › as it was on the sheet's.
+  await openRow(page, rows.nth(0));
+  await expect(sheet).toBeVisible();
+  await sheet.getByTestId("champion-preview-next").focus();
+  await page.setViewportSize({ width: 1180, height: 820 });
+  await expect(pane(page)).toBeVisible();
+  await expect(sheet).toHaveCount(0);
+  await expect(pane(page).getByTestId("champion-preview-next"), "the same control in the pane").toBeFocused();
 });
 
 test("a game opened from the preview has a history entry of its own: Back closes the game and the preview stays, Back again closes the preview", async ({ page }) => {

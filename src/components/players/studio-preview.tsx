@@ -95,7 +95,7 @@ export const PLACE_LABEL: Record<ArtPlace, string> = {
  * The app shell's <main> (app-shell.tsx), the same classes: its padding, the phone's tab bar room, and
  * the column a page that fills the height gets. studio-preview.test.ts checks they are still the shell's.
  */
-export const MAIN_CLASS = "min-w-0 flex-1 px-safe-4 py-5 pb-tabbar outline-none sm:px-safe-6 md:pb-6 lg:px-8 lg:py-7 lg:has-[[data-fills-height]]:flex lg:has-[[data-fills-height]]:flex-col max-sm:has-[[data-fills-height]]:flex max-sm:has-[[data-fills-height]]:flex-col ws-host:flex ws-host:flex-col";
+export const MAIN_CLASS = "min-w-0 flex-1 px-safe-4 py-5 pb-tabbar outline-none sm:px-safe-6 md:pb-6 lg:px-8 lg:py-7 lg:has-[[data-fills-height]]:flex lg:has-[[data-fills-height]]:flex-col max-sm:has-[[data-fills-height]]:flex max-sm:has-[[data-fills-height]]:flex-col ws-host:flex ws-host:flex-col ws-short-host:pb-3";
 /** The app shell's frame (FRAME): one column, at most --content-wide, centred. */
 export const FRAME_CLASS = "mx-auto w-full max-w-[var(--content-wide)] lg:has-[[data-fills-height]]:flex lg:has-[[data-fills-height]]:flex-1 lg:has-[[data-fills-height]]:flex-col max-sm:has-[[data-fills-height]]:flex max-sm:has-[[data-fills-height]]:flex-1 max-sm:has-[[data-fills-height]]:flex-col ws-host:flex ws-host:flex-1 ws-host:flex-col";
 /** Team's page around its lineup (app/(app)/team/page.tsx). */

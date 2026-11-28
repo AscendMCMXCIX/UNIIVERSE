@@ -23,6 +23,14 @@ import { widenText } from "./wide-text";
   open and folded (plus 1366 × 736, the gate, and 1280 × 800): fits() after every step (the page is
   the window, the cards end above its padding, each list ends at least 12px above its footer, nothing
   scrolls, nothing is clipped, every name and K/D/A whole, everything inside its card).
+
+  Shorter windows, down to the workspace's least height (41rem, 656px at 16px: a 1366 × 768 laptop's
+  browser window), take the short form under 46 of the page's own rem, and under 48 where the section
+  is narrow (1356–1463px with the sidebar open: docs/RESPONSIVE.md, "the short form"), and every state
+  fits there too, a champion of five positions with an opponent's games open and every optional line
+  drawn included. Where the section is too narrow for the pane (1280–1355px
+  with the sidebar open) the preview opens in the workspace window: fitsWindow() holds it to the same
+  promise, the window inside the screen less 1rem above and below.
 */
 
 const PORT = Number(process.env.E2E_PORT ?? 3199) + 19;
@@ -141,7 +149,9 @@ const measure = (page: Page) =>
       }
       return false;
     };
-    const cards = [...document.querySelectorAll<HTMLElement>("[data-testid=all-champions-table], aside[data-preview-pane]")].filter(shown);
+    // The list's card, and the pane or the workspace window's body (dialog[open] [data-preview-pane]).
+    const cards = [...document.querySelectorAll<HTMLElement>("[data-testid=all-champions-table], aside[data-preview-pane], dialog[open] [data-preview-pane]")].filter(shown);
+    const inWindow = (card: Element) => !!card.closest("dialog");
     const ROWS = "[data-testid=top-champion], [data-testid=champion-preview-opponent], [data-testid=champion-preview-small-divider], [data-testid=champion-preview-games] > li";
     const margins = cards.map((card) => {
       const foot = [...card.querySelectorAll("[data-ws-foot]")].find(shown);
@@ -171,13 +181,21 @@ const measure = (page: Page) =>
         })
         .map((el) => `${card.dataset.testid}: ${el.tagName.toLowerCase()}.${[...el.classList].slice(0, 3).join(".")}`);
     });
+    const dialog = document.querySelector<HTMLElement>("dialog[open][data-testid=champion-preview]");
+    const body = dialog?.querySelector<HTMLElement>("[data-preview-pane]");
+    const rootPx = parseFloat(getComputedStyle(root).fontSize);
     return {
       height: root.scrollHeight,
       window: innerHeight,
       width: root.scrollWidth,
       windowWidth: innerWidth,
       limit: innerHeight - pad,
-      bottoms: cards.map((c) => c.getBoundingClientRect().bottom),
+      // The page's cards (the workspace window's body ends at the window's foot instead: windowBox).
+      bottoms: cards.filter((c) => !inWindow(c)).map((c) => c.getBoundingClientRect().bottom),
+      windowBox:
+        dialog && body
+          ? { size: dialog.dataset.size ?? "", top: dialog.getBoundingClientRect().top, bottom: dialog.getBoundingClientRect().bottom, height: dialog.getBoundingClientRect().height, body: body.getBoundingClientRect().bottom, rootPx }
+          : null,
       margins,
       scrollers: scrollers.map((el) => `${el.tagName.toLowerCase()}.${[...el.classList].slice(0, 3).join(".")}`),
       clipped: clipped.map((el) => `${el.tagName.toLowerCase()}.${[...el.classList].slice(0, 4).join(".")} ${el.scrollWidth}/${el.clientWidth} ${el.scrollHeight}/${el.clientHeight}`),
@@ -204,20 +222,59 @@ async function fits(page: Page, at: string) {
   expect(m.outside, `${at}: everything inside its card`).toEqual([]);
 }
 
+/**
+ * The workspace window's promise (1280–1355px with the sidebar open): fits() for the page and the
+ * window's body (its lists' margins, nothing scrolling, clipped or outside it), and the window inside
+ * the screen, as tall as it less 1rem above and below, its body ending at its foot.
+ */
+async function fitsWindow(page: Page, at: string) {
+  await fits(page, at);
+  const w = (await measure(page)).windowBox;
+  expect(w, `${at}: the workspace window is open`).not.toBeNull();
+  expect(w!.size, `${at}: the workspace window, not the sheet`).toBe("workspace");
+  const win = await page.evaluate(() => innerHeight);
+  expect(w!.top, `${at}: the window inside the screen`).toBeGreaterThanOrEqual(0);
+  expect(w!.bottom, `${at}: the window inside the screen`).toBeLessThanOrEqual(win);
+  expect(Math.abs(w!.height - (win - 2 * w!.rootPx)), `${at}: the window as tall as the screen less 1rem above and below`).toBeLessThanOrEqual(1);
+  expect(w!.body, `${at}: its body ends at its foot`).toBeLessThanOrEqual(w!.bottom + 0.5);
+}
+
+/**
+ * A two-season header (from January 2027 most profiles have two seasons, and the season choice wraps
+ * the section's header at 1366 with the sidebar open, 36 → 50px; the demo has one): a box as wide and
+ * tall as the season select (md:w-56, 2.25rem) first in the filters' joined group, then a resize so
+ * every budget measures again.
+ */
+async function twoSeasons(page: Page) {
+  await page.evaluate(() => {
+    const group = document.querySelector("[data-testid=all-champions-filters] div.hidden.min-w-0.flex-col.gap-3");
+    if (!group) throw new Error("the filters' joined group");
+    const box = document.createElement("div");
+    box.style.cssText = "width: 14rem; height: 2.25rem; flex: none";
+    box.dataset.testSeason = "";
+    group.prepend(box);
+    window.dispatchEvent(new Event("resize"));
+  });
+  await settled(page);
+}
+
 const cfg = ([w, h]: [number, number], side: Side) => `${w}x${h}-${side === "expanded" ? "open" : "folded"}`;
 const shot = (page: Page, name: string) => page.screenshot({ path: `${SHOTS}/ws-${name}.png`, animations: "disabled" });
 const pane = (page: Page) => page.locator("aside[data-preview-pane][data-testid=champion-preview]");
+/** The workspace window (1280–1355px with the sidebar open) and its body, the pane's content. */
+const wsWindow = (page: Page) => page.locator("dialog[open][data-testid=champion-preview][data-size=workspace]");
+const wsBody = (page: Page) => wsWindow(page).locator("[data-preview-pane]");
 const listCard = (page: Page) => page.getByTestId("all-champions-table");
 const rowsOnPage = (page: Page) => listCard(page).locator("[data-testid=top-champion]:visible");
 const cells = (page: Page) => pane(page).locator("[data-testid=champion-preview-opponent]:visible");
 const detailTitle = (page: Page) => pane(page).locator("[data-testid=champion-preview-pairing] h4");
 const pageHeight = (page: Page) => page.evaluate(() => document.documentElement.scrollHeight);
 
-/** Clicks an opponent's cell, again until the page is interactive (a click before hydration does nothing). */
-async function openOpponent(page: Page, id: string) {
+/** Clicks an opponent's cell (in the pane, or in `where`: the workspace window), again until the page is interactive (a click before hydration does nothing). */
+async function openOpponent(page: Page, id: string, where = pane(page)) {
   await expect(async () => {
-    if (!(await detailTitle(page).count())) await pane(page).locator(`[data-opponent-row="${id}"]`).click({ timeout: 2_000 });
-    await expect(pane(page).getByTestId("champion-preview-pairing")).toHaveAttribute("data-champion", id, { timeout: 1_000 });
+    if (!(await where.locator("[data-testid=champion-preview-pairing] h4").count())) await where.locator(`[data-opponent-row="${id}"]`).click({ timeout: 2_000 });
+    await expect(where.getByTestId("champion-preview-pairing")).toHaveAttribute("data-champion", id, { timeout: 1_000 });
   }).toPass({ timeout: 15_000 });
   await settled(page);
 }
@@ -261,7 +318,7 @@ test("one screen at the owner's eight sizes: the list, Ambessa, Ambessa with Dar
     }
 });
 
-test("1366 × 736 and 1280 × 800: one screen; 1280 × 800 with the sidebar open opens the preview in the sheet over the paged list", async ({ page }) => {
+test("1366 × 736 and 1280 × 800: one screen; 1280 × 800 with the sidebar open opens the preview in the workspace window over the paged list", async ({ page }) => {
   for (const side of SIDES) {
     for (const path of [top, `${top}?champion=Ambessa&crole=TOP`, `${top}?champion=Ambessa&crole=TOP&vs=Darius`, `${sub}?champion=Sion&crole=TOP&vs=Nasus`]) {
       await open(page, path, [1366, 736], side);
@@ -270,13 +327,15 @@ test("1366 × 736 and 1280 × 800: one screen; 1280 × 800 with the sidebar open
     await open(page, top, [1280, 800], side);
     await fits(page, `1280x800 ${side} list`);
   }
-  // Folded: the pane; open: the sheet (a section under 64.75rem), the list paged under it.
+  // Folded: the pane; open: the workspace window (a section under 64.75rem), the list paged under it.
   await open(page, `${top}?champion=Ambessa&crole=TOP`, [1280, 800], "collapsed");
   await expect(pane(page)).toBeVisible();
   await fits(page, "1280x800 folded A");
   await open(page, `${top}?champion=Ambessa&crole=TOP`, [1280, 800], "expanded");
-  await expect(page.locator("dialog[open][data-testid=champion-preview]")).toBeVisible();
+  await expect(wsBody(page)).toBeVisible();
+  await expect(page.locator("dialog[open][data-testid=champion-preview][data-size=workspace]")).toHaveCount(1);
   await expect(pane(page)).toHaveCount(0);
+  await fitsWindow(page, "1280x800 open A");
   expect((await region(page, "list")).pages).toBeGreaterThan(1);
 });
 
@@ -748,7 +807,7 @@ test("accessibility: axe on the list, Ambessa and Darius; the pagers' labels, th
   await expect(listCard(page).locator("ul[aria-label=Champions]")).toHaveAttribute("aria-describedby", "all-champions-range");
 });
 
-test("with CI's wider text: the list, Ambessa, Darius and Sion still fit, with the margin", async ({ page }) => {
+test("with CI's wider text: the list, Ambessa, Darius and Sion still fit, with the margin; the short form at the floor and the workspace window too", async ({ page }) => {
   await widenText(page);
   for (const size of [
     [1366, 768],
@@ -758,6 +817,30 @@ test("with CI's wider text: the list, Ambessa, Darius and Sion still fit, with t
       await open(page, path, size, "expanded");
       await fits(page, `wide text ${size.join("x")} ${path.split("?")[1] ?? "list"}`);
     }
+  }
+  // The floor's short form, its widest states.
+  for (const path of [`${sub}?champion=Sion&crole=TOP&vs=Nasus`, `${sub}?champion=Sion&crole=TOP`]) {
+    await open(page, path, [1366, 656], "expanded");
+    await fits(page, `wide text 1366x656 ${path.split("?")[1]}`);
+  }
+  // The narrowest panes just above 46rem (the short form of a narrow section, to 48rem), and the tall form at 48rem: with
+  // CI's wider text the tall form's kills line wraps in panes up to 1376px with the sidebar open, and kept no games row at
+  // 1366 × 736 (739/736) until 28 Nov 2026.
+  for (const size of [
+    [1356, 736],
+    [1366, 736],
+    [1366, 751],
+    [1376, 744],
+    [1356, 768],
+  ] as Array<[number, number]>) {
+    await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, size, "expanded");
+    await fits(page, `wide text ${size.join("x")} open Sion vs Nasus`);
+    expect(await shortForm(page), `wide text ${size.join("x")} open: the ${size[1] < 768 ? "short" : "tall"} form`).toBe(size[1] < 768);
+  }
+  // The workspace window.
+  for (const path of [`${top}?champion=Ambessa&crole=TOP`, `${sub}?champion=Sion&crole=TOP&vs=Nasus`]) {
+    await open(page, path, [1280, 689], "expanded");
+    await fitsWindow(page, `wide text 1280x689 ${path.split("?")[1]}`);
   }
 });
 
@@ -919,6 +1002,10 @@ test("a linked preview's first paint: no opponent, game or champion row moves wh
     [[1280, 800], "expanded", `${top}?champion=Ambessa&crole=TOP`],
     [[1340, 800], "expanded", `${top}?champion=Ambessa&crole=TOP`],
     [[1366, 736], "expanded", `${sub}?champion=Sion&crole=TOP&vs=Nasus`],
+    // The short form is CSS: nothing moves at hydration there either, a narrow section's (a container query) included.
+    [[1366, 657], "expanded", `${sub}?champion=Sion&crole=TOP&vs=Nasus`],
+    [[1440, 760], "expanded", `${sub}?champion=Sion&crole=TOP&vs=Nasus`],
+    [[1366, 736], "collapsed", `${sub}?champion=Sion&crole=TOP&vs=Nasus`],
   ];
   for (const [size, side, path] of cases) {
     const at = `${cfg(size, side)} ${path.split("?")[1]}`;
@@ -963,39 +1050,697 @@ test("the pagers never change width as their pages turn: the arrows and the rang
   }
 });
 
-test("shorter desktop windows keep the workspace with fewer rows (a laptop's browser window): the list, Ambessa, Darius and Aatrox fit; a champion of several positions with an opponent open keeps one game a column, nothing hidden", async ({ page }) => {
-  test.setTimeout(240_000);
+/** The states every short window is held to (docs/RESPONSIVE.md, "the short form"): each champion kind, each with an opponent open. */
+const SHORT_STATES = (): Array<[string, string]> => [
+  ["list", top],
+  ["Ambessa", `${top}?champion=Ambessa&crole=TOP`],
+  ["Ambessa vs Darius", `${top}?champion=Ambessa&crole=TOP&vs=Darius`],
+  ["Aatrox", `${top}?champion=Aatrox&crole=TOP`],
+  ["Aatrox vs Darius", `${top}?champion=Aatrox&crole=TOP&vs=Darius`],
+  ["Aatrox Mid vs Ahri", `${top}?champion=Aatrox&crole=MID&vs=Ahri`],
+  ["Sion", `${sub}?champion=Sion&crole=TOP`],
+  ["Sion vs Nasus", `${sub}?champion=Sion&crole=TOP&vs=Nasus`],
+  ["Sion Jungle vs Lee Sin", `${sub}?champion=Sion&crole=JUNGLE&vs=LeeSin`],
+  ["Malphite Support vs Leona", `${sub}?champion=Malphite&crole=SUPPORT&vs=Leona`],
+  ["Mordekaiser vs Nasus", `${sub}?champion=Mordekaiser&crole=TOP&vs=Nasus`],
+];
+
+/** Every optional line of Sion vs Nasus drawn (the fixture's): the averages' coverage, the partial multikills' words, the totals with no recorded position. */
+async function everyOptionalLine(page: Page, at: string, where = pane(page)) {
+  const coverage = where.getByTestId("champion-preview-coverage");
+  await expect(coverage, `${at}: the coverage drawn`).toBeVisible();
+  await expect(coverage).toHaveText("Averages from the 21 games with a full record, of 22 Top games.");
+  expect(await coverage.evaluate((el) => el.getBoundingClientRect().height > 2), `${at}: the coverage not read out only`).toBe(true);
+  await expect(where.getByTestId("champion-preview-partial"), `${at}: the partial multikills' words`).toBeVisible();
+  await expect(where.getByTestId("champion-preview-kills")).toContainText("Kills");
+  await expect(where.getByTestId("champion-preview-total-identity"), `${at}: the totals in the identity bar`).toBeVisible();
+  await expect(where.getByTestId("champion-preview-total-identity")).toContainText(", 1 with no recorded position");
+}
+
+test("shorter desktop windows keep the workspace with fewer rows (a laptop's browser window), and every state fits: five positions with an opponent's games open and every optional line drawn included", async ({ page }) => {
+  test.setTimeout(480_000);
   for (const [size, side] of [
     [[1366, 657], "expanded"],
     [[1366, 657], "collapsed"],
+    [[1280, 689], "collapsed"],
+    [[1280, 689], "expanded"],
     [[1536, 730], "expanded"],
     [[1600, 772], "collapsed"],
     [[1648, 789], "expanded"],
   ] as Array<[[number, number], Side]>) {
     const at = cfg(size, side);
-    for (const path of [top, `${top}?champion=Ambessa&crole=TOP`, `${top}?champion=Ambessa&crole=TOP&vs=Darius`, `${top}?champion=Aatrox&crole=TOP`]) {
+    // 1280 with the sidebar open: the workspace window (a section under 64.75rem).
+    const inWindow = size[0] === 1280 && side === "expanded";
+    for (const [state, path] of SHORT_STATES()) {
       await open(page, path, size, side);
-      await fits(page, `${at} ${path.split("?")[1] ?? "list"}`);
-    }
-    // Several positions with an opponent open: the floor (one game a column); in the shortest windows the page grows by
-    // what that row lacks, and nothing is clipped, scrolls inside or is out of reach.
-    for (const path of [`${top}?champion=Aatrox&crole=TOP&vs=Darius`, `${sub}?champion=Sion&crole=TOP&vs=Nasus`]) {
-      await open(page, path, size, side);
-      const m = await measure(page);
-      const games = await region(page, "games");
-      expect(m.workspace, `${at} ${path}: the workspace`).toBe(true);
-      expect(games.per, `${at} ${path}: at least a game a column`).toBeGreaterThanOrEqual(2);
-      if (m.height > m.window) expect(games.per, `${at} ${path}: the page grows only at the floor`).toBe(2);
-      expect(m.height - m.window, `${at} ${path}: by less than a row and the bands`).toBeLessThan(64);
-      expect(m.scrollers).toEqual([]);
-      expect(m.clipped).toEqual([]);
-      expect(m.outside).toEqual([]);
-      expect(m.kda).toEqual([]);
+      if (inWindow && state !== "list") {
+        await expect(wsBody(page), `${at} ${state}: the workspace window`).toBeVisible();
+        await expect(pane(page)).toHaveCount(0);
+        await fitsWindow(page, `${at} ${state}`);
+      } else {
+        await fits(page, `${at} ${state}`);
+      }
+      if (state === "Sion vs Nasus" && size[1] === 657) await everyOptionalLine(page, `${at} ${state}`);
     }
   }
 });
 
-test("the section's parts are spaced by a gap, not margins: an open match window, the sheet and the first paint leave the frame its full height", async ({ page }) => {
+test("the 41rem gate's band edges and both sides of the short form's bound: every state fits", async ({ page }) => {
+  test.setTimeout(480_000);
+  const states: Array<[string, string]> = [
+    ["Sion", `${sub}?champion=Sion&crole=TOP`],
+    ["Sion vs Nasus", `${sub}?champion=Sion&crole=TOP&vs=Nasus`],
+    ["Aatrox vs Darius", `${top}?champion=Aatrox&crole=TOP&vs=Darius`],
+    ["Sion Jungle vs Lee Sin", `${sub}?champion=Sion&crole=JUNGLE&vs=LeeSin`],
+    ["Ambessa vs Darius", `${top}?champion=Ambessa&crole=TOP&vs=Darius`],
+  ];
+  // Each band's least height (globals.css, the ws gate), at a width in the band, the sidebar open and folded in turn.
+  for (const [size, side] of [
+    [[1366, 656], "expanded"],
+    [[1280, 656], "collapsed"],
+    [[1440, 656], "expanded"],
+    [[1536, 656], "collapsed"],
+    [[1600, 668], "expanded"],
+    [[1648, 680], "collapsed"],
+    [[1728, 691], "expanded"],
+    [[1792, 703], "collapsed"],
+    [[1856, 715], "expanded"],
+    [[1920, 727], "collapsed"],
+  ] as Array<[[number, number], Side]>)
+    for (const [state, path] of states) {
+      await open(page, path, size, side);
+      await fits(page, `${cfg(size, side)} ${state}`);
+    }
+  // The short form's bound (46 of the band's widest root): short under it, tall at it. The bands include their upper edge,
+  // where the next band's bound holds too (1600 and 1920), so the bound is tested inside its band; at 1920 itself the band
+  // to 1984 holds (829, 13.5px past 1920's own 46rem). From 1920 the bands are 64px wide, as below: until 28 Nov 2026 they
+  // were 320px, and 1920 × 850 (a 1920 × 1080 screen's window with the Dock and a bookmarks bar), 2240 × 900 and
+  // 2560 × 970, 46 to 49.7 of their own rem, took the short form. A narrow section (64.75 to 71.5rem: 1356–1463px with the
+  // sidebar open) takes it to 48rem, so 1366 at 736 is short there and tall folded.
+  for (const [w, h, side, short] of [
+    [1366, 735, "collapsed", true],
+    [1366, 736, "collapsed", false],
+    [1599, 749, "expanded", true],
+    [1599, 750, "expanded", false],
+    [1900, 815, "expanded", true],
+    [1900, 816, "expanded", false],
+    [1920, 828, "expanded", true],
+    [1920, 829, "expanded", false],
+    [1920, 850, "expanded", false],
+    [1920, 881, "collapsed", false],
+    [2000, 845, "expanded", false],
+    [2240, 900, "expanded", false],
+    [2560, 970, "collapsed", false],
+    [1366, 767, "expanded", true],
+    [1366, 768, "expanded", false],
+    [1463, 767, "expanded", true],
+    [1464, 767, "expanded", false],
+    [1280, 740, "collapsed", false],
+  ] as const) {
+    const size: [number, number] = [w, h];
+    await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, size, side);
+    await fits(page, `${cfg(size, side)} Sion vs Nasus`);
+    expect(await shortForm(page), `${cfg(size, side)}: the ${short ? "short" : "tall"} form`).toBe(short);
+  }
+});
+
+test("a narrow section (1356–1463px with the sidebar open) keeps the short form to 48rem: the narrowest panes fit from 736 to 767px with every optional line, the tall form from 768", async ({ page }) => {
+  test.setTimeout(360_000);
+  // In a pane under about 40rem (1356–1376px open) the tall form's totals take a line under the positions and its kills line
+  // wraps: at 1356–1363 × 736 Sion vs Nasus with every optional line kept no games row (739/736), and its margin stayed
+  // under 12px to 751 (docs/RESPONSIVE.md, "the short form").
+  const states: Array<[string, string]> = [
+    ["Sion vs Nasus", `${sub}?champion=Sion&crole=TOP&vs=Nasus`],
+    ["Sion", `${sub}?champion=Sion&crole=TOP`],
+    ["Sion Jungle vs Lee Sin", `${sub}?champion=Sion&crole=JUNGLE&vs=LeeSin`],
+    ["Aatrox vs Darius", `${top}?champion=Aatrox&crole=TOP&vs=Darius`],
+    ["Ambessa vs Darius", `${top}?champion=Ambessa&crole=TOP&vs=Darius`],
+  ];
+  for (const size of [
+    [1356, 736],
+    [1360, 744],
+    [1356, 752],
+    [1366, 751],
+    [1440, 760],
+    [1463, 767],
+  ] as Array<[number, number]>)
+    for (const [state, path] of states) {
+      const at = `${cfg(size, "expanded")} ${state}`;
+      await open(page, path, size, "expanded");
+      await expect(pane(page), `${at}: the pane`).toBeVisible();
+      expect(await shortForm(page), `${at}: the short form`).toBe(true);
+      await fits(page, at);
+      if (state === "Sion vs Nasus") await everyOptionalLine(page, at);
+    }
+  // The page's foot stays 28px in a narrow section from 46rem (the short form's 12px foot is the shell's, under 46rem).
+  await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, [1366, 740], "expanded");
+  expect((await shortReadings(page)).pad, "1366x740 open: the page's 28px foot").toBeCloseTo(1.75, 2);
+  // From 48rem the approved tall form, which fits there with every optional line.
+  for (const size of [
+    [1356, 768],
+    [1366, 768],
+    [1440, 768],
+  ] as Array<[number, number]>) {
+    await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, size, "expanded");
+    expect(await shortForm(page), `${cfg(size, "expanded")}: the tall form`).toBe(false);
+    const at = `${cfg(size, "expanded")} Sion vs Nasus`;
+    await fits(page, at);
+    // Every optional line drawn there too: the coverage, the partial multikills' words, the totals after the positions.
+    await expect(pane(page).getByTestId("champion-preview-coverage"), `${at}: the coverage`).toBeVisible();
+    await expect(pane(page).getByTestId("champion-preview-partial"), `${at}: the partial multikills' words`).toBeVisible();
+    await expect(pane(page).locator("[data-testid=champion-preview-positions] [data-testid=champion-preview-total]"), `${at}: the totals after the positions`).toContainText(", 1 with no recorded position");
+  }
+  // A wider section keeps 46rem: folded (1280px folded is 71.5rem), and from 1464px open.
+  for (const [size, side] of [
+    [[1366, 740], "collapsed"],
+    [[1464, 740], "expanded"],
+    [[1280, 744], "collapsed"],
+  ] as Array<[[number, number], Side]>) {
+    await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, size, side);
+    expect(await shortForm(page), `${cfg(size, side)}: the tall form`).toBe(false);
+    await fits(page, `${cfg(size, side)} Sion vs Nasus`);
+  }
+});
+
+/** Whether the pane's figures are in the short form: the stats' list a subgrid of one row (in the tall form, a grid of its own). */
+const shortForm = (page: Page, where = "aside[data-preview-pane]") =>
+  page.evaluate((where) => getComputedStyle(document.querySelector(`${where} [data-testid=champion-preview-stats]`)!).gridTemplateColumns.startsWith("subgrid"), where);
+
+/** P3's height, the totals' two places and #content's bottom padding, in the page's own rem. */
+const shortReadings = (page: Page) =>
+  page.evaluate(() => {
+    const root = parseFloat(getComputedStyle(document.documentElement).fontSize);
+    const pane = document.querySelector("aside[data-preview-pane]")!;
+    const drawn = (sel: string) => {
+      const el = pane.querySelector(sel);
+      return !!el && el.getBoundingClientRect().height > 0;
+    };
+    return {
+      figures: pane.querySelector("[data-testid=champion-preview-figures]")!.getBoundingClientRect().height / root,
+      identity: drawn("[data-testid=champion-preview-total-identity]"),
+      afterSegments: drawn("[data-testid=champion-preview-positions] [data-testid=champion-preview-total]"),
+      pad: parseFloat(getComputedStyle(document.getElementById("content")!).paddingBottom) / root,
+    };
+  });
+
+test("the short form applies below 46 of the page's own rem only (48 in a narrow section): the figures in one row, the totals in the identity bar, the page's 12px foot; the identity bar level with the list's toolbar", async ({ page }) => {
+  test.setTimeout(240_000);
+  for (const side of SIDES) {
+    await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, [1366, 657], side);
+    expect(await shortForm(page), `1366x657 ${side}: the short form`).toBe(true);
+    const r = await shortReadings(page);
+    expect(r.figures, `1366x657 ${side}: P3 in one row of label and figure, the subs under them`).toBeLessThan(2.9);
+    expect(r.identity, `1366x657 ${side}: the totals in the identity bar`).toBe(true);
+    expect(r.afterSegments, `1366x657 ${side}: not after the positions`).toBe(false);
+    expect(r.pad, `1366x657 ${side}: the page's 12px foot`).toBeCloseTo(0.75, 2);
+    for (const path of [`${top}?champion=Ambessa&crole=TOP`, `${top}?champion=Aatrox&crole=TOP`, `${sub}?champion=Sion&crole=TOP`]) {
+      await open(page, path, [1366, 657], side);
+      const rules = await page.evaluate(() => [document.querySelector("[data-testid=all-champions-toolbar]"), document.querySelector("aside[data-preview-pane] [data-testid=champion-preview-header]")].map((el) => el!.getBoundingClientRect().bottom));
+      expect(Math.abs(rules[0]! - rules[1]!), `1366x657 ${side} ${path.split("?")[1]}: the toolbar's rule level with the identity bar's`).toBeLessThanOrEqual(1);
+    }
+  }
+  // At 46rem and up the approved layout (from 48rem in a narrow section: 1366 × 768 open): P3's three lines (62px at a 16px
+  // root), the totals after the positions, the 28px foot. 1920 × 850 and 2560 × 970 too, which took the short form until
+  // 28 Nov 2026 (the bands from 1920 were 320px wide).
+  const tall: Array<[[number, number], Side]> = [...SIZES.flatMap((size) => SIDES.map((side): [[number, number], Side] => [size, side])), [[1366, 736], "collapsed"], [[1920, 850], "expanded"], [[2560, 970], "collapsed"]];
+  for (const [size, side] of tall) {
+    await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, size, side);
+    const at = cfg(size, side);
+    expect(await shortForm(page), `${at}: the tall form`).toBe(false);
+    const r = await shortReadings(page);
+    expect(Math.abs(r.figures * 16 - 62), `${at}: P3 as approved (62px at a 16px root, ${(r.figures * 16).toFixed(1)})`).toBeLessThanOrEqual(1.5);
+    expect(r.identity, `${at}: no totals in the identity bar`).toBe(false);
+    expect(r.afterSegments, `${at}: the totals after the positions`).toBe(true);
+    expect(r.pad, `${at}: the page's 28px foot`).toBeCloseTo(1.75, 2);
+  }
+});
+
+test("nothing is cut in the short form: every figure, label and sub whole, the record's groups whole, P1 whole; the five figure cells never overlap", async ({ page }) => {
+  for (const [size, side] of [
+    [[1366, 656], "expanded"],
+    [[1366, 657], "collapsed"],
+    [[1920, 727], "expanded"],
+  ] as Array<[[number, number], Side]>)
+    for (const path of [`${sub}?champion=Sion&crole=TOP&vs=Nasus`, `${top}?champion=Ambessa&crole=TOP`, `${top}?champion=Aatrox&crole=MID&vs=Ahri`]) {
+      await open(page, path, size, side);
+      const at = `${cfg(size, side)} ${path.split("?")[1]}`;
+      expect(await shortForm(page), `${at}: the short form`).toBe(true);
+      const r = await page.evaluate(() => {
+        const pane = document.querySelector("aside[data-preview-pane]")!;
+        const els = [
+          ...pane.querySelectorAll<HTMLElement>("[data-testid^=champion-stat-] > *"),
+          ...pane.querySelectorAll<HTMLElement>("[data-testid=champion-preview-figures] > div:first-child > p"),
+          ...pane.querySelectorAll<HTMLElement>("[data-testid=champion-preview-record-line] > span"),
+          ...pane.querySelectorAll<HTMLElement>("[data-testid=champion-preview-header] span, [data-testid=champion-preview-header] h2"),
+        ].filter((el) => el.getBoundingClientRect().width > 0 && !el.closest(".sr-only") && !el.classList.contains("sr-only"));
+        // A box wider inside than its own width; an inline piece (an unbreakable group) split over two lines or past its cell.
+        const cell = (el: Element) => el.closest("[data-testid^=champion-stat-], [data-testid=champion-preview-figures] > div, [data-testid=champion-preview-header]")!.getBoundingClientRect();
+        const cut = els
+          .filter((el) => {
+            const st = getComputedStyle(el);
+            if (st.display !== "inline") return el.scrollWidth > el.clientWidth + 0.5;
+            // Inline: only the unbreakable pieces are held to one line (a breakable phrase may wrap between its words).
+            // (Its rects: one per fragment around its children, so its lines are its rects' distinct tops.)
+            const lines = new Set([...el.getClientRects()].map((r) => Math.round(r.top))).size;
+            return st.whiteSpace === "nowrap" && (lines > 1 || el.getBoundingClientRect().right > cell(el).right + 0.5);
+          })
+          .map((el) => `${el.tagName.toLowerCase()} "${el.textContent?.trim().slice(0, 30)}" ${el.scrollWidth}/${el.clientWidth}`);
+        // The cells in their row: the win rate's, then the four of the stats' list.
+        const cells = [pane.querySelector("[data-testid=champion-preview-figures] > div:first-child")!, ...pane.querySelectorAll("[data-testid^=champion-stat-]")].map((el) => el.getBoundingClientRect());
+        const overlaps = cells.slice(1).flatMap((c, i) => (c.left < cells[i]!.right - 0.5 ? [`cell ${i + 1} at ${c.left.toFixed(1)} < ${cells[i]!.right.toFixed(1)}`] : []));
+        const row = cells.every((c) => Math.abs(c.top - cells[0]!.top) < 1);
+        return { cut, overlaps, row, checked: els.length };
+      });
+      expect(r.checked, `${at}: the cells read`).toBeGreaterThan(10);
+      expect(r.cut, `${at}: nothing cut`).toEqual([]);
+      expect(r.overlaps, `${at}: no cell over the next`).toEqual([]);
+      expect(r.row, `${at}: the five cells on one row`).toBe(true);
+    }
+});
+
+test("the detail's header never puts ‹ n of N › on a line of its own, at every height; its record wraps between its groups", async ({ page }) => {
+  for (const size of [
+    [1366, 657],
+    [1366, 768],
+  ] as Array<[number, number]>) {
+    await open(page, `${sub}?champion=Sion&crole=JUNGLE&vs=LeeSin`, size, "expanded");
+    const at = cfg(size, "expanded");
+    await fits(page, `${at} Sion Jungle vs Lee Sin`);
+    const h = await page.evaluate(() => {
+      const pane = document.querySelector("aside[data-preview-pane]")!;
+      const header = pane.querySelector<HTMLElement>("[data-testid=champion-preview-pairing] > header")!;
+      const box = (el: Element) => el.getBoundingClientRect();
+      const small = [...header.querySelectorAll("span")].find((el) => el.textContent === "(small sample)");
+      const p = box(pane);
+      return {
+        root: parseFloat(getComputedStyle(document.documentElement).fontSize),
+        steps: box(pane.querySelector("[data-testid=champion-preview-opponent-steps]")!).top,
+        back: box(pane.querySelector("[data-testid=champion-preview-opponents-back]")!).top,
+        height: box(header).height,
+        smallLines: small ? small.getClientRects().length : 0,
+        outside: [...header.children].filter((el) => box(el).left < p.left - 1 || box(el).right > p.right + 1).map((el) => el.tagName),
+      };
+    });
+    expect(Math.abs(h.steps - h.back), `${at}: the steps on the back button's line`).toBeLessThanOrEqual(0.25 * h.root);
+    expect(h.height, `${at}: one line (the record at most two, beside the steps)`).toBeLessThanOrEqual(2.5 * h.root + 1);
+    expect(h.smallLines, `${at}: "(small sample)" whole, on one line`).toBe(1);
+    expect(h.outside, `${at}: every part of the header inside the pane`).toEqual([]);
+    // At 1366 × 768 its games have the room the steps' own line took (two rows of two before).
+    if (size[1] === 768) expect((await region(page, "games")).per, `${at}: six games a page`).toBe(6);
+  }
+});
+
+test("a two-season header (the season choice wraps it in a section under about 71rem: to 1366, or to 1440 or so, with the sidebar open): every state still fits", async ({ page }) => {
+  test.setTimeout(240_000);
+  // The floor, and just above 46rem in the narrow panes (the short form of a narrow section), where the tall form kept no
+  // games row for Sion vs Nasus (753/736 at 1356) and under 12px to 765px; then the tall form at 48rem.
+  for (const [w, h] of [
+    [1366, 656],
+    [1366, 657],
+    [1356, 736],
+    [1356, 760],
+    [1366, 744],
+    [1440, 744],
+    [1356, 768],
+    [1366, 768],
+  ] as Array<[number, number]>)
+    for (const [state, path] of [
+      ["Sion vs Nasus", `${sub}?champion=Sion&crole=TOP&vs=Nasus`],
+      ["Sion", `${sub}?champion=Sion&crole=TOP`],
+      ["Aatrox vs Darius", `${top}?champion=Aatrox&crole=TOP&vs=Darius`],
+    ]) {
+      await open(page, path!, [w, h], "expanded");
+      const layoutTop = () => page.evaluate(() => document.querySelector("[data-testid=all-champions-layout]")!.getBoundingClientRect().top);
+      const before = await layoutTop();
+      await twoSeasons(page);
+      // To 1366 it wraps on every profile; wider, on a profile whose filters are wider (Demo Sub (Top)'s, to about 1440).
+      if (w <= 1366) expect((await layoutTop()) - before, `${w}x${h} ${state}: the section's header took a second line`).toBeGreaterThanOrEqual(10);
+      await fits(page, `${w}x${h} two seasons ${state}`);
+    }
+});
+
+test("a resize across the short form's bound keeps the opponent and the games' page, and one screen: 46rem folded, 48rem in a narrow section", async ({ page }) => {
+  test.setTimeout(240_000);
+  for (const [side, tallH, shortH] of [
+    ["collapsed", 740, 730],
+    ["expanded", 776, 760],
+  ] as const) {
+    const at = (h: number) => `1366x${h} ${side}`;
+    await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, [1366, tallH], side);
+    await fits(page, at(tallH));
+    expect(await shortForm(page), `${at(tallH)}: the tall form`).toBe(false);
+    await pane(page).getByTestId("games-next").click();
+    await expect.poll(async () => (await region(page, "games")).page).toBe(2);
+    const before = await region(page, "games");
+    await page.setViewportSize({ width: 1366, height: shortH });
+    await settled(page);
+    await fits(page, `${at(shortH)} after the resize`);
+    expect(await shortForm(page), `${at(shortH)}: the short form`).toBe(true);
+    await expect(pane(page).getByTestId("champion-preview-pairing")).toHaveAttribute("data-champion", "Nasus");
+    const short = await region(page, "games");
+    // The page holding the first game shown before (keepPage), or the last where there are fewer pages.
+    expect(short.page, `${at(shortH)}: the games' page kept or clamped`).toBe(Math.min(short.pages, Math.floor((before.per * (before.page - 1)) / short.per) + 1));
+    await page.setViewportSize({ width: 1366, height: tallH });
+    await settled(page);
+    await fits(page, `${at(tallH)} again`);
+    expect(await shortForm(page), `${at(tallH)} again: the tall form`).toBe(false);
+    await expect(pane(page).getByTestId("champion-preview-pairing")).toHaveAttribute("data-champion", "Nasus");
+    const back = await region(page, "games");
+    expect(back.page).toBeGreaterThanOrEqual(1);
+    expect(back.page).toBeLessThanOrEqual(back.pages);
+  }
+  // The sidebar folded across the narrow section's edge at 1366 × 750: short open (a 65.4rem section), tall folded (76.9rem).
+  await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, [1366, 750], "expanded");
+  expect(await shortForm(page), "1366x750 open: the short form (a narrow section)").toBe(true);
+  await fits(page, "1366x750 open");
+  await page.getByTestId("sidebar-toggle").click();
+  await page.waitForTimeout(400);
+  await settled(page);
+  await fits(page, "1366x750 folded");
+  expect(await shortForm(page), "1366x750 folded: the tall form").toBe(false);
+  await expect(pane(page).getByTestId("champion-preview-pairing")).toHaveAttribute("data-champion", "Nasus");
+});
+
+test("a larger browser text size: the page's own rem decides the short form (an 18px root at 1366 × 768, and under 48 of it in a narrow section), and the workspace window where the section is narrower", async ({ page }) => {
+  await page.addInitScript(() => {
+    const add = () => {
+      if (!document.head) return false;
+      const style = document.createElement("style");
+      style.textContent = "html{font-size:18px!important}";
+      document.head.appendChild(style);
+      return true;
+    };
+    if (!add()) new MutationObserver((_, o) => add() && o.disconnect()).observe(document, { childList: true, subtree: true });
+  });
+  // 768 / 18 = 42.7 of its rem: the workspace (768 ≥ 41 × 18), short by the page's own check (the CSS bands say tall).
+  await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, [1366, 768], "collapsed");
+  await expect(page.locator("[data-workspace][data-ws-short]")).toHaveCount(1);
+  expect(await shortForm(page), "1366x768 folded at 18px: the short form").toBe(true);
+  await fits(page, "1366x768 folded at 18px");
+  // The sidebar open: the section is 58 of its rem, under the pane's 64.75: the workspace window.
+  await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, [1366, 768], "expanded");
+  await expect(wsBody(page)).toBeVisible();
+  expect(await shortForm(page, "dialog[open] [data-preview-pane]"), "1366x768 open at 18px: the short form in the window").toBe(true);
+  await fitsWindow(page, "1366x768 open at 18px");
+  // A narrow section at 18px (1560px open: 66.7 of its rem) under 48 of its rem (840px: 46.7) takes the short form by the
+  // page's own check ([data-ws-short-narrow]; the CSS's first band cannot reach 1560px); at 870px (48.3) the tall form.
+  await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, [1560, 840], "expanded");
+  await expect(page.locator("[data-workspace][data-ws-short-narrow]:not([data-ws-short])")).toHaveCount(1);
+  expect(await shortForm(page), "1560x840 open at 18px: the short form (a narrow section)").toBe(true);
+  await fits(page, "1560x840 open at 18px");
+  await open(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, [1560, 870], "expanded");
+  expect(await shortForm(page), "1560x870 open at 18px: the tall form").toBe(false);
+  await fits(page, "1560x870 open at 18px");
+});
+
+test("the workspace window (1280–1355px with the sidebar open): the pane's content paged inside it, nothing scrolling; every record through its pages; Escape, Back, ‹ › and the focus kept inside", async ({ page }) => {
+  test.setTimeout(360_000);
+  for (const size of [
+    [1280, 689],
+    [1280, 800],
+    [1340, 720],
+  ] as Array<[number, number]>) {
+    const at = cfg(size, "expanded");
+    for (const [state, path, region0] of [
+      ["Ambessa", `${top}?champion=Ambessa&crole=TOP`, "opponents"],
+      ["Ambessa vs Darius", `${top}?champion=Ambessa&crole=TOP&vs=Darius`, "games"],
+      ["Aatrox vs Darius", `${top}?champion=Aatrox&crole=TOP&vs=Darius`, "games"],
+      ["Sion", `${sub}?champion=Sion&crole=TOP`, "opponents"],
+      ["Sion vs Nasus", `${sub}?champion=Sion&crole=TOP&vs=Nasus`, "games"],
+    ] as const) {
+      await open(page, path, size, "expanded");
+      await expect(wsBody(page), `${at} ${state}`).toBeVisible();
+      await expect(wsBody(page).locator(`[data-ws-region=${region0}]`)).toBeVisible();
+      await expect(pane(page)).toHaveCount(0);
+      await fitsWindow(page, `${at} ${state}`);
+      expect(await pageHeight(page), `${at} ${state}: no document scroll`).toBeLessThanOrEqual(size[1]);
+      // The list paged under it.
+      await expect(listCard(page)).toHaveAttribute("data-ws-region", "list");
+      expect((await region(page, "list")).per, `${at} ${state}: the list paged`).toBeGreaterThan(0);
+    }
+  }
+  // Every record through the pages inside the window: Ambessa's 40 opponents (Most games), Darius's 9 games.
+  await open(page, `${top}?champion=Ambessa&crole=TOP`, [1280, 689], "expanded");
+  const ids = new Set<string>();
+  const opp = await walk(page, "opponents", "opponents-next", async () => (await wsBody(page).locator("[data-testid=champion-preview-opponent]:visible").evaluateAll((els) => els.map((e) => (e as HTMLElement).dataset.champion!))).map((id) => ({ id, games: 0, small: false })));
+  for (const p of opp.pages) for (const x of p) if (x !== "divider") ids.add(x.id);
+  expect(ids.size, "every opponent through the window's pages").toBe(40);
+  expect(opp.meta.at(-1)!.page).toBe(opp.meta[0]!.pages);
+  await open(page, `${top}?champion=Ambessa&crole=TOP`, [1280, 689], "expanded");
+  await openOpponent(page, "Darius", wsBody(page));
+  await fitsWindow(page, "1280x689 Darius");
+  expect((await region(page, "games")).total).toBe(9);
+  const seen = await walk(page, "games", "games-next", async () =>
+    (await wsBody(page).locator("[data-testid=champion-preview-game]:visible").evaluateAll((els) => els.map((e) => e.closest("li")!.getAttribute("aria-posinset")!))).map((id) => ({ id, games: 0, small: false })),
+  );
+  expect(new Set(seen.pages.flat().map((x) => (x === "divider" ? "" : x.id))).size, "every game of Darius's through the window's pages").toBe(9);
+
+  // Escape, innermost first: Darius's games back to the grid on its page, the window still open, the focus on Darius's cell.
+  await open(page, `${top}?champion=Ambessa&crole=TOP`, [1280, 689], "expanded");
+  await openOpponent(page, "Darius", wsBody(page));
+  await page.keyboard.press("Escape");
+  await expect(wsBody(page).getByTestId("champion-preview-opponent-list")).toBeVisible();
+  await expect(wsBody(page).locator('[data-opponent-row="Darius"]')).toBeFocused();
+  await expect(wsWindow(page)).toBeVisible();
+  // Again: closed, the focus on Ambessa's row.
+  await page.keyboard.press("Escape");
+  await expect(page.locator("dialog[open][data-testid=champion-preview]")).toHaveCount(0);
+  await expect(listCard(page).locator('[data-champion="Ambessa"] [data-open-champion]')).toBeFocused();
+  // Back closes it.
+  await listCard(page).locator('[data-champion="Ambessa"] [data-open-champion]').click();
+  await expect(wsBody(page)).toBeVisible();
+  await settled(page);
+  await page.goBack();
+  await expect(page.locator("dialog[open][data-testid=champion-preview]")).toHaveCount(0);
+  // P1's › steps to the next champion: the window stays, its content the next champion, the list's page following.
+  await open(page, `${top}?champion=Ambessa&crole=TOP`, [1280, 689], "expanded");
+  const per = (await region(page, "list")).per;
+  await expect(listCard(page).locator("[data-testid=top-champion]").first()).toHaveAttribute("data-champion", "Ambessa");
+  let shown = "Ambessa";
+  for (let i = 1; i <= per; i++) {
+    await wsBody(page).getByTestId("champion-preview-next").click();
+    await expect(page.getByTestId("champion-preview-content")).not.toHaveAttribute("data-champion", shown);
+    shown = (await page.getByTestId("champion-preview-content").getAttribute("data-champion"))!;
+  }
+  await expect.poll(async () => (await region(page, "list")).page, "the list's page follows the champion stepped to").toBe(2);
+  await expect(listCard(page).locator(`[data-testid=top-champion][data-champion="${shown}"]`)).toHaveAttribute("data-selected", "true");
+  await expect(wsWindow(page)).toBeVisible();
+  await expect(wsBody(page).getByTestId("champion-preview-next")).toBeFocused();
+  await settled(page);
+  await fitsWindow(page, "1280x689 after ›");
+  // Tab from P1's Close through the window and round again: the focus never leaves it.
+  await wsBody(page).getByTestId("champion-preview-close").focus();
+  for (let i = 0; i < 80; i++) {
+    await page.keyboard.press("Tab");
+    const inside = await page.evaluate(() => {
+      const el = document.activeElement;
+      return !el || el === document.body || !!el.closest("dialog[open][data-testid=champion-preview]");
+    });
+    expect(inside, `Tab ${i + 1}: the focus inside the window`).toBe(true);
+  }
+  // Folded at 1280 × 800: the pane, no window.
+  await open(page, `${top}?champion=Ambessa&crole=TOP`, [1280, 800], "collapsed");
+  await expect(pane(page)).toBeVisible();
+  await expect(page.locator("dialog[open][data-testid=champion-preview]")).toHaveCount(0);
+});
+
+test("the workspace window ends at 1355px with the sidebar open (the pane from 1356), reads the champion each ‹ › steps to, and has the pane's surface", async ({ page }) => {
+  // Its band: a section under 64.75rem (1355px open: 64.69rem), the pane from 1356 (64.75rem), the narrowest panes there.
+  for (const [w, inWindow] of [
+    [1354, true],
+    [1355, true],
+    [1356, false],
+    [1359, false],
+  ] as const) {
+    await open(page, `${top}?champion=Ambessa&crole=TOP`, [w, 700], "expanded");
+    const at = `${w}x700 open`;
+    if (inWindow) {
+      await expect(wsBody(page), `${at}: the workspace window`).toBeVisible();
+      await expect(pane(page)).toHaveCount(0);
+      await fitsWindow(page, at);
+    } else {
+      await expect(pane(page), `${at}: the pane`).toBeVisible();
+      await expect(page.locator("dialog[open][data-testid=champion-preview]")).toHaveCount(0);
+      await fits(page, at);
+    }
+  }
+  // ‹ › in the window: its live region stays (it is not inside the keyed body that cross-fades), and its words change in
+  // place, so a screen reader reads the champion stepped to (a live region inserted with its words is never read), as in the
+  // pane. Until 28 Nov 2026 it was remounted with each champion and nothing was read.
+  for (const [size, where] of [
+    [[1280, 689], "dialog[open][data-testid=champion-preview]"],
+    [[1366, 768], "aside[data-preview-pane]"],
+  ] as Array<[[number, number], string]>) {
+    await open(page, `${top}?champion=Ambessa&crole=TOP`, size, "expanded");
+    const live = page.locator(`${where} [data-testid=champion-preview-announce]`);
+    await expect(live).toHaveCount(1);
+    await expect(live).toHaveAttribute("aria-live", "polite");
+    await live.evaluate((el) => {
+      const w = window as unknown as { __live: Element; __heard: string[] };
+      w.__live = el;
+      w.__heard = [];
+      new MutationObserver(() => w.__heard.push(el.textContent ?? "")).observe(el, { childList: true, characterData: true, subtree: true });
+    });
+    const before = (await live.textContent())!;
+    expect(before).toContain("Ambessa");
+    await page.locator(`${where} [data-testid=champion-preview-next]`).click();
+    await expect(page.getByTestId("champion-preview-content")).not.toHaveAttribute("data-champion", "Ambessa");
+    const after = await page.evaluate(() => {
+      const w = window as unknown as { __live: Element; __heard: string[] };
+      return { connected: w.__live.isConnected, text: w.__live.textContent ?? "", heard: w.__heard };
+    });
+    const at = `${size.join("x")} open`;
+    expect(after.connected, `${at}: the same live region after ›`).toBe(true);
+    expect(after.text, `${at}: its words the next champion's`).not.toBe(before);
+    expect(after.heard.at(-1), `${at}: its words changed in place (read)`).toBe(after.text);
+  }
+  // The window's surface is the pane's (panel-depth: its sheen, its top hairline and its soft shadow), not shadow-2xl over it:
+  // both set box-shadow, and the stylesheet's order gave the window shadow-2xl's until 28 Nov 2026.
+  await open(page, `${top}?champion=Ambessa&crole=TOP`, [1366, 768], "expanded");
+  const paneLook = await pane(page).evaluate((el) => ({ shadow: getComputedStyle(el).boxShadow, image: getComputedStyle(el).backgroundImage }));
+  await open(page, `${top}?champion=Ambessa&crole=TOP`, [1280, 689], "expanded");
+  const windowLook = await wsWindow(page).evaluate((el) => ({ shadow: getComputedStyle(el).boxShadow, image: getComputedStyle(el).backgroundImage }));
+  expect(paneLook.shadow, "the pane's panel-depth: an inset hairline").toContain("inset");
+  expect(windowLook, "the workspace window's surface: the pane's").toEqual(paneLook);
+});
+
+/** Which presentation of the opened champion is drawn: the pane (its column laid out), the workspace window, the sheet, or nothing. */
+const presentation = (page: Page) =>
+  page.evaluate(() => {
+    const drawn = (el: Element | null | undefined) => !!el && el.getBoundingClientRect().width > 0 && el.getBoundingClientRect().height > 0;
+    const dialog = document.querySelector<HTMLElement>("dialog[open][data-testid=champion-preview]");
+    if (dialog && drawn(dialog.querySelector("[data-testid=champion-preview-content]"))) return dialog.dataset.size === "workspace" ? "window" : "sheet";
+    return drawn(document.querySelector("aside[data-preview-pane] [data-testid=champion-preview-content]")) ? "pane" : "nothing";
+  });
+
+test("the champion opened always shows at the pane's two bounds: a section in the half pixel under one (an 18px root, a fractional width) opens the window or the sheet, never a pane its CSS hides", async ({ browser }) => {
+  // Until 28 Nov 2026 the page compared the section's rounded clientWidth with each bound less half a pixel, while the CSS draws
+  // the pane's column from the bound itself (a container query): at 1525px with an 18px root and the sidebar open (a 1165px
+  // section, the bound 64.75 × 18 = 1165.5) the click put the champion in the address, the column stayed display: none and no
+  // window opened. Now the page reads the CSS's own answer (useRoomForPane), so the two can never disagree.
+  const opened = async ([w, h]: [number, number], css: string) => {
+    const context = await browser.newContext({ viewport: { width: w, height: h } });
+    await context.addCookies([{ name: "uniiverse_sidebar", value: "expanded", url: BASE }]);
+    const page = await context.newPage();
+    await page.addInitScript((text) => {
+      const add = () => {
+        if (!document.head) return false;
+        const style = document.createElement("style");
+        style.textContent = text;
+        document.head.appendChild(style);
+        return true;
+      };
+      if (!add()) new MutationObserver((_, o) => add() && o.disconnect()).observe(document, { childList: true, subtree: true });
+    }, css);
+    await page.goto(`${BASE}${top}`, { waitUntil: "load" });
+    await settled(page);
+    const section = await page.getByTestId("all-champions").evaluate((el) => el.getBoundingClientRect().width);
+    // Again until the page is interactive (a click before hydration does nothing); once open, it is left open.
+    await expect(async () => {
+      if (!/champion=/.test(page.url())) await listCard(page).locator('[data-champion="Ambessa"] [data-open-champion]').click({ timeout: 2_000 });
+      await expect(page).toHaveURL(/champion=Ambessa/, { timeout: 1_000 });
+    }).toPass({ timeout: 15_000 });
+    await expect.poll(() => presentation(page), `${w}x${h} ${css || "16px"}: a presentation drawn`).not.toBe("nothing");
+    await page.waitForTimeout(300);
+    const shown = await presentation(page);
+    await context.close();
+    return { section, shown };
+  };
+  const big = "html{font-size:18px!important}";
+  // The workspace's bound (64.75rem of the section): an 18px root at 1524, 1525 (the half pixel under it) and 1526px.
+  expect(await opened([1524, 800], big)).toEqual({ section: 1164, shown: "window" });
+  expect(await opened([1525, 800], big), "1165px of 1165.5: the window, not a hidden pane").toEqual({ section: 1165, shown: "window" });
+  expect(await opened([1526, 800], big)).toEqual({ section: 1166, shown: "pane" });
+  // A fractional section at 16px (a zoom's widths), 0.44px under the bound (1035.56 of 1036), and at it.
+  const cut = "[data-testid=all-champions]{margin-right:0.44px!important}";
+  expect(await opened([1356, 760], cut), "1035.56px of 1036: the window").toEqual({ section: 1035.5625, shown: "window" });
+  expect(await opened([1356, 760], "")).toEqual({ section: 1036, shown: "pane" });
+  // The flow's bound (47.5rem of the section, a window under 80rem wide): 759.56 of 760, and at it.
+  expect(await opened([1080, 900], cut), "759.56px of 760: the sheet").toEqual({ section: 759.5625, shown: "sheet" });
+  expect(await opened([1080, 900], "")).toEqual({ section: 760, shown: "pane" });
+});
+
+test("a click beside the workspace window closes it at once, an opponent's games open included, the focus on the champion's row; Escape still goes back to the grid first, whatever has the focus", async ({ page }) => {
+  const row = () => listCard(page).locator('[data-champion="Ambessa"] [data-open-champion]');
+  const openDarius = async () => {
+    await open(page, top, [1280, 689], "expanded");
+    await row().click();
+    await expect(wsBody(page)).toBeVisible();
+    await settled(page);
+    await openOpponent(page, "Darius", wsBody(page));
+    await expect(page).toHaveURL(/vs=Darius/);
+  };
+  // The dimmed page left of the window (at most 56.25rem wide, centred): one click closes it, Darius and all, as the sheet's did.
+  // Until 28 Nov 2026 the first click only went back to the grid (the window's Escape rule, innermost first, asked of every close).
+  await openDarius();
+  const box = (await wsWindow(page).boundingBox())!;
+  expect(box.x, "room beside the window").toBeGreaterThan(40);
+  await page.mouse.click(Math.round(box.x / 2), Math.round(box.y + box.height / 2));
+  await expect(page.locator("dialog[open][data-testid=champion-preview]")).toHaveCount(0);
+  await expect(page).not.toHaveURL(/champion=|vs=/);
+  await expect(row(), "the focus on the champion's row, as a close gives it").toBeFocused();
+  // Escape, the focus on nothing in the window (a press on its text lets it go): Darius's games back to the grid, the window
+  // open; again: closed, the focus on the row.
+  await openDarius();
+  await wsBody(page).getByTestId("champion-preview-pairing-kda").click({ position: { x: 2, y: 2 } });
+  expect(await page.evaluate(() => document.activeElement === document.body || document.activeElement?.tagName === "DIALOG"), "nothing in the window focused").toBe(true);
+  await page.keyboard.press("Escape");
+  await expect(wsBody(page).getByTestId("champion-preview-opponent-list")).toBeVisible();
+  await expect(wsWindow(page)).toBeVisible();
+  await expect(page).not.toHaveURL(/vs=/);
+  await page.keyboard.press("Escape");
+  await expect(page.locator("dialog[open][data-testid=champion-preview]")).toHaveCount(0);
+  await expect(row()).toBeFocused();
+});
+
+test("the workspace window gives the focus back to the champion it shows: ‹ › twice, then Escape, Close or Back focus that champion's row; a wider window hands it to the same control in the pane", async ({ page }) => {
+  const content = page.getByTestId("champion-preview-content");
+  for (const how of ["Escape", "Close", "Back"] as const) {
+    await open(page, top, [1300, 720], "expanded");
+    const first = (await rowsOnPage(page).first().getAttribute("data-champion"))!;
+    await rowsOnPage(page).first().getByTestId("open-champion").click();
+    await expect(wsBody(page)).toBeVisible();
+    await settled(page);
+    for (let i = 0; i < 2; i++) {
+      const was = (await content.getAttribute("data-champion"))!;
+      await wsBody(page).getByTestId("champion-preview-next").click();
+      await expect(content).not.toHaveAttribute("data-champion", was);
+    }
+    const shown = (await content.getAttribute("data-champion"))!;
+    expect(shown).not.toBe(first);
+    await expect(listCard(page).locator(`[data-testid=top-champion][data-champion="${shown}"]`), "the champion shown on the list's page").toBeVisible();
+    if (how === "Escape") await page.keyboard.press("Escape");
+    else if (how === "Close") await wsBody(page).getByTestId("champion-preview-close").click();
+    else await page.goBack();
+    await expect(page.locator("dialog[open][data-testid=champion-preview]")).toHaveCount(0);
+    // Until 28 Nov 2026 the row the window was opened from (the first), as the pane never did.
+    await expect(listCard(page).locator(`[data-testid=top-champion][data-champion="${shown}"] [data-open-champion]`), `${how}: the row of the champion shown`).toBeFocused();
+  }
+  // 1300 → 1400px wide (the sidebar open): the pane takes the window's place, and the focus stays on the same control in it, also
+  // an opponent's cell and the opponents' pager, which the pane draws a moment later (its answer, then its pages). Until 28 Nov
+  // 2026 it went to the row the window was opened from.
+  for (const [what, target] of [
+    ["P1's ›", "champion-preview-next"],
+    ["an opponent's cell", "cell:Garen"],
+    ["the opponents' pager", "opponents-next"],
+  ] as const) {
+    await open(page, top, [1300, 720], "expanded");
+    await listCard(page).locator('[data-champion="Ambessa"] [data-open-champion]').click();
+    await expect(wsBody(page)).toBeVisible();
+    await settled(page);
+    await (target.startsWith("cell:") ? wsBody(page).locator(`[data-opponent-row="${target.slice(5)}"]`) : wsBody(page).getByTestId(target)).focus();
+    expect(await active(page)).toBe(target);
+    await page.setViewportSize({ width: 1400, height: 720 });
+    await expect(pane(page)).toBeVisible();
+    await expect(page.locator("dialog[open][data-testid=champion-preview]")).toHaveCount(0);
+    await expect.poll(() => active(page), `${what}: the same control in the pane`).toBe(target);
+    expect(await page.evaluate(() => !!document.activeElement?.closest("aside[data-preview-pane]")), `${what}: in the pane`).toBe(true);
+    await page.waitForTimeout(500);
+    expect(await active(page), `${what}: nothing takes the focus later`).toBe(target);
+  }
+});
+
+test("the section's parts are spaced by a gap, not margins: an open match window, the workspace window and the first paint leave the frame its full height", async ({ page }) => {
   const layout = () =>
     page.evaluate(() => {
       const pad = parseFloat(getComputedStyle(document.getElementById("content")!).paddingBottom);
@@ -1012,12 +1757,12 @@ test("the section's parts are spaced by a gap, not margins: an open match window
   expect(behind.margin).toBe(0);
   expect(behind.bottoms, "the cards keep the frame's foot behind the match window").toEqual(before.bottoms);
   for (const b of behind.bottoms) expect(b).toBe(behind.limit);
-  // The sheet over the paged list (1280 × 800, the sidebar open).
+  // The workspace window over the paged list (1280 × 800, the sidebar open).
   await open(page, `${top}?champion=Ambessa&crole=TOP`, [1280, 800], "expanded");
-  await expect(page.locator("dialog[open][data-testid=champion-preview]")).toBeVisible();
-  const sheet = await layout();
-  expect(sheet.margin).toBe(0);
-  expect(sheet.bottoms, "the list reaches the frame's foot under the sheet").toEqual([sheet.limit]);
+  await expect(wsBody(page)).toBeVisible();
+  const windowed = await layout();
+  expect(windowed.margin).toBe(0);
+  expect(windowed.bottoms, "the list reaches the frame's foot under the workspace window").toEqual([windowed.limit]);
   // The first paint with the flow's legend after the layout (a champion with multikills from some games only).
   const { first } = await firstPaintThenHydrated(page, `${sub}?champion=Sion&crole=TOP&vs=Nasus`, [1366, 736], "expanded", layout);
   expect(first.margin).toBe(0);

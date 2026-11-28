@@ -18,14 +18,16 @@ import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone
 import { SampleNote } from "./sample-note";
 import { ArrowDown, ArrowUp, ArrowUpDown, X } from "lucide-react";
 import { useAddressItem } from "@/components/ui/address-item";
-import { isTyping, modalOpen, rootPx, useWindowPosture, useWorkspace } from "@/components/ui/posture";
+import { isTyping, keepsEscape, modalOpen, useWindowPosture, useWorkspace, useWorkspaceShort, useWorkspaceShortNarrow } from "@/components/ui/posture";
 import { Pager } from "@/components/ui/pager";
 import { useRowBudget } from "@/components/ui/fit-rows";
 import { pageCount, pageOf, pageRange, usePagedList } from "@/components/ui/row-budget";
 import { PreviewWindow, SiblingSteps, type PreviewSiblings } from "@/components/ui/preview-window";
+import type { CloseRequest } from "@/components/ui/detail-modal";
 import { LABELLED_CLOSE } from "@/components/ui/window-control";
 import { PreviewContent, selectionFor, usePreviewAddress, usePreviewData, type ListScope } from "./champion-preview";
 import { RoleIcons, roleFigures, roleMarkAt } from "./champion-roles";
+import { focusCounterpart, markFocus, sameControl, type FocusMark } from "./preview-focus";
 import { MatchDetailModal } from "@/components/match-history/match-detail";
 import { MULTIKILL_KINDS, compareMultikills, multikillCoverage, rarestMultikill, type MultikillCounts, type MultikillSummary } from "@/domain/multikills";
 import { MULTIKILL_HELP, MULTIKILL_SHORT } from "./multikill-summary";
@@ -91,10 +93,10 @@ const GRID =
   "@min-[44rem]:grid-cols-[minmax(11.75rem,1fr)_minmax(3.25rem,4.5rem)_minmax(4.5rem,6rem)_minmax(3.25rem,4.25rem)_minmax(3.5rem,4.5rem)_minmax(3rem,4.25rem)_minmax(5.25rem,6.5rem)_minmax(4.375rem,5.25rem)] @min-[44rem]:gap-x-2 @min-[44rem]:px-3 @min-[76rem]:grid-cols-[minmax(14rem,1fr)_minmax(4rem,4.5rem)_minmax(4.75rem,5.25rem)_minmax(5.5rem,6.25rem)_minmax(4rem,4.5rem)_minmax(6rem,6.5rem)_repeat(3,minmax(4rem,4.5rem))_minmax(6.5rem,7.25rem)] @min-[76rem]:gap-x-2 @min-[76rem]:px-5";
 /*
   A linked preview's first paint (the server's HTML and the hydration render) draws the list beside the pane. In the
-  workspace a section under 64.75rem (1280–1355px wide with the sidebar open) gets the sheet once hydrated, and until
+  workspace a section under 64.75rem (1280–1355px wide with the sidebar open) gets the workspace window once hydrated, and until
   then its CSS hides the pane's column and gives the list the whole frame: there the rows and the heading row keep the
   wide table's template (GRID's 44rem tier: a section that narrow never reaches 76rem), so the list is drawn as the
-  sheet will leave it and nothing moves when it opens.
+  workspace window will leave it and nothing moves when it opens.
 */
 const SHEET_FIRST_PAINT_GRID = "ws:@max-[64.75rem]/section:@min-[44rem]:grid-cols-[minmax(11.75rem,1fr)_minmax(3.25rem,4.5rem)_minmax(4.5rem,6rem)_minmax(3.25rem,4.25rem)_minmax(3.5rem,4.5rem)_minmax(3rem,4.25rem)_minmax(5.25rem,6.5rem)_minmax(4.375rem,5.25rem)] ws:@max-[64.75rem]/section:@min-[44rem]:gap-x-2";
 /** A sortable number, or null when the figure is missing (missing rows always sort last). */
@@ -317,6 +319,16 @@ function subscribePhone(change: () => void) {
 }
 const isPhone = () => window.matchMedia(PHONE_QUERY).matches;
 const notPhone = () => false;
+/**
+ * Whether a request closes the workspace window (its canClose). Escape goes innermost first (map3
+ * §8.3): with an opponent's games open it brings the grid back and leaves the window open; the next
+ * closes it. Anything else closes it at once, opponent and all, as the sheet before it did: a click
+ * on the dimmed page around it (until 28 Nov 2026 the first click only went back to the grid).
+ */
+export function closesWorkspaceWindow(via: CloseRequest, opponentOpen: boolean): boolean {
+  return !(via === "escape" && opponentOpen);
+}
+
 /** Hydrated or not, for useSyncExternalStore: false on the server and while hydrating, true after. */
 const subscribeNothing = () => () => undefined;
 const isClient = () => true;
@@ -330,27 +342,50 @@ const notClient = () => false;
  * and "In pool" on one line (the 25 Nov 2026 review: at 20rem, 1366px with the sidebar open, "In
  * pool" took a second line as the pane opened and every row below moved).
  */
-const PANE_ROOM_REM = 47.5;
+export const PANE_ROOM_REM = 47.5;
 /**
  * In the one-screen workspace the pane needs the opponents' two columns beside the list: the list's
  * 22.5rem, the 1rem gap, the pane's 2.5rem of padding and two opponent columns (38.625rem) with the
- * cards' borders. A narrower workspace section (1280–1359px with the sidebar open) opens the
- * preview in the sheet over the paginated list (open decision O1 of 27 Nov 2026): below it the
- * opponents get one column, the identity and the toolbar wrap, and a champion of five positions
- * with an opponent open keeps one game a page.
+ * cards' borders. A narrower workspace section (1280–1355px with the sidebar open, or a larger root)
+ * opens the preview in the workspace window over the paginated list: the pane's own content, paged,
+ * in a window as tall as the screen less 1rem above and below (docs/RESPONSIVE.md, "All Champions'
+ * workspace"; until 28 Nov 2026 the sheet, whose unpaged preview scrolled inside it). Below it the
+ * opponents would get one column, the identity and the toolbar wrap.
  */
-const WS_PANE_SECTION_REM = 64.75;
-function useRoomForPane(ref: React.RefObject<HTMLElement | null>, ws: boolean): boolean {
+export const WS_PANE_SECTION_REM = 64.75;
+/**
+ * Where the CSS draws the pane's column: from md in a window taller than 30rem, in a section of
+ * PANE_ROOM_REM or more (the flow), and in the workspace in a section of WS_PANE_SECTION_REM or more
+ * (all-champions.test.ts holds the classes to the two numbers). The column and the probe useRoomForPane reads
+ * carry the same classes, so the page opens the pane exactly where the CSS draws its column, and the
+ * sheet or the workspace window everywhere else.
+ */
+export const PANE_COLUMN_SHOWN = "hidden md:[@media(min-height:30.0625rem)]:@min-[47.5rem]:block ws:hidden! ws:@min-[64.75rem]/section:flex!";
+/**
+ * Whether the CSS draws the pane's column now: the probe's display (PANE_COLUMN_SHOWN, beside where
+ * the column goes, so the same container answers its queries), read again as the section resizes,
+ * the window resizes (a media query, the root's size) or the workspace comes or goes. The CSS's own
+ * answer, never a width compared in script: until 28 Nov 2026 the section's rounded clientWidth was
+ * compared with the bound less half a pixel, so a section in the half pixel under it (an 18px root at
+ * 1525px with the sidebar open, 1165 against 1165.5; a fractional width at a zoom) opened a pane the
+ * container query hid, and nothing of the champion opened showed.
+ */
+function useRoomForPane(sectionRef: React.RefObject<HTMLElement | null>, probeRef: React.RefObject<HTMLElement | null>, ws: boolean | null): boolean {
   const [roomy, setRoomy] = React.useState(true);
   React.useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    const check = () => setRoomy(el.clientWidth >= (ws ? WS_PANE_SECTION_REM : PANE_ROOM_REM) * rootPx() - 0.5);
+    const section = sectionRef.current;
+    const probe = probeRef.current;
+    if (!section || !probe) return;
+    const check = () => setRoomy(getComputedStyle(probe).display !== "none");
     check();
     const observer = new ResizeObserver(check);
-    observer.observe(el);
-    return () => observer.disconnect();
-  }, [ref, ws]);
+    observer.observe(section);
+    window.addEventListener("resize", check);
+    return () => {
+      observer.disconnect();
+      window.removeEventListener("resize", check);
+    };
+  }, [sectionRef, probeRef, ws]);
   return roomy;
 }
 
@@ -562,6 +597,11 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   const ws = useWorkspace();
   const workspace = ws !== false;
   const paged = ws === true;
+  // The short form (docs/RESPONSIVE.md, "the short form"): the CSS bands decide the first paint; once hydrated the section
+  // is marked where the page's own rem is short and the CSS cannot tell (a larger browser text size).
+  const short = useWorkspaceShort();
+  // And under 48 of the page's own rem, the short form of a narrow section (the CSS's container query decides the width).
+  const shortNarrow = useWorkspaceShortNarrow();
   const budget = useRowBudget(listRef, {
     footRef: listFootRef,
     cardRef,
@@ -646,8 +686,12 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   // windows that get the sheet until the page has hydrated and opens it.
   const hydrated = React.useSyncExternalStore(subscribeNothing, isClient, notClient);
   const windowed = useWindowPosture();
-  const roomy = useRoomForPane(sectionRef, paged);
+  const paneRoomRef = React.useRef<HTMLSpanElement>(null);
+  const roomy = useRoomForPane(sectionRef, paneRoomRef, ws);
   const sheet = !!selected && hydrated && (windowed || !roomy);
+  // The workspace's section too narrow for the pane (1280–1355px with the sidebar open, a larger root): the workspace window.
+  // Touch phones, tablets and the flow (windowed, or a section under PANE_ROOM_REM) keep the sheet.
+  const workspaceWindow = sheet && paged && !windowed;
   const split = !!selected && !sheet;
   const paneRef = React.useRef<HTMLElement>(null);
   const paneColumnRef = React.useRef<HTMLDivElement>(null);
@@ -712,6 +756,19 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     document.addEventListener("keydown", onKey);
     return () => document.removeEventListener("keydown", onKey);
   }, [split]);
+  // The workspace window: Escape on an opponent's games brings the grid back and leaves the window open (its key is taken
+  // before it can ask the window to close; the window's canClose does the same where the focus is on nothing in it).
+  React.useEffect(() => {
+    if (!workspaceWindow) return;
+    const onKey = (e: KeyboardEvent) => {
+      if (e.key !== "Escape" || e.defaultPrevented || !vsRef.current || keepsEscape(e.target)) return;
+      if (!(e.target as Element | null)?.closest?.("dialog[data-size=workspace]")) return;
+      e.preventDefault();
+      setVsRef.current?.(null);
+    };
+    document.addEventListener("keydown", onKey);
+    return () => document.removeEventListener("keydown", onKey);
+  }, [workspaceWindow]);
   // Opened from the keyboard, the pane's heading takes the focus (a click or a tap leaves it on the row).
   React.useEffect(() => {
     if (split && viaKeys && selectedKey) document.getElementById("champion-preview-title")?.focus({ preventScroll: true });
@@ -726,6 +783,57 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     const card = cardRef.current;
     if (was && !selectedKey && (!at || at === document.body)) (card?.querySelector<HTMLButtonElement>(`[data-testid=top-champion][data-champion="${was}"] [data-open-champion]`) ?? card?.querySelector<HTMLButtonElement>("[data-testid=top-champion] [data-open-champion]"))?.focus({ preventScroll: true });
   }, [selectedKey]);
+  // The preview's windows (the workspace window, the sheet) put the focus back themselves (DetailModal's refocus), not on
+  // the row they were opened from: ‹ › may have stepped since. What had the focus in the window is kept for a pane that
+  // takes its place.
+  const windowMark = React.useRef<FocusMark | null>(null);
+  React.useEffect(() => {
+    if (!sheet) return;
+    windowMark.current = null;
+    const onFocus = (e: FocusEvent) => {
+      const el = e.target instanceof Element ? e.target : null;
+      // Its controls only: the window itself (focused as a tap or a click opens it) is nothing to find again.
+      if (el && !el.matches("dialog") && el.closest("dialog[data-testid=champion-preview]")) windowMark.current = markFocus(el);
+    };
+    document.addEventListener("focusin", onFocus);
+    return () => document.removeEventListener("focusin", onFocus);
+  }, [sheet]);
+  /**
+   * The pane took the window's place (a wider window, the sidebar folded, a tablet turned sideways): the focus stays in the
+   * preview, on the same control in the pane, as across a switch between the workspace and the flow (useFocusAcrossLayouts
+   * in champion-matchups.tsx). The pane's opponents and games come in a moment later (their answer, then their pages), so
+   * the control is looked for frame by frame until it is drawn, or until they are (then the nearest: the opponent's heading,
+   * the first opponent drawn, the pane's heading), a second at most; never once the focus is somewhere the reader put it.
+   * Until 28 Nov 2026 it went to the row the window had been opened from.
+   */
+  const focusInPane = (pane: HTMLElement, mark: FocusMark | null) => {
+    const title = pane.querySelector<HTMLElement>("#champion-preview-title");
+    const settled = () => pane.querySelector<HTMLElement>("[data-testid=champion-preview-opponents]")?.dataset.state !== "loading" && [...pane.querySelectorAll<HTMLElement>("[data-ws-region]")].every((r) => r.dataset.per !== undefined);
+    // About a second of frames.
+    let frames = 60;
+    const attempt = () => {
+      const at = document.activeElement;
+      // Only the focus the window's going left behind (the page's body), or the pane's heading a keyboard's open gives it.
+      if (!pane.isConnected || (at && at !== document.body && at !== title)) return;
+      const same = mark ? sameControl(pane, mark) : null;
+      if (same) return void same.focus({ preventScroll: true });
+      if (mark && !settled() && --frames > 0) return void requestAnimationFrame(attempt);
+      const inOpponents = !!mark?.el.closest("[data-testid=champion-preview-opponents]");
+      focusCounterpart(pane, mark, [inOpponents ? pane.querySelector<HTMLElement>("[data-testid=champion-preview-pairing] h4") : null, inOpponents ? pane.querySelector<HTMLElement>("[data-opponent-row]") : null, title]);
+    };
+    attempt();
+  };
+  /** The preview's window gone (closed, or the pane in its place), on the next frame: where the focus goes. */
+  const refocusAfterWindow = (shown: string) => {
+    // A game's window opened in its place has the focus (the preview's window steps aside for it).
+    if (modalOpen()) return;
+    const pane = paneRef.current;
+    if (pane?.isConnected) return focusInPane(pane, windowMark.current);
+    // Closed (Escape, its Close, a click beside it, Back): the row of the champion it showed, as the pane's close does, or
+    // where the list was paged away from it the first row of the page shown (returnButton). Until 28 Nov 2026 the row it had
+    // been opened from, whichever champion ‹ › had stepped to.
+    returnButton(shown)?.focus({ preventScroll: true });
+  };
   // The rows a step walks: every row in the workspace (its pages turn as it crosses them), the drawn ones in the flow.
   const walk = range ? rows : shown;
   /** ↑/↓ (or K/J) on the list, and ‹ › in the preview, move it to the row above or below, in that champion's most played position. */
@@ -763,7 +871,8 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     stepArrow.current = null;
     const at = document.activeElement as HTMLButtonElement | null;
     if (at && at !== document.body && at.isConnected && !at.disabled) return;
-    const pane = paneRef.current;
+    // The pane, or the workspace window's body (the same controls in its P1).
+    const pane = paneRef.current ?? sectionRef.current?.querySelector<HTMLElement>("dialog[open] [data-preview-pane]");
     const same = pane?.querySelector<HTMLButtonElement>(`[data-testid=champion-preview-${which}]`);
     const other = pane?.querySelector<HTMLButtonElement>(`[data-testid=champion-preview-${which === "next" ? "prev" : "next"}]`);
     (same && !same.disabled ? same : other && !other.disabled ? other : same)?.focus({ preventScroll: true });
@@ -972,7 +1081,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
     // The workspace (ws:, globals.css): the section is the rest of the shell's window-tall column, its cards reaching the frame's foot.
     // Its parts 12px apart: space-y in the flow; a gap in the workspace's flex column, which only its laid-out parts take (a
     // margin would also go to the layout before a closed or top-layer dialog, or the flow's hidden legend, and shorten the frame).
-    <section ref={sectionRef} className="@container/section space-y-3 ws:flex ws:flex-1 ws:flex-col ws:gap-3 ws:space-y-0" aria-labelledby="all-champions" data-testid="all-champions" data-workspace={workspace ? "" : undefined}>
+    <section ref={sectionRef} className="@container/section space-y-3 ws:flex ws:flex-1 ws:flex-col ws:gap-3 ws:space-y-0" aria-labelledby="all-champions" data-testid="all-champions" data-workspace={workspace ? "" : undefined} data-ws-short={workspace && short === true ? "" : undefined} data-ws-short-narrow={workspace && shortNarrow === true ? "" : undefined}>
       {/* The profile's one heading layout (as Season performance and Match History). */}
       <SectionHeader
         id="all-champions"
@@ -1010,6 +1119,8 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           workspace's grid and column classes are marked important: the flow's (an arbitrary media variant) come later in the
           stylesheet, and the workspace's must win wherever it applies. */}
       <div className={cn(split ? "grid items-start gap-4 md:[@media(min-height:30.0625rem)]:@min-[47.5rem]:grid-cols-[minmax(22.5rem,min(32%,24rem))_minmax(0,1fr)] ws:flex-1 ws:grid-cols-1! ws:items-stretch ws:@min-[64.75rem]/section:grid-cols-[minmax(22.5rem,min(32%,24rem))_minmax(0,1fr)]!" : "ws:flex ws:flex-1 ws:flex-col")} data-testid="all-champions-layout" data-split={split || undefined}>
+      {/* Where the CSS would draw the pane's column (useRoomForPane reads its display): out of the flow, no size, nothing to read. */}
+      <span ref={paneRoomRef} aria-hidden className={cn(PANE_COLUMN_SHOWN, "pointer-events-none absolute size-0 overflow-hidden")} data-pane-room="" />
       <div ref={cardRef} className={cn("group/list relative min-w-0 rounded-card border border-border bg-surface panel-depth", split ? "@container ws:flex ws:flex-col" : "ws:flex ws:flex-1 ws:flex-col")} data-split={split || undefined} data-testid="all-champions-table" data-ws-region={range ? "list" : undefined} data-per={perPage ?? undefined} data-page={range ? page : undefined} data-pages={range ? pages : undefined} data-total={range ? rows.length : undefined}>
         {data.topChampions.length ? (
           // Below 76rem the toolbar has the rows' padding, so the search lines up with the champions.
@@ -1085,7 +1196,7 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
                 Beside the preview the list keeps a heading row of the same height, so no row moves as it
                 opens: the champion, and its games and win rate at the right (the figures it shows). */}
             {split && !hydrated ? (
-              // The first paint of a linked preview where the sheet will take it (SHEET_FIRST_PAINT_GRID): the wide heading row.
+              // The first paint of a linked preview where the workspace window will take it (SHEET_FIRST_PAINT_GRID): the wide heading row.
               <div className={cn("hidden items-center border-b border-border/70 bg-surface px-3 ws:@max-[64.75rem]/section:@min-[44rem]:grid!", GRID)} role="group" aria-label="Sort the champions">
                 {COLUMNS.map((c) => heading(c))}
               </div>
@@ -1164,11 +1275,11 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
         // scrolls (usePanePlacement: pinned under the section tabs while it fits the window; taller, it
         // moves with the page between the tabs and the window's foot). Nothing in it scrolls on its own;
         // its header (portrait, name, ‹ › and Close) stays pinned under the tabs while the pane passes.
-        <div ref={paneColumnRef} className="hidden min-w-0 self-stretch [overflow-anchor:none] md:[@media(min-height:30.0625rem)]:@min-[47.5rem]:block ws:hidden! ws:flex-col ws:@min-[64.75rem]/section:flex!" data-testid="champion-preview-column">
+        <div ref={paneColumnRef} className={cn(PANE_COLUMN_SHOWN, "min-w-0 self-stretch [overflow-anchor:none] ws:flex-col")} data-testid="champion-preview-column">
           <div ref={paneSpacerRef} aria-hidden data-pane-spacer />
           {/* The workspace: in the frame, not pinned, its overflow visible (a flex item that clips gets no least height and would cut silently). */}
           <aside ref={paneRef} className="sticky top-[calc(var(--bar-top)+var(--tabs-top)+0.75rem)] min-w-0 overflow-clip rounded-card border border-border bg-surface panel-depth ws:static ws:flex ws:flex-1 ws:flex-col ws:overflow-visible" aria-labelledby="champion-preview-title" data-preview-pane data-testid="champion-preview">
-            <span className="sr-only" aria-live="polite">
+            <span className="sr-only" aria-live="polite" data-testid="champion-preview-announce">
               {announce(selected, selRole)}
             </span>
             {/* Another champion cross-fades in (120ms; at once with reduced motion). */}
@@ -1198,9 +1309,56 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
           window shell), its ‹ › and its Close in its header: the pane's labelled Close, not the quiet ✕
           of other windows (the owner's request: a prominent, easily accessible close action). While a
           game's window is open over it, the sheet steps aside (never two windows) and comes back when
-          the game closes. */}
-      {sheet && selected ? (
-        <PreviewWindow open={!match} onClose={() => closeRef.current()} title={champ(selected.championId).name} size="sheet" siblings={siblings} testId="champion-preview" closeTestId="champion-preview-close" closeLabel="Close">
+          the game closes. Closed, it gives the focus to the row of the champion it shows, as the
+          workspace window does (refocusAfterWindow). */}
+      {/* The workspace window (1280–1355px with the sidebar open): the pane's content in a window as tall as the screen less
+          1rem above and below, its P1 the title bar (‹ › and the labelled Close), its opponents and an opponent's games paged
+          in place, nothing scrolling. Escape goes innermost first (an opponent's games back to the grid, then the window); a
+          click beside it and Back close it; the native modal holds the focus, and gives it back to the row of the champion it
+          shows (refocusAfterWindow), or to the same control in the pane where the pane takes its place. */}
+      {workspaceWindow && selected ? (
+        <PreviewWindow
+          open={!match}
+          onClose={() => closeRef.current()}
+          canClose={(via) => {
+            if (closesWorkspaceWindow(via, !!vsRef.current)) return true;
+            // An opponent's games go back to the grid (the focus on its cell); the window closes at the next Escape.
+            setVsRef.current?.(null);
+            return false;
+          }}
+          title={champ(selected.championId).name}
+          titleId="champion-preview-title"
+          size="workspace"
+          headless
+          testId="champion-preview"
+          returnFocus={() => returnButton(selected.championId)}
+          refocus={() => refocusAfterWindow(selected.championId)}
+        >
+          {/* The live region outside the keyed body, as the pane's: it stays as ‹ › step champions and its words change in place,
+              so the champion stepped to is read (a live region inserted with its words already in it is never read). */}
+          <span className="sr-only" aria-live="polite" data-testid="champion-preview-announce">
+            {announce(selected, selRole)}
+          </span>
+          {/* Another champion cross-fades in (120ms; at once with reduced motion), as in the pane. */}
+          <div key={selected.championId} className="flex flex-auto flex-col px-5 motion-safe:swap-in" data-preview-pane="" data-testid="champion-preview-window-body">
+            <PreviewContent
+              {...contentProps(selected, selRole)}
+              chrome="pane"
+              layout="workspace"
+              controls={
+                <div className="flex shrink-0 items-center gap-1" data-testid="champion-preview-controls">
+                  <SiblingSteps siblings={siblings} />
+                  <button type="button" onClick={() => closeRef.current()} className={cn(LABELLED_CLOSE, "ml-1")} aria-label="Close the champion" data-testid="champion-preview-close">
+                    <X className="h-4 w-4" aria-hidden />
+                    Close
+                  </button>
+                </div>
+              }
+            />
+          </div>
+        </PreviewWindow>
+      ) : sheet && selected ? (
+        <PreviewWindow open={!match} onClose={() => closeRef.current()} title={champ(selected.championId).name} size="sheet" siblings={siblings} testId="champion-preview" closeTestId="champion-preview-close" closeLabel="Close" refocus={() => refocusAfterWindow(selected.championId)}>
           <span className="sr-only" aria-live="polite">
             {announce(selected, selRole)}
           </span>
