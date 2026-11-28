@@ -635,7 +635,9 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
 
   const go = React.useCallback(
     (patch: Record<string, string | null>, { keepMatch = false }: { keepMatch?: boolean } = {}) => {
-      const next = new URLSearchParams(params.toString());
+      // From the address as it stands (a game just opened is in it before the router's own state has caught up: the
+      // workspace's page size, written a moment after the page arrives, must keep it).
+      const next = new URLSearchParams(window.location.search);
       for (const [k, v] of Object.entries(patch)) {
         if (v === null || v === "") next.delete(k);
         else next.set(k, v);
@@ -646,7 +648,7 @@ export function MatchHistoryView({ data, championsById, basePath, playerId, play
       }
       startTransition(() => router.replace(`${pathname}?${next.toString()}`, { scroll: false }));
     },
-    [params, pathname, router],
+    [pathname, router],
   );
 
   // The page size: ten (phones always), or as many whole cards as the room below the list's top
