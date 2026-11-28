@@ -38,7 +38,8 @@ test("the app name set in Branding names the tabs and Riot's notice, and a reset
 
     // A reset restores colours and background visibility, never the names.
     await view(context, baseURL!, "admin");
-    await page.goto("/admin/branding");
+    // Branding's Colours (on a desktop window one section at a time: docs/RESPONSIVE.md, "One-screen desktop pages").
+    await page.goto("/admin/branding?section=colours");
     await page.getByRole("button", { name: "Reset colours to defaults" }).click();
     await expect(page.getByText("Colours and background visibility reset; names kept.")).toBeVisible();
     await page.reload();

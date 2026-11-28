@@ -22,9 +22,13 @@ async function setLevel(page: Page, level: number) {
   await expect(page.getByTestId("backdrop-value")).toHaveText(`${level}%`);
 }
 
-/** Admin → Branding, once it is interactive: a value set before the page is hydrated never reaches its state (its image cards say when it is, data-ready). */
-async function openBranding(page: Page) {
-  await page.goto("/admin/branding");
+/**
+ * Admin → Branding, once it is interactive: a value set before the page is hydrated never reaches its state (its image cards say when it is, data-ready).
+ * At `section` (Background by default): on a desktop window the page shows one section at a time (docs/RESPONSIVE.md, "One-screen desktop pages",
+ * Branding); elsewhere every section is shown and the address's section changes nothing.
+ */
+async function openBranding(page: Page, section: "background" | "images" = "background") {
+  await page.goto(`/admin/branding?section=${section}`);
   await expect(page.getByTestId("brand-appBackground")).toHaveAttribute("data-ready", "true");
 }
 
@@ -46,6 +50,7 @@ test("background visibility: set by an admin in Branding, the same for every mem
   await expect(page.getByTestId("backdrop-slider")).toHaveCount(0);
 
   // The admin adds an app background.
+  await openBranding(page, "images");
   await page.getByLabel("Upload app background").setInputFiles({ name: "backdrop.png", mimeType: "image/png", buffer: png() });
   await expect(page.getByText("App background updated.")).toBeVisible();
 
@@ -137,6 +142,7 @@ test("background visibility: set by an admin in Branding, the same for every mem
       await page.getByTestId("backdrop-reset").click();
       await saveBranding(page);
     }
+    await openBranding(page, "images");
     await page.getByRole("button", { name: /Remove/ }).last().click();
     await page.getByRole("dialog").getByRole("button", { name: "Remove" }).click();
     await expect(page.getByText("App background removed.")).toBeVisible();

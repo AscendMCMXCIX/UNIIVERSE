@@ -24,7 +24,8 @@ const SCREENS = [
 /** Uploads the animated logo, runs `checks`, then removes the logo again whatever happened. */
 async function withLogo(page: Page, baseURL: string, checks: () => Promise<void>) {
   await page.context().addCookies([{ name: "uniiverse_view", value: "admin", url: baseURL }]);
-  await page.goto("/admin/branding");
+  // Branding's Images (on a desktop window one section at a time: docs/RESPONSIVE.md, "One-screen desktop pages").
+  await page.goto("/admin/branding?section=images");
   const card = page.locator("[data-testid=brand-logo][data-ready=true]");
   await expect(card).toBeVisible();
   await card.locator("input[type=file]").setInputFiles(GIF);
@@ -33,7 +34,7 @@ async function withLogo(page: Page, baseURL: string, checks: () => Promise<void>
     await checks();
   } finally {
     // Back to the usual team mark for every other test.
-    await page.goto("/admin/branding");
+    await page.goto("/admin/branding?section=images");
     await page.locator("[data-testid=brand-logo][data-ready=true]").getByRole("button", { name: "Remove" }).click();
     await page.getByTestId("confirm-dialog-confirm").click();
     await expect(page.getByTestId("brand-logo-empty")).toBeVisible();

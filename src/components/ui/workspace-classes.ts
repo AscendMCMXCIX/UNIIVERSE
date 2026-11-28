@@ -1,7 +1,8 @@
 /*
   The one-screen workspace's class strings (ui/workspace.tsx; docs/RESPONSIVE.md, "One-screen desktop
-  pages"), in a module without "use client": a server component (the admin layout, Settings' page)
-  reads them as strings. ui/workspace.tsx re-exports them for client components.
+  pages"), in a module without "use client": a server component (the admin layout, an admin page's root,
+  Settings' page) reads them as strings. ui/workspace.tsx re-exports them for client components; from a
+  "use client" module a server component would get a client reference in place of the string.
 */
 
 /** The classes of every element between the shell's frame and a workspace section: a flex column the section fills, as wide as the frame. */

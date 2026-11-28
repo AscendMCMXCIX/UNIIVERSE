@@ -136,6 +136,23 @@ const ROWS: OneScreenRow[] = [
   { name: "Admin Settings, Password", path: "/admin/settings?section=password", admin: true, at: EIGHT_AND_FLOOR, workspace: true },
   { name: "Admin Data & Integrations", path: "/admin/data", admin: true, at: EIGHT_AND_FLOOR },
   { name: "Admin Audit Logs", path: "/admin/audit", admin: true, at: EIGHT_AND_FLOOR },
+  // Lane B (28 Nov 2026): Platform Settings' pages.
+  { name: "Admin Previews, a phone", path: "/admin/previews", admin: true, at: EIGHT_AND_FLOOR, workspace: true, cards: "[data-testid=preview-studio]" },
+  { name: "Admin Previews, a desktop", path: "/admin/previews", admin: true, at: EIGHT_AND_FLOOR, workspace: true, cards: "[data-testid=preview-studio]", then: (page) => page.getByTestId("preview-device-desktop").click() },
+  { name: "Admin Previews, a tablet held sideways, the setup", path: "/admin/previews", admin: true, at: EIGHT_AND_FLOOR, workspace: true, cards: "[data-testid=preview-studio]", then: async (page) => { await page.getByTestId("preview-device-tablet").click(); await page.getByTestId("preview-rotate").click(); await page.getByTestId("preview-screen-setup").click(); } },
+  { name: "Admin Resources, All", path: "/admin/resources", admin: true, at: EIGHT_AND_FLOOR, workspace: true, pager: "resources-pager", cards: "[data-testid=resources-card]", rows: "[data-testid=managed-resource]" },
+  { name: "Admin Resources, one section", path: "/admin/resources?section=league", admin: true, at: EIGHT_AND_FLOOR, workspace: true, pager: "resources-pager", cards: "[data-testid=resources-card]", rows: "[data-testid=managed-resource]" },
+  { name: "Admin Resources, the editor open", path: "/admin/resources", admin: true, at: EIGHT_AND_FLOOR, workspace: true, pager: "resources-pager", cards: "[data-testid=resources-card]", rows: "[data-testid=managed-resource]", then: (page) => page.getByTestId("resource-add").click() },
+  { name: "Admin Matchup notes, Not written yet", path: "/admin/matchup-notes", admin: true, at: EIGHT_AND_FLOOR, workspace: true, pager: "matchup-notes-pager", cards: "[data-testid=matchup-notes-card]", rows: "[data-testid=matchup-queue-row]" },
+  { name: "Admin Matchup notes, All notes", path: "/admin/matchup-notes?view=all", admin: true, at: EIGHT_AND_FLOOR, workspace: true, pager: "matchup-notes-pager", cards: "[data-testid=matchup-notes-card]", rows: "[data-testid=matchup-note-row]" },
+  { name: "Admin Matchup notes, the editor open", path: "/admin/matchup-notes", admin: true, at: EIGHT_AND_FLOOR, workspace: true, cards: "[data-testid=matchup-notes-card]", rows: "[data-testid=matchup-queue-row]", then: (page) => page.getByTestId("matchup-notes-new").click() },
+  { name: "Admin Matchup notes, a re-review open", path: "/admin/matchup-notes?view=all", admin: true, at: EIGHT_AND_FLOOR, workspace: true, cards: "[data-testid=matchup-notes-card]", rows: "[data-testid=matchup-note-row]", then: (page) => page.getByTestId("matchup-note-review").first().click() },
+  { name: "Admin Branding, Name", path: "/admin/branding", admin: true, at: EIGHT_AND_FLOOR, workspace: true },
+  { name: "Admin Branding, Images", path: "/admin/branding?section=images", admin: true, at: EIGHT_AND_FLOOR, workspace: true },
+  { name: "Admin Branding, Background", path: "/admin/branding?section=background", admin: true, at: EIGHT_AND_FLOOR, workspace: true },
+  { name: "Admin Branding, Colours", path: "/admin/branding?section=colours", admin: true, at: EIGHT_AND_FLOOR, workspace: true },
+  { name: "Admin Branding, Colours unreadable (two checks failing)", path: "/admin/branding?section=colours", admin: true, at: EIGHT_AND_FLOOR, workspace: true, then: async (page) => { await page.getByRole("textbox", { name: "Background hex" }).fill("#ffffff"); await page.getByRole("textbox", { name: "Surface hex" }).fill("#ffffff"); } },
+  { name: "Admin Branding, Public page", path: "/admin/branding?section=public", admin: true, at: EIGHT_AND_FLOOR, workspace: true },
 ];
 
 test.beforeEach(({ browserName }, info) => {

@@ -919,6 +919,17 @@ footer with it: such a parent takes `ws-host:space-y-0` (Accounts' page).
 
 **Elsewhere**
 
+- **`workspace-classes.ts`:** the class constants (`WS_COLUMN`, `WS_SECTION`, `WS_CARD_SURFACE`,
+  `WS_CARD_FILL`, `WS_FOOT`), with no `"use client"`, so a server component (the admin layout, a
+  page's root) imports them as strings; `workspace.tsx` re-exports them. From a `"use client"`
+  module a server component would get a client reference in place of the string.
+- **`address-section.ts`, `useAddressSection(ids, { initial, param })`:** one choice of a few kept
+  in the address, by the sectioned workspace's rules (the first has no parameter, an unknown value
+  is the first, each choice the reader makes is an entry, Back and Forward followed, a choice no
+  longer offered falls back to the first and its address is replaced). `choose(id, { replace })`
+  replaces instead of pushing (an old `#hash` naming a section). Used for a list's filter (Admin
+  Resources' `?section=`), a queue's view (Admin Matchup notes' `?view=`) and a page that lays out
+  its own rail (Admin Branding).
 - **`fit-rows.tsx`, `useRowBudget`:** unchanged by default. `mode: "cumulative"` counts rows of
   several heights by their own heights in order, then more at the tallest drawn row's pitch
   (`row-budget.ts`, `cumulativeRows`; for rows of one height it is `rowBudget`'s count exactly).
@@ -1089,6 +1100,67 @@ eyebrow gives its line back (the sidebar and the section tabs above name it).
   add a row of cards; see the tracked list.
 - **Tests:** `e2e/people-workspace.spec.ts` (sections, Back, the folds open, every account
   on exactly one page, a person's page kept, the flow outside the gate); the platform spec's rows.
+
+### Platform Settings' pages (lane B, 28 Nov 2026)
+
+Admin Mode's Platform Settings: Branding (with the old `/admin/public-access`), Previews, Resources
+and Matchup notes. The admin layout's column and each page's root carry `WS_COLUMN`; each page's
+`PageHeader` stays above its section, unchanged. Outside the gate every page is as it was (their
+phone and tablet specs are unchanged and pass). Fit measured on the demo with CI's wider text: every
+state below fits at the owner's eight configurations and at 1366 × 657, sidebar open and folded
+(`e2e/one-screen.spec.ts`, 16 rows).
+
+- **Previews: a fitted canvas (pattern d).** The studio is a card that fills the frame: its controls
+  (Page, Screen size, Rotate, Reset, Open full size) and the size line in a 15rem column at its
+  left, the device in the room beside them. The device is scaled by the room's width and height
+  (`previewScale`; in the flow by the width alone, as before) and placed in its box (absolute,
+  centred), so the box takes its height from the window, never from the device: at 1366 × 657 a
+  phone is drawn at about 50%, at 1920 × 1080 a desktop at 57%. The size line says the scale ("shown
+  at N% to fit"); Open full size shows it at 100%. Text inside the scaled picture is smaller than
+  the floor: it is a picture of a page, labelled as such, as Laptop and Desktop always were. The
+  frame never scrolls; the device's own page scrolls inside it, as on the device.
+- **Resources: a paged list, its editor in a window (pattern a).** One card that fills the frame:
+  the toolbar holds a filter (All, each section with its count, and Removed while a default is
+  removed; in the address as `?section=`), the count and Add resource. Rows are two lines of one
+  height (`min-h-17`: the title with its marks, host and, under All, its section; then the whole
+  description), the five row buttons at the right, paged by `usePagedRows` with the inline Pager in
+  the card's foot (PageUp, PageDown, Home, End across pages). At 1366 × 657 a page holds 4–5 rows, at
+  1920 × 1080 nine. Up and Down move within a section; a row moved past its page's edge brings its
+  page into view and keeps the focus on its move buttons. Add and Edit open the form in a window
+  (Dialog, `picker`) that fits at every size with nothing scrolling; Removed defaults are the
+  filter's last choice, with Restore all. In the flow the form opens in place and Removed defaults
+  are listed at the end, as before.
+- **Matchup notes: one view at a time, paged (pattern a).** The queue's groups are one view switch
+  in the address (`?view=`): Needs re-review, Not written yet, Drafts, Published, All notes, each
+  with its count; the default is the first with something to do (Needs re-review, else Not written
+  yet). The role filter stays beside it, New note at the line's end; the counts and the current
+  patch move to the card's foot beside the pager. One list a view, in the queue's order (opponents,
+  then pairings), one line a row (`min-h-12`: the counts leave out "this season", which the list's
+  note above it says once), paged to what fits: 7–8 rows at 1366 × 768, 12 at 1920 × 1080 (203 lanes
+  are 17–34 pages). No fold grows the page. A changed role starts at page 1; a saved change keeps
+  the page (its row may leave the view).
+  - **The note editor** is a workspace window at the game's width (DetailModal `size="workspace"`,
+    `workspaceWidth="game"`: the window less 1rem above and below, 76rem wide), its parts in tabs
+    (Scope and points, Sources, Preview): the scope on one line, the points two by two, the sources
+    two by two, a point's text as tall as its words (`field-sizing-content`). Four points of 35 words,
+    or six sources, fit at the owner's eight configurations with nothing scrolling inside. **At the
+    floor (1366 × 657)** a full editor keeps one scrolling body (decision 5: its fields cannot fit
+    even in columns there); the default editor (one point, one source) fits. A tab holding a problem
+    is marked, and a refused save opens the first such tab; the problem lines of a refused full
+    editor can make its body scroll until they are fixed.
+  - **The re-review window** fits as it is.
+- **Branding: a sectioned workspace (pattern b).** A 12rem rail of the sections (Name, Images,
+  Background, Colours, Public page) with the Save bar at its foot, and one section beside it, in the
+  address (`?section=`; the old `#brand-…` anchors name their section; `/admin/public-access`
+  redirects to `?section=public#brand-public`). The form is one: every section stays mounted, so a
+  draft survives a switch; the rail marks a section with unsaved changes (Name, Background, Colours)
+  and Colours while a contrast check fails (Save waits for it); images save on upload and are never
+  marked. Colours fits at the floor by its workspace layout: the title and its line on one line,
+  the fields beside the preview, the eight checks under both in four columns, and a failing field
+  marked by its red edge, its message read out with it (the checks show the message). The rail is
+  the page's own rather than `SectionedWorkspace`'s: the flow is one form whose Save bar sticks
+  across every section, which per-section wrappers would cut short; the Public team page is the
+  panel's last section, 20px under the Save bar in the flow as it was under the panel.
 
 ### All Champions' workspace (27 Nov 2026)
 

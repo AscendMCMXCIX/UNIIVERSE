@@ -2,6 +2,7 @@ import { expect, test, type Locator, type Page } from "./test";
 import { optionLabels, pick } from "./select";
 import { DEFAULT_RESOURCES } from "../src/domain/resources";
 import { memberContext, view } from "./member-account";
+import { FLOOR, OWNER_SIZES, cfg, expectEveryRecord, openAt, region, resizeTo, settled, walkPages } from "./workspace";
 
 /*
   RESOURCES (Player Mode) and its manager (Admin Mode → Platform Settings → Resources). The browser
@@ -302,73 +303,209 @@ test("favourites: the ★ segment is drawn with the page, its count fills from t
   await expect(segment(page, "favourites").getByTestId("resources-index-count")).toHaveText("0");
 });
 
-test("an administrator keeps the library in Admin Mode; members see each change, and a removed default comes back only when restored", async ({ page }, info) => {
-  test.skip(info.project.name !== "desktop", "runs once, on the desktop project");
+/*
+  The manager in both its layouts (docs/RESPONSIVE.md, "One-screen desktop pages", Resources): on a
+  desktop window (the workspace: 1440 × 900) one paged list with a filter in the toolbar, Add and
+  Edit in a window, Removed as the filter's last choice; in a short window (the flow: 1440 × 640,
+  under the gate's 41rem) the sections one under the other, the form in place, Removed defaults at
+  the end. The same story in each, through helpers that reach a section's rows either way.
+*/
+const LAYOUTS = [
+  { name: "the workspace (a desktop window)", size: { width: 1440, height: 900 }, workspace: true },
+  { name: "the flow (a short window)", size: { width: 1440, height: 640 }, workspace: false },
+] as const;
+
+for (const layout of LAYOUTS) {
+  test(`an administrator keeps the library in Admin Mode, in ${layout.name}; members see each change, and a removed default comes back only when restored`, async ({ page }, info) => {
+    test.skip(info.project.name !== "desktop", "runs once, on the desktop project");
+    test.setTimeout(120_000);
+    await blockFavicons(page);
+    await page.setViewportSize(layout.size);
+    await page.goto("/admin/resources");
+    await expect(page.getByTestId("admin-settings-tabs").getByRole("link")).toHaveText(["Branding", "Previews", "Resources", "Matchup notes"]);
+    const manager = page.getByTestId("resources-manager");
+    // The workspace once hydrated (its card's list), or the flow (no [data-workspace]).
+    if (layout.workspace) await expect(page.getByTestId("resources-list")).toBeVisible();
+    else await expect.poll(() => page.evaluate(() => !document.querySelector("[data-workspace]"))).toBe(true);
+    const managed = (title: string) => manager.getByTestId("managed-resource").filter({ has: page.getByText(title, { exact: true }) });
+    /** A section's rows in view: the workspace filters to it (so every row is on its page); the flow shows them all. */
+    const show = async (section: string) => {
+      if (!layout.workspace) return;
+      await page.getByTestId(`resources-filter-${section}`).click();
+      await expect(page.getByTestId(`resources-filter-${section}`)).toHaveAttribute("aria-checked", "true");
+    };
+    const firstIn = (section: string) => (layout.workspace ? manager.getByTestId("managed-resource").first() : manager.locator(`[data-section='${section}'] [data-testid='managed-resource']`).first());
+    const removedRows = async () => {
+      if (layout.workspace) await show("removed");
+      return layout.workspace ? manager.getByTestId("removed-resource") : page.getByTestId("resources-removed").getByTestId("removed-resource");
+    };
+
+    // Add: the address is checked as it is typed; an unsafe one cannot be saved.
+    const site = `ugg${Date.now().toString(36)}.example.com`;
+    await page.getByTestId("resource-add").click();
+    const form = page.getByTestId("resource-form");
+    // In the workspace the form opens in a window, and the list behind it never moves.
+    if (layout.workspace) await expect(page.locator("dialog[open]").getByTestId("resource-form")).toBeVisible();
+    await form.getByTestId("resource-title").fill("U.GG test");
+    await form.getByTestId("resource-url").fill("javascript:alert(1)");
+    await expect(form).toContainText("Only https:// addresses can be added.");
+    await expect(form.getByTestId("resource-save")).toBeDisabled();
+    await form.getByTestId("resource-url").fill(site);
+    await form.getByTestId("resource-description").fill("Builds and tier lists.");
+    // Only the sections offered: the ones that left the defaults take nothing new.
+    expect(await optionLabels(form.getByTestId("resource-section"))).toEqual(["League of Legends", "Summoner's Rift", "ARAM", "Arena", "Esports"]);
+    await pick(form.getByTestId("resource-section"), "sr");
+    await pick(form.getByTestId("resource-icon"), "stats");
+    await form.getByTestId("resource-save").click();
+    await expect(form).toHaveCount(0);
+    // Added: its row in view (the workspace shows the page that holds it).
+    await expect(managed("U.GG test")).toBeVisible();
+    await expect(managed("U.GG test").locator("a")).toHaveAttribute("href", `https://${site}/`);
+
+    // Edit, reorder, hide and remove.
+    await show("arena");
+    await managed("LoLalytics Arena").getByTestId("resource-edit").click();
+    await page.getByTestId("resource-form").getByTestId("resource-title").fill("LoLalytics Arena builds");
+    await page.getByTestId("resource-form").getByTestId("resource-save").click();
+    await expect(managed("LoLalytics Arena builds")).toBeVisible();
+    await show("sr");
+    await managed("LoLalytics").first().getByTestId("resource-up").click();
+    await expect(firstIn("sr")).toContainText("LoLalytics");
+    await show("league");
+    await managed("Patch notes").getByTestId("resource-hide").click();
+    await expect(managed("Patch notes")).toHaveAttribute("data-hidden", "true");
+    await show("esports");
+    await managed("Esports news").getByTestId("resource-remove").click();
+    await page.getByRole("dialog").getByRole("button", { name: "Remove" }).click();
+    await expect(managed("Esports news")).toHaveCount(0);
+    await expect(await removedRows()).toContainText(["Esports news"]);
+
+    // Members see exactly that, after a reload too.
+    await page.goto("/resources");
+    await expect(row(page, "U.GG test")).toBeVisible();
+    await expect(row(page, "LoLalytics Arena builds")).toBeVisible();
+    await expect(row(page, "Patch notes")).toHaveCount(0);
+    await expect(row(page, "Esports news")).toHaveCount(0);
+    await expect(page.locator("[data-section='sr'] [data-testid='resource']").first()).toContainText("LoLalytics");
+    await page.reload();
+    await expect(row(page, "Patch notes")).toHaveCount(0);
+
+    // Back to the defaults as they were: restore, show, rename, move back, remove the added one.
+    await page.goto("/admin/resources");
+    if (layout.workspace) await expect(page.getByTestId("resources-list")).toBeVisible();
+    await (await removedRows()).filter({ hasText: "Esports news" }).getByTestId("resource-restore").click();
+    // The last removed default restored: the workspace's Removed choice goes (back to All); the flow's section goes.
+    if (layout.workspace) await expect(page.getByTestId("resources-filter-removed")).toHaveCount(0);
+    else await expect(page.getByTestId("resources-removed")).toHaveCount(0);
+    await show("esports");
+    await expect(managed("Esports news")).toBeVisible();
+    await show("league");
+    await managed("Patch notes").getByTestId("resource-hide").click();
+    await expect(managed("Patch notes")).toHaveAttribute("data-hidden", "false");
+    await show("arena");
+    await managed("LoLalytics Arena builds").getByTestId("resource-edit").click();
+    await page.getByTestId("resource-form").getByTestId("resource-title").fill("LoLalytics Arena");
+    await page.getByTestId("resource-form").getByTestId("resource-save").click();
+    await show("sr");
+    await managed("LoLalytics").first().getByTestId("resource-down").click();
+    await expect(firstIn("sr")).toContainText("OP.GG");
+    await managed("U.GG test").getByTestId("resource-remove").click();
+    await page.getByRole("dialog").getByRole("button", { name: "Remove" }).click();
+    await expect(managed("U.GG test")).toHaveCount(0);
+    // An added resource is not a default: nothing to restore.
+    if (layout.workspace) await expect(page.getByTestId("resources-filter-removed")).toHaveCount(0);
+    else await expect(page.getByTestId("resources-removed")).toHaveCount(0);
+  });
+}
+
+test("the workspace's list: every resource once across its pages at every size, the filter in the address (Back returns to the one before), the keys across pages, a moved row's page and focus followed, the editor in a window that fits", async ({ page }, info) => {
+  test.skip(info.project.name !== "desktop", "a desktop window's workspace (desktop project only)");
+  test.setTimeout(150_000);
   await blockFavicons(page);
-  await page.goto("/admin/resources");
-  await expect(page.getByTestId("admin-settings-tabs").getByRole("link")).toHaveText(["Branding", "Previews", "Resources", "Matchup notes"]);
+  await openAt(page, "/admin/resources", OWNER_SIZES[0]!, "expanded", { admin: true });
   const manager = page.getByTestId("resources-manager");
-  const managed = (title: string) => manager.getByTestId("managed-resource").filter({ has: page.getByText(title, { exact: true }) });
+  const keys = () => manager.getByTestId("managed-resource").evaluateAll((els) => els.map((e) => e.getAttribute("data-id") ?? ""));
+  const total = Number((await page.getByTestId("resources-filter-all").textContent())!.replace(/\D+/g, ""));
+  // Every resource once, each page full but the last, at the owner's sizes and the floor.
+  for (const size of [...OWNER_SIZES, FLOOR]) {
+    await resizeTo(page, size);
+    const at = cfg(size, "expanded");
+    const walk = await walkPages(page, "list", "resources-next", keys);
+    expectEveryRecord(walk, total, at);
+    // Back to the first page.
+    while ((await region(page, "list"))!.page > 1) await page.getByTestId("resources-prev").click();
+  }
 
-  // Add: the address is checked as it is typed; an unsafe one cannot be saved.
-  const site = `ugg${Date.now().toString(36)}.example.com`;
-  await page.getByTestId("resource-add").click();
-  const form = page.getByTestId("resource-form");
-  await form.getByTestId("resource-title").fill("U.GG test");
-  await form.getByTestId("resource-url").fill("javascript:alert(1)");
-  await expect(form).toContainText("Only https:// addresses can be added.");
-  await expect(form.getByTestId("resource-save")).toBeDisabled();
-  await form.getByTestId("resource-url").fill(site);
-  await form.getByTestId("resource-description").fill("Builds and tier lists.");
-  // Only the sections offered: the ones that left the defaults take nothing new.
-  expect(await optionLabels(form.getByTestId("resource-section"))).toEqual(["League of Legends", "Summoner's Rift", "ARAM", "Arena", "Esports"]);
-  await pick(form.getByTestId("resource-section"), "sr");
-  await pick(form.getByTestId("resource-icon"), "stats");
-  await form.getByTestId("resource-save").click();
-  await expect(managed("U.GG test")).toBeVisible();
-  await expect(managed("U.GG test").locator("a")).toHaveAttribute("href", `https://${site}/`);
+  // The filter is in the address, an entry each: Back returns to the one before, Forward comes back.
+  await resizeTo(page, OWNER_SIZES[1]!);
+  await page.getByTestId("resources-filter-arena").click();
+  await expect(page).toHaveURL(/\?section=arena$/);
+  await expect(manager.getByTestId("managed-resource")).toHaveCount(2);
+  await page.getByTestId("resources-filter-sr").click();
+  await expect(page).toHaveURL(/\?section=sr$/);
+  await page.goBack();
+  await expect(page).toHaveURL(/\?section=arena$/);
+  await expect(page.getByTestId("resources-filter-arena")).toHaveAttribute("aria-checked", "true");
+  await page.goBack();
+  await expect(page).toHaveURL(/\/admin\/resources$/);
+  await expect(page.getByTestId("resources-filter-all")).toHaveAttribute("aria-checked", "true");
+  await page.goForward();
+  await expect(page.getByTestId("resources-filter-arena")).toHaveAttribute("aria-checked", "true");
+  // A link to a filter opens with it.
+  await page.goto("/admin/resources?section=esports");
+  await expect(page.getByTestId("resources-filter-esports")).toHaveAttribute("aria-checked", "true");
+  await expect(manager.getByTestId("managed-resource")).toHaveCount(2);
 
-  // Edit, reorder, hide and remove.
-  await managed("LoLalytics Arena").getByTestId("resource-edit").click();
-  await page.getByTestId("resource-form").getByTestId("resource-title").fill("LoLalytics Arena builds");
-  await page.getByTestId("resource-form").getByTestId("resource-save").click();
-  await expect(managed("LoLalytics Arena builds")).toBeVisible();
-  await managed("LoLalytics").first().getByTestId("resource-up").click();
-  await expect(manager.locator("[data-section='sr'] [data-testid='managed-resource']").first()).toContainText("LoLalytics");
-  await managed("Patch notes").getByTestId("resource-hide").click();
-  await expect(managed("Patch notes")).toHaveAttribute("data-hidden", "true");
-  await managed("Esports news").getByTestId("resource-remove").click();
-  await page.getByRole("dialog").getByRole("button", { name: "Remove" }).click();
-  await expect(managed("Esports news")).toHaveCount(0);
-  await expect(page.getByTestId("resources-removed").getByTestId("removed-resource")).toContainText(["Esports news"]);
-
-  // Members see exactly that, after a reload too.
-  await page.goto("/resources");
-  await expect(row(page, "U.GG test")).toBeVisible();
-  await expect(row(page, "LoLalytics Arena builds")).toBeVisible();
-  await expect(row(page, "Patch notes")).toHaveCount(0);
-  await expect(row(page, "Esports news")).toHaveCount(0);
-  await expect(page.locator("[data-section='sr'] [data-testid='resource']").first()).toContainText("LoLalytics");
-  await page.reload();
-  await expect(row(page, "Patch notes")).toHaveCount(0);
-
-  // Back to the defaults as they were: restore, show, rename, move back, remove the added one.
+  // Three rows a page (the demo's test cookie): the keys turn the pages, the focus following.
+  await page.context().addCookies([{ name: "uniiverse-test-rows-per-page", value: "3", url: page.url() }]);
   await page.goto("/admin/resources");
-  await page.getByTestId("resources-removed").getByTestId("removed-resource").filter({ hasText: "Esports news" }).getByTestId("resource-restore").click();
-  await expect(managed("Esports news")).toBeVisible();
-  await expect(page.getByTestId("resources-removed")).toHaveCount(0);
-  await managed("Patch notes").getByTestId("resource-hide").click();
-  await expect(managed("Patch notes")).toHaveAttribute("data-hidden", "false");
-  await managed("LoLalytics Arena builds").getByTestId("resource-edit").click();
-  await page.getByTestId("resource-form").getByTestId("resource-title").fill("LoLalytics Arena");
-  await page.getByTestId("resource-form").getByTestId("resource-save").click();
-  await managed("LoLalytics").first().getByTestId("resource-down").click();
-  await expect(manager.locator("[data-section='sr'] [data-testid='managed-resource']").first()).toContainText("OP.GG");
-  await managed("U.GG test").getByTestId("resource-remove").click();
-  await page.getByRole("dialog").getByRole("button", { name: "Remove" }).click();
-  await expect(managed("U.GG test")).toHaveCount(0);
-  // An added resource is not a default: nothing to restore.
-  await expect(page.getByTestId("resources-removed")).toHaveCount(0);
+  await settled(page);
+  expect(await region(page, "list")).toMatchObject({ per: 3, page: 1, pages: Math.ceil(total / 3), total });
+  await manager.getByTestId("managed-resource").first().locator("a").focus();
+  await page.keyboard.press("PageDown");
+  await expect.poll(async () => (await region(page, "list"))!.page).toBe(2);
+  await expect(manager.getByTestId("managed-resource").first().locator("a")).toBeFocused();
+  await page.keyboard.press("End");
+  await expect.poll(async () => (await region(page, "list"))!.page).toBe(Math.ceil(total / 3));
+  await page.keyboard.press("Home");
+  await expect.poll(async () => (await region(page, "list"))!.page).toBe(1);
+  await expect(manager.getByTestId("managed-resource").first().locator("a")).toBeFocused();
+
+  // A row moved past its page's edge (the last on page 2, the first of its section, whose rows go on to page 3): the list
+  // shows the page it is on now, and the focus stays on its move buttons (Down, or Up where it can go no further down).
+  await page.getByTestId("resources-next").click();
+  await expect.poll(async () => (await region(page, "list"))!.page).toBe(2);
+  const last = manager.getByTestId("managed-resource").nth(2);
+  await expect(last.getByTestId("resource-down")).toBeEnabled();
+  const id = (await last.getAttribute("data-id"))!;
+  await last.getByTestId("resource-down").click();
+  await expect.poll(async () => (await region(page, "list"))!.page).toBe(3);
+  const moved = manager.locator(`[data-testid=managed-resource][data-id="${id}"]`);
+  await expect(moved).toBeVisible();
+  const focusIn = (key: string) => page.evaluate((k) => (document.activeElement?.closest(`[data-row-key="${k}"]`) ? document.activeElement.getAttribute("data-testid") : null), key);
+  await expect.poll(() => focusIn(id)).toMatch(/^resource-(up|down)$/);
+  // …and back where it was.
+  await moved.getByTestId("resource-up").click();
+  await expect.poll(async () => (await region(page, "list"))!.page).toBe(2);
+  await expect(manager.getByTestId("managed-resource").nth(2)).toHaveAttribute("data-id", id);
+  await expect.poll(() => focusIn(id)).toMatch(/^resource-(up|down)$/);
+
+  // The editor in a window that fits: the list behind it stays as it was.
+  const before = await page.evaluate(() => document.documentElement.scrollHeight);
+  await manager.getByTestId("managed-resource").first().getByTestId("resource-edit").click();
+  const dialog = page.locator("dialog[open]");
+  await expect(dialog.getByTestId("resource-form")).toBeVisible();
+  for (const size of [...OWNER_SIZES, FLOOR]) {
+    await resizeTo(page, size);
+    const box = await dialog.evaluate((d) => ({ top: d.getBoundingClientRect().top, bottom: d.getBoundingClientRect().bottom, scrolls: [...d.querySelectorAll("*")].some((el) => /(auto|scroll)/.test(getComputedStyle(el).overflowY) && el.scrollHeight > el.clientHeight + 1) }));
+    expect(box.top, `${cfg(size, "expanded")}: the editor inside the window`).toBeGreaterThanOrEqual(0);
+    expect(box.bottom, `${cfg(size, "expanded")}: the editor inside the window`).toBeLessThanOrEqual(size[1]);
+    expect(box.scrolls, `${cfg(size, "expanded")}: nothing in the editor scrolls`).toBe(false);
+  }
+  await resizeTo(page, OWNER_SIZES[1]!);
+  expect(await page.evaluate(() => document.documentElement.scrollHeight)).toBe(before);
+  await page.keyboard.press("Escape");
+  await expect(dialog).toHaveCount(0);
 });
 
 test("a member who is not an administrator browses the library but cannot manage it", async ({ page, browser }, info) => {
