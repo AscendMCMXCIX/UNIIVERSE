@@ -1,5 +1,6 @@
 import { expect, test, type Page } from "./test";
 import { openDataStatus } from "./data-status";
+import { inTheFlow } from "./match-history";
 import { optionsOf, pick } from "./select";
 import { AxeBuilder } from "@axe-core/playwright";
 
@@ -320,6 +321,9 @@ test("Match History marks a game's largest multikill, and nothing else", async (
 });
 
 test("Team Matches marks each member's largest multikill beside their K/D/A", async ({ page }) => {
+  // The flow's first 20 games on a desktop (inTheFlow): the workspace's page size, written a moment after the page arrives,
+  // would change the list between the two counts below.
+  await inTheFlow(page);
   await page.goto("/matches");
   await expect(page.getByTestId("together-game").first()).toBeVisible();
   const marks = page.locator("[data-testid='together-multikill']:visible");

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "./test";
+import { FLOW_HEIGHT, inTheFlow } from "./match-history";
 import { pullDown } from "./pull";
 
 /*
@@ -206,7 +207,8 @@ test("desktop: the pinned row's Filters is a 34rem popover with Support whole an
   await page.emulateMedia({ reducedMotion: "reduce" });
   const profile = await teammate(page);
   for (const width of [1440, 1920, 2560]) {
-    await page.setViewportSize({ width, height: 900 });
+    // Just under the one-screen gate (FLOW_HEIGHT, 640px tall): Match History scrolls and its row pins in the flow only.
+    await page.setViewportSize({ width, height: FLOW_HEIGHT });
     await page.goto(`${profile}/matches`);
     await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
     await scrollToEnd(page);
@@ -255,6 +257,8 @@ test("desktop: a choice in the Filters popover stays when it closes (Done, Escap
   test.skip(page.viewportSize()?.width !== 1440, "the popover's own behaviour; one project");
   await page.emulateMedia({ reducedMotion: "reduce" });
   const profile = await teammate(page);
+  // Just under the one-screen gate (inTheFlow): Match History scrolls and its row pins in the flow only.
+  await inTheFlow(page);
   await page.goto("/team");
   await page.goto(`${profile}/matches`);
   await expect(page.getByTestId("match-history")).toHaveAttribute("data-ready", "true");
