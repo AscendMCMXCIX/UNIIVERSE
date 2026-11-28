@@ -75,6 +75,7 @@ Locally, test what the change touches. CI is the full-suite gate (since 28 Nov 2
   - `src/server/actions/guards.test.ts`: every server action, in any `"use server"` module, establishes who is asking before its first other asynchronous step.
   - `src/app/page-guards.test.ts`: every member and admin page calls `requirePageAccess` itself; a layout's check does not protect its pages, which render at the same time.
   - `src/app/client-imports.test.ts`: browser code never reaches server-only code, and large libraries (`zod`) load through `import()` except in the modules it lists with their reasons.
+- **One screen on a desktop:** every page a member or admin works in fits a desktop window, built from the shared modules and held by `e2e/one-screen.spec.ts`, where each page's rows go (docs/RESPONSIVE.md, "One-screen desktop pages").
 - **When a check fails, fix the code, not the check.** A genuine exception goes into the check's own list, with its reason.
 
 ## 8. Review, scope and pace (the owner's instruction of 28 Nov 2026)

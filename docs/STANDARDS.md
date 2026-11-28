@@ -252,12 +252,33 @@ that holds a layout to the window ("one screen", "fits", a row's height) asserts
 measured above the page's own bottom padding, never only "no scroll"; and it runs once more with
 `widenText` (`e2e/wide-text.ts`: every glyph 1% of its size wider, twice the difference of CI's
 browser), so a layout that passes here passes there. A list fitted to the window keeps the guard band
-itself (`fit-rows.tsx`), so its margin does not depend on the test. In a fixed workspace (All
-Champions) the frame fills to `#content`'s bottom padding by construction, so the margin is measured
-inside each card: **from a list's last row to its footer, at least 12px**, the paged list's own guard
-band (`useRowBudget`). It holds everywhere the workspace applies, from 41rem tall (the short form
-under 46rem, 48 in a narrow section) and in the workspace window, with the wider text and a two-season
-header too.
+itself (`fit-rows.tsx`), so its margin does not depend on the test. On every workspace page (All
+Champions the first) the frame fills to `#content`'s bottom padding by construction, so the margin is
+measured inside each card: **from a list's last row to its footer, at least 12px**, the paged list's
+own guard band (`useRowBudget`). It holds everywhere the workspace applies, from 41rem tall and in a
+workspace window, with the wider text too. `e2e/workspace.ts` holds the measure (`fits`, `MARGIN`),
+for every page's spec and the platform's (`e2e/one-screen.spec.ts`).
+
+**One screen on a desktop** (the owner's requirement of 28 Nov 2026; docs/RESPONSIVE.md, "One-screen
+desktop pages"). On a desktop window, at normal zoom, every page a member or an admin works in is one
+screen.
+
+- **What it means:**
+  - the document never scrolls, and no list or panel scrolls on its own;
+  - nothing is clipped or hidden to make it fit (no `overflow: hidden` to conceal, no cut name);
+  - no text goes below the 12px floor;
+  - a long list shows the complete rows that fit and pages the rest, so a shorter window shows fewer
+    rows, never smaller text;
+  - a detail opens in place or in a window that fits, never growing the page.
+- **Where:** the platform's gate (`ws`: a fine pointer, from 80rem wide, at least 41rem tall).
+  Phones, tablets, touch screens and a larger text size keep their scrolling page, unchanged.
+  Long-form reading pages (the privacy policy) keep their scroll.
+- **How:** the shared modules (`ui/workspace.tsx`, `ui/paged-list.tsx`, `ui/paged-grid.tsx`,
+  `ui/sectioned-workspace.tsx`), never a page's own copy.
+- **Checked by:**
+  - `src/app/design-tokens.test.ts`: no workspace class conceals or shrinks;
+  - `e2e/one-screen.spec.ts`: each page at the owner's eight configurations and, where it fits there,
+    the 1366 × 657 floor.
 
 **Page layout.** One frame for every page, so pages differ by their content, not their scaffolding:
 - **The shared frame** (S2c, `app-shell.tsx`): every page sits in one column, at most `--content-wide`
