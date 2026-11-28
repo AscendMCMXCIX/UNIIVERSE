@@ -415,6 +415,16 @@ below-the-fold ones lazily, and keep uploaded brand images small ([HOSTING_USAGE
   page's title (held sideways, one compact bar holding the destinations instead), filters in a
   sheet, lists as rows, games opened over the whole screen; a tablet has its destinations in the
   top bar (MOBILE.md, "Frames by posture").
+- A layout chosen from the room a box has never changes that room. Where scrollbars take room
+  (classic scrollbars: Windows, Linux, a Mac set to always show them), the page's own scrollbar
+  narrows every box while the page scrolls, and what the layout holds decides whether it does: a
+  choice made from a box's width near its bound (a container query, a measure) takes turns with the
+  scrollbar it brings (All Champions' pane and sheet, every 140ms or so, until 28 Nov 2026). Keep the
+  scrollbar's gutter where the page may scroll (`scrollbar-gutter: stable`, All Champions' flow), or
+  hold the choice once made until the box has more room (`paneDecision`), and test it with the
+  browser's scrollbars shown (`ignoreDefaultArgs: ["--hide-scrollbars"]`, as
+  `e2e/all-champions-workspace.spec.ts` and `e2e/section-tabs-scrollbar.spec.ts` do: Playwright
+  hides them by default).
 - Targets are at least 24px everywhere and 44px on touch screens (`pointer-coarse:`,
   `touch-target`, `Button` does it).
 - Focus: every element the keyboard reaches shows the same accent ring (`:focus-visible` in

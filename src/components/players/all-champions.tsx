@@ -18,7 +18,7 @@ import { WIN_RATE_MIN_GAMES, WIN_RATE_TONE_CLASS, winRateSampleNote, winRateTone
 import { SampleNote } from "./sample-note";
 import { ArrowDown, ArrowUp, ArrowUpDown, X } from "lucide-react";
 import { useAddressItem } from "@/components/ui/address-item";
-import { isTyping, keepsEscape, modalOpen, useWindowPosture, useWorkspace, useWorkspaceShort, useWorkspaceShortNarrow } from "@/components/ui/posture";
+import { isTyping, keepsEscape, modalOpen, rootPx, useWindowPosture, useWorkspace, useWorkspaceShort, useWorkspaceShortNarrow } from "@/components/ui/posture";
 import { Pager } from "@/components/ui/pager";
 import { useRowBudget } from "@/components/ui/fit-rows";
 import { pageCount, pageOf, pageRange, usePagedList } from "@/components/ui/row-budget";
@@ -357,26 +357,66 @@ export const WS_PANE_SECTION_REM = 64.75;
  * Where the CSS draws the pane's column: from md in a window taller than 30rem, in a section of
  * PANE_ROOM_REM or more (the flow), and in the workspace in a section of WS_PANE_SECTION_REM or more
  * (all-champions.test.ts holds the classes to the two numbers). The column and the probe useRoomForPane reads
- * carry the same classes, so the page opens the pane exactly where the CSS draws its column, and the
- * sheet or the workspace window everywhere else.
+ * carry the same classes, so the page opens the pane only where the CSS draws its column, and the
+ * sheet or the workspace window everywhere else (and, once one is open, until the section has more
+ * room than when the column went: paneDecision).
  */
 export const PANE_COLUMN_SHOWN = "hidden md:[@media(min-height:30.0625rem)]:@min-[47.5rem]:block ws:hidden! ws:@min-[64.75rem]/section:flex!";
+/** The section's room: its width with the page's own scrollbar or reserved gutter given back (sectionRoom), and the root's size, in px. */
+export interface PaneRoom {
+  room: number;
+  root: number;
+}
+/**
+ * What the page opens now (useRoomForPane), from the CSS's answer (`shown`: the probe is drawn) and the
+ * room the section has, and the room to remember. The pane only where the CSS draws its column; the sheet or
+ * the workspace window where it does not. Once one of them holds a champion (`open`), it stays while the
+ * column comes back with no more room than the section had when the CSS hid it (`held`, the root unchanged):
+ * the page's own scrollbar takes width from the section, and what the page holds decides whether it is
+ * there, so without the hold a pane that made the page scroll narrowed the section past the bound, the
+ * column went, the window or sheet left the page short again, the scrollbar went and the pane came back,
+ * every 140ms or so, the champion mostly not drawn (classic scrollbars, 28 Nov 2026: Demo ADC at 1085 × 768
+ * with the sidebar open; in the workspace, a list's first render before it measures at an 18px root). The
+ * hold only ever keeps the sheet or the window where the CSS would also allow the pane, never the reverse,
+ * so a pane is never opened where its column is hidden. A wider window, the sidebar folded, a zoom out or a
+ * smaller root gives the section more room and the pane takes over.
+ */
+export function paneDecision(shown: boolean, open: boolean, now: PaneRoom, held: PaneRoom | null): { roomy: boolean; held: PaneRoom | null } {
+  if (!shown) return { roomy: false, held: open ? now : null };
+  if (open && held && Math.abs(held.root - now.root) < 0.01 && now.room <= held.room + 0.5) return { roomy: false, held };
+  return { roomy: true, held: null };
+}
+/**
+ * The section's width with the page's own scrollbar (or the gutter kept for it, globals.css) given back: the
+ * window's width less the root's box, which is the room the scrollbar or gutter takes (the root's clientWidth
+ * leaves out a gutter with no scrollbar in it), so the same whether or not the page scrolls.
+ */
+function sectionRoom(section: HTMLElement): number {
+  return section.getBoundingClientRect().width + Math.max(0, window.innerWidth - document.documentElement.getBoundingClientRect().width);
+}
 /**
  * Whether the CSS draws the pane's column now: the probe's display (PANE_COLUMN_SHOWN, beside where
  * the column goes, so the same container answers its queries), read again as the section resizes,
- * the window resizes (a media query, the root's size) or the workspace comes or goes. The CSS's own
- * answer, never a width compared in script: until 28 Nov 2026 the section's rounded clientWidth was
- * compared with the bound less half a pixel, so a section in the half pixel under it (an 18px root at
- * 1525px with the sidebar open, 1165 against 1165.5; a fractional width at a zoom) opened a pane the
+ * the window resizes (a media query, the root's size), the workspace comes or goes or a champion is
+ * opened or closed; and, while a champion is open in the sheet or the workspace window, held there
+ * until the section has more room than when the column went (paneDecision). The CSS's own answer,
+ * never a width compared in script: until 28 Nov 2026 the section's rounded clientWidth was compared
+ * with the bound less half a pixel, so a section in the half pixel under it (an 18px root at 1525px
+ * with the sidebar open, 1165 against 1165.5; a fractional width at a zoom) opened a pane the
  * container query hid, and nothing of the champion opened showed.
  */
-function useRoomForPane(sectionRef: React.RefObject<HTMLElement | null>, probeRef: React.RefObject<HTMLElement | null>, ws: boolean | null): boolean {
+function useRoomForPane(sectionRef: React.RefObject<HTMLElement | null>, probeRef: React.RefObject<HTMLElement | null>, ws: boolean | null, open: boolean): boolean {
   const [roomy, setRoomy] = React.useState(true);
   React.useLayoutEffect(() => {
     const section = sectionRef.current;
     const probe = probeRef.current;
     if (!section || !probe) return;
-    const check = () => setRoomy(getComputedStyle(probe).display !== "none");
+    let held: PaneRoom | null = null;
+    const check = () => {
+      const next = paneDecision(getComputedStyle(probe).display !== "none", open, { room: sectionRoom(section), root: rootPx() }, held);
+      held = next.held;
+      setRoomy(next.roomy);
+    };
     check();
     const observer = new ResizeObserver(check);
     observer.observe(section);
@@ -385,7 +425,7 @@ function useRoomForPane(sectionRef: React.RefObject<HTMLElement | null>, probeRe
       observer.disconnect();
       window.removeEventListener("resize", check);
     };
-  }, [sectionRef, probeRef, ws]);
+  }, [sectionRef, probeRef, ws, open]);
   return roomy;
 }
 
@@ -687,7 +727,8 @@ export function AllChampions({ data, basePath, championsById, playerId, isOwn, i
   const hydrated = React.useSyncExternalStore(subscribeNothing, isClient, notClient);
   const windowed = useWindowPosture();
   const paneRoomRef = React.useRef<HTMLSpanElement>(null);
-  const roomy = useRoomForPane(sectionRef, paneRoomRef, ws);
+  // A champion open in the sheet or the workspace window stays there until the section has more room than when the pane's column went.
+  const roomy = useRoomForPane(sectionRef, paneRoomRef, ws, !!selected);
   const sheet = !!selected && hydrated && (windowed || !roomy);
   // The workspace's section too narrow for the pane (1280–1355px with the sidebar open, a larger root): the workspace window.
   // Touch phones, tablets and the flow (windowed, or a section under PANE_ROOM_REM) keep the sheet.

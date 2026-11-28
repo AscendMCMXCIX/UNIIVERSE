@@ -188,6 +188,9 @@ describe("overlays are sized by the box they are fixed to", () => {
 
   it("the modal believes a scrollbar of at most 24px", () => {
     expect(code(read("src/components/ui/detail-modal.tsx"))).toContain("Math.min(24, window.innerWidth - root.clientWidth)");
+    // A gutter kept with no scrollbar in it (All Champions in the flow): read from the root's box, capped the same, and given up while the window is open.
+    expect(code(read("src/components/ui/detail-modal.tsx"))).toContain("Math.min(24, window.innerWidth - root.getBoundingClientRect().width)");
+    expect(code(read("src/components/ui/detail-modal.tsx"))).toContain('root.style.scrollbarGutter = "auto";');
   });
 
   it("keyboard-fit measures the screen from the fixed box and believes a keyboard only once a field is typed in", () => {

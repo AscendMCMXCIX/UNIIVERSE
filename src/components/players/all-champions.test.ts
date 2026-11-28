@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import type { ChampionRow } from "@/server/players/overview";
-import { PANE_COLUMN_SHOWN, PANE_ROOM_REM, WS_PANE_SECTION_REM, closesWorkspaceWindow, gamesShare, shareWords, sortChampions, summaryPairs } from "./all-champions";
+import { PANE_COLUMN_SHOWN, PANE_ROOM_REM, WS_PANE_SECTION_REM, closesWorkspaceWindow, gamesShare, paneDecision, shareWords, sortChampions, summaryPairs } from "./all-champions";
 
 const card = (championId: string, games: number, winRate: number | null, mastery: number | null, kda: number | null = null): ChampionRow =>
   ({ championId, role: "MID", selected: { games, winRate }, performance: { kdaRatio: kda, csPerMinute: null }, mastery: mastery === null ? null : { points: mastery } }) as unknown as ChampionRow;
@@ -115,6 +115,30 @@ describe("All Champions' pane and its windows", () => {
     expect(classes).toContain("ws:hidden!");
     expect(classes).toContain(`ws:@min-[${WS_PANE_SECTION_REM}rem]/section:flex!`);
     expect(classes).toHaveLength(4);
+  });
+
+  // The page's own scrollbar takes width from the section, and what the page holds decides whether it is there: until
+  // 28 Nov 2026 a pane that made the page scroll narrowed the section under its bound, the column went, the sheet (or the
+  // workspace window) left the page short again, the scrollbar went and the pane came back, every 140ms or so, with classic
+  // scrollbars. Once a champion is open in the sheet or the window it stays there until the section has more room than
+  // when the column went; the pane still opens only where the CSS draws its column.
+  it("keeps the sheet or the window while the column comes back with no more room, and never opens a pane its CSS hides", () => {
+    const at = (room: number, root = 16) => ({ room, root });
+    // Nothing open: the CSS's answer, as it is, and nothing remembered.
+    expect(paneDecision(true, false, at(765), null)).toEqual({ roomy: true, held: null });
+    expect(paneDecision(false, false, at(765), null)).toEqual({ roomy: false, held: null });
+    expect(paneDecision(true, false, at(765), at(765)), "closing forgets the hold").toEqual({ roomy: true, held: null });
+    // The column goes with a champion open: the sheet, and the room it went at.
+    expect(paneDecision(false, true, at(765), null)).toEqual({ roomy: false, held: at(765) });
+    // It comes back only because the page's scrollbar went (the same room, a fraction more or less): the sheet stays.
+    expect(paneDecision(true, true, at(765), at(765))).toEqual({ roomy: false, held: at(765) });
+    expect(paneDecision(true, true, at(765.4), at(765))).toEqual({ roomy: false, held: at(765) });
+    expect(paneDecision(true, true, at(760), at(765))).toEqual({ roomy: false, held: at(765) });
+    // More room (a wider window, the sidebar folded, a zoom out) or another root (a text size): the pane.
+    expect(paneDecision(true, true, at(767), at(765))).toEqual({ roomy: true, held: null });
+    expect(paneDecision(true, true, at(1166, 16), at(1166, 18))).toEqual({ roomy: true, held: null });
+    // Never a pane where the CSS hides its column, whatever was remembered.
+    for (const held of [null, at(765), at(2000)]) expect(paneDecision(false, true, at(3000), held).roomy).toBe(false);
   });
 
   // Escape goes innermost first (an opponent's games back to the grid, then the window); every other request closes it at

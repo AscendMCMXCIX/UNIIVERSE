@@ -379,18 +379,26 @@ const COMPACT_AFTER_PX = 8;
  * The scrollbar's width is the window's less the root's, believed only up to a scrollbar's width
  * (24px): a phone has none, and a browser that reports the window's size wrongly cannot push the
  * page sideways. Returns the way back.
+ *
+ * A page that keeps the scrollbar's gutter while it does not scroll (All Champions in the flow,
+ * globals.css) gives it up the same way: the gutter goes with the scrollbar and the padding takes
+ * its place, so the window's dimmed backdrop covers the whole screen (it stops at a gutter, which
+ * stayed as an undimmed strip at the screen's edge) and the page does not move. The gutter's width
+ * is read from the root's box: the root's clientWidth leaves out a gutter with no scrollbar in it.
  */
 export function lockPage(): () => void {
   const root = document.documentElement;
   const body = document.body;
-  const gap = Math.min(24, window.innerWidth - root.clientWidth);
-  const prev = { overflow: root.style.overflow, overscroll: root.style.overscrollBehavior, padding: body.style.paddingRight };
+  const gap = Math.max(Math.min(24, window.innerWidth - root.clientWidth), Math.min(24, window.innerWidth - root.getBoundingClientRect().width));
+  const prev = { overflow: root.style.overflow, overscroll: root.style.overscrollBehavior, gutter: root.style.scrollbarGutter, padding: body.style.paddingRight };
   root.style.overflow = "hidden";
   root.style.overscrollBehavior = "none";
+  root.style.scrollbarGutter = "auto";
   if (gap > 0) body.style.paddingRight = `${gap}px`;
   return () => {
     root.style.overflow = prev.overflow;
     root.style.overscrollBehavior = prev.overscroll;
+    root.style.scrollbarGutter = prev.gutter;
     body.style.paddingRight = prev.padding;
   };
 }

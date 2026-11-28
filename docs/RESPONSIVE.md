@@ -710,7 +710,11 @@ not by trimming padding but by its layout. It has two postures (docs/MATCHUPS.md
   (`@custom-variant ws` and `ws-host` in globals.css; `WS_QUERY` in `ui/posture.ts` is the same
   string, and `posture.test.ts` compares them). A media query cannot read the page's own root (a
   larger browser text size, an emulated one), so once hydrated `useWorkspace()` also asks
-  `innerHeight ≥ 41 × the root`; the section carries `data-workspace` while both may hold
+  `innerHeight ≥ 41 × the root`, again on a resize, a query's change and a change of the root's size
+  alone (the browser's text size changed while the page is open: Chrome fires no media query's change
+  event for it, so until 28 Nov 2026 a text size set back from 18 to 16px at 1356 × 800 left the page
+  in the flow until the next resize; a 1rem probe's ResizeObserver tells it now, `onRootSize` in
+  `ui/posture.ts`); the section carries `data-workspace` while both may hold
   (the server's HTML and the hydration render, where the CSS decides) and loses it where they do not,
   and every `ws:` class needs that attribute. `ws-host:` makes the shell's main, its frame and the
   profile's column flex columns (the column `w-full`: a flex item with `mx-auto` shrinks to its
@@ -819,7 +823,39 @@ the probe is drawn (`useRoomForPane`), so a pane is never opened where its colum
 28 Nov 2026 the page compared the section's rounded `clientWidth` with each bound less half a pixel:
 a section in that half pixel (an 18px root at 1525px with the sidebar open, 1165px of 1165.5; a zoom's
 fractional widths, 1035.56px of 1036, or 759.56px of the flow's 760) opened a pane the container
-query hid, and nothing of the champion opened showed. A narrower workspace section
+query hid, and nothing of the champion opened showed.
+
+**The page's own scrollbar** (28 Nov 2026). Where scrollbars take room (classic scrollbars: Chrome
+and Firefox on Windows and Linux, a Mac set to always show them; Playwright hides them unless told),
+the page's scrollbar takes its width from the section, and what the page holds decides whether it is
+there. Until 28 Nov 2026 nothing held the decision against it: in the flow with the sidebar open, a pane
+that made the page scroll (the narrowed list's taller rows) narrowed the section under 47.5rem, the
+column went, the sheet left the page short again, the scrollbar went, the probe was drawn again and
+the pane came back, about every 140ms, the champion not drawn in 80–98% of samples (Demo ADC at
+1085 × 768, 1085 × 900 and 1088 × 800, Demo Sub at 1082 × 1024, Demo Top's Ambessa linked at 1080 × 1790,
+a portrait screen; 760–768px sections against 750–758 with the scrollbar). In the workspace a list's
+first render, before it measures, can bring a scrollbar for a moment (an 18px root at 1526 × 900, Sion's
+games against Nasus opening, 1166px of 1165.5): the pane and the workspace window took turns the same way.
+Two things hold it now:
+- **The gutter.** With a mouse (`pointer: fine`), All Champions in the flow keeps the scrollbar's
+  gutter (`scrollbar-gutter: stable` on the root, globals.css), so the section is one width whether or
+  not the page scrolls: the bound is the window's own (1090px with the sidebar open where the
+  scrollbar is 10px, the thin width) and opening a champion never moves the page sideways. Touch
+  screens have overlay scrollbars, which take no room; the workspace never scrolls and keeps its full
+  width (no gutter: `ws-host`). A window over the page (the sheet, a game's window) gives the gutter up
+  while it is open and pads the body by its width instead (`lockPage`), because a modal's backdrop
+  stops at a gutter and left an undimmed strip at the screen's edge. Chrome reserves the gutter under
+  Playwright's hidden scrollbars too, so the browser tests' flow on this page has a desktop's classic width.
+- **The hold** (`paneDecision`, everywhere): once a champion is open in the sheet or the workspace
+  window, it stays there while the column comes back with no more room than the section had when the
+  CSS hid it (its width with the page's scrollbar or gutter given back, the root unchanged). A wider
+  window, the sidebar folded, a zoom out or a smaller root gives it more room and the pane takes over;
+  closing the champion forgets the hold. It only ever keeps the sheet or the window where the CSS would
+  also allow the pane, never the reverse, so the CSS and the page still never disagree about a pane. It
+  settles the workspace's moment of scrollbar (at an 18px root at 1526 × 900 Sion vs Nasus may stay in
+  the window, whole, rather than the pane) and any browser without `scrollbar-gutter`.
+
+A narrower workspace section
 (1280–1355px with the sidebar open, or a larger root) opens it in **the workspace window** over the paged list (28 Nov 2026; until then
 the sheet, whose unpaged preview, about 2,014px with Ambessa, scrolled inside it: 535px of room at
 1280 × 689). It is `PreviewWindow size="workspace"` with `headless`: a modal window as tall as the
@@ -907,7 +943,11 @@ inside it, every record through its pages, Escape, Back, ‹ › and Tab kept in
 (1355px open the window, 1356 the pane), its live region kept across ‹ › (the champion stepped to is
 read) and its surface the pane's (`panel-depth`'s shadow, not `shadow-2xl`'s), the pane's two bounds
 in the half pixel under them (an 18px root at 1524–1526px, 1035.56 and 759.56px sections: the window
-or the sheet, never nothing), a click beside the window with an opponent open (closed at once, the
+or the sheet, never nothing), both bounds with classic scrollbars (two seconds of samples, one
+presentation drawn in each, the section never moving sideways, an open window's backdrop over the whole
+screen: the sheet for Demo ADC at 1085 × 768, Demo Sub at 1082 × 1024, Demo Top at 1085 × 768 and its
+Ambessa linked at 1080 × 1790, the pane from 1090; the window at 1355 and the pane at 1356 with Darius
+open, Sion vs Nasus at 1356 × 736, an 18px root at 1526 × 900 and 800), a click beside the window with an opponent open (closed at once, the
 focus on the row) and Escape with the focus on nothing (the grid first), the focus after ‹ › twice
 (Escape, Close and Back on the champion shown's row) and across the window's handover to the pane
 (P1's ›, an opponent's cell, the opponents' pager),
