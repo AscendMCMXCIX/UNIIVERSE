@@ -130,7 +130,7 @@ export function workspaceNow(): boolean {
 */
 const rootListeners = new Set<() => void>();
 let rootProbe: { el: HTMLElement; observer: ResizeObserver } | null = null;
-function onRootSize(onChange: () => void): () => void {
+export function onRootSize(onChange: () => void): () => void {
   rootListeners.add(onChange);
   if (!rootProbe && typeof ResizeObserver === "function" && document.body) {
     const el = document.createElement("div");

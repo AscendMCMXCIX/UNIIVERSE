@@ -662,30 +662,6 @@ p a.text-accent {
     scrollbar-color: var(--color-border-strong) transparent;
   }
 }
-/*
-  All Champions in the flow keeps the page's scrollbar gutter, with a mouse (docs/RESPONSIVE.md, "All Champions'
-  workspace", the page's scrollbar): where scrollbars take room (Chrome and Firefox on Windows and Linux, a Mac set
-  to always show them), the section is as wide whether or not the page scrolls, so the pane's bound (47.5rem of
-  the section: PANE_COLUMN_SHOWN in all-champions.tsx) never moves with what the page holds. Until 28 Nov 2026 a
-  pane that made the page scroll took a scrollbar's width from the section, narrowed it under the bound and gave
-  way to the sheet, which left the page short again: the two took turns every 140ms or so (Demo ADC at 1085 × 768,
-  the sidebar open), the champion mostly not drawn. The pane's own hold (paneDecision) settles it anywhere this
-  cannot apply; the gutter also keeps the pane from showing for a moment before the sheet takes its place.
-  - Touch screens (a coarse pointer: phones, tablets) have overlay scrollbars, which take no room: nothing here.
-  - The workspace never scrolls and keeps its full width (no gutter, `ws-host`).
-  - A window over the page gives the gutter up while it is open, the body padded by its width instead
-    (lockPage in ui/detail-modal.tsx): a modal's backdrop stops at a gutter, which stayed an undimmed strip.
-  - Chrome reserves it under Playwright's hidden scrollbars too (their thin width, 10px): the browser tests'
-    flow on this page has a desktop's classic width.
-*/
-@media (pointer: fine) {
-  html:has([data-testid="all-champions"]) {
-    scrollbar-gutter: stable;
-    @variant ws-host {
-      scrollbar-gutter: auto;
-    }
-  }
-}
 
 /* Motion: short, purposeful transitions; everything collapses to instant for reduced motion. */
 /*

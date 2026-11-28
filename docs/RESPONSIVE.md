@@ -816,44 +816,47 @@ sample)"), so the win rate stays with its record. It is 36px, or 40 where the re
 76px before 28 Nov 2026 and its games had 2 a page instead of 6).
 
 The preview is a pane only where the section holds the opponents' two columns beside the list
-(64.75rem: `WS_PANE_SECTION_REM`, 1356px wide with the sidebar open). Which one is the CSS's own
-decision: the pane's column and a probe beside it carry the same classes (`PANE_COLUMN_SHOWN`, the
-flow's 47.5rem and the workspace's 64.75rem container queries), and the page opens the pane only where
-the probe is drawn (`useRoomForPane`), so a pane is never opened where its column is hidden. Until
-28 Nov 2026 the page compared the section's rounded `clientWidth` with each bound less half a pixel:
-a section in that half pixel (an 18px root at 1525px with the sidebar open, 1165px of 1165.5; a zoom's
-fractional widths, 1035.56px of 1036, or 759.56px of the flow's 760) opened a pane the container
-query hid, and nothing of the champion opened showed.
+(64.75rem: `WS_PANE_SECTION_REM`, 1356px wide with the sidebar open; the flow's bound is 47.5rem,
+`PANE_ROOM_REM`). One decision draws it (`paneFits`, `useRoomForPane`), from **the section's room**:
+its width with the page's own scrollbar given back (the scrollbar's width while the page scrolls, or
+the padding `lockPage` gives the body in its place while a window holds the page), so the room, and
+the answer, are the same whether or not the page scrolls, and however the window was reached:
+- **The flow** scrolls, and what it holds decides whether it does, so the pane needs its 47.5rem with
+  the page's scrollbar in the section: room − the scrollbar's width where scrollbars are classic
+  (Chrome and Firefox on Windows and Linux, a Mac set to always show them: 10px for the thin
+  scrollbars in Chrome on Linux; read from an invisible box that always has one). With the sidebar
+  open that is the pane from 1090px where the scrollbar is 10px (1080 where scrollbars overlay the
+  page: phones, tablets, a Mac's default, Playwright's hidden scrollbars), the sheet below it.
+- **The workspace** never scrolls, so it allows for none: the window to 1355px, the pane from 1356,
+  with any scrollbar. A moment's scrollbar there (a list's first render before it measures) no longer
+  takes the pane away.
 
-**The page's own scrollbar** (28 Nov 2026). Where scrollbars take room (classic scrollbars: Chrome
-and Firefox on Windows and Linux, a Mac set to always show them; Playwright hides them unless told),
-the page's scrollbar takes its width from the section, and what the page holds decides whether it is
-there. Until 28 Nov 2026 nothing held the decision against it: in the flow with the sidebar open, a pane
-that made the page scroll (the narrowed list's taller rows) narrowed the section under 47.5rem, the
-column went, the sheet left the page short again, the scrollbar went, the probe was drawn again and
-the pane came back, about every 140ms, the champion not drawn in 80–98% of samples (Demo ADC at
-1085 × 768, 1085 × 900 and 1088 × 800, Demo Sub at 1082 × 1024, Demo Top's Ambessa linked at 1080 × 1790,
-a portrait screen; 760–768px sections against 750–758 with the scrollbar). In the workspace a list's
-first render, before it measures, can bring a scrollbar for a moment (an 18px root at 1526 × 900, Sion's
-games against Nasus opening, 1166px of 1165.5): the pane and the workspace window took turns the same way.
-Two things hold it now:
-- **The gutter.** With a mouse (`pointer: fine`), All Champions in the flow keeps the scrollbar's
-  gutter (`scrollbar-gutter: stable` on the root, globals.css), so the section is one width whether or
-  not the page scrolls: the bound is the window's own (1090px with the sidebar open where the
-  scrollbar is 10px, the thin width) and opening a champion never moves the page sideways. Touch
-  screens have overlay scrollbars, which take no room; the workspace never scrolls and keeps its full
-  width (no gutter: `ws-host`). A window over the page (the sheet, a game's window) gives the gutter up
-  while it is open and pads the body by its width instead (`lockPage`), because a modal's backdrop
-  stops at a gutter and left an undimmed strip at the screen's edge. Chrome reserves the gutter under
-  Playwright's hidden scrollbars too, so the browser tests' flow on this page has a desktop's classic width.
-- **The hold** (`paneDecision`, everywhere): once a champion is open in the sheet or the workspace
-  window, it stays there while the column comes back with no more room than the section had when the
-  CSS hid it (its width with the page's scrollbar or gutter given back, the root unchanged). A wider
-  window, the sidebar folded, a zoom out or a smaller root gives it more room and the pane takes over;
-  closing the champion forgets the hold. It only ever keeps the sheet or the window where the CSS would
-  also allow the pane, never the reverse, so the CSS and the page still never disagree about a pane. It
-  settles the workspace's moment of scrollbar (at an 18px root at 1526 × 900 Sion vs Nasus may stay in
-  the window, whole, rather than the pane) and any browser without `scrollbar-gutter`.
+The server's HTML and the hydration render draw the pane's column from the CSS's container queries
+(`PANE_COLUMN_SHOWN`, the same two bounds); once hydrated the column the page opens carries
+`PANE_COLUMN_OPEN` and the split grid its two columns whatever the queries say, so the CSS never hides
+a pane the page opened. Until 28 Nov 2026 the page compared the section's rounded
+`clientWidth` with each bound less half a pixel: a section in that half pixel (an 18px root at 1525px
+with the sidebar open, 1165px of 1165.5; a zoom's fractional widths, 1035.56px of 1036, or 759.56px of
+the flow's 760) opened a pane the container query hid, and nothing of the champion opened showed. The
+room is read from the layout's own fractional widths.
+
+Why the scrollbar is given back (28 Nov 2026). Where scrollbars are classic, the page's scrollbar takes
+its width from the section, and what the page holds decides whether it is there. While the column's
+container query decided, in the flow with the sidebar open a pane that made the page scroll (the
+narrowed list's taller rows) narrowed the section under 47.5rem, the column went, the sheet left the
+page short again, the scrollbar went and the pane came back, about every 140ms, the champion not drawn
+in 80–98% of samples (Demo ADC at 1085 × 768, 1085 × 900 and 1088 × 800, Demo Sub at 1082 × 1024, Demo
+Top's Ambessa linked at 1080 × 1790, a portrait screen; 760–768px sections against 750–758 with the
+scrollbar). In the workspace an opponent's games' first render at an 18px root (1526 × 900, Sion vs
+Nasus, 1166px of 1165.5) overflowed for a moment, its scrollbar hid the column and the window took the
+pane's place. Two earlier answers were dropped: keeping the scrollbar's gutter on the page
+(`scrollbar-gutter: stable`) shifted the page 10px between the profile's tabs and took the gutter out
+of `100vw`, which moved html's clamped root between the flow and the workspace (the page took turns
+between them 50 times in 3s at an 18 or 20px text size near the 41rem gate); holding the sheet once the
+column went kept it where a fresh load shows the pane (a taller window, the sidebar unfolded, a gutter's
+width of steps). The cost of the rule: with classic scrollbars, a flow window in the scrollbar's width
+under the bound (1080–1089px with the sidebar open) opens the sheet even where the page would not have
+scrolled beside the pane.
 
 A narrower workspace section
 (1280–1355px with the sidebar open, or a larger root) opens it in **the workspace window** over the paged list (28 Nov 2026; until then
@@ -944,10 +947,13 @@ inside it, every record through its pages, Escape, Back, ‹ › and Tab kept in
 read) and its surface the pane's (`panel-depth`'s shadow, not `shadow-2xl`'s), the pane's two bounds
 in the half pixel under them (an 18px root at 1524–1526px, 1035.56 and 759.56px sections: the window
 or the sheet, never nothing), both bounds with classic scrollbars (two seconds of samples, one
-presentation drawn in each, the section never moving sideways, an open window's backdrop over the whole
-screen: the sheet for Demo ADC at 1085 × 768, Demo Sub at 1082 × 1024, Demo Top at 1085 × 768 and its
-Ambessa linked at 1080 × 1790, the pane from 1090; the window at 1355 and the pane at 1356 with Darius
-open, Sion vs Nasus at 1356 × 736, an 18px root at 1526 × 900 and 800), a click beside the window with an opponent open (closed at once, the
+presentation drawn in each, the section one width, an open window's backdrop over the whole screen:
+the sheet for Demo ADC at 1085 × 768, Demo Sub at 1082 × 1024, Demo Top at 1085 × 768 and its Ambessa
+linked at 1080 × 1790, the pane from 1090; the presentation a fresh load gives after a taller window
+(1200 × 470 → 900), a step back across the bound (1095 → 1089 → 1090) and the sidebar unfolded (1089
+→ 1090); the window at 1355 and the pane at 1356 with Darius open, both ways, no padding behind the
+window, Sion vs Nasus at 1356 × 736, an 18px root at 1526 × 900 and 800; the posture held with an 18
+and a 20px text size near the 41rem gate; no gutter in the flow), a click beside the window with an opponent open (closed at once, the
 focus on the row) and Escape with the focus on nothing (the grid first), the focus after ‹ › twice
 (Escape, Close and Back on the champion shown's row) and across the window's handover to the pane
 (P1's ›, an opponent's cell, the opponents' pager),
