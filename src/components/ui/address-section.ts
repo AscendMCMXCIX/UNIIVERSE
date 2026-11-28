@@ -21,7 +21,7 @@ const here = () => `${window.location.pathname}${window.location.search}${window
  * so the first paint shows it. `ids` may change (a choice that comes and goes with its rows): a
  * choice no longer offered is the first.
  */
-export function useAddressSection(ids: readonly string[], { initial = null, param = "section" }: { initial?: string | null; param?: string } = {}): [string, (id: string) => void] {
+export function useAddressSection(ids: readonly string[], { initial = null, param = "section" }: { initial?: string | null; param?: string } = {}): [string, (id: string, o?: { replace?: boolean }) => void] {
   const [chosen, setChosen] = React.useState(() => initialSection(initial, ids));
   const current = ids.includes(chosen) ? chosen : (ids[0] ?? "");
   const latest = React.useRef(ids);
@@ -47,10 +47,11 @@ export function useAddressSection(ids: readonly string[], { initial = null, para
     window.addEventListener("popstate", onPop);
     return () => window.removeEventListener("popstate", onPop);
   }, [param]);
+  // `replace`: the address the page was opened at, read another way (an old #hash naming a section), not a reader's step.
   const choose = React.useCallback(
-    (id: string) => {
+    (id: string, o: { replace?: boolean } = {}) => {
       if (id === now.current) return;
-      window.history.pushState(null, "", sectionHref(here(), id, latest.current, param));
+      window.history[o.replace ? "replaceState" : "pushState"](null, "", sectionHref(here(), id, latest.current, param));
       now.current = id;
       setChosen(id);
     },

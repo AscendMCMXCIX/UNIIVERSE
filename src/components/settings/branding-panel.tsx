@@ -1,8 +1,8 @@
 "use client";
 
 import * as React from "react";
-import { useRouter } from "next/navigation";
-import { CheckCircle2, ImageUp, RotateCcw, Trash2, XCircle } from "lucide-react";
+import { usePathname, useRouter } from "next/navigation";
+import { AlertCircle, CheckCircle2, ImageUp, RotateCcw, Trash2, XCircle } from "lucide-react";
 import { BRAND_LIMITS, BRAND_RECOMMENDED_BYTES, BRAND_UPLOAD_CHUNK_BYTES, brandThemeVars, checkContrast, DEFAULT_BACKDROP_LEVEL, DEFAULT_BRANDING, DEFAULT_COLOURS, logoSrc, logoStillSrc, backgroundSrc, appBackgroundSrc, type BrandAssetKind, type BrandColours, type Branding } from "@/domain/branding";
 import { finishBrandUploadAction, removeBrandAssetAction, resetBrandingAction, saveBrandingAction } from "@/server/actions/branding";
 import { BrandImage } from "@/components/brand-image";
@@ -14,6 +14,11 @@ import { toast } from "@/components/ui/toast";
 import { backdropCss } from "@/lib/backdrop";
 import { cn } from "@/lib/cn";
 import { SectionIndex } from "@/components/ui/section-index";
+import { useAddressSection } from "@/components/ui/address-section";
+import { sectionHref } from "@/components/ui/sectioned-workspace";
+import { subTabClass } from "@/components/ui/sub-tabs";
+import { useWorkspaceMarks } from "@/components/ui/workspace";
+import { isPlainClick } from "@/lib/back-to-top";
 
 const COLOUR_FIELDS: Array<{ key: keyof BrandColours; label: string; hint: string }> = [
   { key: "accent", label: "Primary accent", hint: "Buttons, links, the active page" },
@@ -220,10 +225,10 @@ function BackdropSetting({ level, saved, hasArtwork, disabled, onChange }: { lev
 }
 
 /** A miniature of the app in the chosen colours, so changes can be judged before saving. */
-function Preview({ form }: { form: Branding }) {
+function Preview({ form, className }: { form: Branding; className?: string }) {
   const vars = { "--color-accent": form.accent, ...brandThemeVars(form) } as React.CSSProperties;
   return (
-    <div className="overflow-hidden rounded-panel border border-border" style={vars} data-testid="brand-preview">
+    <div className={cn("overflow-hidden rounded-panel border border-border", className)} style={vars} data-testid="brand-preview">
       <div className="flex min-h-48 bg-bg" style={{ backgroundImage: `radial-gradient(ellipse 80% 60% at 50% 120%, color-mix(in srgb, ${form.accent2 ?? DEFAULT_COLOURS.accent2} 25%, transparent), transparent 70%)` }}>
         <div className="hidden w-40 shrink-0 flex-col gap-1 border-r border-border bg-bg-elevated p-3 sm:flex">
           <div className="mb-2 flex items-center gap-2">
@@ -252,7 +257,24 @@ function Preview({ form }: { form: Branding }) {
   );
 }
 
-/** Admin → Branding: names, images and colours, with a live preview. */
+/*
+  Admin → Branding: names, images and colours, with a live preview.
+
+  On a desktop window (the one-screen workspace, docs/RESPONSIVE.md, "One-screen desktop pages",
+  Branding) a sectioned workspace: a rail of the sections (Name, Images, Background, Colours, Public
+  page) at the left, the Save bar at its foot, and one section at a time beside it, in the address
+  as ?section= (an entry each, so Back returns to the one before; the old #brand-… addresses name
+  their section). The form is one: every section stays mounted, so a switch loses nothing; the rail
+  marks a section holding unsaved changes, and Colours while a contrast check fails (Save waits for
+  it). Images save on upload and are never marked. In the workspace Colours lays its checks out in four
+  columns under the fields and the preview, and a failing field is marked by its red edge, its message read out with
+  it (the checks beside it show the message), so the section fits at the floor. Elsewhere (phones, tablets, touch, short
+  windows, a larger text size) the page is as before: the sections one under the other, the Save bar
+  pinned while there is something to save, the phone's section index.
+
+  The rail is the page's own rather than SectionedWorkspace's: its flow is one form whose Save bar
+  sticks across every section, which the shared component's per-section wrappers would cut short.
+*/
 const BRANDING_SECTIONS = [
   { id: "brand-name", label: "Name" },
   { id: "brand-images", label: "Images" },
@@ -261,8 +283,45 @@ const BRANDING_SECTIONS = [
   { id: "brand-public", label: "Public page" },
 ];
 
-export function BrandingPanel({ branding, canEdit }: { branding: Branding; canEdit: boolean }) {
+/** The workspace's sections, by their address (?section=) and the old in-page anchors that name them. */
+const WS_SECTIONS = [
+  { id: "name", anchor: "brand-name", title: "Name" },
+  { id: "images", anchor: "brand-images", title: "Images" },
+  { id: "background", anchor: "brand-backdrop", title: "Background" },
+  { id: "colours", anchor: "brand-colours", title: "Colours" },
+  { id: "public", anchor: "brand-public", title: "Public page" },
+] as const;
+type WsSection = (typeof WS_SECTIONS)[number]["id"];
+const WS_IDS = WS_SECTIONS.map((x) => x.id);
+
+/** Where a section stands in the workspace's grid: the second column, both rows; the others hidden there. */
+const sectionPlace = (on: boolean) => cn("ws:col-start-2 ws:row-span-2 ws:row-start-1 ws:self-start", !on && "ws:hidden");
+
+export function BrandingPanel({ branding, canEdit, publicPage, section: initialSection = null }: { branding: Branding; canEdit: boolean; /** The Public team page section (the page's server markup). */ publicPage?: React.ReactNode; /** The page's own ?section= (the server's), so the first paint shows it. */ section?: string | null }) {
   const router = useRouter();
+  const pathname = usePathname();
+  const marks = useWorkspaceMarks();
+  const [current, choose] = useAddressSection(WS_IDS, { initial: initialSection });
+  const wsRoot = React.useRef<HTMLDivElement>(null);
+  const focusAfter = React.useRef<string | null>(null);
+  // An old address (#brand-colours, /admin/public-access's #brand-public) names its section in the workspace.
+  React.useLayoutEffect(() => {
+    const named = WS_SECTIONS.find((x) => `#${x.anchor}` === window.location.hash);
+    if (named && !new URLSearchParams(window.location.search).has("section")) choose(named.id, { replace: true });
+  }, [choose]);
+  // The section the reader chose takes the focus once shown (an in-page link's jump does: jumpToAnchor), so a screen reader lands in it.
+  React.useLayoutEffect(() => {
+    const id = focusAfter.current;
+    if (!id || id !== current) return;
+    focusAfter.current = null;
+    const el = wsRoot.current?.querySelector<HTMLElement>(`[data-ws-section="${id}"]`);
+    if (!el) return;
+    if (!el.hasAttribute("tabindex")) {
+      el.setAttribute("tabindex", "-1");
+      el.addEventListener("blur", () => el.removeAttribute("tabindex"), { once: true });
+    }
+    el.focus({ preventScroll: true });
+  });
   const [form, setForm] = React.useState<Branding>(branding);
   const [saved, setSaved] = React.useState<Branding>(branding);
   const [busy, setBusy] = React.useState(false);
@@ -286,12 +345,60 @@ export function BrandingPanel({ branding, canEdit }: { branding: Branding; canEd
     router.refresh();
   };
   const setColour = (key: keyof BrandColours, value: string | null) => setForm((f) => ({ ...f, [key]: key === "accent" ? (value ?? DEFAULT_COLOURS.accent) : value }));
+  // The rail's markers: unsaved changes per section (the form's fields compared with the saved ones), and Colours' failing checks.
+  const differs = (keys: ReadonlyArray<keyof Branding>) => keys.some((k) => JSON.stringify(form[k]) !== JSON.stringify(saved[k]));
+  const marker: Record<WsSection, { unsaved?: boolean; error?: boolean }> = {
+    name: { unsaved: differs(["productName", "teamName", "shortName", "tagline"]) },
+    images: {},
+    background: { unsaved: differs(["backdropLevel"]) },
+    colours: { unsaved: differs(COLOUR_FIELDS.map((f) => f.key)), error: unreadable.length > 0 },
+    public: {},
+  };
+  const place = (id: WsSection) => ({ "data-ws-section": id, "data-current": id === current || undefined, className: sectionPlace(id === current) });
 
   return (
-    <div className="space-y-6" data-testid="branding-panel">
+    <div ref={wsRoot} className="space-y-6 ws:grid ws:min-h-0 ws:flex-1 ws:grid-cols-[12rem_minmax(0,1fr)] ws:grid-rows-[minmax(0,1fr)_auto] ws:gap-x-6 ws:gap-y-4 ws:space-y-0" data-testid="branding-panel" data-section={marks.workspace ? current : undefined} {...marks.attrs}>
+      {/* The workspace: the sections' rail (the flow has the phone's index below and every section stacked). */}
+      <nav aria-label="Branding sections" className="hidden ws:col-start-1 ws:row-start-1 ws:flex ws:flex-col ws:items-start ws:gap-1" data-testid="branding-rail">
+        {WS_SECTIONS.map((x) => {
+          const on = x.id === current;
+          const m = marker[x.id];
+          return (
+            <a
+              key={x.id}
+              href={sectionHref(pathname || "/admin/branding", x.id, WS_IDS)}
+              onClick={(e) => {
+                if (!isPlainClick(e)) return;
+                e.preventDefault();
+                focusAfter.current = x.id;
+                choose(x.id);
+                if (on) focusAfter.current = null;
+              }}
+              aria-current={on ? "page" : undefined}
+              className={subTabClass(on)}
+              data-testid="branding-rail-link"
+              data-target={x.id}
+            >
+              {x.title}
+              {m.error ? (
+                <>
+                  <AlertCircle className="h-4 w-4 shrink-0 text-bad" aria-hidden data-testid="branding-rail-error" />
+                  <span className="sr-only">, has an error</span>
+                </>
+              ) : null}
+              {m.unsaved ? (
+                <>
+                  <span className="h-2 w-2 shrink-0 rounded-full bg-warn" aria-hidden data-testid="branding-rail-unsaved" />
+                  <span className="sr-only">, unsaved changes</span>
+                </>
+              ) : null}
+            </a>
+          );
+        })}
+      </nav>
       {/* Phones: the form is several screens long, so its sections are one tap away (the overhaul's S9c). */}
       <SectionIndex label="Branding sections" items={BRANDING_SECTIONS} className="md:hidden" testId="branding-index" clipLineDots />
-      <section id="brand-name" className="space-y-3 panel-depth rounded-panel border border-border bg-surface p-4 sm:p-5">
+      <section id="brand-name" {...place("name")} className={cn("space-y-3 panel-depth rounded-panel border border-border bg-surface p-4 sm:p-5", place("name").className)}>
         <h2 className="text-base font-semibold">Name</h2>
         <div className="grid min-w-0 gap-3 sm:grid-cols-2 xl:grid-cols-4">
           <div>
@@ -317,7 +424,7 @@ export function BrandingPanel({ branding, canEdit }: { branding: Branding; canEd
         </div>
       </section>
 
-      <section id="brand-images" className="space-y-3">
+      <section id="brand-images" {...place("images")} className={cn("space-y-3", place("images").className)}>
         <div>
           <h2 className="text-base font-semibold">Images</h2>
           <p className="mt-1 text-xs text-fg-subtle" data-testid="brand-images-limits">
@@ -331,13 +438,14 @@ export function BrandingPanel({ branding, canEdit }: { branding: Branding; canEd
         </div>
       </section>
 
-      <div id="brand-backdrop">
+      <div id="brand-backdrop" {...place("background")}>
       <BackdropSetting level={form.backdropLevel} saved={saved.backdropLevel} hasArtwork={!!form.assets.appBackground} disabled={!canEdit} onChange={(backdropLevel) => setForm((f) => ({ ...f, backdropLevel }))} />
       </div>
 
-      <section id="brand-colours" className="space-y-4 panel-depth rounded-panel border border-border bg-surface p-4 sm:p-5">
+      <section id="brand-colours" {...place("colours")} className={cn("space-y-4 panel-depth rounded-panel border border-border bg-surface p-4 sm:p-5 ws:space-y-3 ws:p-4", place("colours").className)}>
         <div className="flex flex-wrap items-start justify-between gap-x-4 gap-y-2">
-          <div className="min-w-0">
+          {/* In the workspace the title and its line on one line. */}
+          <div className="min-w-0 ws:flex ws:flex-wrap ws:items-baseline ws:gap-x-3">
             <h2 className="text-base font-semibold">Colours</h2>
             <p className="text-sm text-fg-muted">Text stays light, so backgrounds and panels must stay dark enough to read.</p>
           </div>
@@ -347,8 +455,9 @@ export function BrandingPanel({ branding, canEdit }: { branding: Branding; canEd
             </Button>
           ) : null}
         </div>
-        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)]">
-          <ul className="space-y-2.5 @container">
+        {/* In the workspace: the fields beside the preview, the checks under both in four columns, so the section fits a short window. */}
+        <div className="grid gap-5 lg:grid-cols-[minmax(0,1fr)_minmax(0,1fr)] ws:gap-y-3">
+          <ul className="space-y-2.5 @container ws:space-y-1.5">
             {COLOUR_FIELDS.map((f) => {
               const value = form[f.key] ?? DEFAULT_COLOURS[f.key];
               const custom = form[f.key] !== null && form[f.key] !== DEFAULT_COLOURS[f.key];
@@ -361,23 +470,29 @@ export function BrandingPanel({ branding, canEdit }: { branding: Branding; canEd
                     <div className="text-sm font-medium text-fg">{f.label}</div>
                     <div className="text-xs text-fg-muted">{f.hint}</div>
                   </div>
-                  <div className="w-28 shrink-0 @max-[14rem]:w-auto @max-[14rem]:min-w-0 @max-[14rem]:flex-1 @max-[14rem]:shrink">
-                    <Input aria-label={`${f.label} hex`} disabled={!canEdit} value={value} onChange={(e) => /^#[0-9a-f]{6}$/i.test(e.target.value) && setColour(f.key, e.target.value.toLowerCase())} maxLength={7} className="font-mono md:pointer-fine:h-9" />
+                  <div className="w-28 shrink-0 ws:w-24 @max-[14rem]:w-auto @max-[14rem]:min-w-0 @max-[14rem]:flex-1 @max-[14rem]:shrink">
+                    <Input aria-label={`${f.label} hex`} aria-invalid={check && !check.ok ? true : undefined} aria-describedby={check && !check.ok ? `colour-${f.key}-problem` : undefined} disabled={!canEdit} value={value} onChange={(e) => /^#[0-9a-f]{6}$/i.test(e.target.value) && setColour(f.key, e.target.value.toLowerCase())} maxLength={7} className="font-mono md:pointer-fine:h-9 ws:aria-invalid:border-bad" />
                   </div>
                   <button type="button" disabled={!canEdit || !custom} onClick={() => setColour(f.key, null)} className="grid h-9 w-9 place-items-center rounded-md text-fg-subtle hover:bg-surface-2 hover:text-fg disabled:cursor-not-allowed disabled:text-fg-disabled disabled:hover:bg-transparent disabled:hover:text-fg-disabled pointer-coarse:h-11 pointer-coarse:w-11" aria-label={`Reset ${f.label} to default`} title="Reset to default">
                     <RotateCcw className="h-4 w-4" />
                   </button>
-                  {check && !check.ok ? <p className="w-full text-xs text-bad">{check.message}</p> : null}
+                  {/* In the workspace the field is marked (its edge in red) and its message is read out with it: the checks beside the fields show it, so the section fits a short window. */}
+                  {check && !check.ok ? (
+                    <p id={`colour-${f.key}-problem`} className="w-full text-xs text-bad ws:sr-only">
+                      {check.message}
+                    </p>
+                  ) : null}
                 </li>
               );
             })}
           </ul>
-          <div className="space-y-3">
-            <Preview form={form} />
-            <ul className="space-y-1 text-xs" aria-label="Contrast checks">
+          <div className="space-y-3 ws:contents ws:space-y-0">
+            {/* As tall as itself beside the fields (a grid item would stretch to their height). */}
+            <Preview form={form} className="ws:self-start" />
+            <ul className="space-y-1 text-xs ws:col-span-2 ws:grid ws:grid-cols-4 ws:gap-x-4 ws:gap-y-1 ws:space-y-0" aria-label="Contrast checks">
               {checks.map((c) => (
                 <li key={c.what} className={cn("flex items-center gap-1.5", c.ok ? "text-fg-muted" : "text-bad")}>
-                  {c.ok ? <CheckCircle2 className="h-3.5 w-3.5 text-good" /> : <XCircle className="h-3.5 w-3.5" />} {c.message}
+                  {c.ok ? <CheckCircle2 className="h-3.5 w-3.5 shrink-0 text-good" /> : <XCircle className="h-3.5 w-3.5 shrink-0" />} {c.message}
                 </li>
               ))}
             </ul>
@@ -388,7 +503,8 @@ export function BrandingPanel({ branding, canEdit }: { branding: Branding; canEd
       {canEdit ? (
         // One compact row. It stays pinned above the tab bar only while there is something to save,
         // so on a phone it never covers the form for nothing; otherwise it sits at the end.
-        <div className={cn("z-10 flex flex-wrap items-center gap-2 rounded-panel border border-border bg-bg-elevated/95 p-2 shadow-lg backdrop-blur sm:p-3", dirty || busy ? "sticky bottom-tabbar md:bottom-4" : "relative")} data-testid="branding-actions">
+        // In the workspace it stands at the rail's foot, seen from every section (nothing scrolls there, so it pins nothing).
+        <div className={cn("z-10 flex flex-wrap items-center gap-2 rounded-panel border border-border bg-bg-elevated/95 p-2 shadow-lg backdrop-blur sm:p-3 ws:col-start-1 ws:row-start-2 ws:mb-0 ws:self-end", publicPage ? "mb-5" : null, dirty || busy ? "sticky bottom-tabbar md:bottom-4" : "relative")} data-testid="branding-actions">
           <Button variant="primary" onClick={() => void save()} disabled={busy || !dirty || unreadable.length > 0} wrap data-testid="branding-save">
             {busy ? "Saving…" : (
               <>
@@ -404,6 +520,8 @@ export function BrandingPanel({ branding, canEdit }: { branding: Branding; canEd
           </span>
         </div>
       ) : null}
+      {/* The Public team page (the page's own markup): 20px under the Save bar in the flow, as it was under the panel. */}
+      {publicPage ? <div {...place("public")}>{publicPage}</div> : null}
     </div>
   );
 }
