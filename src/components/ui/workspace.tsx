@@ -100,6 +100,11 @@ export function useWorkspaceSection(): WorkspaceMarks | null {
   return React.useContext(MarksContext);
 }
 
+/** Gives a section's marks to what it holds (WorkspaceSection and SectionedWorkspace do): usePagedRows and usePagedGrid read `paged` from it. */
+export function WorkspaceMarksProvider({ marks, children }: { marks: WorkspaceMarks; children?: React.ReactNode }) {
+  return <MarksContext.Provider value={marks}>{children}</MarksContext.Provider>;
+}
+
 type Tag = "section" | "div" | "article" | "main";
 
 /**
