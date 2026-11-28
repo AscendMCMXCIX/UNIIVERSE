@@ -202,6 +202,27 @@ test("a member's OP.GG profile: a small link beside their profile link, on the c
     await tab.close();
     // The click opened OP.GG, not the game.
     await expect(card.getByTestId("match-row")).toHaveAttribute("aria-expanded", "false");
+    // In the one-screen workspace (the desktop's window) no name is cut: one as wide as a Riot name can be (16 wide letters, none
+    // to break at; made in the page, as no account here has one) takes a second line beside its arrow, PlayerLink's own
+    // truncation taking the workspace's wrap (team-composition.tsx, WS_NAME).
+    if (info.project.name === "desktop") {
+      await expect(page.getByTestId("match-history")).toHaveAttribute("data-workspace", "");
+      const link = you.getByTestId("player-link");
+      await link.evaluate((el) => {
+        const walk = document.createTreeWalker(el, NodeFilter.SHOW_TEXT);
+        for (let n = walk.nextNode(); n; n = walk.nextNode())
+          if (n.textContent!.trim()) {
+            n.nodeValue = "MMMMMMMMMMMMMMMM";
+            return;
+          }
+      });
+      const long = await link.evaluate((el) => ({ cut: el.scrollWidth > el.clientWidth + 0.5, lines: Math.round(el.getBoundingClientRect().height / parseFloat(getComputedStyle(el).lineHeight)) }));
+      expect(long.cut, "the member's long name whole beside its arrow").toBe(false);
+      expect(long.lines, "on a second line").toBeGreaterThanOrEqual(2);
+      await expect(opgg).toBeVisible();
+      const [name, arrowBox] = [(await link.boundingBox())!, (await opgg.boundingBox())!];
+      expect(arrowBox.x, "the arrow after the name").toBeGreaterThanOrEqual(name.x + name.width - 0.5);
+    }
   }
 
   // The opened game: the name opens the profile; beside it the same OP.GG link, in the tab order.
