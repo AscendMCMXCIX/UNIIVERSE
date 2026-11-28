@@ -2026,7 +2026,7 @@ async function workspacePageFacts(page, kind, name) {
   });
   pass("workspace", `${kind}: ${name} is a workspace page that does not scroll (${at.height}px of ${at.window}), nothing in it scrolling`, at.workspace && at.height <= at.window && at.scrollers === 0, at);
   const whole = at.regions.every((r) => r.per >= 1 && r.page >= 1 && r.page <= r.pages && r.pages === Math.max(1, Math.ceil(r.total / r.per)));
-  pass("workspace", `${kind}: ${name}'s pages hold every row (pages = total / per, rounded up)`, at.regions.length > 0 && whole, at.regions);
+  pass("workspace", `${kind}: ${name}: the pages hold every row (pages = total / per, rounded up)`, at.regions.length > 0 && whole, at.regions);
 }
 
 /**
@@ -2044,7 +2044,7 @@ async function workspaceGame(page, kind, name, slug, open, context) {
   pass("games", `${kind}: ${name} opens a game in the workspace's game window over the list`, shown && size?.size === "workspace" && size?.width === "game", size);
   pass("games", `${kind}: ${name} opens nothing under the card`, (await page.getByTestId("match-expanded").count()) === 0, await page.getByTestId("match-expanded").count());
   const address = page.url();
-  pass("games", `${kind}: ${name}'s open game is in the address (?match=)`, /[?&]match=/.test(address), address.replace(base, ""));
+  pass("games", `${kind}: ${name}: the open game is in the address (?match=)`, /[?&]match=/.test(address), address.replace(base, ""));
   if (shown) {
     await page.waitForFunction(() => document.querySelector("dialog[open] [data-testid=match-breakdown]")?.getAttribute("data-timeline") !== "loading", null, { timeout: 20_000 }).catch(() => undefined);
     for (const v of fitVerdicts({ kind, at: await page.evaluate(readFit) })) check("games", v.name, v.status, v.detail);
@@ -2056,7 +2056,7 @@ async function workspaceGame(page, kind, name, slug, open, context) {
       const length = await page.evaluate(() => history.length);
       await next.click();
       const moved = await page.waitForFunction((b) => location.href !== b, before, { timeout: 10_000 }).then(() => true, () => false);
-      pass("games", `${kind}: ${name}'s Next shows the next game in the window, the address replaced (no new entry)`, moved && (await page.evaluate(() => history.length)) === length, { moved, length });
+      pass("games", `${kind}: ${name}: Next shows the next game in the window, the address replaced (no new entry)`, moved && (await page.evaluate(() => history.length)) === length, { moved, length });
     }
   }
   if (context) {
