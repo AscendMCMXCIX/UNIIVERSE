@@ -913,6 +913,10 @@ What a fold opens in the flow, in the workspace, each the flow's own markup outs
 `cardRef`) and destructure the result (`const { shown, regionProps, … } = usePagedRows(…)`): the
 React compiler's lint refuses refs read from the hook's result object during render.
 
+**A stack margin under a section** (a parent's `space-y-*` and a closed dialog after the section,
+drawn nowhere) leaves the section that much short of the frame's foot, and the list's margin to its
+footer with it: such a parent takes `ws-host:space-y-0` (Accounts' page).
+
 **Elsewhere**
 
 - **`fit-rows.tsx`, `useRowBudget`:** unchanged by default. `mode: "cumulative"` counts rows of
@@ -1063,6 +1067,28 @@ Warnings), Diagnostics, Environment and Riot compliance (Demo data too on an emp
 - **Tests:** `e2e/system-health-workspace.spec.ts` (each section, Back, `#compliance` open, the
   windows fitting with no inner scroll and growing nothing, the flow outside the gate); the platform
   spec's rows (each section, and both windows open).
+
+### Personal data, Accounts and Access levels (28 Nov 2026)
+
+Users & Permissions' three pages. In the short form (under 46rem tall) the hub's "Admin Mode"
+eyebrow gives its line back (the sidebar and the section tabs above name it).
+
+- **Personal data** (`/admin/people/privacy`): a sectioned workspace beside a quiet rail (Privacy
+  requests, Erase a former member, Erasure records with its count), in the address. Its two folds
+  stay: each still fits open. The records are paged to the room under the actions (the backups' fold
+  and the buttons first there, the records' card to the frame's foot); none in the demo.
+- **Accounts** (`/admin/people`): its groups are one list paged to the room under the search row
+  (`usePagedRows`, cumulative: a page draws its rows in their groups, each group's heading again on
+  every page it is on), the inline Pager in its foot; Profiles without an account are a group like
+  the others there (no fold). An empty group's "Nobody yet." is a line of the list; the range counts
+  people. A person opened from another page keeps the list on that page; a search goes to page 1.
+  It was 36px over at 1366 × 657 on the default demo, and over everywhere with a real team's
+  accounts; it fits at the eight and the floor whatever their number.
+- **Access levels** (`/admin/people/access`): fits by its own layout (10px over at the floor with the
+  sidebar open before the eyebrow gave its line back). More than three base levels (the Owner's own)
+  add a row of cards; see the tracked list.
+- **Tests:** `e2e/people-workspace.spec.ts` (sections, Back, the folds open, every account
+  on exactly one page, a person's page kept, the flow outside the gate); the platform spec's rows.
 
 ### All Champions' workspace (27 Nov 2026)
 

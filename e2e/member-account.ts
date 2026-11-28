@@ -62,6 +62,18 @@ export async function setBaseAccess(admin: Page, username: string, level: string
   await expect(person.getByTestId("access-summary")).toContainText(level);
 }
 
+/** Accounts' paged list (a desktop window): its Next page until `row` is drawn or the last page is shown; nothing where it is not paged. */
+export async function turnUntilDrawn(admin: Page, row: Locator) {
+  const next = admin.getByTestId("people-next");
+  for (let n = 0; n < 30; n++) {
+    if (await row.isVisible()) return;
+    if (!(await next.isVisible()) || (await next.isDisabled())) return;
+    const page = await admin.locator("[data-ws-region=list]").getAttribute("data-page");
+    await next.click();
+    await expect(admin.locator("[data-ws-region=list]")).not.toHaveAttribute("data-page", page ?? "");
+  }
+}
+
 /**
  * Opens a person's view from Users & Permissions → Accounts (the page already open): finds them
  * and presses their row, until the window shows (the row works once the page has hydrated).
@@ -71,6 +83,8 @@ export async function openPerson(admin: Page, text: string, rowTestId = "admin-p
   // The search finds names and usernames: "@name" searches for the name, "(you)" searches for nothing.
   await admin.getByTestId("people-search").fill(text.startsWith("(") ? "" : text.replace(/^@/, ""));
   const row = admin.getByTestId(rowTestId).filter({ hasText: text }).first();
+  // On a desktop window the list is paged (docs/RESPONSIVE.md, "One-screen desktop pages": Accounts): turn its pages until the row is drawn.
+  await turnUntilDrawn(admin, row);
   const view = admin.getByTestId("person-view");
   await expect(async () => {
     await row.click({ timeout: 2_000 });

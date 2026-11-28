@@ -48,8 +48,8 @@ interface OneScreenRow extends FitsOptions {
   - at the eight and the floor: Players, Champion Intel (empty, and with a champion), My Profile
     without a profile of one's own, a profile's Accounts, All Champions' list, Admin's Data and Audit;
   - at the eight, not the floor: Team Overview (33px over with the sidebar open, 6 folded),
-    Leaderboards (87px), Admin's Accounts (36px), Admin's Access levels (10px with the sidebar open;
-    it fits folded);
+    Leaderboards (87px), Admin's Accounts (36px) and Access levels (10px with the sidebar open), both
+    brought to the floor by lane A2 the same day (Accounts paged, the hub's eyebrow in the short form);
   - a profile's Overview fits from 1440 × 900 only (376–390px over at 1366 × 768, 487–501 at the floor).
 */
 const ROWS: OneScreenRow[] = [
@@ -65,8 +65,34 @@ const ROWS: OneScreenRow[] = [
   { name: "My Profile, no profile of one's own", path: "/overview", at: EIGHT_AND_FLOOR },
   { name: "Profile Accounts", path: "/players/{player}/accounts", at: EIGHT_AND_FLOOR },
   { name: "All Champions, the list", path: "/players/{player}/champions", at: EIGHT_AND_FLOOR, workspace: true, pager: "all-champions-pager", cards: "[data-testid=all-champions-table]", rows: "[data-testid=top-champion]", truncates: "[data-testid=top-champion] .truncate" },
-  { name: "Admin Accounts", path: "/admin/people", admin: true, at: EIGHT },
-  { name: "Admin Access levels", path: "/admin/people/access", admin: true, at: [...EIGHT, { size: FLOOR, side: "collapsed" }] },
+  // Accounts paged to the room under its search row, Access levels fitting by its own layout (lane A2, 28 Nov 2026: the floor too).
+  { name: "Admin Accounts", path: "/admin/people", admin: true, at: EIGHT_AND_FLOOR, workspace: true, pager: "people-pager" },
+  { name: "Admin Access levels", path: "/admin/people/access", admin: true, at: EIGHT_AND_FLOOR, workspace: true },
+  // Personal data, a sectioned workspace (lane A2): each section, and its two folds open.
+  { name: "Admin Personal data, Privacy requests", path: "/admin/people/privacy", admin: true, at: EIGHT_AND_FLOOR, workspace: true },
+  {
+    name: "Admin Personal data, the procedure open",
+    path: "/admin/people/privacy",
+    admin: true,
+    at: EIGHT_AND_FLOOR,
+    workspace: true,
+    then: async (page) => {
+      await page.getByTestId("privacy-procedure").locator("summary").click();
+      await expect(page.getByTestId("privacy-procedure")).toHaveAttribute("open", "");
+    },
+  },
+  { name: "Admin Personal data, Erase a former member", path: "/admin/people/privacy?section=erase", admin: true, at: EIGHT_AND_FLOOR, workspace: true },
+  {
+    name: "Admin Personal data, Erasure records with the backups' fold open",
+    path: "/admin/people/privacy?section=records",
+    admin: true,
+    at: EIGHT_AND_FLOOR,
+    workspace: true,
+    then: async (page) => {
+      await page.getByTestId("privacy-backups").locator("summary").click();
+      await expect(page.getByTestId("privacy-backups")).toHaveAttribute("open", "");
+    },
+  },
   // System Health, a sectioned workspace (lane A2): each section, and page speed's details in their window.
   ...["statuses", "speed", "build", "diagnostics", "environment", "compliance"].map((id) => ({ name: `Admin System Health, ${id}`, path: `/admin/system${id === "statuses" ? "" : `?section=${id}`}`, admin: true, at: EIGHT_AND_FLOOR, workspace: true })),
   {
