@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from "./test";
 import { optionLabels, pick, shownLabel } from "./select";
 import { closeFilterSheet, openFilterBar } from "./filters";
 import { memberContext } from "./member-account";
-import { closeGame, openGame, opensFullScreen, showGamePage, opensInWindow } from "./match-history";
+import { closeGame, openGame, showGamePage, opensInWindow } from "./match-history";
 
 /*
   A profile's Match History → Encounters on the demo roster: a teammate's profile (the in-memory
